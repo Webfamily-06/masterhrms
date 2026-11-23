@@ -204,6 +204,96 @@ export default function DashboardPage() {
     [hrmData?.payrollTrend]
   );
 
+  // 4. Extended SmartHR Leave Type Distribution Donut
+  const leaveDistributionOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: { type: "donut", height: 160 },
+      series: [45, 68, 12],
+      labels: ["Sick Leave", "Casual Leave", "Unpaid"],
+      colors: ["#2563EB", "#0284C7", "#94A3B8"],
+      legend: { show: false },
+      dataLabels: { enabled: false },
+      stroke: { width: 0 },
+      plotOptions: {
+        pie: {
+          donut: {
+            size: "75%",
+            labels: {
+              show: true,
+              total: { show: true, label: "Total Leaves", fontSize: "11px", color: "#64748B", formatter: () => "125" },
+            },
+          },
+        },
+      },
+    }),
+    []
+  );
+
+  // 5. Extended SmartHR Attendance Trend Stacked Columns
+  const attendanceTrendOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: { type: "bar", height: 210, stacked: true, toolbar: { show: false } },
+      plotOptions: { bar: { columnWidth: "35%", borderRadius: 4 } },
+      series: [
+        { name: "Present", data: [82, 85, 80, 84, 88, 72, 68] },
+        { name: "Late", data: [11, 8, 14, 9, 7, 5, 4] },
+        { name: "Absent", data: [6, 4, 5, 6, 4, 3, 2] },
+      ],
+      xaxis: {
+        categories: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        labels: { style: { colors: "#94A3B8", fontSize: "11px" } },
+      },
+      yaxis: { labels: { style: { colors: "#94A3B8", fontSize: "11px" } } },
+      colors: ["#2563EB", "#F59E0B", "#F43F5E"],
+      grid: { borderColor: "#E2E8F0", strokeDashArray: 3 },
+      legend: { show: false },
+      dataLabels: { enabled: false },
+    }),
+    []
+  );
+
+  // 6. Extended SmartHR Benefits & Payroll Sparklines
+  const benefitsSparkline: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: { type: "area", height: 50, sparkline: { enabled: true } },
+      series: [{ name: "Deductions", data: [25, 32, 28, 42, 38, 52, 56] }],
+      stroke: { curve: "smooth", width: 2 },
+      colors: ["#3B82F6"],
+      fill: { opacity: 0.2 },
+      tooltip: { fixed: { enabled: false }, x: { show: false } },
+    }),
+    []
+  );
+
+  const payrollSparkline: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: { type: "bar", height: 50, sparkline: { enabled: true } },
+      series: [{ name: "Payroll", data: [1.2, 1.4, 1.7, 1.9, 2.1, 2.4] }],
+      colors: ["#10B981"],
+      plotOptions: { bar: { columnWidth: "55%", borderRadius: 2 } },
+      tooltip: { fixed: { enabled: false }, x: { show: false } },
+    }),
+    []
+  );
+
+  // 7. Extended Top Employees Bar Chart
+  const topEmployeesChart: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: { type: "bar", height: 160, toolbar: { show: false } },
+      plotOptions: { bar: { horizontal: true, barHeight: "50%", borderRadius: 4 } },
+      series: [{ name: "Score", data: [98, 95, 92, 89, 87] }],
+      xaxis: {
+        categories: ["Jessica Brown", "Amanda Lewis", "James Clark", "Amanda Davis", "Lisa Anderson"],
+        labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
+      },
+      yaxis: { labels: { style: { colors: "#64748B", fontSize: "11px", fontWeight: 500 } } },
+      colors: ["#2563EB"],
+      grid: { borderColor: "#E2E8F0", strokeDashArray: 3 },
+      dataLabels: { enabled: false },
+    }),
+    []
+  );
+
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
@@ -751,6 +841,468 @@ export default function DashboardPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* ── Extended SmartHR Workforce Operations & Advanced HR Analytics ── */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      <div className="pt-4 border-t border-border/60 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">Advanced Workforce Analytics & Operations</h2>
+            <p className="text-xs text-muted-foreground">Comprehensive overview of attendance trends, training, recruitment pipelines, and approval workflows.</p>
+          </div>
+          <span className="text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20 px-2.5 py-1 rounded-md flex items-center gap-1.5">
+            <i className="ph-bold ph-chart-polar text-sm"></i> Extended HR Intelligence
+          </span>
+        </div>
+
+        {/* ── Row 1: 4 Key Metric Cards from SmartHR ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-card border border-border/80 rounded-xl p-4 shadow-xs">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="size-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-lg">
+                <i className="ph ph-users-three"></i>
+              </div>
+              <p className="text-xs font-semibold text-muted-foreground">Total Employees</p>
+            </div>
+            <div className="flex items-end justify-between">
+              <div>
+                <h3 className="text-2xl font-bold text-foreground">1,848</h3>
+                <p className="text-[11px] text-muted-foreground">Headcount Overview</p>
+              </div>
+              <span className="inline-flex items-center text-xs font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                +18% <i className="ph-bold ph-arrow-up-right ms-0.5"></i>
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-card border border-border/80 rounded-xl p-4 shadow-xs">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="size-10 rounded-full bg-indigo-500/10 text-indigo-600 flex items-center justify-center text-lg">
+                <i className="ph ph-user-plus"></i>
+              </div>
+              <p className="text-xs font-semibold text-muted-foreground">New Joinees</p>
+            </div>
+            <div className="flex items-end justify-between">
+              <div>
+                <h3 className="text-2xl font-bold text-foreground">1,248</h3>
+                <p className="text-[11px] text-muted-foreground">All Departments</p>
+              </div>
+              <span className="inline-flex items-center text-xs font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                +22% <i className="ph-bold ph-arrow-up-right ms-0.5"></i>
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-card border border-border/80 rounded-xl p-4 shadow-xs">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="size-10 rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center text-lg">
+                <i className="ph ph-clock-countdown"></i>
+              </div>
+              <p className="text-xs font-semibold text-muted-foreground">Late Arrivals Today</p>
+            </div>
+            <div className="flex items-end justify-between">
+              <div>
+                <h3 className="text-2xl font-bold text-foreground">12</h3>
+                <p className="text-[11px] text-muted-foreground">Delayed Logins</p>
+              </div>
+              <span className="inline-flex items-center text-xs font-semibold text-rose-600 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full">
+                -16% <i className="ph-bold ph-arrow-down-right ms-0.5"></i>
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-card border border-border/80 rounded-xl p-4 shadow-xs">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="size-10 rounded-full bg-purple-500/10 text-purple-600 flex items-center justify-center text-lg">
+                <i className="ph ph-currency-dollar"></i>
+              </div>
+              <p className="text-xs font-semibold text-muted-foreground">Total Payroll Cost</p>
+            </div>
+            <div className="flex items-end justify-between">
+              <div>
+                <h3 className="text-2xl font-bold text-foreground">$2.4M</h3>
+                <p className="text-[11px] text-muted-foreground">Payroll Outflow</p>
+              </div>
+              <span className="inline-flex items-center text-xs font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                +16% <i className="ph-bold ph-arrow-up-right ms-0.5"></i>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Row 2: Attendance Trend (8 Cols) & Leave Type Distribution (4 Cols) ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div className="bg-card border border-border/80 rounded-xl p-4 lg:col-span-8 shadow-xs">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div className="border-l-2 border-primary pl-2.5">
+                <h3 className="text-sm font-bold text-foreground">Attendance Trend & Compliance</h3>
+                <p className="text-xs text-muted-foreground">Weekly attendance breakdown by punctuality</p>
+              </div>
+              <div className="flex items-center gap-4 text-xs font-medium">
+                <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-blue-600"></span> Present (82)</span>
+                <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-amber-500"></span> Late (11)</span>
+                <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-rose-500"></span> Absent (6)</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+              <div className="md:col-span-9">
+                {isMounted && (
+                  <Suspense fallback={<div className="h-48 flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
+                    <Chart options={attendanceTrendOptions} series={attendanceTrendOptions.series} type="bar" height={210} />
+                  </Suspense>
+                )}
+              </div>
+              <div className="md:col-span-3 space-y-2.5">
+                <div className="p-2.5 bg-muted/40 rounded-lg text-center border border-border/50">
+                  <p className="text-[11px] text-muted-foreground">Max Working Hours</p>
+                  <h4 className="text-base font-bold text-foreground">8.4 hrs</h4>
+                </div>
+                <div className="p-2.5 bg-muted/40 rounded-lg text-center border border-border/50">
+                  <p className="text-[11px] text-muted-foreground">Missed Punches</p>
+                  <h4 className="text-base font-bold text-foreground">12</h4>
+                </div>
+                <div className="p-2.5 bg-muted/40 rounded-lg text-center border border-border/50">
+                  <p className="text-[11px] text-muted-foreground">Weekly Average</p>
+                  <h4 className="text-base font-bold text-foreground">97.2%</h4>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-card border border-border/80 rounded-xl p-4 lg:col-span-4 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="border-l-2 border-primary pl-2.5 mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Leave Distribution</h3>
+                  <p className="text-xs text-muted-foreground">Category breakdown this month</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-center py-2">
+                {isMounted && (
+                  <Suspense fallback={<div className="h-36 flex items-center justify-center text-xs text-muted-foreground">Loading...</div>}>
+                    <Chart options={leaveDistributionOptions} series={leaveDistributionOptions.series} type="donut" height={160} />
+                  </Suspense>
+                )}
+              </div>
+            </div>
+            <div className="space-y-2 pt-2 border-t border-border/50 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <span className="size-2 rounded-full bg-blue-600"></span> Sick Leave
+                </span>
+                <span className="font-semibold px-2 py-0.5 bg-muted rounded-full">45</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <span className="size-2 rounded-full bg-sky-500"></span> Casual Leave
+                </span>
+                <span className="font-semibold px-2 py-0.5 bg-muted rounded-full">68</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <span className="size-2 rounded-full bg-slate-400"></span> Unpaid Leave
+                </span>
+                <span className="font-semibold px-2 py-0.5 bg-muted rounded-full">12</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Row 3: Late Arrivals Today (4 Cols), Recruitment Conversion (4 Cols), Training & Interviews (4 Cols) ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* Late Arrivals Today */}
+          <div className="bg-card border border-border/80 rounded-xl p-4 lg:col-span-4 shadow-xs">
+            <div className="border-l-2 border-primary pl-2.5 mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Late Arrivals Today</h3>
+                <p className="text-xs text-muted-foreground">Real-time attendance anomalies</p>
+              </div>
+              <span className="text-[10px] font-semibold bg-rose-500/10 text-rose-600 border border-rose-500/20 px-2 py-0.5 rounded-full">5 Flags</span>
+            </div>
+            <div className="space-y-2.5">
+              {[
+                { name: "Jessica Brown", dept: "Customer Support", time: "10:15 AM", delay: "+45 Min", avatar: "/ui-assets/avatar-02.jpg" },
+                { name: "Amanda Lewis", dept: "HR Admin", time: "10:25 AM", delay: "+55 Min", avatar: "/ui-assets/avatar-03.jpg" },
+                { name: "James Clark", dept: "Sales", time: "10:00 AM", delay: "+30 Min", avatar: "/ui-assets/avatar-04.jpg" },
+                { name: "Amanda Davis", dept: "Administration", time: "09:40 AM", delay: "+20 Min", avatar: "/ui-assets/avatar-05.jpg" },
+                { name: "Lisa Anderson", dept: "Finance", time: "09:35 AM", delay: "+05 Min", avatar: "/ui-assets/avatar-06.jpg" },
+              ].map((item, idx) => (
+                <div key={idx} className="p-2.5 bg-muted/40 rounded-lg border border-border/40 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <img src={item.avatar} alt={item.name} className="size-8 rounded-full object-cover border border-border shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-foreground truncate">{item.name}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{item.dept}</p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs font-mono font-medium text-foreground">{item.time}</p>
+                    <span className="text-[10px] font-semibold text-rose-600 bg-rose-500/10 px-1.5 py-0.5 rounded">{item.delay}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Recruitment Statistics */}
+          <div className="bg-card border border-border/80 rounded-xl p-4 lg:col-span-4 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="border-l-2 border-primary pl-2.5 mb-3">
+                <h3 className="text-sm font-bold text-foreground">Recruitment Statistics</h3>
+                <p className="text-xs text-muted-foreground">Pipeline efficiency & funnel velocity</p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center py-2 bg-muted/40 rounded-lg border border-border/50 mb-4">
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Applicants</p>
+                  <h4 className="text-lg font-bold text-foreground">487</h4>
+                </div>
+                <div className="border-x border-border/50">
+                  <p className="text-[11px] text-muted-foreground">Hired</p>
+                  <h4 className="text-lg font-bold text-emerald-600">24</h4>
+                </div>
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Avg Time</p>
+                  <h4 className="text-lg font-bold text-foreground">28 days</h4>
+                </div>
+              </div>
+
+              {/* Progress Stack */}
+              <div className="h-2 rounded-full overflow-hidden flex bg-muted mb-4">
+                <div className="h-full bg-primary" style={{ width: "40%" }} title="Applications"></div>
+                <div className="h-full bg-sky-500" style={{ width: "20%" }} title="Screening"></div>
+                <div className="h-full bg-pink-500" style={{ width: "23%" }} title="Interview"></div>
+                <div className="h-full bg-emerald-500" style={{ width: "17%" }} title="Hired"></div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 border border-border/50 rounded-lg">
+                  <p className="font-semibold text-foreground flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-primary"></span> Applications
+                  </p>
+                  <p className="text-muted-foreground text-[11px]">40% - 57 Candidates</p>
+                </div>
+                <div className="p-2 border border-border/50 rounded-lg">
+                  <p className="font-semibold text-foreground flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-sky-500"></span> Screening
+                  </p>
+                  <p className="text-muted-foreground text-[11px]">20% - 36 Candidates</p>
+                </div>
+                <div className="p-2 border border-border/50 rounded-lg">
+                  <p className="font-semibold text-foreground flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-pink-500"></span> Interview
+                  </p>
+                  <p className="text-muted-foreground text-[11px]">23% - 64 Candidates</p>
+                </div>
+                <div className="p-2 border border-border/50 rounded-lg">
+                  <p className="font-semibold text-foreground flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-emerald-500"></span> Hired
+                  </p>
+                  <p className="text-muted-foreground text-[11px]">17% - 18 Employees</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Employees in Training Widget */}
+            <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex items-center justify-between">
+              <div>
+                <p className="text-xs text-indigo-200">Employees in Training</p>
+                <h4 className="text-xl font-bold">80 Trainees</h4>
+              </div>
+              <div className="flex -space-x-2">
+                {["/ui-assets/avatar-01.jpg", "/ui-assets/avatar-02.jpg", "/ui-assets/avatar-03.jpg"].map((src, i) => (
+                  <img key={i} src={src} className="size-8 rounded-full border-2 border-slate-900 object-cover" alt="trainee" />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Upcoming Interviews & Quick Actions */}
+          <div className="bg-card border border-border/80 rounded-xl p-4 lg:col-span-4 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="border-l-2 border-primary pl-2.5 mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Upcoming Interviews</h3>
+                  <p className="text-xs text-muted-foreground">Scheduled talent assessments</p>
+                </div>
+                <Link to="/hr/recruitment/interviews" className="text-xs text-primary font-medium hover:underline">
+                  View All
+                </Link>
+              </div>
+
+              <div className="space-y-3">
+                <div className="p-3 rounded-lg border border-primary/30 bg-primary/5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-foreground">UI/UX Design Interview</p>
+                      <p className="text-[11px] text-muted-foreground font-mono">12:00 PM - 01:50 PM</p>
+                    </div>
+                    <div className="flex -space-x-1.5">
+                      {["/ui-assets/avatar-04.jpg", "/ui-assets/avatar-05.jpg"].map((src, i) => (
+                        <img key={i} src={src} className="size-6 rounded-full border border-card object-cover" alt="interviewer" />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button type="button" onClick={() => toast.info("Meeting added to calendar")} className="btn-sm text-[11px] py-1 border border-border/80 bg-card hover:bg-muted rounded text-foreground font-medium flex items-center justify-center gap-1">
+                      <i className="ph ph-calendar-plus"></i> Calendar
+                    </button>
+                    <button type="button" onClick={() => toast.success("Launching virtual meeting room...")} className="btn-sm text-[11px] py-1 bg-primary text-white hover:bg-primary/90 rounded font-medium flex items-center justify-center gap-1">
+                      <i className="ph ph-video-camera"></i> Join Now
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg border border-border/80 bg-muted/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-foreground">Senior React Developer</p>
+                      <p className="text-[11px] text-muted-foreground font-mono">03:00 PM - 04:00 PM</p>
+                    </div>
+                    <div className="flex -space-x-1.5">
+                      {["/ui-assets/avatar-06.jpg", "/ui-assets/avatar-01.jpg"].map((src, i) => (
+                        <img key={i} src={src} className="size-6 rounded-full border border-card object-cover" alt="interviewer" />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button type="button" onClick={() => toast.info("Meeting added to calendar")} className="btn-sm text-[11px] py-1 border border-border/80 bg-card hover:bg-muted rounded text-foreground font-medium flex items-center justify-center gap-1">
+                      <i className="ph ph-calendar-plus"></i> Calendar
+                    </button>
+                    <button type="button" onClick={() => toast.success("Launching virtual meeting room...")} className="btn-sm text-[11px] py-1 bg-primary text-white hover:bg-primary/90 rounded font-medium flex items-center justify-center gap-1">
+                      <i className="ph ph-video-camera"></i> Join Now
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-border/50">
+              <Link to="/hr/recruitment/candidates" className="w-full py-1.5 text-xs text-center border border-border/80 hover:bg-muted rounded-md text-foreground font-medium block">
+                Manage All Candidates <i className="ph ph-arrow-right text-xs ms-1"></i>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Row 4: Financial Deductions & Payroll Trends (7 Cols) & Pending Approvals (5 Cols) ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div className="lg:col-span-7 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-card border border-border/80 rounded-xl p-4 shadow-xs">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Benefits Deductions</p>
+                    <h3 className="text-2xl font-bold text-foreground">$56K</h3>
+                    <p className="text-[11px] text-muted-foreground">Insurance + 401(k)</p>
+                  </div>
+                  <div className="w-24">
+                    {isMounted && (
+                      <Suspense fallback={<div className="h-12"></div>}>
+                        <Chart options={benefitsSparkline} series={benefitsSparkline.series} type="area" height={50} />
+                      </Suspense>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-card border border-border/80 rounded-xl p-4 shadow-xs">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total Payroll Outflow</p>
+                    <h3 className="text-2xl font-bold text-foreground">$2.4M</h3>
+                    <p className="text-[11px] text-emerald-600 font-semibold inline-flex items-center">
+                      <i className="ph-bold ph-trend-up me-1"></i> +55% Increased
+                    </p>
+                  </div>
+                  <div className="w-24">
+                    {isMounted && (
+                      <Suspense fallback={<div className="h-12"></div>}>
+                        <Chart options={payrollSparkline} series={payrollSparkline.series} type="bar" height={50} />
+                      </Suspense>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Top Employees Performance Bar Chart */}
+            <div className="bg-card border border-border/80 rounded-xl p-4 shadow-xs">
+              <div className="flex items-center justify-between mb-3">
+                <div className="border-l-2 border-primary pl-2.5">
+                  <h3 className="text-sm font-bold text-foreground">Top Employee Performance Rankings</h3>
+                  <p className="text-xs text-muted-foreground">Evaluation metrics for key contributors</p>
+                </div>
+                <span className="text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded">Q4 Evaluated</span>
+              </div>
+              {isMounted && (
+                <Suspense fallback={<div className="h-36 flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
+                  <Chart options={topEmployeesChart} series={topEmployeesChart.series} type="bar" height={160} />
+                </Suspense>
+              )}
+            </div>
+          </div>
+
+          {/* Pending Approvals List */}
+          <div className="bg-card border border-border/80 rounded-xl p-4 lg:col-span-5 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="border-l-2 border-primary pl-2.5 mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Pending Approvals</h3>
+                  <p className="text-xs text-muted-foreground">Leaves & requests awaiting manager review</p>
+                </div>
+                <Link to="/hr/leaves" className="text-xs text-primary font-medium hover:underline">
+                  View All
+                </Link>
+              </div>
+
+              <div className="space-y-3">
+                {[
+                  { name: "Hendrita Merkel", dates: "Jan 10 - Jan 16", duration: "4 days", reason: "Family trip", avatar: "/ui-assets/avatar-03.jpg" },
+                  { name: "Michael Brown", dates: "Jan 03 - Jan 09", duration: "2 days", reason: "Medical appointment", avatar: "/ui-assets/avatar-04.jpg" },
+                  { name: "Daniel Martinez", dates: "Jan 17 - Jan 23", duration: "2 days", reason: "Personal work", avatar: "/ui-assets/avatar-05.jpg" },
+                ].map((item, idx) => (
+                  <div key={idx} className="p-3 bg-muted/40 rounded-lg border border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <img src={item.avatar} alt={item.name} className="size-7 rounded-full object-cover border border-border" />
+                        <p className="text-xs font-bold text-foreground">{item.name}</p>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1"><i className="ph ph-calendar"></i> {item.dates}</span>
+                        <span>•</span>
+                        <span className="inline-flex items-center gap-1"><i className="ph ph-clock"></i> {item.duration}</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">Reason: <span className="text-foreground">{item.reason}</span></p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => toast.success(`Approved request for ${item.name}`)}
+                        className="btn-sm text-[11px] py-1 px-2.5 bg-primary text-white hover:bg-primary/90 rounded font-medium transition-colors"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toast.error(`Declined request for ${item.name}`)}
+                        className="btn-sm text-[11px] py-1 px-2.5 border border-border/80 bg-card hover:bg-muted text-foreground rounded font-medium transition-colors"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-border/50 text-center">
+              <p className="text-xs text-muted-foreground">Showing 3 of {pendingLeaves || 8} requests pending your authorization</p>
+            </div>
           </div>
         </div>
       </div>

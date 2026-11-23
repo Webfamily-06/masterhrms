@@ -1015,17 +1015,26 @@ export function DreamsSidebar({
                     "cursor-pointer",
                     openMenus.dashboards && "subdrop",
                     [
-                      "/hrm-dashboard",
                       "/tenant/dashboard",
+                      "/me/dashboard",
+                      "/employee-dashboard",
+                      "/deals-dashboard",
+                      "/leads-dashboard",
+                      "/hrm-dashboard",
+                      "/payroll-dashboard",
+                      "/recruitment-dashboard",
+                      "/attendance-dashboard",
+                      "/finance-dashboard",
+                      "/it-admin-dashboard",
+                      "/asset-dashboard",
+                      "/support-dashboard",
+                      "/help-desk-dashboard",
                       "/inventory-dashboard",
                       "/crm-dashboard",
                       "/pos-dashboard",
-                      "/finance-dashboard",
                       "/sales-dashboard",
                       "/procurement-dashboard",
                       "/project-dashboard",
-                      "/support-dashboard",
-                      "/it-admin-dashboard",
                       "/analytics",
                     ].includes(currentPath) && "active"
                   )}
@@ -1037,24 +1046,112 @@ export function DreamsSidebar({
                 <ul style={{ display: !isMini && openMenus.dashboards ? "block" : "none" }}>
                   <li>
                     <Link
+                      to="/tenant/dashboard"
+                      onClick={onCloseMobile}
+                      className={cn((currentPath === "/tenant/dashboard" || currentPath === "/tenant") && "active")}
+                    >
+                      Admin Dashboard
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/me/dashboard"
+                      onClick={onCloseMobile}
+                      className={cn((currentPath === "/me/dashboard" || currentPath === "/employee-dashboard") && "active")}
+                    >
+                      Employee Dashboard
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/deals-dashboard"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/deals-dashboard" && "active")}
+                    >
+                      Deals Dashboard
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/leads-dashboard"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/leads-dashboard" && "active")}
+                    >
+                      Leads Dashboard
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
                       to="/hrm-dashboard"
                       onClick={onCloseMobile}
                       className={cn((currentPath === "/hrm-dashboard" || currentPath === "/dashboard") && "active")}
                     >
-                      HRM Dashboard
+                      HR Dashboard
                     </Link>
                   </li>
-                  {(isTenantAdmin || isSuperAdmin) && (
-                    <li>
-                      <Link
-                        to="/tenant/dashboard"
-                        onClick={onCloseMobile}
-                        className={cn((currentPath === "/tenant/dashboard" || currentPath === "/tenant") && "active")}
-                      >
-                        Tenant Dashboard
-                      </Link>
-                    </li>
-                  )}
+                  <li>
+                    <Link
+                      to="/payroll-dashboard"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/payroll-dashboard" && "active")}
+                    >
+                      Payroll Dashboard
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/recruitment-dashboard"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/recruitment-dashboard" && "active")}
+                    >
+                      Recruitment Dashboard
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/attendance-dashboard"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/attendance-dashboard" && "active")}
+                    >
+                      Attendance Dashboard
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/finance-dashboard"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/finance-dashboard" && "active")}
+                    >
+                      Finance Dashboard
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/it-admin-dashboard"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/it-admin-dashboard" && "active")}
+                    >
+                      IT Admin Dashboard
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/asset-dashboard"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/asset-dashboard" && "active")}
+                    >
+                      Asset Dashboard
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/support-dashboard"
+                      onClick={onCloseMobile}
+                      className={cn((currentPath === "/support-dashboard" || currentPath === "/help-desk-dashboard") && "active")}
+                    >
+                      Help Desk Dashboard
+                    </Link>
+                  </li>
                   <li>
                     <Link
                       to="/inventory-dashboard"
@@ -1084,15 +1181,6 @@ export function DreamsSidebar({
                   </li>
                   <li>
                     <Link
-                      to="/finance-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/finance-dashboard" && "active")}
-                    >
-                      Finance Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
                       to="/sales-dashboard"
                       onClick={onCloseMobile}
                       className={cn(currentPath === "/sales-dashboard" && "active")}
@@ -1116,24 +1204,6 @@ export function DreamsSidebar({
                       className={cn(currentPath === "/project-dashboard" && "active")}
                     >
                       Project Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/support-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/support-dashboard" && "active")}
-                    >
-                      Support Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/it-admin-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/it-admin-dashboard" && "active")}
-                    >
-                      IT Admin Dashboard
                     </Link>
                   </li>
                   <li>

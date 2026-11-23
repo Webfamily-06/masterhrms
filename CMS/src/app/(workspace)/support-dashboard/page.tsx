@@ -98,6 +98,61 @@ export default function SupportDashboardPage() {
   const supSpark3 = useMemo(() => createSparkOptions("#059669"), []);
   const supSpark4 = useMemo(() => createSparkOptions("#6A1B9A"), []);
 
+  // 2b. SmartHR Tickets By Status Donut
+  const smartStatusOptions = useMemo<any>(() => ({
+    chart: { type: "donut", height: 210, fontFamily: "inherit" },
+    series: [653, 342, 185, 67],
+    labels: ["Open", "In Progress", "On Hold", "Closed"],
+    colors: ["#0d6efd", "#06b6d4", "#f59e0b", "#8b5cf6"],
+    stroke: { width: 0 },
+    legend: { show: false },
+    dataLabels: { enabled: false },
+    plotOptions: {
+      pie: {
+        donut: {
+          size: "72%",
+          labels: {
+            show: true,
+            total: { show: true, label: "Total Tickets", fontSize: "11px", color: "#64748B", formatter: () => "968" },
+          },
+        },
+      },
+    },
+  }), []);
+
+  // 2c. SmartHR SLA Compliance Radial
+  const smartSlaRadialOptions = useMemo<any>(() => ({
+    chart: { type: "radialBar", height: 200, fontFamily: "inherit" },
+    series: [94],
+    colors: ["#10b981"],
+    plotOptions: {
+      radialBar: {
+        hollow: { size: "70%" },
+        dataLabels: {
+          name: { show: true, fontSize: "11px", color: "#64748B", offsetY: -8 },
+          value: { show: true, fontSize: "20px", fontWeight: 700, color: "#0F172A", offsetY: 4, formatter: () => "94.5%" },
+        },
+      },
+    },
+    labels: ["SLA Rate"],
+  }), []);
+
+  // 2d. SmartHR Backlog Growth Area
+  const smartBacklogOptions = useMemo<any>(() => ({
+    chart: { type: "area", height: 160, toolbar: { show: false }, fontFamily: "inherit" },
+    series: [{ name: "Active Backlog", data: [45, 52, 48, 58, 62, 59, 68] }],
+    xaxis: {
+      categories: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
+    },
+    yaxis: { show: false },
+    colors: ["#0d6efd"],
+    stroke: { curve: "smooth", width: 2 },
+    fill: { type: "gradient", gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.05 } },
+    grid: { show: false },
+    dataLabels: { enabled: false },
+  }), []);
+
   // 3. Satisfaction Gauge Donut
   const satisfactionGaugeOptions = useMemo<any>(() => ({
     chart: { type: "donut", height: 220, fontFamily: "inherit" },
@@ -551,6 +606,236 @@ export default function SupportDashboardPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        {/* ========================================================= */}
+        {/* EXTENDED SMARTHR HELP DESK ANALYTICS & COPILOT SUITE      */}
+        {/* ========================================================= */}
+        <div className="pt-6 border-t border-border-color space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center justify-center size-7 rounded-lg bg-primary/10 text-primary">
+                  <i className="ph ph-lifebuoy text-lg"></i>
+                </span>
+                <h2 className="text-lg font-bold text-slate-900 tracking-tight mb-0">Help Desk Intelligence & Service Operations</h2>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">Comprehensive real-time analytics, SLA tracking, ticket volume trends and active agent performance.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                <span className="size-2 rounded-full bg-emerald-500 animate-pulse"></span> SLA Compliance: 94.5%
+              </span>
+            </div>
+          </div>
+
+          {/* 6 Key Metrics */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { label: "Total Tickets", val: "2,847", change: "+12.5%", isUp: true, icon: "ph-ticket", color: "text-blue-600 bg-blue-50" },
+              { label: "Open Tickets", val: "342", change: "+8.2%", isUp: true, icon: "ph-folder-open", color: "text-amber-600 bg-amber-50" },
+              { label: "Resolved Today", val: "128", change: "+15.5%", isUp: true, icon: "ph-check-circle", color: "text-emerald-600 bg-emerald-50" },
+              { label: "Avg Resolution", val: "2.4 hrs", change: "-12.3%", isUp: true, icon: "ph-clock-countdown", color: "text-sky-600 bg-sky-50" },
+              { label: "Overdue SLA", val: "23", change: "-5.2%", isUp: false, icon: "ph-warning-octagon", color: "text-rose-600 bg-rose-50" },
+              { label: "Active Agents", val: "42", change: "+4 online", isUp: true, icon: "ph-headset", color: "text-purple-600 bg-purple-50" },
+            ].map((m, i) => (
+              <div key={i} className="bg-white border border-border-color rounded-xl p-3 shadow-xs hover:border-primary/40 transition-colors">
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`size-8 rounded-lg flex items-center justify-center ${m.color}`}>
+                    <i className={`ph ${m.icon} text-base`}></i>
+                  </span>
+                  <span className={`text-[11px] font-semibold ${m.isUp ? "text-emerald-600" : "text-rose-600"}`}>
+                    {m.change}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground font-medium mb-0.5">{m.label}</p>
+                <h3 className="text-lg font-bold text-slate-900 tracking-tight">{m.val}</h3>
+              </div>
+            ))}
+          </div>
+
+          {/* Help Desk Status & SLA Breakdown */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* Tickets by Status */}
+            <div className="lg:col-span-4 bg-white border border-border-color rounded-xl p-4 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-bold text-slate-900 mb-0">Tickets by Status</h3>
+                  <span className="text-xs text-muted-foreground font-mono">Total: 1,247</span>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">Live distribution of currently queued tickets</p>
+                <div className="flex items-center justify-center min-h-[210px]">
+                  {isMounted && (
+                    <Suspense fallback={<div className="h-[210px] flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
+                      <Chart options={smartStatusOptions} series={smartStatusOptions.series} type="donut" height={210} />
+                    </Suspense>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border-color mt-3">
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50/60">
+                  <span className="size-2 rounded-full bg-blue-600"></span>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">Open</p>
+                    <p className="text-xs font-bold text-slate-900">653 (52%)</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-cyan-50/60">
+                  <span className="size-2 rounded-full bg-cyan-500"></span>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">In Progress</p>
+                    <p className="text-xs font-bold text-slate-900">342 (27%)</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-50/60">
+                  <span className="size-2 rounded-full bg-amber-500"></span>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">On Hold</p>
+                    <p className="text-xs font-bold text-slate-900">185 (15%)</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-2 rounded-lg bg-purple-50/60">
+                  <span className="size-2 rounded-full bg-purple-500"></span>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">Closed</p>
+                    <p className="text-xs font-bold text-slate-900">67 (6%)</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* SLA Compliance Radial & Targets */}
+            <div className="lg:col-span-4 bg-white border border-border-color rounded-xl p-4 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-bold text-slate-900 mb-0">SLA Performance Target</h3>
+                  <span className="text-xs text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded">Target: 90%</span>
+                </div>
+                <p className="text-xs text-muted-foreground mb-2">First response and resolution compliance rates</p>
+                <div className="flex items-center justify-center min-h-[200px]">
+                  {isMounted && (
+                    <Suspense fallback={<div className="h-[200px] flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
+                      <Chart options={smartSlaRadialOptions} series={smartSlaRadialOptions.series} type="radialBar" height={200} />
+                    </Suspense>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2 pt-2 border-t border-border-color">
+                <div>
+                  <div className="flex justify-between text-xs font-medium mb-1">
+                    <span className="text-slate-600">First Response SLA (&lt;15m)</span>
+                    <span className="font-bold text-emerald-600">96.2%</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: "96.2%" }}></div>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between text-xs font-medium mb-1">
+                    <span className="text-slate-600">Resolution SLA (&lt;4h)</span>
+                    <span className="font-bold text-blue-600">92.8%</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: "92.8%" }}></div>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between text-xs font-medium mb-1">
+                    <span className="text-slate-600">Escalation Resolution</span>
+                    <span className="font-bold text-amber-600">89.5%</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-amber-500 h-1.5 rounded-full" style={{ width: "89.5%" }}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Backlog Growth & Tickets by Category */}
+            <div className="lg:col-span-4 bg-white border border-border-color rounded-xl p-4 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-bold text-slate-900 mb-0">Backlog Growth Trend</h3>
+                  <span className="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded">7-Day</span>
+                </div>
+                <p className="text-xs text-muted-foreground mb-1">Weekly volume of pending unassigned tickets</p>
+                <div className="h-[140px]">
+                  {isMounted && (
+                    <Suspense fallback={<div className="h-[140px] flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
+                      <Chart options={smartBacklogOptions} series={smartBacklogOptions.series} type="area" height={140} />
+                    </Suspense>
+                  )}
+                </div>
+              </div>
+              <div className="pt-2 border-t border-border-color space-y-1.5">
+                <p className="text-xs font-bold text-slate-800 mb-1.5">Category Breakdown</p>
+                {[
+                  { name: "IT Hardware & Network", count: 485, pct: 38 },
+                  { name: "HR Policy & Onboarding", count: 342, pct: 27 },
+                  { name: "Payroll & Deductions", count: 268, pct: 21 },
+                  { name: "System Access & Auth", count: 195, pct: 14 },
+                ].map((cat, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-xs">
+                    <span className="text-slate-600 truncate max-w-[160px]">{cat.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground font-mono">{cat.count}</span>
+                      <span className="font-bold text-slate-800 w-8 text-right">{cat.pct}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Top Support Agents Performance */}
+          <div className="bg-white border border-border-color rounded-xl p-4 shadow-xs">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 mb-0">Top Performing Support Specialists</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Evaluation based on closed tickets, customer satisfaction (CSAT) and average response time.</p>
+              </div>
+              <button onClick={() => toast.info("Opening full agent roster...")} className="text-xs text-primary font-semibold hover:underline">
+                View All Agents &rarr;
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { name: "Michael Johnson", role: "Lead IT Specialist", resolved: 142, rating: "4.9", time: "1.8h", avatar: "/assets/img/avatar/avatar-03.jpg", online: true },
+                { name: "Emily Davis", role: "HR Systems Analyst", resolved: 128, rating: "4.8", time: "2.1h", avatar: "/assets/img/avatar/avatar-04.jpg", online: true },
+                { name: "Robert Martinez", role: "Network Administrator", resolved: 98, rating: "4.7", time: "2.6h", avatar: "/assets/img/avatar/avatar-05.jpg", online: false },
+                { name: "Megan Walker", role: "Service Desk Tech", resolved: 89, rating: "4.6", time: "2.8h", avatar: "/assets/img/avatar/avatar-06.jpg", online: true },
+              ].map((agent, i) => (
+                <div key={i} className="p-3.5 border border-border-color rounded-xl hover:border-primary/50 transition-all flex flex-col justify-between">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="relative">
+                      <img src={agent.avatar} alt={agent.name} className="size-10 rounded-full object-cover border border-border-color" />
+                      {agent.online && (
+                        <span className="absolute bottom-0 right-0 size-2.5 rounded-full bg-emerald-500 ring-2 ring-white"></span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-bold text-slate-900 truncate mb-0">{agent.name}</h4>
+                      <p className="text-[11px] text-muted-foreground truncate mb-0">{agent.role}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 pt-2.5 border-t border-border-color text-center">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-0">Resolved</p>
+                      <p className="text-xs font-bold text-slate-900">{agent.resolved}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-0">Rating</p>
+                      <p className="text-xs font-bold text-amber-600">★ {agent.rating}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground mb-0">Avg Time</p>
+                      <p className="text-xs font-bold text-slate-900">{agent.time}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

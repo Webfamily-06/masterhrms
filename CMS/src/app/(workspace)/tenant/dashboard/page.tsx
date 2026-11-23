@@ -1,687 +1,934 @@
 'use client';
 
-import { useState, useMemo } from "react";
-import { Link } from "@/src/lib/router-compat";
+import { useState, useMemo, Suspense } from "react";
+import dynamic from "next/dynamic";
+import { Link } from "@/lib/router-compat";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useTenantBranding } from "@/lib/useTenantBranding";
 import { useCurrentProfile } from "@/lib/session";
-import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
+import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import {
-  Users,
-  HardDrive,
-  CreditCard,
-  Building2,
-  Activity,
-  ArrowRight,
-  ShieldCheck,
-  CheckCircle2,
-  Clock,
-  ExternalLink,
-  Sparkles,
-  Download,
-  Settings,
-  Paintbrush,
-  UserCheck,
-  Package,
-  Layers,
-  FolderOpen,
-  FileText,
-  Plus,
-  Circle,
-  AlertCircle,
-  Check,
-} from "lucide-react";
+
+const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 export default function TenantDashboardPage() {
   const { branding } = useTenantBranding();
   const { data: profile } = useCurrentProfile();
-  const [exportOpen, setExportOpen] = useState(false);
+  const [applicantTab, setApplicantTab] = useState<"openings" | "applicants">("applicants");
 
-  const { data: tenantMetrics, isLoading, refetch } = useQuery({
+  const [todos, setTodos] = useState([
+    { id: 1, text: "Add Holidays to 2026 Calendar", done: false, tag: "HR" },
+    { id: 2, text: "Add Meeting to Client (Ignis Corp)", done: false, tag: "Meeting" },
+    { id: 3, text: "Review Quarterly Performance with Adrian", done: true, tag: "Review" },
+    { id: 4, text: "Executive Management Strategic Call", done: false, tag: "Strategy" },
+    { id: 5, text: "Finalize Monthly Payroll Approvals", done: false, tag: "Payroll" },
+    { id: 6, text: "Publish Updated Policy for Annual Increment", done: false, tag: "Policy" },
+  ]);
+
+  const { data: tenantMetrics } = useQuery({
     queryKey: ["tenant-dashboard-metrics"],
     queryFn: async () => {
       try {
         const res = await api.get<any>("/dashboard/tenant");
-        return res;
+        return res?.data || res || {};
       } catch (err) {
-        console.error("Failed to fetch tenant metrics:", err);
-        return null;
+        return {};
       }
     },
     refetchInterval: 30000,
   });
 
-  const userName = profile?.full_name?.split(" ")[0] || "Admin";
-  const tenantName = tenantMetrics?.tenantName || branding.name || "Enterprise Workspace";
-  const planType = (tenantMetrics?.planType || "Starter").toUpperCase();
-  const timezone = tenantMetrics?.timezone || branding.timezone || "Asia/Kolkata";
-  const currency = tenantMetrics?.currency || branding.currency || "INR";
-  const currencySymbol = tenantMetrics?.currencySymbol || branding.currencySymbol || "₹";
+  const userName = profile?.full_name?.split(" ")[0] || "Adrian";
+  const currencySymbol = tenantMetrics?.currencySymbol || branding.currencySymbol || "$";
 
-  const totalEmployees = tenantMetrics?.totalEmployees ?? 0;
-  const activeEmployees = tenantMetrics?.activeEmployees ?? 0;
-  const maxEmployees = tenantMetrics?.maxEmployees ?? 50;
-  const quotaPct = tenantMetrics?.quotaPercentage ?? (maxEmployees > 0 ? Math.min(100, Math.round((totalEmployees / maxEmployees) * 100)) : 0);
+  // Chart: Employees by Department
+  const empDepartmentOptions: any = {
+    chart: { type: "bar", height: 220, toolbar: { show: false } },
+    colors: ["#0d6efd"],
+    plotOptions: {
+      bar: { borderRadius: 4, horizontal: true, barHeight: "45%" }
+    },
+    dataLabels: { enabled: false },
+    grid: { borderColor: "rgba(100, 116, 139, 0.15)", strokeDashArray: 4 },
+    xaxis: {
+      categories: ["UI/UX", "Development", "Management", "HR", "Testing", "Marketing"],
+      labels: { style: { colors: "#64748b", fontSize: "12px" } }
+    },
+    yaxis: { labels: { style: { colors: "#64748b", fontSize: "12px" } } }
+  };
+  const empDepartmentSeries = [{ name: "Employees", data: [80, 110, 80, 20, 60, 100] }];
 
-  const grossPayroll = tenantMetrics?.grossPayroll ?? 0;
-  const activeAddonsCount = tenantMetrics?.activeAddonsCount ?? 0;
-  const rolesCount = tenantMetrics?.rolesCount ?? 0;
-  const departmentCount = tenantMetrics?.departmentCount ?? 0;
+  // Chart: Sales Overview (Income vs Expenses)
+  const salesIncomeOptions: any = {
+    chart: { type: "bar", height: 280, stacked: true, toolbar: { show: false } },
+    colors: ["#0d6efd", "#cbd5e1"],
+    plotOptions: {
+      bar: { columnWidth: "55%", borderRadius: 4 }
+    },
+    dataLabels: { enabled: false },
+    stroke: { show: true, width: 2, colors: ["transparent"] },
+    grid: { borderColor: "rgba(100, 116, 139, 0.15)", strokeDashArray: 4 },
+    xaxis: {
+      categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+      labels: { style: { colors: "#64748b", fontSize: "11px" } }
+    },
+    yaxis: { labels: { style: { colors: "#64748b", fontSize: "11px" } } },
+    legend: { position: "top", horizontalAlign: "right" }
+  };
+  const salesIncomeSeries = [
+    { name: "Income", data: [40, 30, 45, 80, 85, 90, 80, 80, 80, 85, 20, 80] },
+    { name: "Expenses", data: [60, 70, 55, 20, 15, 10, 20, 20, 20, 15, 80, 20] }
+  ];
 
-  const storageUsed = tenantMetrics?.storageUsage?.usedGB ?? 0;
-  const storageTotal = tenantMetrics?.storageUsage?.totalGB ?? 10;
-  const storagePct = tenantMetrics?.storageUsage?.percentage ?? (storageTotal > 0 ? Math.min(100, (storageUsed / storageTotal) * 100) : 0);
-
-  const addonsList = tenantMetrics?.addons || [];
-  const auditLogs = tenantMetrics?.recentAudits || [];
-
-  // Export Tenant Metrics Report
-  const handleExport = (format: "csv" | "pdf") => {
-    try {
-      const csvData = [
-        ["Tenant Metric Report", tenantName],
-        ["Exported At", new Date().toISOString()],
-        ["Plan Tier", planType],
-        ["Timezone", timezone],
-        ["Default Currency", `${currency} (${currencySymbol})`],
-        ["Total Employees", totalEmployees],
-        ["Active Workforce", activeEmployees],
-        ["Max Employee Quota", maxEmployees],
-        ["Quota Utilization", `${quotaPct}%`],
-        ["Gross Monthly Payroll", `${currencySymbol}${grossPayroll.toLocaleString()}`],
-        ["Active Addon Modules", activeAddonsCount],
-        ["Active Roles", rolesCount],
-        ["Storage Allocation", `${storageUsed} GB of ${storageTotal} GB`],
-        ["System Status", "100.0% Operational"],
-      ]
-        .map((row) => row.join(","))
-        .join("\n");
-
-      const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `${tenantName.toLowerCase().replace(/[^a-z0-9]/g, "_")}_admin_summary.${format === "csv" ? "csv" : "txt"}`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success(`Organization report downloaded as ${format.toUpperCase()}`);
-    } catch {
-      toast.error("Failed to generate export file");
+  // Chart: Attendance Overview Donut
+  const attendanceDonutOptions: any = {
+    chart: { type: "donut", height: 210 },
+    labels: ["Present", "Late", "Permission", "Absent"],
+    colors: ["#16a34a", "#64748b", "#f59e0b", "#e11d48"],
+    dataLabels: { enabled: false },
+    legend: { show: false },
+    plotOptions: {
+      pie: {
+        donut: {
+          size: "72%",
+          labels: {
+            show: true,
+            total: {
+              show: true,
+              label: "Attendance",
+              fontSize: "12px",
+              color: "#64748b",
+              formatter: () => "120/154"
+            }
+          }
+        }
+      }
     }
+  };
+  const attendanceDonutSeries = [59, 21, 2, 15];
+
+  // Chart: Tasks Statistics Radial
+  const taskStatsOptions: any = {
+    chart: { type: "radialBar", height: 230 },
+    plotOptions: {
+      radialBar: {
+        hollow: { size: "65%" },
+        track: { background: "rgba(100, 116, 139, 0.1)" },
+        dataLabels: {
+          name: { show: true, fontSize: "12px", color: "#64748b", offsetY: -10 },
+          value: { show: true, fontSize: "22px", fontWeight: "bold", offsetY: 4, formatter: () => "124/165" }
+        }
+      }
+    },
+    colors: ["#0d6efd"],
+    labels: ["Tasks Done"]
+  };
+  const taskStatsSeries = [75];
+
+  const toggleTodo = (id: number) => {
+    setTodos((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
+    );
   };
 
   return (
-    <div className="space-y-5">
-      {/* ── Top Header & Quick Actions ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-border-color">
-        <div>
-          <BreadcrumbNav fallbackPath="/tenant/dashboard" />
-          <div className="flex flex-wrap items-center gap-2 mt-1">
-            <h1 className="text-xl max-lg:text-lg font-bold text-title mb-0">
-              {tenantName} Command Center
-            </h1>
-            <span className="inline-flex items-center text-[11px] font-semibold bg-primary-transparent text-primary px-2.5 py-0.5 rounded-md">
-              <Sparkles className="size-3 me-1" /> {planType} TIER
-            </span>
-            <span className="inline-flex items-center text-[11px] font-medium bg-success-transparent text-success px-2 py-0.5 rounded-md">
-              <span className="size-1.5 bg-success rounded-full me-1.5 animate-pulse"></span>
-              Operational
-            </span>
+    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Page Header */}
+      <PageHeader
+        title="Admin Dashboard"
+        description="Comprehensive workspace telemetry, department capacity, workforce attendance and enterprise deliverables."
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.success("Exporting Dashboard Metrics PDF...")}
+            >
+              <i className="ti ti-file-export mr-1.5 text-sm" />
+              Export
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => toast.info("Opening schedule manager...")}
+            >
+              <i className="ti ti-plus mr-1.5 text-sm" />
+              Add Schedule
+            </Button>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-xs text-default mt-1">
-            <span>Welcome back, <strong className="text-title">{userName}</strong></span>
-            <span>·</span>
-            <span>TZ: <strong className="text-title">{timezone}</strong></span>
-            <span>·</span>
-            <span>Currency: <strong className="text-title">{currency} ({currencySymbol})</strong></span>
-            {rolesCount > 0 && (
-              <>
-                <span>·</span>
-                <span><strong className="text-title">{rolesCount}</strong> Configured Roles</span>
-              </>
+        }
+      />
+
+      {/* Welcome Banner Card */}
+      <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="size-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-xl font-bold overflow-hidden">
+            {profile?.avatar_url ? (
+              <img src={profile.avatar_url} alt={userName} className="size-full object-cover" />
+            ) : (
+              userName.charAt(0)
             )}
+          </div>
+          <div>
+            <h3 className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
+              Welcome Back, {userName}
+              <span className="text-xs font-normal text-muted-foreground px-2 py-0.5 rounded-full bg-muted border border-border/60">
+                Workspace Admin
+              </span>
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              You have <span className="text-primary font-semibold underline">21 Pending Approvals</span> & <span className="text-primary font-semibold underline">14 Leave Requests</span> requiring review today.
+            </p>
           </div>
         </div>
-
         <div className="flex items-center gap-2">
-          {/* Export Dropdown */}
-          <div className="relative inline-flex">
-            <button
-              type="button"
-              onClick={() => setExportOpen((o) => !o)}
-              className="btn-sm bg-white dark:bg-slate-900 border border-border-color text-title hover:bg-light dark:hover:bg-slate-800 flex items-center gap-1.5 cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-            >
-              <i className="ph-duotone ph-download-simple text-base"></i> Export
-              <i className="ph-bold ph-caret-down text-xs ms-0.5"></i>
-            </button>
-
-            {exportOpen && (
-              <div className="absolute right-0 top-full mt-1.5 min-w-44 bg-white dark:bg-slate-900 border border-border-color shadow-lg rounded-md p-1.5 space-y-1 z-30">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleExport("pdf");
-                    setExportOpen(false);
-                  }}
-                  className="w-full text-left flex items-center px-2 py-1.5 rounded text-xs text-title hover:bg-light dark:hover:bg-slate-800 cursor-pointer"
-                >
-                  <FileText className="size-3.5 me-2 text-primary" /> Export as PDF Report
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleExport("csv");
-                    setExportOpen(false);
-                  }}
-                  className="w-full text-left flex items-center px-2 py-1.5 rounded text-xs text-title hover:bg-light dark:hover:bg-slate-800 cursor-pointer"
-                >
-                  <Download className="size-3.5 me-2 text-emerald-500" /> Export as Excel (CSV)
-                </button>
-              </div>
-            )}
-          </div>
-
-          <Link
-            to="/tenant/company-profile"
-            className="btn-sm bg-white dark:bg-slate-900 border border-border-color text-title hover:bg-light dark:hover:bg-slate-800 flex items-center gap-1.5 cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-          >
-            <Building2 className="size-3.5" /> Company Profile
+          <Link to="/hr/calendar">
+            <Button variant="outline" size="sm">
+              <i className="ti ti-calendar-cog mr-1.5 text-sm" />
+              View Schedule
+            </Button>
           </Link>
-
-          <Link
-            to="/tenant/addon"
-            className="btn-sm bg-primary text-white border border-primary hover:bg-primary-hover flex items-center gap-1.5 cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors"
-          >
-            <Sparkles className="size-3.5" /> Addon Store
+          <Link to="/hr/leave/applications">
+            <Button variant="primary" size="sm">
+              <i className="ti ti-square-rounded-plus mr-1.5 text-sm" />
+              Leave Requests
+            </Button>
           </Link>
         </div>
       </div>
 
-      {/* ── Top 4 KPI Metrics (DreamsERP 4-grid styling) ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Card 1: Active Workforce */}
-        <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 flex flex-col justify-between">
+      {/* 8 Primary KPI Metric Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
+          <div className="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-3">
+            <i className="ti ti-calendar-share text-lg" />
+          </div>
+          <span className="text-xs font-medium text-muted-foreground">Attendance Overview</span>
+          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">120/154</div>
+          <Link to="/hr/attendance/records" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
+            View Details <i className="ti ti-arrow-right ml-1 text-[10px]" />
+          </Link>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
+          <div className="size-9 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center mb-3">
+            <i className="ti ti-browser text-lg" />
+          </div>
+          <span className="text-xs font-medium text-muted-foreground">Total Projects</span>
+          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">90/125</div>
+          <Link to="/projects" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
+            View All <i className="ti ti-arrow-right ml-1 text-[10px]" />
+          </Link>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
+          <div className="size-9 rounded-lg bg-sky-500/10 text-sky-600 flex items-center justify-center mb-3">
+            <i className="ti ti-users-group text-lg" />
+          </div>
+          <span className="text-xs font-medium text-muted-foreground">Total Clients</span>
+          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">69/86</div>
+          <Link to="/clients" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
+            View All <i className="ti ti-arrow-right ml-1 text-[10px]" />
+          </Link>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
+          <div className="size-9 rounded-lg bg-rose-500/10 text-rose-600 flex items-center justify-center mb-3">
+            <i className="ti ti-checklist text-lg" />
+          </div>
+          <span className="text-xs font-medium text-muted-foreground">Total Tasks</span>
+          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">96/100</div>
+          <Link to="/tasks" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
+            View All <i className="ti ti-arrow-right ml-1 text-[10px]" />
+          </Link>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
+          <div className="size-9 rounded-lg bg-purple-500/10 text-purple-600 flex items-center justify-center mb-3">
+            <i className="ti ti-moneybag text-lg" />
+          </div>
+          <span className="text-xs font-medium text-muted-foreground">Earnings</span>
+          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">{currencySymbol}21,445</div>
+          <Link to="/invoices" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
+            View All <i className="ti ti-arrow-right ml-1 text-[10px]" />
+          </Link>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
+          <div className="size-9 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center mb-3">
+            <i className="ti ti-trending-up text-lg" />
+          </div>
+          <span className="text-xs font-medium text-muted-foreground">Profit This Week</span>
+          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">{currencySymbol}5,544</div>
+          <Link to="/profit-loss" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
+            View All <i className="ti ti-arrow-right ml-1 text-[10px]" />
+          </Link>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
+          <div className="size-9 rounded-lg bg-indigo-500/10 text-indigo-600 flex items-center justify-center mb-3">
+            <i className="ti ti-users-group text-lg" />
+          </div>
+          <span className="text-xs font-medium text-muted-foreground">Job Applicants</span>
+          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">98</div>
+          <Link to="/hr/recruitment/job-postings" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
+            View All <i className="ti ti-arrow-right ml-1 text-[10px]" />
+          </Link>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
+          <div className="size-9 rounded-lg bg-slate-500/10 text-slate-700 dark:text-slate-300 flex items-center justify-center mb-3">
+            <i className="ti ti-user-star text-lg" />
+          </div>
+          <span className="text-xs font-medium text-muted-foreground">New Hires</span>
+          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">45/48</div>
+          <Link to="/hr/recruitment/candidates" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
+            View All <i className="ti ti-arrow-right ml-1 text-[10px]" />
+          </Link>
+        </div>
+      </div>
+
+      {/* Row 2: Department Distribution + Employee Status */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Employees by Department Chart */}
+        <div className="lg:col-span-2 rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-semibold text-foreground text-sm">Employees By Department</h4>
+              <p className="text-xs text-muted-foreground">Headcount distribution across active functional units</p>
+            </div>
+            <span className="text-xs text-emerald-600 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+              +20% vs Last Month
+            </span>
+          </div>
+          <div className="min-h-[220px]">
+            <Suspense fallback={<div className="h-[220px] flex items-center justify-center text-xs text-muted-foreground">Loading Department Chart...</div>}>
+              <Chart options={empDepartmentOptions} series={empDepartmentSeries} type="bar" height={220} />
+            </Suspense>
+          </div>
+          <div className="text-xs text-muted-foreground flex items-center gap-2 pt-2 border-t border-border/60">
+            <i className="ti ti-info-circle text-primary text-sm" />
+            Engineering and Marketing units currently represent 58% of aggregate payroll headcount.
+          </div>
+        </div>
+
+        {/* Employee Status & Top Performer */}
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-default uppercase tracking-wider">Active Workforce</span>
-              <div className="size-10 bg-indigo-600/10 text-indigo-600 dark:bg-indigo-600/20 dark:text-indigo-400 rounded-md flex items-center justify-center">
-                <i className="ph-duotone ph-users text-2xl"></i>
+              <h4 className="font-semibold text-foreground text-sm">Employee Status</h4>
+              <Badge variant="soft">Total 154</Badge>
+            </div>
+
+            {/* Stacked Progress Bar */}
+            <div className="h-2.5 w-full bg-muted rounded-full overflow-hidden flex mb-4">
+              <div style={{ width: "48%" }} className="bg-primary" title="Fulltime: 48%" />
+              <div style={{ width: "20%" }} className="bg-sky-500" title="Contract: 20%" />
+              <div style={{ width: "22%" }} className="bg-amber-500" title="Probation: 22%" />
+              <div style={{ width: "10%" }} className="bg-rose-500" title="WFH: 10%" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs border border-border/70 rounded-lg p-3 bg-muted/20 mb-4">
+              <div className="border-r border-border/60 pr-2">
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <span className="size-2 rounded-full bg-primary" /> Fulltime (48%)
+                </span>
+                <span className="text-base font-bold text-foreground">112</span>
+              </div>
+              <div className="pl-2">
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <span className="size-2 rounded-full bg-sky-500" /> Contract (20%)
+                </span>
+                <span className="text-base font-bold text-foreground">30</span>
+              </div>
+              <div className="border-r border-t border-border/60 pr-2 pt-2">
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <span className="size-2 rounded-full bg-amber-500" /> Probation (22%)
+                </span>
+                <span className="text-base font-bold text-foreground">12</span>
+              </div>
+              <div className="pl-2 pt-2 border-t border-border/60">
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <span className="size-2 rounded-full bg-rose-500" /> Remote (10%)
+                </span>
+                <span className="text-base font-bold text-foreground">04</span>
               </div>
             </div>
-            <div className="flex items-baseline gap-2 mb-1">
-              <h2 className="text-2xl font-bold text-title mb-0">{totalEmployees.toLocaleString()}</h2>
-              <span className="text-xs text-default">/ {maxEmployees} Max Quota</span>
+
+            {/* Top Performer Card */}
+            <div className="p-3 rounded-lg border border-primary/20 bg-primary/5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="size-9 rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold text-sm">
+                  <i className="ti ti-award text-base" />
+                </div>
+                <div>
+                  <h6 className="text-xs font-semibold text-foreground">Daniel Esbella</h6>
+                  <p className="text-[11px] text-muted-foreground">Lead iOS Developer</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-muted-foreground block">Rating</span>
+                <span className="text-xs font-bold text-primary">99%</span>
+              </div>
             </div>
-            <p className="text-xs text-default mb-0">
-              {activeEmployees} employees on active duty
-            </p>
           </div>
-          <div className="mt-3">
-            <div className="flex items-center justify-between text-[11px] mb-1">
-              <span className="text-default">Quota Utilization</span>
-              <span className="font-semibold text-title">{quotaPct}%</span>
+
+          <Link to="/hr/employees">
+            <Button variant="outline" size="sm" className="w-full mt-2">
+              View All Employees
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Row 3: Attendance Donut & Clock-In/Out Widget */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Attendance Donut */}
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-foreground text-sm">Attendance Overview</h4>
+            <span className="text-xs text-muted-foreground">Today</span>
+          </div>
+          <div className="min-h-[210px] flex items-center justify-center">
+            <Suspense fallback={<div className="h-[210px] flex items-center justify-center text-xs text-muted-foreground">Loading Chart...</div>}>
+              <Chart options={attendanceDonutOptions} series={attendanceDonutSeries} type="donut" height={210} />
+            </Suspense>
+          </div>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-emerald-600" /> Present
+              </span>
+              <span className="font-medium text-foreground">59% (91)</span>
             </div>
-            <div className="h-1.5 bg-light dark:bg-slate-800 rounded-full overflow-hidden">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-all",
-                  quotaPct > 90 ? "bg-rose-500" : quotaPct > 75 ? "bg-amber-500" : "bg-indigo-600"
-                )}
-                style={{ width: `${Math.max(3, quotaPct)}%` }}
-              ></div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-slate-500" /> Late
+              </span>
+              <span className="font-medium text-foreground">21% (32)</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-amber-500" /> Permission
+              </span>
+              <span className="font-medium text-foreground">2% (3)</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-rose-600" /> Absent
+              </span>
+              <span className="font-medium text-foreground">15% (23)</span>
             </div>
           </div>
         </div>
 
-        {/* Card 2: Monthly Payroll Commitment */}
-        <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 flex flex-col justify-between">
+        {/* Clock-In/Out Realtime Feed */}
+        <div className="lg:col-span-2 rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4 flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-default uppercase tracking-wider">Payroll Outlay</span>
-              <div className="size-10 bg-emerald-600/10 text-emerald-600 dark:bg-emerald-600/20 dark:text-emerald-400 rounded-md flex items-center justify-center">
-                <i className="ph-duotone ph-currency-circle-dollar text-2xl"></i>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-semibold text-foreground text-sm">Clock-In / Clock-Out</h4>
+              <Link to="/hr/attendance/records" className="text-xs text-primary hover:underline">
+                View Full Attendance Report
+              </Link>
+            </div>
+            <div className="space-y-2.5">
+              <div className="p-3 rounded-lg border border-border/70 bg-muted/20 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="size-8 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center">
+                    DE
+                  </div>
+                  <div>
+                    <h6 className="text-xs font-semibold text-foreground">Daniel Esbella</h6>
+                    <p className="text-[11px] text-muted-foreground">UI/UX Designer</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="text-emerald-600 font-medium">In: 09:15 AM</span>
+                  <span className="text-muted-foreground">Production: 08:30 Hrs</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 font-semibold text-[11px]">On Time</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg border border-border/70 bg-muted/20 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="size-8 rounded-full bg-sky-500/10 text-sky-600 font-bold text-xs flex items-center justify-center">
+                    DM
+                  </div>
+                  <div>
+                    <h6 className="text-xs font-semibold text-foreground">Doglas Martini</h6>
+                    <p className="text-[11px] text-muted-foreground">Project Manager</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="text-emerald-600 font-medium">In: 09:36 AM</span>
+                  <span className="text-muted-foreground">Production: 08:15 Hrs</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 font-semibold text-[11px]">On Time</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg border border-rose-500/20 bg-rose-500/5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="size-8 rounded-full bg-rose-500/10 text-rose-600 font-bold text-xs flex items-center justify-center">
+                    AL
+                  </div>
+                  <div>
+                    <h6 className="text-xs font-semibold text-foreground">Anthony Lewis</h6>
+                    <p className="text-[11px] text-muted-foreground">Marketing Lead</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="text-rose-600 font-medium">In: 10:15 AM</span>
+                  <span className="text-rose-600 font-semibold px-2 py-0.5 rounded bg-rose-500/10 text-[11px]">Late by 45 Min</span>
+                </div>
               </div>
             </div>
-            <div className="flex items-baseline gap-2 mb-1">
-              <h2 className="text-2xl font-bold text-title mb-0">
-                {currencySymbol}{grossPayroll > 0 ? (grossPayroll >= 1000 ? `${(grossPayroll / 1000).toFixed(1)}K` : grossPayroll.toLocaleString()) : "0"}
-              </h2>
-              <span className="inline-flex items-center text-[11px] font-medium bg-success-transparent text-success px-1.5 py-0.5 rounded">
-                Live DB
+          </div>
+
+          <div className="flex items-center justify-between pt-3 border-t border-border/60 text-xs text-muted-foreground">
+            <span>Biometric gateway synced 3 minutes ago</span>
+            <Link to="/hr/attendance/shifts" className="text-primary hover:underline">
+              Manage Shift Rosters
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 4: Jobs Applicants, Recent Staff Table & Interactive Todo List */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Job Openings / Applicants */}
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-foreground text-sm">Recruitment Pipeline</h4>
+            <div className="flex rounded-lg border border-border/70 p-0.5 bg-muted/40 text-xs">
+              <button
+                type="button"
+                className={cn("px-2.5 py-1 rounded-md font-medium transition-all", applicantTab === "applicants" ? "bg-card text-foreground shadow-2xs" : "text-muted-foreground")}
+                onClick={() => setApplicantTab("applicants")}
+              >
+                Applicants
+              </button>
+              <button
+                type="button"
+                className={cn("px-2.5 py-1 rounded-md font-medium transition-all", applicantTab === "openings" ? "bg-card text-foreground shadow-2xs" : "text-muted-foreground")}
+                onClick={() => setApplicantTab("openings")}
+              >
+                Openings
+              </button>
+            </div>
+          </div>
+
+          {applicantTab === "applicants" ? (
+            <div className="space-y-3">
+              {[
+                { name: "Brian Villalobos", role: "UI/UX Designer", exp: "5+ Years", loc: "USA", badge: "Reviewing" },
+                { name: "Anthony Lewis", role: "Python Engineer", exp: "4+ Years", loc: "UK", badge: "Interviewed" },
+                { name: "Stephan Peralt", role: "Android Developer", exp: "6+ Years", loc: "Canada", badge: "Shortlisted" },
+                { name: "Doglas Martini", role: "React Developer", exp: "2+ Years", loc: "USA", badge: "Technical Test" },
+              ].map((c) => (
+                <div key={c.name} className="flex items-center justify-between text-xs p-2 rounded-lg hover:bg-muted/30 transition-colors">
+                  <div>
+                    <h6 className="font-semibold text-foreground">{c.name}</h6>
+                    <span className="text-muted-foreground text-[11px]">{c.role} • {c.exp}</span>
+                  </div>
+                  <Badge variant="soft" className="text-[10px]">{c.badge}</Badge>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {[
+                { title: "Senior iOS Developer", openings: 25, dept: "Mobile Engineering" },
+                { title: "Junior PHP Developer", openings: 20, dept: "Backend" },
+                { title: "Junior React Developer", openings: 30, dept: "Frontend" },
+                { title: "Senior Laravel Architect", openings: 10, dept: "Core API" },
+              ].map((j) => (
+                <div key={j.title} className="flex items-center justify-between text-xs p-2 rounded-lg hover:bg-muted/30 transition-colors">
+                  <div>
+                    <h6 className="font-semibold text-foreground">{j.title}</h6>
+                    <span className="text-muted-foreground text-[11px]">{j.dept}</span>
+                  </div>
+                  <Badge variant="outline" className="text-[10px]">{j.openings} Openings</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <Link to="/hr/recruitment/job-postings">
+            <Button variant="outline" size="sm" className="w-full">
+              Manage Job Postings
+            </Button>
+          </Link>
+        </div>
+
+        {/* Employees Table Widget */}
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-foreground text-sm">Active Workforce</h4>
+            <Link to="/hr/employees" className="text-xs text-primary hover:underline">
+              View All (154)
+            </Link>
+          </div>
+
+          <div className="divide-y divide-border/60">
+            {[
+              { name: "Anthony Lewis", dept: "Finance", role: "Sr. Accountant", badge: "Finance" },
+              { name: "Brian Villalobos", dept: "Development", role: "PHP Developer", badge: "Tech" },
+              { name: "Stephan Peralt", dept: "Marketing", role: "Campaign Executive", badge: "Growth" },
+              { name: "Doglas Martini", dept: "Management", role: "Project Manager", badge: "Lead" },
+              { name: "Sara Connor", dept: "Design", role: "Product Designer", badge: "Creative" },
+            ].map((emp) => (
+              <div key={emp.name} className="py-2.5 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="size-7 rounded-full bg-primary/10 text-primary font-bold text-[10px] flex items-center justify-center">
+                    {emp.name.split(" ").map((n) => n[0]).join("")}
+                  </div>
+                  <div>
+                    <h6 className="font-semibold text-foreground">{emp.name}</h6>
+                    <span className="text-muted-foreground text-[11px]">{emp.role}</span>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border/60 text-[10px]">
+                  {emp.dept}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <Link to="/hr/employees">
+            <Button variant="outline" size="sm" className="w-full">
+              Employee Directory
+            </Button>
+          </Link>
+        </div>
+
+        {/* Interactive Todo List */}
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-semibold text-foreground text-sm">Action Items (Todo)</h4>
+              <Badge variant="warning">{todos.filter((t) => !t.done).length} Pending</Badge>
+            </div>
+
+            <div className="space-y-2">
+              {todos.map((todo) => (
+                <div
+                  key={todo.id}
+                  onClick={() => toggleTodo(todo.id)}
+                  className={cn(
+                    "p-2.5 rounded-lg border text-xs flex items-center justify-between cursor-pointer transition-all",
+                    todo.done
+                      ? "border-border/60 bg-muted/40 text-muted-foreground line-through"
+                      : "border-border/80 bg-card hover:border-primary/40"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={todo.done}
+                      onChange={() => {}}
+                      className="rounded border-border text-primary size-3.5 pointer-events-none"
+                    />
+                    <span>{todo.text}</span>
+                  </div>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">
+                    {todo.tag}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full mt-3"
+            onClick={() => {
+              const text = prompt("Enter new action item:");
+              if (text) {
+                setTodos((p) => [...p, { id: Date.now(), text, done: false, tag: "General" }]);
+                toast.success("Todo item added!");
+              }
+            }}
+          >
+            <i className="ti ti-plus mr-1 text-sm" /> Add New Task
+          </Button>
+        </div>
+      </div>
+
+      {/* Row 5: Financial Operations (Sales Overview Chart & Recent Invoices) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Sales & Cashflow Chart */}
+        <div className="lg:col-span-2 rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-semibold text-foreground text-sm">Income vs Expenses</h4>
+              <p className="text-xs text-muted-foreground">Monthly cash flow balance and financial commitments</p>
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <span className="size-2 rounded-full bg-primary" /> Income
+              </span>
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <span className="size-2 rounded-full bg-slate-300 dark:bg-slate-700" /> Expenses
               </span>
             </div>
-            <p className="text-xs text-default mb-0">
-              Across {departmentCount > 0 ? `${departmentCount} departments` : "all departments"}
-            </p>
           </div>
-          <div className="mt-3 pt-2 border-t border-border-color/60 flex items-center justify-between">
-            <Link to="/hr/payroll" className="text-xs text-primary font-medium hover:underline inline-flex items-center gap-1">
-              Review Payroll Runs <ArrowRight className="size-3" />
+          <div className="min-h-[280px]">
+            <Suspense fallback={<div className="h-[280px] flex items-center justify-center text-xs text-muted-foreground">Loading Financial Chart...</div>}>
+              <Chart options={salesIncomeOptions} series={salesIncomeSeries} type="bar" height={280} />
+            </Suspense>
+          </div>
+        </div>
+
+        {/* Invoices List */}
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-foreground text-sm">Recent Invoices</h4>
+            <Link to="/invoices" className="text-xs text-primary hover:underline">
+              View All
             </Link>
           </div>
-        </div>
 
-        {/* Card 3: Active Add-on Modules */}
-        <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-default uppercase tracking-wider">Active Add-ons</span>
-              <div className="size-10 bg-purple-600/10 text-purple-600 dark:bg-purple-600/20 dark:text-purple-400 rounded-md flex items-center justify-center">
-                <i className="ph-duotone ph-puzzle-piece text-2xl"></i>
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2 mb-1">
-              <h2 className="text-2xl font-bold text-title mb-0">{activeAddonsCount}</h2>
-              <span className="text-xs text-default">Installed Modules</span>
-            </div>
-            <p className="text-xs text-default mb-0">
-              {tenantMetrics?.disabledModulesCount ?? 0} optional modules toggled
-            </p>
-          </div>
-          <div className="mt-3 pt-2 border-t border-border-color/60 flex items-center justify-between">
-            <Link to="/tenant/addon" className="text-xs text-primary font-medium hover:underline inline-flex items-center gap-1">
-              Manage Addon Store <ArrowRight className="size-3" />
-            </Link>
-          </div>
-        </div>
-
-        {/* Card 4: Cloud Storage & System Health */}
-        <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-default uppercase tracking-wider">Cloud Storage</span>
-              <div className="size-10 bg-amber-500/10 text-amber-500 dark:bg-amber-500/20 dark:text-amber-400 rounded-md flex items-center justify-center">
-                <i className="ph-duotone ph-hard-drive text-2xl"></i>
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2 mb-1">
-              <h2 className="text-2xl font-bold text-title mb-0">{tenantMetrics?.storageUsageFormatted ?? `${storageUsed} GB / ${storageTotal} GB`}</h2>
-            </div>
-            <p className="text-xs text-default mb-0">
-              High-availability S3 encrypted backup
-            </p>
-          </div>
-          <div className="mt-3">
-            <div className="flex items-center justify-between text-[11px] mb-1">
-              <span className="text-default">Storage Used</span>
-              <span className="font-semibold text-title">{storagePct}%</span>
-            </div>
-            <div className="h-1.5 bg-light dark:bg-slate-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-amber-500 rounded-full transition-all"
-                style={{ width: `${Math.max(2, storagePct)}%` }}
-              ></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Organization Readiness & Onboarding Checklist ── */}
-      <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <div>
-            <h3 className="text-base font-bold text-title mb-0.5">Workspace Setup & Governance Checklist</h3>
-            <p className="text-xs text-default mb-0">
-              Ensure your enterprise environment is properly configured for operational compliance and seamless team collaboration.
-            </p>
-          </div>
-          <span className="inline-flex items-center text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 rounded-md">
-            <CheckCircle2 className="size-3.5 me-1.5" /> Workspace Operational
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {/* Step 1: Workspace Initialized */}
-          <div className="flex items-start gap-3 p-3 rounded-md border border-border-color bg-light/60 dark:bg-slate-800/40">
-            <div className="size-6 rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
-              <Check className="size-3.5 stroke-[3]" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-title mb-0.5">Workspace Initialized</p>
-              <p className="text-[11px] text-default mb-0">Postgres schema & isolated tenant container verified</p>
-            </div>
-          </div>
-
-          {/* Step 2: Set Company Details */}
-          <Link
-            to="/tenant/company-profile"
-            className="flex items-start gap-3 p-3 rounded-md border border-border-color bg-white dark:bg-slate-900 hover:border-primary/50 hover:bg-light/30 transition-all group"
-          >
-            <div className="size-6 rounded-full border border-primary/40 text-primary flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-primary group-hover:text-white transition-colors">
-              <Building2 className="size-3" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-title mb-0.5 group-hover:text-primary transition-colors">Company Profile</p>
-                <ArrowRight className="size-3 text-default opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <p className="text-[11px] text-default mb-0">Legal business entity name, tax IDs, and registered office</p>
-            </div>
-          </Link>
-
-          {/* Step 3: Configure Branding */}
-          <Link
-            to="/tenant/branding"
-            className="flex items-start gap-3 p-3 rounded-md border border-border-color bg-white dark:bg-slate-900 hover:border-primary/50 hover:bg-light/30 transition-all group"
-          >
-            <div className="size-6 rounded-full border border-purple-500/40 text-purple-600 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-purple-600 group-hover:text-white transition-colors">
-              <Paintbrush className="size-3" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-title mb-0.5 group-hover:text-purple-600 transition-colors">Branding & White-Label</p>
-                <ArrowRight className="size-3 text-default opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <p className="text-[11px] text-default mb-0">Upload organization logo, dark mode mark, and primary theme color</p>
-            </div>
-          </Link>
-
-          {/* Step 4: Roles & Authority */}
-          <Link
-            to="/tenant/roles"
-            className="flex items-start gap-3 p-3 rounded-md border border-border-color bg-white dark:bg-slate-900 hover:border-primary/50 hover:bg-light/30 transition-all group"
-          >
-            <div className="size-6 rounded-full border border-blue-500/40 text-blue-600 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-              <ShieldCheck className="size-3" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-title mb-0.5 group-hover:text-blue-600 transition-colors">RBAC Roles & Security</p>
-                <ArrowRight className="size-3 text-default opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <p className="text-[11px] text-default mb-0">{rolesCount} roles assigned with granular module permissions</p>
-            </div>
-          </Link>
-
-          {/* Step 5: Addon Store */}
-          <Link
-            to="/tenant/addon"
-            className="flex items-start gap-3 p-3 rounded-md border border-border-color bg-white dark:bg-slate-900 hover:border-primary/50 hover:bg-light/30 transition-all group"
-          >
-            <div className="size-6 rounded-full border border-amber-500/40 text-amber-600 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-amber-600 group-hover:text-white transition-colors">
-              <Sparkles className="size-3" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-title mb-0.5 group-hover:text-amber-600 transition-colors">Add-on Modules (133+)</p>
-                <ArrowRight className="size-3 text-default opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <p className="text-[11px] text-default mb-0">{activeAddonsCount} active add-ons; install 2FA, AI tools, or biometrics</p>
-            </div>
-          </Link>
-
-          {/* Step 6: Subscription & Invoices */}
-          <Link
-            to="/tenant/subscription"
-            className="flex items-start gap-3 p-3 rounded-md border border-border-color bg-white dark:bg-slate-900 hover:border-primary/50 hover:bg-light/30 transition-all group"
-          >
-            <div className="size-6 rounded-full border border-rose-500/40 text-rose-600 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-rose-600 group-hover:text-white transition-colors">
-              <CreditCard className="size-3" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-title mb-0.5 group-hover:text-rose-600 transition-colors">Subscription & Tier</p>
-                <ArrowRight className="size-3 text-default opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <p className="text-[11px] text-default mb-0">{planType} tier with automatic invoice generation & renewals</p>
-            </div>
-          </Link>
-        </div>
-      </div>
-
-      {/* ── Workspace Quick Operations Launcher (DreamsERP 8-grid) ── */}
-      <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h3 className="text-base font-bold text-title mb-0.5">Workspace Operations Hub</h3>
-            <p className="text-xs text-default mb-0">Direct access to core administrative consoles and configuration suites.</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-          <Link
-            to="/tenant/company-profile"
-            className="flex flex-col items-center justify-center p-3 rounded-md border border-border-color bg-light/30 dark:bg-slate-800/30 hover:border-primary hover:bg-white dark:hover:bg-slate-800 transition-all text-center group"
-          >
-            <div className="size-10 rounded-md bg-blue-500/10 text-blue-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-              <Building2 className="size-5" />
-            </div>
-            <p className="text-xs font-semibold text-title mb-0 group-hover:text-primary transition-colors">Company</p>
-            <p className="text-[10px] text-default mb-0">Profile</p>
-          </Link>
-
-          <Link
-            to="/tenant/branding"
-            className="flex flex-col items-center justify-center p-3 rounded-md border border-border-color bg-light/30 dark:bg-slate-800/30 hover:border-primary hover:bg-white dark:hover:bg-slate-800 transition-all text-center group"
-          >
-            <div className="size-10 rounded-md bg-purple-500/10 text-purple-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-              <Paintbrush className="size-5" />
-            </div>
-            <p className="text-xs font-semibold text-title mb-0 group-hover:text-primary transition-colors">Branding</p>
-            <p className="text-[10px] text-default mb-0">White-label</p>
-          </Link>
-
-          <Link
-            to="/tenant/users"
-            className="flex flex-col items-center justify-center p-3 rounded-md border border-border-color bg-light/30 dark:bg-slate-800/30 hover:border-primary hover:bg-white dark:hover:bg-slate-800 transition-all text-center group"
-          >
-            <div className="size-10 rounded-md bg-indigo-500/10 text-indigo-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-              <Users className="size-5" />
-            </div>
-            <p className="text-xs font-semibold text-title mb-0 group-hover:text-primary transition-colors">Users</p>
-            <p className="text-[10px] text-default mb-0">{tenantMetrics?.activeUsers ?? 0} active</p>
-          </Link>
-
-          <Link
-            to="/tenant/roles"
-            className="flex flex-col items-center justify-center p-3 rounded-md border border-border-color bg-light/30 dark:bg-slate-800/30 hover:border-primary hover:bg-white dark:hover:bg-slate-800 transition-all text-center group"
-          >
-            <div className="size-10 rounded-md bg-emerald-500/10 text-emerald-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-              <ShieldCheck className="size-5" />
-            </div>
-            <p className="text-xs font-semibold text-title mb-0 group-hover:text-primary transition-colors">Roles</p>
-            <p className="text-[10px] text-default mb-0">Permissions</p>
-          </Link>
-
-          <Link
-            to="/tenant/addon"
-            className="flex flex-col items-center justify-center p-3 rounded-md border border-border-color bg-light/30 dark:bg-slate-800/30 hover:border-primary hover:bg-white dark:hover:bg-slate-800 transition-all text-center group"
-          >
-            <div className="size-10 rounded-md bg-amber-500/10 text-amber-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-              <Sparkles className="size-5" />
-            </div>
-            <p className="text-xs font-semibold text-title mb-0 group-hover:text-primary transition-colors">Add-ons</p>
-            <p className="text-[10px] text-default mb-0">{activeAddonsCount} active</p>
-          </Link>
-
-          <Link
-            to="/tenant/subscription"
-            className="flex flex-col items-center justify-center p-3 rounded-md border border-border-color bg-light/30 dark:bg-slate-800/30 hover:border-primary hover:bg-white dark:hover:bg-slate-800 transition-all text-center group"
-          >
-            <div className="size-10 rounded-md bg-rose-500/10 text-rose-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-              <CreditCard className="size-5" />
-            </div>
-            <p className="text-xs font-semibold text-title mb-0 group-hover:text-primary transition-colors">Billing</p>
-            <p className="text-[10px] text-default mb-0">Invoices</p>
-          </Link>
-
-          <Link
-            to="/tenant/files"
-            className="flex flex-col items-center justify-center p-3 rounded-md border border-border-color bg-light/30 dark:bg-slate-800/30 hover:border-primary hover:bg-white dark:hover:bg-slate-800 transition-all text-center group"
-          >
-            <div className="size-10 rounded-md bg-teal-500/10 text-teal-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-              <FolderOpen className="size-5" />
-            </div>
-            <p className="text-xs font-semibold text-title mb-0 group-hover:text-primary transition-colors">Files</p>
-            <p className="text-[10px] text-default mb-0">Storage</p>
-          </Link>
-
-          <Link
-            to="/tenant/audit-logs"
-            className="flex flex-col items-center justify-center p-3 rounded-md border border-border-color bg-light/30 dark:bg-slate-800/30 hover:border-primary hover:bg-white dark:hover:bg-slate-800 transition-all text-center group"
-          >
-            <div className="size-10 rounded-md bg-slate-500/10 text-slate-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-              <FileText className="size-5" />
-            </div>
-            <p className="text-xs font-semibold text-title mb-0 group-hover:text-primary transition-colors">Audits</p>
-            <p className="text-[10px] text-default mb-0">Logs</p>
-          </Link>
-        </div>
-      </div>
-
-      {/* ── Two-Column Bottom Section: Active Addons Roster & Security Audit Stream ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-        {/* Left Column (7 cols): Installed & Active Add-on Modules */}
-        <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 xl:col-span-7 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-              <div>
-                <h3 className="text-base font-bold text-title mb-0.5">Installed Addons & Extensions</h3>
-                <p className="text-xs text-default mb-0">Active enterprise capabilities provisioned in this tenant workspace.</p>
-              </div>
-              <Link
-                to="/tenant/addon"
-                className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-title hover:bg-primary hover:border-primary hover:text-white flex items-center justify-center gap-1 cursor-pointer transition-colors text-xs px-2.5 py-1 rounded"
-              >
-                Browse All (133+) <ArrowRight className="size-3" />
-              </Link>
-            </div>
-
-            {addonsList.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-xs text-default border-b border-border-color">
-                      <th className="text-left py-2 px-2 text-[12px] font-semibold text-title">Module</th>
-                      <th className="text-left py-2 px-2 text-[12px] font-semibold text-title">Category</th>
-                      <th className="text-left py-2 px-2 text-[12px] font-semibold text-title">Pricing</th>
-                      <th className="text-left py-2 px-2 text-[12px] font-semibold text-title">Status</th>
-                      <th className="text-right py-2 px-2 text-[12px] font-semibold text-title">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {addonsList.map((addon: any) => (
-                      <tr key={addon.id} className="border-b border-border-color last:border-0 hover:bg-light/40 dark:hover:bg-slate-800/40">
-                        <td className="py-2.5 px-2">
-                          <div className="inline-flex items-center gap-2">
-                            <div className="size-8 rounded-md bg-light dark:bg-slate-800 border border-border-color flex items-center justify-center overflow-hidden shrink-0">
-                              {addon.icon ? (
-                                <img src={addon.icon} alt={addon.name} className="size-5 object-contain" />
-                              ) : (
-                                <Package className="size-4 text-primary" />
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold text-title mb-0 truncate">{addon.name}</p>
-                              <p className="text-[10px] text-default mb-0 font-mono">{addon.addonSlug}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-2 text-xs text-default capitalize">{addon.category}</td>
-                        <td className="py-2.5 px-2 text-xs text-default">
-                          {addon.isFree ? (
-                            <span className="font-semibold text-emerald-600 dark:text-emerald-400">Free</span>
-                          ) : (
-                            <span className="font-semibold text-title">{currencySymbol}{addon.price || 0}/mo</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-2">
-                          <span className="inline-flex items-center text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded font-medium">
-                            <span className="size-1.5 bg-emerald-500 rounded-full me-1"></span>
-                            Active
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-2 text-right">
-                          <Link
-                            to="/tenant/addon"
-                            className="inline-flex items-center text-xs text-primary hover:underline font-medium"
-                          >
-                            Configure
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="py-10 text-center rounded-md border border-dashed border-border-color my-2">
-                <Package className="size-8 text-muted-foreground/60 mx-auto mb-2" />
-                <p className="text-xs font-medium text-title mb-1">No custom add-ons activated yet</p>
-                <p className="text-[11px] text-default max-w-sm mx-auto mb-3">
-                  Unlock 2FA Security, WhatsApp alert notifications, Biometric machine synchronization, and 130+ more.
-                </p>
-                <Link
-                  to="/tenant/addon"
-                  className="btn-sm bg-primary text-white border border-primary hover:bg-primary-hover inline-flex items-center gap-1.5 cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium"
-                >
-                  <Sparkles className="size-3.5" /> Open Addon Store
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right Column (5 cols): Security & Audit Activity Stream */}
-        <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 xl:col-span-5 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-              <div>
-                <h3 className="text-base font-bold text-title mb-0.5">Security & Audit Stream</h3>
-                <p className="text-xs text-default mb-0">Live tamper-evident event stream from database.</p>
-              </div>
-              <Link
-                to="/tenant/audit-logs"
-                className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-title hover:bg-primary hover:border-primary hover:text-white flex items-center justify-center gap-1 cursor-pointer transition-colors text-xs px-2.5 py-1 rounded"
-              >
-                All Logs <ArrowRight className="size-3" />
-              </Link>
-            </div>
-
-            <div className="space-y-2.5">
-              {auditLogs.length > 0 ? (
-                auditLogs.map((log: any) => (
-                  <div
-                    key={log.id}
-                    className="flex items-start gap-2.5 p-2.5 rounded-md border border-border-color bg-light/30 dark:bg-slate-800/30 text-xs"
-                  >
-                    <div className="size-7 rounded-md bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
-                      <ShieldCheck className="size-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-semibold text-title mb-0.5 truncate">{log.action || log.key}</p>
-                        <span className="text-[10px] text-default shrink-0">
-                          {log.createdAt ? new Date(log.createdAt).toLocaleDateString([], { month: "short", day: "numeric" }) : "Recent"}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-default mb-0 truncate">
-                        By <strong className="text-title font-medium">{log.user || log.changedBy || "Admin"}</strong>
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-border-color rounded-md">
-                  <ShieldCheck className="size-6 mx-auto mb-1 text-muted-foreground/50" />
-                  No security audit events recorded yet
+          <div className="divide-y divide-border/60">
+            {[
+              { id: "INV-002", title: "Redesign Website", client: "Logistics Pro", amount: "$3,560", status: "Unpaid" },
+              { id: "INV-005", title: "Module Completion", client: "Yip Corp", amount: "$4,175", status: "Unpaid" },
+              { id: "INV-003", title: "Change on Emp Module", client: "Ignis LLP", amount: "$6,985", status: "Unpaid" },
+              { id: "INV-006", title: "Hospital Management", client: "HCL Corp", amount: "$6,458", status: "Paid" },
+            ].map((inv) => (
+              <div key={inv.id} className="py-2.5 flex items-center justify-between text-xs">
+                <div>
+                  <h6 className="font-semibold text-foreground">{inv.title}</h6>
+                  <span className="text-muted-foreground text-[11px]">{inv.id} • {inv.client}</span>
                 </div>
-              )}
+                <div className="text-right">
+                  <span className="font-bold text-foreground block">{inv.amount}</span>
+                  <span className={cn("text-[10px] font-semibold px-1.5 py-0.2 rounded", inv.status === "Paid" ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600")}>
+                    {inv.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Link to="/invoices">
+            <Button variant="outline" size="sm" className="w-full">
+              Invoice Ledger
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Row 6: Active Projects & Task Hour Telemetry */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Projects Data Table */}
+        <div className="lg:col-span-2 rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-semibold text-foreground text-sm">Project Deliverables</h4>
+              <p className="text-xs text-muted-foreground">Milestone progression and capacity consumption</p>
+            </div>
+            <Link to="/projects" className="text-xs text-primary hover:underline">
+              View All Projects
+            </Link>
+          </div>
+
+          <div className="overflow-x-auto border border-border/80 rounded-lg">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="p-3">ID</th>
+                  <th className="p-3">Name</th>
+                  <th className="p-3">Logged Hours</th>
+                  <th className="p-3">Priority</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {[
+                  { id: "PRO-001", name: "Office Management App", hours: "15/255 Hrs", pct: 40, priority: "High", pColor: "text-rose-600 bg-rose-500/10 border-rose-500/20" },
+                  { id: "PRO-002", name: "Clinic Management System", hours: "15/255 Hrs", pct: 20, priority: "Low", pColor: "text-emerald-600 bg-emerald-500/10 border-emerald-500/20" },
+                  { id: "PRO-003", name: "Educational LMS Platform", hours: "40/255 Hrs", pct: 50, priority: "Medium", pColor: "text-amber-600 bg-amber-500/10 border-amber-500/20" },
+                  { id: "PRO-004", name: "Chat & Call Mobile App", hours: "35/155 Hrs", pct: 50, priority: "High", pColor: "text-rose-600 bg-rose-500/10 border-rose-500/20" },
+                  { id: "PRO-005", name: "Travel Planning Website", hours: "50/235 Hrs", pct: 60, priority: "Medium", pColor: "text-amber-600 bg-amber-500/10 border-amber-500/20" },
+                ].map((p) => (
+                  <tr key={p.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="p-3 font-semibold text-primary">{p.id}</td>
+                    <td className="p-3 font-medium text-foreground">{p.name}</td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-16 text-[11px] text-muted-foreground">{p.hours}</span>
+                        <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div style={{ width: `${p.pct}%` }} className="bg-primary h-full" />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <span className={cn("px-2 py-0.5 rounded text-[10px] font-semibold border", p.pColor)}>
+                        {p.priority}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Tasks Statistics Semi-Donut */}
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-semibold text-foreground text-sm">Tasks Statistics</h4>
+              <Badge variant="soft">124/165 Done</Badge>
+            </div>
+            <div className="min-h-[220px] flex items-center justify-center">
+              <Suspense fallback={<div className="h-[220px] flex items-center justify-center text-xs text-muted-foreground">Loading Task Stats...</div>}>
+                <Chart options={taskStatsOptions} series={taskStatsSeries} type="radialBar" height={220} />
+              </Suspense>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-center text-xs border-t border-border/60 pt-3">
+              <div className="p-2 rounded bg-muted/20">
+                <span className="text-muted-foreground block text-[11px]">Ongoing</span>
+                <span className="font-bold text-amber-600">24%</span>
+              </div>
+              <div className="p-2 rounded bg-muted/20">
+                <span className="text-muted-foreground block text-[11px]">On Hold</span>
+                <span className="font-bold text-sky-600">10%</span>
+              </div>
+              <div className="p-2 rounded bg-muted/20">
+                <span className="text-muted-foreground block text-[11px]">Overdue</span>
+                <span className="font-bold text-rose-600">16%</span>
+              </div>
+              <div className="p-2 rounded bg-muted/20">
+                <span className="text-muted-foreground block text-[11px]">Completed</span>
+                <span className="font-bold text-emerald-600">50%</span>
+              </div>
             </div>
           </div>
 
-          <div className="pt-3 mt-3 border-t border-border-color flex items-center justify-between text-xs text-default">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="size-2 bg-emerald-500 rounded-full"></span>
-              Audit encryption: SHA-256
-            </span>
-            <Link to="/tenant/audit-logs" className="text-primary hover:underline font-medium">
-              View Audit Policy
+          <div className="p-3 rounded-lg bg-slate-900 text-white flex items-center justify-between mt-2">
+            <div>
+              <span className="text-xs font-bold text-emerald-400">389 / 689 Hrs</span>
+              <p className="text-[10px] text-slate-300">Spent on overall tasks this week</p>
+            </div>
+            <i className="ti ti-clock text-xl text-slate-400" />
+          </div>
+        </div>
+      </div>
+
+      {/* Row 7: Interview Schedules, Recent Activities & Birthdays */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Schedules */}
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-foreground text-sm">Upcoming Schedules</h4>
+            <Link to="/hr/calendar" className="text-xs text-primary hover:underline">
+              Full Calendar
             </Link>
+          </div>
+
+          <div className="space-y-3">
+            <div className="p-3 rounded-lg border border-border/80 bg-muted/20 space-y-2">
+              <Badge variant="soft" className="text-[10px]">UI/UX Designer</Badge>
+              <h6 className="text-xs font-semibold text-foreground">Interview Candidate - Sarah Jenkins</h6>
+              <div className="text-[11px] text-muted-foreground flex items-center gap-3">
+                <span><i className="ti ti-calendar mr-1" />Today</span>
+                <span><i className="ti ti-clock mr-1" />01:00 PM - 02:00 PM</span>
+              </div>
+              <Button size="xs" variant="primary" className="w-full mt-1">
+                <i className="ti ti-video mr-1" /> Join Virtual Meeting
+              </Button>
+            </div>
+
+            <div className="p-3 rounded-lg border border-border/80 bg-muted/20 space-y-2">
+              <Badge variant="outline" className="text-[10px]">iOS Developer</Badge>
+              <h6 className="text-xs font-semibold text-foreground">Technical Assessment - Alex Miller</h6>
+              <div className="text-[11px] text-muted-foreground flex items-center gap-3">
+                <span><i className="ti ti-calendar mr-1" />Tomorrow</span>
+                <span><i className="ti ti-clock mr-1" />03:30 PM - 04:30 PM</span>
+              </div>
+              <Button size="xs" variant="outline" className="w-full mt-1">
+                <i className="ti ti-video mr-1" /> Join Meeting Room
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Activities Feed */}
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-foreground text-sm">Recent Activities</h4>
+            <Link to="/activity-logs" className="text-xs text-primary hover:underline">
+              Audit Logs
+            </Link>
+          </div>
+
+          <div className="space-y-3">
+            {[
+              { user: "Matt Morgan", action: "Added new project milestone", target: "HRMS Portal", time: "10 mins ago" },
+              { user: "Jay Ze", action: "Uploaded revised NDA agreement", target: "Contracts", time: "45 mins ago" },
+              { user: "Mary Donald", action: "Approved leave request for", target: "Daniel Esbella", time: "1 hour ago" },
+              { user: "George David", action: "Created procurement order", target: "Hardware PO#104", time: "2 hours ago" },
+            ].map((act, i) => (
+              <div key={i} className="flex items-start gap-2.5 text-xs">
+                <div className="size-6 rounded-full bg-primary/10 text-primary font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                  {act.user.charAt(0)}
+                </div>
+                <div>
+                  <p className="text-foreground">
+                    <span className="font-semibold">{act.user}</span> {act.action} <span className="text-primary font-medium">{act.target}</span>
+                  </p>
+                  <span className="text-[10px] text-muted-foreground">{act.time}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Birthdays Celebrations */}
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-foreground text-sm">Celebrations & Birthdays</h4>
+            <Badge variant="soft">Team Morale</Badge>
+          </div>
+
+          <div className="space-y-3">
+            <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-semibold text-amber-600 block">Today! 🎂</span>
+                <h6 className="text-xs font-semibold text-foreground">Andrew Jermia</h6>
+                <span className="text-[11px] text-muted-foreground">iOS Developer</span>
+              </div>
+              <Button size="xs" variant="primary" onClick={() => toast.success("Birthday wishes sent to Andrew!")}>
+                Send Wishes
+              </Button>
+            </div>
+
+            <div className="p-3 rounded-lg border border-border/80 bg-muted/20 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-medium text-muted-foreground block">Tomorrow</span>
+                <h6 className="text-xs font-semibold text-foreground">Mary Zeen</h6>
+                <span className="text-[11px] text-muted-foreground">UI/UX Designer</span>
+              </div>
+              <Button size="xs" variant="outline" onClick={() => toast.success("Reminder set for Mary's birthday!")}>
+                Remind Me
+              </Button>
+            </div>
+
+            <div className="p-3 rounded-lg border border-border/80 bg-muted/20 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-medium text-muted-foreground block">Jan 25</span>
+                <h6 className="text-xs font-semibold text-foreground">Doglas Martini</h6>
+                <span className="text-[11px] text-muted-foreground">.NET Lead</span>
+              </div>
+              <Button size="xs" variant="ghost" onClick={() => toast.success("Schedule card prepared!")}>
+                Schedule Card
+              </Button>
+            </div>
           </div>
         </div>
       </div>

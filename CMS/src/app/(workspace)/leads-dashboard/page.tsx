@@ -1,643 +1,417 @@
 'use client';
-import {  createFileRoute, Link  } from "@/src/lib/router-compat";
-import { useState, useMemo, lazy, Suspense } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+
+import { useState, useMemo, Suspense } from "react";
+import dynamic from "next/dynamic";
+import { Link } from "@/lib/router-compat";
+import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 
-import { usePermissions } from "@/lib/permissions";
-import { AccessDenied } from "@/components/access-denied";
-import { Loader2 } from "lucide-react";
-
-const Chart = lazy(() => import("react-apexcharts"));
-
-
-
-interface LeadItem {
-  id: string;
-  name: string;
-  company: string;
-  source: string;
-  value: number;
-  location: string;
-  email: string;
-  status: string;
-  avatar: string;
-}
+const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 export default function LeadsDashboardPage() {
-  const { canAccessModule, loading } = usePermissions();
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [exportOpen, setExportOpen] = useState(false);
-  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
-  const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
+  const [pipelinePeriod, setPipelinePeriod] = useState("2025 - 2026");
 
-  // Modals
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [selectedLead, setSelectedLead] = useState<LeadItem | null>(null);
-
-  // New Lead Form
-  const [newLead, setNewLead] = useState({
-    name: "",
-    company: "",
-    email: "",
-    source: "Website Form",
-    value: 15000,
-    location: "United States",
-    status: "New" as LeadItem["status"],
-  });
-
-  const queryClient = useQueryClient();
-
-  const { data: leads = [] } = useQuery({
-    queryKey: ["leads-dashboard-data"],
-    queryFn: async () => {
-      try {
-        const res = await api.get("/crm/leads");
-        if (Array.isArray(res)) {
-          return res.map((l: any, idx: number) => ({
-            id: l.id || `LED-${String(idx + 1).padStart(3, "0")}`,
-            name: l.name || "Prospective Lead",
-            company: l.company || "Enterprise Lead",
-            source: l.source || "Website Form",
-            value: Number(l.value || l.estimatedBudget || 0),
-            location: l.location || "Global",
-            email: l.email || "lead@company.com",
-            status: l.status === "qualified" ? "Qualified" : l.status === "contacted" ? "Contacted" : l.status === "lost" ? "Lost" : "New",
-            avatar: `/ui-assets/avatar-${String((idx % 12) + 1).padStart(2, "0")}.jpg`,
-          }));
-        }
-        return [];
-      } catch {
-        return [];
-      }
+  // Chart 1: Revenue / Pipeline Volume Bar Chart
+  const pipelineBarOptions: any = {
+    chart: { type: "bar", height: 260, toolbar: { show: false } },
+    colors: ["#0d6efd", "#0dcaf0", "#6c757d"],
+    plotOptions: {
+      bar: { columnWidth: "50%", borderRadius: 4 },
     },
-  });
-
-  const filteredLeads = useMemo(() => {
-    return leads.filter((l) => {
-      const matchSearch =
-        l.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        l.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        l.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        l.source.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchStatus = statusFilter === "all" || l.status === statusFilter;
-      return matchSearch && matchStatus;
-    });
-  }, [leads, searchQuery, statusFilter]);
-
-  const totalLeadsCount = leads.length;
-  const totalValue = leads.reduce((sum, l) => sum + l.value, 0);
-  const qualifiedCount = leads.filter((l) => l.status === "Qualified").length;
-  const newCount = leads.filter((l) => l.status === "New").length;
-
-  const handleExport = (format: "pdf" | "excel") => {
-    try {
-      const csvContent = [
-        ["Lead ID", "Lead Name", "Company", "Source", "Value", "Location", "Email", "Status"],
-        ...filteredLeads.map((l) => [
-          l.id,
-          l.name,
-          l.company,
-          l.source,
-          `$${l.value}`,
-          l.location,
-          l.email,
-          l.status,
-        ]),
-      ]
-        .map((r) => r.join(","))
-        .join("\n");
-
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `Leads_Report_${new Date().toISOString().split("T")[0]}.${format === "excel" ? "csv" : "txt"}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success(`Leads exported as ${format.toUpperCase()}`);
-    } catch {
-      toast.error("Failed to export Leads.");
-    }
+    dataLabels: { enabled: false },
+    stroke: { show: true, width: 2, colors: ["transparent"] },
+    xaxis: {
+      categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+      labels: { style: { colors: "#64748b", fontSize: "11px" } },
+    },
+    yaxis: { labels: { style: { colors: "#64748b", fontSize: "11px" } } },
+    grid: { borderColor: "rgba(100, 116, 139, 0.15)", strokeDashArray: 4 },
+    legend: { position: "top", horizontalAlign: "right" },
   };
+  const pipelineBarSeries = [
+    { name: "Contacted", data: [45, 52, 38, 65, 74, 82, 70, 68, 72, 85, 90, 95] },
+    { name: "Opportunity", data: [25, 30, 22, 40, 48, 55, 45, 42, 50, 60, 64, 68] },
+    { name: "Not Contacted", data: [15, 18, 12, 20, 22, 24, 20, 18, 20, 25, 26, 28] },
+  ];
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newLead.name.trim() || !newLead.company.trim()) {
-      toast.error("Please provide Lead Name and Company.");
-      return;
-    }
-    toast.success(`Lead "${newLead.name}" created successfully.`);
-    setCreateModalOpen(false);
-    setNewLead({
-      name: "",
-      company: "",
-      email: "",
-      source: "Website Form",
-      value: 15000,
-      location: "United States",
-      status: "New",
-    });
+  // Chart 2: New Leads Acquisition Bar
+  const newLeadsOptions: any = {
+    chart: { type: "bar", height: 260, toolbar: { show: false } },
+    colors: ["#16a34a"],
+    plotOptions: {
+      bar: { columnWidth: "45%", borderRadius: 4 },
+    },
+    dataLabels: { enabled: false },
+    xaxis: {
+      categories: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      labels: { style: { colors: "#64748b", fontSize: "11px" } },
+    },
+    yaxis: { labels: { style: { colors: "#64748b", fontSize: "11px" } } },
+    grid: { borderColor: "rgba(100, 116, 139, 0.15)", strokeDashArray: 4 },
   };
+  const newLeadsSeries = [{ name: "New Inbound Leads", data: [15, 24, 32, 28, 42, 18, 12] }];
 
-  const leadSourcesOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "donut", height: 260 },
-      labels: ["Website Form", "Referral", "LinkedIn", "Cold Outreach", "Trade Shows"],
-      colors: ["#3B82F6", "#10B981", "#8B5CF6", "#F59E0B", "#EC4899"],
-      legend: { position: "bottom" },
-      dataLabels: { enabled: false },
-    }),
-    []
-  );
+  // Chart 3: Lost Leads Funnel/Bar
+  const lostLeadsOptions: any = {
+    chart: { type: "bar", height: 220, toolbar: { show: false } },
+    colors: ["#e11d48"],
+    plotOptions: {
+      bar: { horizontal: true, barHeight: "45%", borderRadius: 4 },
+    },
+    dataLabels: { enabled: false },
+    xaxis: {
+      categories: ["Budget Constraints", "Competitor Chosen", "Timing Not Right", "No Authority", "Unresponsive"],
+      labels: { style: { colors: "#64748b", fontSize: "11px" } },
+    },
+    yaxis: { labels: { style: { colors: "#64748b", fontSize: "11px" } } },
+    grid: { borderColor: "rgba(100, 116, 139, 0.15)", strokeDashArray: 4 },
+  };
+  const lostLeadsSeries = [{ name: "Lost Leads", data: [12, 8, 5, 3, 2] }];
 
-  if (loading) {
-    return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <p className="text-xs text-muted-foreground font-medium animate-pulse">Verifying workspace permissions...</p>
-      </div>
-    );
-  }
-
-  if (!canAccessModule("crm")) {
-    return (
-      <AccessDenied
-        moduleName="Leads Dashboard"
-        requiredPermission="crm.dashboard.view"
-        message="You do not have permission to access the Leads Dashboard."
-      />
-    );
-  }
+  // Chart 4: Leads by Source Donut
+  const leadsSourceOptions: any = {
+    chart: { type: "donut", height: 220 },
+    labels: ["Google Search", "Paid Social", "Email Campaigns", "Referrals"],
+    colors: ["#0d6efd", "#ffc107", "#e11d48", "#6f42c1"],
+    legend: { show: false },
+    dataLabels: { enabled: false },
+    plotOptions: {
+      pie: {
+        donut: {
+          size: "70%",
+          labels: {
+            show: true,
+            total: {
+              show: true,
+              label: "Primary Channel",
+              fontSize: "11px",
+              color: "#64748b",
+              formatter: () => "Google (40%)",
+            },
+          },
+        },
+      },
+    },
+  };
+  const leadsSourceSeries = [40, 35, 15, 10];
 
   return (
-    <div className="p-0">
-      {/* ── Page Header (matching ui/leads.html lines 1267-1280) ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 lg:mb-6">
-        <div>
-          <BreadcrumbNav />
-          <h1 className="text-gray-900 dark:text-gray-100 text-xl font-bold mb-1">Leads Management</h1>
-          <p className="text-sm text-default mb-0">
-            Incoming inbound prospect funnel, marketing acquisition channels, and lead qualification matrix.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* View Mode Switcher */}
-          <div className="inline-flex bg-white dark:bg-slate-800 border border-border-color rounded-md p-1">
-            <button
-              type="button"
-              onClick={() => setViewMode("list")}
-              className={cn(
-                "btn-sm inline-flex items-center gap-1 cursor-pointer font-medium text-xs px-2.5 py-1 rounded",
-                viewMode === "list"
-                  ? "bg-dark text-white dark:bg-primary"
-                  : "bg-transparent text-gray-700 dark:text-gray-300 hover:bg-light dark:hover:bg-slate-700"
-              )}
-              title="Table List"
-            >
-              <i className="ph-duotone ph-rows text-sm"></i>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("grid")}
-              className={cn(
-                "btn-sm inline-flex items-center gap-1 cursor-pointer font-medium text-xs px-2.5 py-1 rounded",
-                viewMode === "grid"
-                  ? "bg-dark text-white dark:bg-primary"
-                  : "bg-transparent text-gray-700 dark:text-gray-300 hover:bg-light dark:hover:bg-slate-700"
-              )}
-              title="Card Grid"
-            >
-              <i className="ph-duotone ph-grid-four text-sm"></i>
-            </button>
-          </div>
-
-          {/* Export Dropdown */}
-          <div className="relative inline-flex">
-            <button
-              type="button"
-              onClick={() => setExportOpen((o) => !o)}
-              className="cursor-pointer btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 inline-flex items-center gap-2 hover:bg-primary hover:border-primary hover:text-white transition-colors shadow-xs"
-            >
-              <i className="ph-duotone ph-download-simple font-normal"></i> Export{" "}
-              <i className="ph-bold ph-caret-down text-xs"></i>
-            </button>
-
-            {exportOpen && (
-              <div className="absolute right-0 top-full mt-2 min-w-44 bg-white dark:bg-slate-900 border border-border-color shadow-lg rounded-md p-2 space-y-1 z-30">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleExport("pdf");
-                    setExportOpen(false);
-                  }}
-                  className="w-full text-left flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 dark:text-gray-100 hover:bg-light dark:hover:bg-slate-800 cursor-pointer"
-                >
-                  Export as PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleExport("excel");
-                    setExportOpen(false);
-                  }}
-                  className="w-full text-left flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 dark:text-gray-100 hover:bg-light dark:hover:bg-slate-800 cursor-pointer"
-                >
-                  Export as Excel (CSV)
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Create Lead Button */}
-          <button
-            type="button"
-            onClick={() => setCreateModalOpen(true)}
-            className="btn-sm bg-dark text-white border border-dark inline-flex items-center gap-2 hover:bg-primary-hover hover:border-primary-hover cursor-pointer shadow-xs transition-colors"
-          >
-            <i className="ph ph-plus"></i>
-            <span>Create Lead</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ── Metric Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-default mb-1">Total Prospects</p>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">{totalLeadsCount}</h3>
-            <span className="text-[11px] text-success font-medium inline-flex items-center mt-1">
-              <i className="ph ph-arrow-up text-[10px] me-1"></i> +14.2% MoM
-            </span>
-          </div>
-          <div className="size-10 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center shrink-0">
-            <i className="ph-duotone ph-user-focus text-xl"></i>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-default mb-1">New Leads</p>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">{newCount}</h3>
-            <span className="text-[11px] text-info font-medium inline-flex items-center mt-1">
-              Pending First Touch
-            </span>
-          </div>
-          <div className="size-10 rounded-md bg-sky-50 dark:bg-sky-950/40 text-sky-600 flex items-center justify-center shrink-0">
-            <i className="ph-duotone ph-sparkle text-xl"></i>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-default mb-1">Qualified Leads</p>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">{qualifiedCount}</h3>
-            <span className="text-[11px] text-emerald-600 font-medium inline-flex items-center mt-1">
-              Ready for Proposal
-            </span>
-          </div>
-          <div className="size-10 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center shrink-0">
-            <i className="ph-duotone ph-check-circle text-xl"></i>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-default mb-1">Forecasted Value</p>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">${totalValue.toLocaleString()}</h3>
-            <span className="text-[11px] text-default font-medium inline-flex items-center mt-1">
-              Weighted Pipeline
-            </span>
-          </div>
-          <div className="size-10 rounded-md bg-purple-50 dark:bg-purple-950/40 text-purple-600 flex items-center justify-center shrink-0">
-            <i className="ph-duotone ph-wallet text-xl"></i>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Leads Table Container (matching ui/leads.html lines 1281-1350) ── */}
-      <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div className="relative w-64 search-input">
-            <i className="ph ph-magnifying-glass absolute right-2.5 top-1/2 -translate-y-1/2 text-default text-sm pointer-events-none"></i>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-3 pe-8 py-1.5 h-8 text-xs border border-border-color rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary"
-              placeholder="Search leads, companies, sources..."
-            />
-          </div>
-
+    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* Page Header */}
+      <PageHeader
+        title="Leads Dashboard"
+        description="Monitor inbound lead volumes, stage conversion rates, lead sources, and outreach follow-ups."
+        actions={
           <div className="flex items-center gap-2">
-            <div className="relative inline-flex">
-              <button
-                type="button"
-                onClick={() => setFilterDropdownOpen((o) => !o)}
-                className="cursor-pointer btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 inline-flex items-center gap-2 hover:bg-primary hover:border-primary hover:text-white transition-colors"
-              >
-                <i className="ph-duotone ph-funnel font-normal"></i> Filter{" "}
-                <i className="ph-bold ph-caret-down text-xs"></i>
-              </button>
-
-              {filterDropdownOpen && (
-                <div className="absolute right-0 top-full mt-2 min-w-44 bg-white dark:bg-slate-900 border border-border-color shadow-lg rounded-md p-3 space-y-2 z-30">
-                  <p className="text-xs font-bold text-title mb-1">Filter Status</p>
-                  {["all", "New", "Contacted", "Qualified", "Lost"].map((st) => (
-                    <label key={st} className="flex items-center gap-2 text-xs cursor-pointer text-gray-800 dark:text-gray-200">
-                      <input
-                        type="radio"
-                        name="leadStatus"
-                        checked={statusFilter === st}
-                        onChange={() => {
-                          setStatusFilter(st);
-                          setFilterDropdownOpen(false);
-                        }}
-                        className="size-3.5 rounded border-border-color text-primary focus:ring-0"
-                      />
-                      <span>{st === "all" ? "All Status" : st}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                queryClient.invalidateQueries({ queryKey: ["leads-dashboard-data"] });
-                toast.success("Leads refreshed.");
-              }}
-              className="size-8 rounded-md border border-border-color bg-white dark:bg-slate-800 flex items-center justify-center text-default hover:bg-light dark:hover:bg-slate-700 cursor-pointer shadow-xs transition-colors"
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.success("Exporting Leads Analytics PDF...")}
             >
-              <i className="ph ph-arrow-clockwise"></i>
-            </button>
+              <i className="ti ti-file-export mr-1.5 text-sm" />
+              Export
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => toast.info("Add new lead dialog opened")}
+            >
+              <i className="ti ti-plus mr-1.5 text-sm" />
+              Add Lead
+            </Button>
+          </div>
+        }
+      />
+
+      {/* 4 Metric KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-muted-foreground font-medium">Total No of Leads</span>
+            <div className="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+              <i className="ti ti-delta text-base" />
+            </div>
+          </div>
+          <div>
+            <h4 className="text-2xl font-bold text-foreground">6,000</h4>
+            <span className="text-[11px] text-rose-600 font-semibold flex items-center gap-1 mt-1">
+              <i className="ti ti-arrow-wave-right-up" /> -4.01% from last week
+            </span>
           </div>
         </div>
 
-        {viewMode === "list" ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs text-default border-b border-border-color bg-slate-50/50 dark:bg-slate-800/40">
-                  <th className="text-left py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Lead Name</th>
-                  <th className="text-left py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Company</th>
-                  <th className="text-left py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Acquisition Source</th>
-                  <th className="text-left py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Potential Value</th>
-                  <th className="text-left py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Location</th>
-                  <th className="text-left py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Status</th>
-                  <th className="text-right py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredLeads.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-8 text-center text-sm text-default">
-                      No leads matching criteria.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredLeads.map((lead) => (
-                    <tr key={lead.id} className="border-b border-border-color hover:bg-slate-50/60 dark:hover:bg-slate-800/50 transition-colors">
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-2">
-                          <img
-                            src={lead.avatar}
-                            alt={lead.name}
-                            className="size-7 rounded-full object-cover shrink-0 border border-border-color"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = "/ui-assets/avatar-01.jpg";
-                            }}
-                          />
-                          <div>
-                            <p className="text-sm font-semibold text-title leading-tight mb-0.5">{lead.name}</p>
-                            <span className="text-[11px] text-muted-foreground">{lead.email}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-sm text-default">{lead.company}</td>
-                      <td className="py-3 px-3 text-sm text-default">{lead.source}</td>
-                      <td className="py-3 px-3 text-sm font-bold text-gray-900 dark:text-gray-100">${lead.value.toLocaleString()}</td>
-                      <td className="py-3 px-3 text-sm text-default">{lead.location}</td>
-                      <td className="py-3 px-3">
-                        <span
-                          className={cn(
-                            "text-[11px] font-medium px-2 py-0.5 rounded inline-block",
-                            lead.status === "New" && "bg-info-transparent text-info",
-                            lead.status === "Qualified" && "bg-success-transparent text-success",
-                            lead.status === "Contacted" && "bg-warning-transparent text-warning",
-                            lead.status === "Lost" && "bg-danger-transparent text-danger"
-                          )}
-                        >
-                          {lead.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-right relative">
-                        <div className="relative inline-flex">
-                          <button
-                            type="button"
-                            onClick={() => setActionMenuOpen(actionMenuOpen === lead.id ? null : lead.id)}
-                            className="size-7 rounded-md border border-border-color bg-white dark:bg-slate-800 text-default hover:bg-light dark:hover:bg-slate-700 flex items-center justify-center cursor-pointer shadow-2xs"
-                          >
-                            <i className="ph-bold ph-dots-three-vertical text-sm"></i>
-                          </button>
-
-                          {actionMenuOpen === lead.id && (
-                            <div className="absolute right-0 top-full mt-1 min-w-32 bg-white dark:bg-slate-900 border border-border-color shadow-lg rounded-md p-1.5 space-y-1 z-30 text-left">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedLead(lead);
-                                  setActionMenuOpen(null);
-                                  toast.info(`Lead details for ${lead.name}`);
-                                }}
-                                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-gray-900 dark:text-gray-100 hover:bg-light dark:hover:bg-slate-800 cursor-pointer"
-                              >
-                                <i className="ph-duotone ph-eye text-sm"></i>
-                                <span>View</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedLead(lead);
-                                  setActionMenuOpen(null);
-                                  setDeleteModalOpen(true);
-                                }}
-                                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-danger hover:bg-light dark:hover:bg-slate-800 cursor-pointer"
-                              >
-                                <i className="ph-duotone ph-trash text-sm"></i>
-                                <span>Delete</span>
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-muted-foreground font-medium">New Inbound Leads</span>
+            <div className="size-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+              <i className="ti ti-currency text-base" />
+            </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {filteredLeads.map((lead) => (
-              <div key={lead.id} className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 shadow-2xs">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <img src={lead.avatar} alt={lead.name} className="size-8 rounded-full border border-border-color" />
-                    <div>
-                      <p className="text-sm font-semibold text-title leading-tight mb-0.5">{lead.name}</p>
-                      <span className="text-[11px] text-default">{lead.company}</span>
-                    </div>
-                  </div>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold px-1.5 py-0.5 rounded",
-                      lead.status === "New" && "bg-info-transparent text-info",
-                      lead.status === "Qualified" && "bg-success-transparent text-success",
-                      lead.status === "Contacted" && "bg-warning-transparent text-warning",
-                      lead.status === "Lost" && "bg-danger-transparent text-danger"
-                    )}
-                  >
-                    {lead.status}
-                  </span>
+          <div>
+            <h4 className="text-2xl font-bold text-foreground">120</h4>
+            <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
+              <i className="ti ti-arrow-wave-right-up" /> +20.01% from last week
+            </span>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-muted-foreground font-medium">Lost Leads</span>
+            <div className="size-8 rounded-lg bg-rose-500/10 text-rose-600 flex items-center justify-center">
+              <i className="ti ti-stairs-up text-base" />
+            </div>
+          </div>
+          <div>
+            <h4 className="text-2xl font-bold text-foreground">30</h4>
+            <span className="text-[11px] text-rose-600 font-semibold flex items-center gap-1 mt-1">
+              <i className="ti ti-arrow-wave-right-up" /> +55% from last week
+            </span>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-muted-foreground font-medium">Total Customers</span>
+            <div className="size-8 rounded-lg bg-purple-500/10 text-purple-600 flex items-center justify-center">
+              <i className="ti ti-users-group text-base" />
+            </div>
+          </div>
+          <div>
+            <h4 className="text-2xl font-bold text-foreground">9,895</h4>
+            <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
+              <i className="ti ti-arrow-wave-right-up" /> +55% from last week
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 2: Pipeline Stages Volume + New Leads Acquisition */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-semibold text-foreground text-sm">Pipeline Stages</h4>
+              <p className="text-xs text-muted-foreground">Volume breakdown across progression milestones</p>
+            </div>
+            <Badge variant="soft">{pipelinePeriod}</Badge>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 mb-2 text-center text-xs">
+            <div className="p-2.5 rounded-lg border border-border/70 bg-muted/20">
+              <span className="text-muted-foreground flex items-center justify-center gap-1 text-[11px]">
+                <span className="size-2 rounded-full bg-primary" /> Contacted
+              </span>
+              <span className="text-base font-bold text-foreground mt-0.5 block">50,000</span>
+            </div>
+            <div className="p-2.5 rounded-lg border border-border/70 bg-muted/20">
+              <span className="text-muted-foreground flex items-center justify-center gap-1 text-[11px]">
+                <span className="size-2 rounded-full bg-cyan-500" /> Opportunity
+              </span>
+              <span className="text-base font-bold text-foreground mt-0.5 block">25,985</span>
+            </div>
+            <div className="p-2.5 rounded-lg border border-border/70 bg-muted/20">
+              <span className="text-muted-foreground flex items-center justify-center gap-1 text-[11px]">
+                <span className="size-2 rounded-full bg-slate-500" /> Not Contacted
+              </span>
+              <span className="text-base font-bold text-foreground mt-0.5 block">12,566</span>
+            </div>
+          </div>
+
+          <div className="min-h-[260px]">
+            <Suspense fallback={<div className="h-[260px] flex items-center justify-center text-xs text-muted-foreground">Loading Pipeline Chart...</div>}>
+              <Chart options={pipelineBarOptions} series={pipelineBarSeries} type="bar" height={260} />
+            </Suspense>
+          </div>
+        </div>
+
+        {/* New Leads Weekly Acquisition */}
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-foreground text-sm">New Inbound Leads</h4>
+            <span className="text-xs text-muted-foreground">This Week</span>
+          </div>
+          <div className="min-h-[260px]">
+            <Suspense fallback={<div className="h-[260px] flex items-center justify-center text-xs text-muted-foreground">Loading Leads Chart...</div>}>
+              <Chart options={newLeadsOptions} series={newLeadsSeries} type="bar" height={260} />
+            </Suspense>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 3: Lost Leads Stages, Leads by Companies & Leads by Source */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Lost Leads Stages */}
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-foreground text-sm">Lost Leads Reasons</h4>
+            <Badge variant="soft">Sales Pipeline</Badge>
+          </div>
+          <div className="min-h-[220px]">
+            <Suspense fallback={<div className="h-[220px] flex items-center justify-center text-xs text-muted-foreground">Loading Lost Leads Chart...</div>}>
+              <Chart options={lostLeadsOptions} series={lostLeadsSeries} type="bar" height={220} />
+            </Suspense>
+          </div>
+        </div>
+
+        {/* Leads By Companies */}
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-foreground text-sm">Leads By Companies</h4>
+            <Link to="/companies" className="text-xs text-primary hover:underline">
+              View All
+            </Link>
+          </div>
+          <div className="space-y-2.5">
+            {[
+              { name: "Pitch Technologies", value: "$45,985", status: "Not Contacted", color: "bg-purple-500/10 text-purple-600 border-purple-500/20" },
+              { name: "Initech Cloud", value: "$21,145", status: "Closed Won", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
+              { name: "Umbrella Corp", value: "$15,685", status: "Contacted", color: "bg-sky-500/10 text-sky-600 border-sky-500/20" },
+              { name: "Capital Partners", value: "$12,105", status: "Contacted", color: "bg-sky-500/10 text-sky-600 border-sky-500/20" },
+              { name: "Massive Dynamic", value: "$2,546", status: "Lost", color: "bg-rose-500/10 text-rose-600 border-rose-500/20" },
+            ].map((lead) => (
+              <div key={lead.name} className="p-2.5 rounded-lg border border-border/70 bg-muted/20 flex items-center justify-between text-xs">
+                <div>
+                  <h6 className="font-semibold text-foreground">{lead.name}</h6>
+                  <span className="text-[11px] text-muted-foreground">Est. Value: {lead.value}</span>
                 </div>
-                <div className="flex items-center justify-between text-xs pt-2 border-t border-border-color text-default">
-                  <span>{lead.source}</span>
-                  <span className="font-bold text-gray-900 dark:text-gray-100">${lead.value.toLocaleString()}</span>
-                </div>
+                <span className={cn("px-2 py-0.5 rounded text-[10px] font-semibold border", lead.color)}>
+                  {lead.status}
+                </span>
               </div>
             ))}
           </div>
-        )}
+        </div>
+
+        {/* Leads By Source Donut */}
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-foreground text-sm">Leads By Source</h4>
+            <span className="text-xs text-muted-foreground">Inbound Split</span>
+          </div>
+          <div className="min-h-[220px] flex items-center justify-center">
+            <Suspense fallback={<div className="h-[220px] flex items-center justify-center text-xs text-muted-foreground">Loading Donut...</div>}>
+              <Chart options={leadsSourceOptions} series={leadsSourceSeries} type="donut" height={220} />
+            </Suspense>
+          </div>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-primary" /> Google Search
+              </span>
+              <span className="font-medium text-foreground">40%</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-amber-500" /> Paid Advertising
+              </span>
+              <span className="font-medium text-foreground">35%</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-rose-500" /> Email Campaigns
+              </span>
+              <span className="font-medium text-foreground">15%</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-purple-500" /> Direct Referrals
+              </span>
+              <span className="font-medium text-foreground">10%</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* ── Create Lead Modal ── */}
-      <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-        <DialogContent className="max-w-md p-0 overflow-hidden bg-white dark:bg-slate-900 border border-border-color">
-          <DialogHeader className="p-4 border-b border-border-color">
-            <DialogTitle className="text-base font-bold text-gray-900 dark:text-gray-100">Add New Lead</DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleCreateSubmit} className="p-4 space-y-3">
-            <div>
-              <label className="text-xs font-semibold text-gray-900 dark:text-gray-100 mb-1 block">Contact Name *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. John Doe"
-                value={newLead.name}
-                onChange={(e) => setNewLead({ ...newLead, name: e.target.value })}
-                className="w-full px-3 py-2 text-xs border border-border-color rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-gray-900 dark:text-gray-100 mb-1 block">Company Name *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Acme Corp"
-                value={newLead.company}
-                onChange={(e) => setNewLead({ ...newLead, company: e.target.value })}
-                className="w-full px-3 py-2 text-xs border border-border-color rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-semibold text-gray-900 dark:text-gray-100 mb-1 block">Value ($)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={newLead.value}
-                  onChange={(e) => setNewLead({ ...newLead, value: Number(e.target.value) })}
-                  className="w-full px-3 py-2 text-xs border border-border-color rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-900 dark:text-gray-100 mb-1 block">Source</label>
-                <select
-                  value={newLead.source}
-                  onChange={(e) => setNewLead({ ...newLead, source: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-border-color rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary"
+      {/* Row 4: Recent Follow Up & Recent Leads Data Table */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent Follow-ups */}
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold text-foreground text-sm">Recent Follow-ups</h4>
+            <Link to="/contacts" className="text-xs text-primary hover:underline">
+              View All
+            </Link>
+          </div>
+          <div className="space-y-3">
+            {[
+              { name: "Alexander Jermai", role: "UI/UX Designer", action: "mail" },
+              { name: "Doglas Martini", role: "Product Designer", action: "phone" },
+              { name: "Daniel Esbella", role: "Project Manager", action: "mail" },
+              { name: "Stephan Peralt", role: "Team Lead", action: "chat" },
+            ].map((f) => (
+              <div key={f.name} className="flex items-center justify-between text-xs p-2 rounded-lg hover:bg-muted/30 transition-colors">
+                <div className="flex items-center gap-2.5">
+                  <div className="size-8 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center">
+                    {f.name.split(" ").map((n) => n[0]).join("")}
+                  </div>
+                  <div>
+                    <h6 className="font-semibold text-foreground">{f.name}</h6>
+                    <span className="text-[11px] text-muted-foreground">{f.role}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="size-7 rounded-lg border border-border/70 hover:bg-primary hover:text-white transition-colors flex items-center justify-center text-muted-foreground cursor-pointer"
+                  onClick={() => toast.success(`Contacting ${f.name}...`)}
                 >
-                  <option value="Website Form">Website Form</option>
-                  <option value="Referral">Referral</option>
-                  <option value="LinkedIn Campaign">LinkedIn Campaign</option>
-                  <option value="Cold Outreach">Cold Outreach</option>
-                  <option value="Trade Show">Trade Show</option>
-                </select>
+                  <i className={cn("text-xs", f.action === "mail" ? "ti ti-mail" : f.action === "phone" ? "ti ti-phone" : "ti ti-brand-hipchat")} />
+                </button>
               </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Recent Leads Table */}
+        <div className="lg:col-span-2 rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-semibold text-foreground text-sm">Recent Inbound Leads</h4>
+              <p className="text-xs text-muted-foreground">New prospective client accounts requiring qualification</p>
             </div>
-
-            <DialogFooter className="border-t border-border-color pt-3 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setCreateModalOpen(false)}
-                className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 hover:bg-light cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="btn-sm bg-dark text-white border border-dark hover:bg-primary-hover cursor-pointer"
-              >
-                Save Lead
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Delete Modal ── */}
-      <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
-        <DialogContent className="max-w-sm p-4 text-center bg-white dark:bg-slate-900 border border-border-color">
-          <div className="size-12 rounded-full bg-danger-transparent text-danger mx-auto flex items-center justify-center mb-3">
-            <i className="ph-duotone ph-trash text-2xl"></i>
+            <Link to="/leads" className="text-xs text-primary hover:underline">
+              Manage All Leads
+            </Link>
           </div>
-          <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-1">Delete Lead?</h3>
-          <p className="text-xs text-default mb-4">
-            Are you sure you want to remove <strong className="text-gray-900 dark:text-gray-100">{selectedLead?.name}</strong> from records?
-          </p>
-          <div className="flex items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => setDeleteModalOpen(false)}
-              className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 hover:bg-light cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                toast.success(`Lead ${selectedLead?.name} removed.`);
-                setDeleteModalOpen(false);
-              }}
-              className="btn-sm bg-danger text-white border border-danger hover:bg-danger/90 cursor-pointer"
-            >
-              Delete
-            </button>
+
+          <div className="overflow-x-auto border border-border/80 rounded-lg">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="p-3">Lead Name</th>
+                  <th className="p-3">Company</th>
+                  <th className="p-3">Source</th>
+                  <th className="p-3">Value</th>
+                  <th className="p-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {[
+                  { name: "John Carter", company: "Acme Logistics Corp", source: "Google Search", value: "$45,000", status: "Closed Won", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
+                  { name: "Maria Garcia", company: "TechFlow Systems", source: "Paid Social", value: "$28,000", status: "In Negotiation", color: "bg-primary/10 text-primary border-primary/20" },
+                  { name: "Robert Chen", company: "Nexus AI Labs", source: "Referral", value: "$62,000", status: "Contacted", color: "bg-sky-500/10 text-sky-600 border-sky-500/20" },
+                  { name: "Sarah Connor", company: "CyberDyne Dynamics", source: "Direct Website", value: "$18,000", status: "Proposal Made", color: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
+                ].map((lead) => (
+                  <tr key={lead.name} className="hover:bg-muted/30 transition-colors">
+                    <td className="p-3 font-semibold text-foreground">{lead.name}</td>
+                    <td className="p-3 text-muted-foreground">{lead.company}</td>
+                    <td className="p-3 text-muted-foreground">{lead.source}</td>
+                    <td className="p-3 font-bold text-foreground">{lead.value}</td>
+                    <td className="p-3">
+                      <span className={cn("px-2 py-0.5 rounded text-[10px] font-semibold border", lead.color)}>
+                        {lead.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </div>
     </div>
   );
 }

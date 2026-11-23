@@ -8,6 +8,8 @@ import { useCurrentProfile } from "@/lib/session";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { EmployeeAnnouncementsWidget } from "@/components/announcements/employee-announcements-widget";
+import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -315,38 +317,32 @@ export default function EmployeeDashboardPage() {
   );
 
   return (
-    <div className="space-y-4">
-      {/* ── Page Header / Breadcrumb (Master HRMS Standard) ── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-1 border-b border-border-color">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">Employee Dashboard</h1>
-          <div className="flex items-center gap-1.5 text-xs text-default">
-            <Link to="/hrm-dashboard" className="hover:text-primary">Dashboard</Link>
-            <i className="ph ph-caret-right text-[10px]"></i>
-            <span className="text-gray-900 dark:text-gray-100 font-medium">Employee Portal</span>
+    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+      {/* ── Page Header (Master HRMS Standard) ── */}
+      <PageHeader
+        title="Employee Dashboard"
+        description="Personal self-service portal: attendance punches, leave entitlements, assigned projects and performance telemetry."
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.success("Exporting employee report...")}
+            >
+              <i className="ti ti-file-export mr-1.5 text-sm" />
+              Export
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setLeaveModalOpen(true)}
+            >
+              <i className="ti ti-plus mr-1.5 text-sm" />
+              Apply Leave
+            </Button>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => toast.success("Exporting employee report...")}
-            className="px-3 py-1.5 text-xs font-semibold rounded-md border border-border-color bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 hover:bg-light dark:hover:bg-slate-700 cursor-pointer flex items-center gap-1.5 shadow-xs"
-          >
-            <i className="ph-duotone ph-file-arrow-down text-sm"></i>
-            <span>Export</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setLeaveModalOpen(true)}
-            className="px-3 py-1.5 text-xs font-semibold rounded-md bg-primary hover:bg-primary-hover text-white flex items-center gap-1.5 cursor-pointer shadow-xs"
-          >
-            <i className="ph-bold ph-plus text-xs"></i>
-            <span>Apply Leave</span>
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* ── Status Announcement Banner ── */}
       {!alertDismissed && latestApprovedLeave && (
