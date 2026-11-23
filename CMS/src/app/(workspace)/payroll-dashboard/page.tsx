@@ -207,7 +207,7 @@ export default function PayrollDashboardPage() {
   };
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-6">
       {/* ── Page Header ── */}
       <PageHeader
         title="Payroll Dashboard"
