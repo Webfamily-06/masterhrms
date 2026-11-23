@@ -140,7 +140,7 @@ export default function TenantDashboardPage() {
   const projectChartSeries = useMemo(() => [20, 40, 20, 10], []);
 
   return (
-    <>
+    <div className="dashboard-scope w-full">
       ${html}
 
       {/* Add Schedule Modal */}
@@ -176,7 +176,7 @@ export default function TenantDashboardPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
 `;

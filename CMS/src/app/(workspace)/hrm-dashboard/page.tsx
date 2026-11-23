@@ -16,7 +16,7 @@ export default function HrmDashboardPage() {
   }, []);
 
   return (
-    <>
+    <div className="dashboard-scope w-full">
       {/*  Breadcrumb  */}
 				<div className="d-flex align-items-center justify-content-between flex-wrap mb-3">
 					<div className="my-auto mb-2">
@@ -1116,6 +1116,6 @@ export default function HrmDashboardPage() {
 				{/*  end row  */}
 
 			
-    </>
+    </div>
   );
 }

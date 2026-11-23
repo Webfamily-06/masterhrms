@@ -16,7 +16,7 @@ export default function PayrollDashboardPage() {
   }, []);
 
   return (
-    <>
+    <div className="dashboard-scope w-full">
       {/*  Breadcrumb  */}
 				<div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
 					<div className="my-auto mb-2">
@@ -911,6 +911,6 @@ export default function PayrollDashboardPage() {
 				{/*  end row  */}
 
 			
-    </>
+    </div>
   );
 }

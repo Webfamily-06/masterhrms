@@ -92,7 +92,7 @@ export default function EmployeeDashboardPage() {
   );
 
   return (
-    <>
+    <div className="dashboard-scope w-full">
       {/*  Breadcrumb  */}
 				<div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
 					<div className="my-auto mb-2">
@@ -1523,12 +1523,13 @@ export default function EmployeeDashboardPage() {
 											<p className="fw-medium text-gray-9 mb-1">Update of Project Flow</p>
 											<span>Development</span>
 										</div>
+									</div>
+								</div>
 							</div>
 						</div>
 					</div>
 				</div>
-			</div>
-		</div>
+			
 
       {/* Apply Leave Modal */}
       <Dialog open={applyLeaveOpen} onOpenChange={setApplyLeaveOpen}>
@@ -1578,6 +1579,6 @@ export default function EmployeeDashboardPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }

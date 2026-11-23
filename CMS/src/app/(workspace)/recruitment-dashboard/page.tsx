@@ -124,7 +124,7 @@ export default function RecruitmentDashboardPage() {
   );
 
   return (
-    <>
+    <div className="dashboard-scope w-full">
       
 			<div className="content">
 
@@ -1197,6 +1197,6 @@ export default function RecruitmentDashboardPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }

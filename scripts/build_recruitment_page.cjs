@@ -176,7 +176,7 @@ export default function RecruitmentDashboardPage() {
   );
 
   return (
-    <>
+    <div className="dashboard-scope w-full">
       ${body}
 
       {/* Add New Job Modal */}
@@ -244,7 +244,7 @@ export default function RecruitmentDashboardPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
 `;

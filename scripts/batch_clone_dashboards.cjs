@@ -155,9 +155,9 @@ export default function ${d.componentName}() {
   }, []);
 
   return (
-    <>
+    <div className="dashboard-scope w-full">
       ${jsxContent}
-    </>
+    </div>
   );
 }
 `;

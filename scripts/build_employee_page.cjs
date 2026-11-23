@@ -34,6 +34,9 @@ html = html.replace(/<!--([\s\S]*?)-->/g, '{/* $1 */}');
 html = html.replace(/src="https:\/\/smarthr\.dreamstechnologies\.com\/hrm\/html\/assets\//g, 'src="/assets/');
 html = html.replace(/src="assets\//g, 'src="/assets/');
 
+// Remove trailing closing div for content
+html = html.trim().replace(/<\/div>\s*$/, '');
+
 // 8. Replace chart placeholders
 html = html.replace(/<div id="leaves_chart"><\/div>/g, `
 <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "185px" }}>
@@ -149,7 +152,7 @@ export default function EmployeeDashboardPage() {
   );
 
   return (
-    <>
+    <div className="dashboard-scope w-full">
       ${html}
 
       {/* Apply Leave Modal */}
@@ -200,7 +203,7 @@ export default function EmployeeDashboardPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
 `;
