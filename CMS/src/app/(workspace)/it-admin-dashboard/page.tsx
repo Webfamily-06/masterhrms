@@ -34,7 +34,7 @@ export default function ItAdminDashboardPage() {
 
   // Storage Bar IT Dashboard (height: 264) matching SmartHR storages-chart
   const storagesOptions: ApexCharts.ApexOptions = useMemo(() => ({
-    colors: ['#0C4B5E', '#0C4B5E', '#F26522', '#0C4B5E', '#0C4B5E', '#0C4B5E'],
+    colors: ['#0284c7', '#0ea5e9', '#F26522', '#38bdf8', '#0284c7', '#0ea5e9'],
     chart: { height: 264, type: 'bar', toolbar: { show: false } },
     plotOptions: {
       bar: {
@@ -42,8 +42,8 @@ export default function ItAdminDashboardPage() {
         borderRadius: 10,
         distributed: true,
         colors: {
-          backgroundBarColors: ['#E5E7EB'],
-          backgroundBarOpacity: 0.4,
+          backgroundBarColors: ['rgba(255, 255, 255, 0.06)'],
+          backgroundBarOpacity: 0.5,
           backgroundBarRadius: 10,
         },
         dataLabels: {
@@ -91,14 +91,14 @@ export default function ItAdminDashboardPage() {
   // Error Heatmap IT Dashboard (height: 310) matching SmartHR error-chart
   const errorChartOptions: ApexCharts.ApexOptions = useMemo(() => ({
     chart: { height: 310, type: 'heatmap', toolbar: { show: false } },
-    stroke: { width: 4, colors: ['#fff'] },
+    stroke: { width: 2, colors: ['transparent'] },
     plotOptions: {
       heatmap: {
         radius: 8,
         enableShades: false,
         colorScale: {
           ranges: [
-            { from: 0, to: 0, name: 'none', color: '#F1F3F4' },
+            { from: 0, to: 0, name: 'none', color: 'rgba(255, 255, 255, 0.05)' },
             { from: 1, to: 50, name: 'low', color: '#FFB38A' },
             { from: 51, to: 100, name: 'high', color: '#F26522' }
           ]

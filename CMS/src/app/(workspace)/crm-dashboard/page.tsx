@@ -136,7 +136,7 @@ export default function CrmDashboardPage() {
   /* Role access bypass for UI preview */
 
   return (
-    <div className="w-full min-w-0 flex-1">
+    <div className="dashboard-scope w-full min-w-0 flex-1">
       <div className="p-3 lg:py-6 lg:px-0">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-6">
           <BreadcrumbNav />
@@ -300,7 +300,7 @@ export default function CrmDashboardPage() {
               <h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Recent Leads</h3>
               <Link
                 to="/leads-dashboard"
-                className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary text-xs"
+                className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary text-xs"
               >
                 View All <i className="ph ph-caret-right text-[10px]"></i>
               </Link>

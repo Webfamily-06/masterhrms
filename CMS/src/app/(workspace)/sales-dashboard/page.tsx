@@ -140,11 +140,7 @@ export default function SalesDashboardPage() {
       },
       labels: ["Americas", "EMEA", "APAC", "Domestic"],
       colors: ["#0F766E", "#059669", "#E65100", "#6A1B9A"],
-      legend: {
-        position: "bottom",
-        fontSize: "12px",
-        markers: { radius: 3 },
-      },
+      legend: { show: false },
       stroke: { width: 2, colors: ["#FFFFFF"] },
       dataLabels: { enabled: false },
       tooltip: {
@@ -171,13 +167,13 @@ export default function SalesDashboardPage() {
   /* Role access bypass for UI preview */
 
   return (
-    <div className="w-full min-w-0 flex-1">
+    <div className="dashboard-scope w-full min-w-0 flex-1">
       <div className="p-3 lg:py-6 lg:px-0">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-6">
           <div>
             <BreadcrumbNav />
-            <h1 className="text-gray-900 text-xl font-bold mb-0">Sales Dashboard</h1>
+            <h1 className="text-gray-900 dark:text-gray-100 text-xl font-bold mb-0">Sales Dashboard</h1>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Avatars */}
@@ -246,7 +242,7 @@ export default function SalesDashboardPage() {
 
         {/* Row 1: Revenue Trends + Sales by Region */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 mb-3">
-          <div className="bg-white border border-border-color rounded-md p-4 xl:col-span-8 shadow-xs">
+          <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 xl:col-span-8 shadow-xs">
             <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
               <h2 className="text-lg max-lg:text-[17px] text-title mb-0">Revenue Trends</h2>
               <div className="flex items-center gap-1 bg-light rounded-md p-1 text-[11px]">

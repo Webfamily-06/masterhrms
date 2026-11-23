@@ -170,7 +170,7 @@ export default function TenantDashboardPage() {
 						<nav>
 							<ol className="breadcrumb mb-0">
 								<li className="breadcrumb-item">
-									<a href="https://smarthr.dreamstechnologies.com/hrm/html/index.html"><i className="ti ti-smart-home"></i></a>
+									<a href="#"><i className="ti ti-smart-home"></i></a>
 								</li>
 								<li className="breadcrumb-item">
 									Dashboard
@@ -256,7 +256,7 @@ export default function TenantDashboardPage() {
 										</span>
 										<h6 className="fs-13 fw-medium text-default mb-1">Attendance Overview</h6>
 										<h3 className="mb-3">120/154</h3>
-										<a href="https://smarthr.dreamstechnologies.com/hrm/html/attendance-employee.html" className="link-default">View Details</a>
+										<a href="#" className="link-default">View Details</a>
 									</div>
 								</div>
 							</div>
@@ -268,7 +268,7 @@ export default function TenantDashboardPage() {
 										</span>
 										<h6 className="fs-13 fw-medium text-default mb-1">Total No of Project's</h6>
 										<h3 className="mb-3">90/125</h3>
-										<a href="https://smarthr.dreamstechnologies.com/hrm/html/projects.html" className="link-default">View All</a>
+										<a href="#" className="link-default">View All</a>
 									</div>
 								</div>
 							</div>
@@ -280,7 +280,7 @@ export default function TenantDashboardPage() {
 										</span>
 										<h6 className="fs-13 fw-medium text-default mb-1">Total No of Clients</h6>
 										<h3 className="mb-3">69/86</h3>
-										<a href="https://smarthr.dreamstechnologies.com/hrm/html/clients.html" className="link-default">View All</a>
+										<a href="#" className="link-default">View All</a>
 									</div>
 								</div>
 							</div>
@@ -292,7 +292,7 @@ export default function TenantDashboardPage() {
 										</span>
 										<h6 className="fs-13 fw-medium text-default mb-1">Total No of Tasks</h6>
 										<h3 className="mb-3">96/100</h3>
-										<a href="https://smarthr.dreamstechnologies.com/hrm/html/tasks.html" className="link-default">View All</a>
+										<a href="#" className="link-default">View All</a>
 									</div>
 								</div>
 							</div>
@@ -304,7 +304,7 @@ export default function TenantDashboardPage() {
 										</span>
 										<h6 className="fs-13 fw-medium text-default mb-1">Earnings</h6>
 										<h3 className="mb-3">$21,445</h3>
-										<a href="https://smarthr.dreamstechnologies.com/hrm/html/expenses.html" className="link-default">View All</a>
+										<a href="#" className="link-default">View All</a>
 									</div>
 								</div>
 							</div>
@@ -316,7 +316,7 @@ export default function TenantDashboardPage() {
 										</span>
 										<h6 className="fs-13 fw-medium text-default mb-1">Profit This Week</h6>
 										<h3 className="mb-3">$5,544</h3>
-										<a href="https://smarthr.dreamstechnologies.com/hrm/html/purchase-transaction.html" className="link-default">View All</a>
+										<a href="#" className="link-default">View All</a>
 									</div>
 								</div>
 							</div>
@@ -328,7 +328,7 @@ export default function TenantDashboardPage() {
 										</span>
 										<h6 className="fs-13 fw-medium text-default mb-1">Job Applicants</h6>
 										<h3 className="mb-3">98</h3>
-										<a href="https://smarthr.dreamstechnologies.com/hrm/html/job-list.html" className="link-default">View All</a>
+										<a href="#" className="link-default">View All</a>
 									</div>
 								</div>
 							</div>
@@ -340,7 +340,7 @@ export default function TenantDashboardPage() {
 										</span>
 										<h6 className="fs-13 fw-medium text-default mb-1">New Hire</h6>
 										<h3 className="mb-3">45/48</h3>
-										<a href="https://smarthr.dreamstechnologies.com/hrm/html/candidates.html" className="link-default">View All</a>
+										<a href="#" className="link-default">View All</a>
 									</div>
 								</div>
 							</div>
@@ -486,13 +486,13 @@ export default function TenantDashboardPage() {
 										<span className="me-2">
 											<i className="ti ti-award-filled text-primary fs-24"></i>
 										</span>
-										<a href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html" className="avatar avatar-md me-2">
+										<a href="#" className="avatar avatar-md me-2">
 											<img src="/assets/img/profiles/avatar-24.jpg"
 												className="rounded-circle border border-white" alt="img" />
 										</a>
 										<div>
 											<h6 className="text-truncate mb-1 fs-14 fw-medium"><a
-													href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html">Daniel Esbella</a></h6>
+													href="#">Daniel Esbella</a></h6>
 											<p className="fs-13">IOS Developer</p>
 										</div>
 									</div>
@@ -501,7 +501,7 @@ export default function TenantDashboardPage() {
 										<h5 className="text-primary">99%</h5>
 									</div>
 								</div>
-								<a href="https://smarthr.dreamstechnologies.com/hrm/html/employees.html" className="btn btn-light btn-md w-100">View All Employees</a>
+								<a href="#" className="btn btn-light btn-md w-100">View All Employees</a>
 							</div>
 						</div>
 					</div>
@@ -587,7 +587,7 @@ export default function TenantDashboardPage() {
 											</a>
 										</div>
 									</div>
-									<a href="https://smarthr.dreamstechnologies.com/hrm/html/leaves.html" className="fs-13 link-primary text-decoration-underline mb-2">View
+									<a href="#" className="fs-13 link-primary text-decoration-underline mb-2">View
 										Details</a>
 								</div>
 							</div>
@@ -752,7 +752,7 @@ export default function TenantDashboardPage() {
 												className="ti ti-circle-filled fs-5 me-1"></i>08:35</span>
 									</div>
 								</div>
-								<a href="https://smarthr.dreamstechnologies.com/hrm/html/attendance-report.html" className="btn btn-light btn-md w-100">View All
+								<a href="#" className="btn btn-light btn-md w-100">View All
 									Attendance</a>
 							</div>
 						</div>
@@ -768,7 +768,7 @@ export default function TenantDashboardPage() {
 						<div className="card flex-fill">
 							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
 								<h5 className="mb-2">Jobs Applicants</h5>
-								<a href="https://smarthr.dreamstechnologies.com/hrm/html/job-list.html" className="btn btn-light btn-md mb-2">View All</a>
+								<a href="#" className="btn btn-light btn-md mb-2">View All</a>
 							</div>
 							<div className="card-body">
 								<ul className="nav nav-tabs tab-style-1 nav-justified d-sm-flex d-block p-0 mb-4"
@@ -929,7 +929,7 @@ export default function TenantDashboardPage() {
 						<div className="card flex-fill">
 							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
 								<h5 className="mb-2">Employees</h5>
-								<a href="https://smarthr.dreamstechnologies.com/hrm/html/employees.html" className="btn btn-light btn-md mb-2">View All</a>
+								<a href="#" className="btn btn-light btn-md mb-2">View All</a>
 							</div>
 							<div className="card-body p-0 employee-table">
 								<div className="table-responsive">
@@ -1246,13 +1246,13 @@ export default function TenantDashboardPage() {
 											<tr>
 												<td className="px-0">
 													<div className="d-flex align-items-center">
-														<a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html" className="avatar">
+														<a href="#" className="avatar">
 															<img src="/assets/img/users/user-39.jpg"
 																className="img-fluid rounded-circle" alt="img" />
 														</a>
 														<div className="ms-2">
 															<h6 className="fw-medium"><a
-																	href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">Redesign Website</a>
+																	href="#">Redesign Website</a>
 															</h6>
 															<span
 																className="fs-13 d-inline-flex align-items-center">#INVOO2<i
@@ -1273,12 +1273,12 @@ export default function TenantDashboardPage() {
 											<tr>
 												<td className="px-0">
 													<div className="d-flex align-items-center">
-														<a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html" className="avatar">
+														<a href="#" className="avatar">
 															<img src="/assets/img/users/user-40.jpg"
 																className="img-fluid rounded-circle" alt="img" />
 														</a>
 														<div className="ms-2">
-															<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">Module
+															<h6 className="fw-medium"><a href="#">Module
 																	Completion</a></h6>
 															<span
 																className="fs-13 d-inline-flex align-items-center">#INVOO5<i
@@ -1300,12 +1300,12 @@ export default function TenantDashboardPage() {
 											<tr>
 												<td className="px-0">
 													<div className="d-flex align-items-center">
-														<a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html" className="avatar">
+														<a href="#" className="avatar">
 															<img src="/assets/img/users/user-55.jpg"
 																className="img-fluid rounded-circle" alt="img" />
 														</a>
 														<div className="ms-2">
-															<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">Change
+															<h6 className="fw-medium"><a href="#">Change
 																	on Emp Module</a></h6>
 															<span
 																className="fs-13 d-inline-flex align-items-center">#INVOO3<i
@@ -1327,12 +1327,12 @@ export default function TenantDashboardPage() {
 											<tr>
 												<td className="px-0">
 													<div className="d-flex align-items-center">
-														<a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html" className="avatar">
+														<a href="#" className="avatar">
 															<img src="/assets/img/users/user-42.jpg"
 																className="img-fluid rounded-circle" alt="img" />
 														</a>
 														<div className="ms-2">
-															<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">Changes
+															<h6 className="fw-medium"><a href="#">Changes
 																	on the Board</a></h6>
 															<span
 																className="fs-13 d-inline-flex align-items-center">#INVOO2<i
@@ -1354,13 +1354,13 @@ export default function TenantDashboardPage() {
 											<tr>
 												<td className="px-0">
 													<div className="d-flex align-items-center">
-														<a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html" className="avatar">
+														<a href="#" className="avatar">
 															<img src="/assets/img/users/user-44.jpg"
 																className="img-fluid rounded-circle" alt="img" />
 														</a>
 														<div className="ms-2">
 															<h6 className="fw-medium"><a
-																	href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">Hospital Management</a>
+																	href="#">Hospital Management</a>
 															</h6>
 															<span
 																className="fs-13 d-inline-flex align-items-center">#INVOO6<i
@@ -1382,7 +1382,7 @@ export default function TenantDashboardPage() {
 										</tbody>
 									</table>
 								</div>
-								<a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice.html" className="btn btn-light btn-md w-100 mt-2">View All</a>
+								<a href="#" className="btn btn-light btn-md w-100 mt-2">View All</a>
 							</div>
 						</div>
 					</div>
@@ -1434,9 +1434,9 @@ export default function TenantDashboardPage() {
 										</thead>
 										<tbody>
 											<tr>
-												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html" className="link-default">PRO-001</a></td>
+												<td><a href="#" className="link-default">PRO-001</a></td>
 												<td>
-													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Office
+													<h6 className="fw-medium"><a href="#">Office
 															Management App</a></h6>
 												</td>
 												<td>
@@ -1470,9 +1470,9 @@ export default function TenantDashboardPage() {
 												</td>
 											</tr>
 											<tr>
-												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html" className="link-default">PRO-002</a></td>
+												<td><a href="#" className="link-default">PRO-002</a></td>
 												<td>
-													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Clinic
+													<h6 className="fw-medium"><a href="#">Clinic
 															Management </a></h6>
 												</td>
 												<td>
@@ -1510,9 +1510,9 @@ export default function TenantDashboardPage() {
 												</td>
 											</tr>
 											<tr>
-												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html" className="link-default">PRO-003</a></td>
+												<td><a href="#" className="link-default">PRO-003</a></td>
 												<td>
-													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Educational
+													<h6 className="fw-medium"><a href="#">Educational
 															Platform</a></h6>
 												</td>
 												<td>
@@ -1546,9 +1546,9 @@ export default function TenantDashboardPage() {
 												</td>
 											</tr>
 											<tr>
-												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html" className="link-default">PRO-004</a></td>
+												<td><a href="#" className="link-default">PRO-004</a></td>
 												<td>
-													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Chat & Call
+													<h6 className="fw-medium"><a href="#">Chat & Call
 															Mobile App</a></h6>
 												</td>
 												<td>
@@ -1582,9 +1582,9 @@ export default function TenantDashboardPage() {
 												</td>
 											</tr>
 											<tr>
-												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html" className="link-default">PRO-005</a></td>
+												<td><a href="#" className="link-default">PRO-005</a></td>
 												<td>
-													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Travel Planning
+													<h6 className="fw-medium"><a href="#">Travel Planning
 															Website</a></h6>
 												</td>
 												<td>
@@ -1618,9 +1618,9 @@ export default function TenantDashboardPage() {
 												</td>
 											</tr>
 											<tr>
-												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html" className="link-default">PRO-006</a></td>
+												<td><a href="#" className="link-default">PRO-006</a></td>
 												<td>
-													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Service Booking
+													<h6 className="fw-medium"><a href="#">Service Booking
 															Software</a></h6>
 												</td>
 												<td>
@@ -1654,10 +1654,10 @@ export default function TenantDashboardPage() {
 												</td>
 											</tr>
 											<tr>
-												<td className="border-0"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html"
+												<td className="border-0"><a href="#"
 														className="link-default">PRO-008</a></td>
 												<td className="border-0">
-													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Travel Planning
+													<h6 className="fw-medium"><a href="#">Travel Planning
 															Website</a></h6>
 												</td>
 												<td className="border-0">
@@ -1785,7 +1785,7 @@ export default function TenantDashboardPage() {
 						<div className="card flex-fill">
 							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
 								<h5 className="mb-2">Schedules</h5>
-								<a href="https://smarthr.dreamstechnologies.com/hrm/html/candidates.html" className="btn btn-light btn-md mb-2">View All</a>
+								<a href="#" className="btn btn-light btn-md mb-2">View All</a>
 							</div>
 							<div className="card-body">
 								<div className="bg-light p-3 br-5 mb-4">
@@ -1876,7 +1876,7 @@ export default function TenantDashboardPage() {
 						<div className="card flex-fill">
 							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
 								<h5 className="mb-2">Recent Activities</h5>
-								<a href="https://smarthr.dreamstechnologies.com/hrm/html/activity.html" className="btn btn-light btn-md mb-2">View All</a>
+								<a href="#" className="btn btn-light btn-md mb-2">View All</a>
 							</div>
 							<div className="card-body">
 								<div className="recent-item">

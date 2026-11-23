@@ -573,9 +573,9 @@ export default function AITeamPerformanceInsightsPage() {
 													<span className="badge badge-primary">30-day trend</span>
 												</div>
 											</div>
-											<img src="https://smarthr.dreamstechnologies.com/hrm/html/assets/img/icons/shadow-1.svg" alt="shadow" className="img-fluid position-absolute top-0 start-0" />
-											<img src="https://smarthr.dreamstechnologies.com/hrm/html/assets/img/icons/shadow-2.svg" alt="shadow" className="img-fluid position-absolute bottom-0 end-0" />
-											<img src="https://smarthr.dreamstechnologies.com/hrm/html/assets/img/icons/star-1.svg" alt="shadow" className="img-fluid position-absolute bottom-0 end-0 star-icon" />
+											<img src="#" alt="shadow" className="img-fluid position-absolute top-0 start-0" />
+											<img src="#" alt="shadow" className="img-fluid position-absolute bottom-0 end-0" />
+											<img src="#" alt="shadow" className="img-fluid position-absolute bottom-0 end-0 star-icon" />
 										</div>
 									</div>
 									<div className="col-xl-4 col-lg-6 col-md-6">
@@ -590,9 +590,9 @@ export default function AITeamPerformanceInsightsPage() {
 													<span className="badge badge-primary">30-day trend</span>
 												</div>
 											</div>
-											<img src="https://smarthr.dreamstechnologies.com/hrm/html/assets/img/icons/shadow-1.svg" alt="shadow" className="img-fluid position-absolute top-0 start-0" />
-											<img src="https://smarthr.dreamstechnologies.com/hrm/html/assets/img/icons/shadow-2.svg" alt="shadow" className="img-fluid position-absolute bottom-0 end-0" />
-											<img src="https://smarthr.dreamstechnologies.com/hrm/html/assets/img/icons/star-1.svg" alt="shadow" className="img-fluid position-absolute bottom-0 end-0 star-icon" />
+											<img src="#" alt="shadow" className="img-fluid position-absolute top-0 start-0" />
+											<img src="#" alt="shadow" className="img-fluid position-absolute bottom-0 end-0" />
+											<img src="#" alt="shadow" className="img-fluid position-absolute bottom-0 end-0 star-icon" />
 										</div>
 									</div>
 									<div className="col-xl-4 col-lg-12 col-md-12">
@@ -607,9 +607,9 @@ export default function AITeamPerformanceInsightsPage() {
 													<span className="badge badge-primary">30-day trend</span>
 												</div>
 											</div>
-											<img src="https://smarthr.dreamstechnologies.com/hrm/html/assets/img/icons/shadow-1.svg" alt="shadow" className="img-fluid position-absolute top-0 start-0" />
-											<img src="https://smarthr.dreamstechnologies.com/hrm/html/assets/img/icons/shadow-2.svg" alt="shadow" className="img-fluid position-absolute bottom-0 end-0" />
-											<img src="https://smarthr.dreamstechnologies.com/hrm/html/assets/img/icons/star-1.svg" alt="shadow" className="img-fluid position-absolute bottom-0 end-0 star-icon" />
+											<img src="#" alt="shadow" className="img-fluid position-absolute top-0 start-0" />
+											<img src="#" alt="shadow" className="img-fluid position-absolute bottom-0 end-0" />
+											<img src="#" alt="shadow" className="img-fluid position-absolute bottom-0 end-0 star-icon" />
 										</div>
 									</div>
 								</div>

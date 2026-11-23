@@ -173,12 +173,12 @@ export default function PosDashboardPage() {
   /* Role access bypass for UI preview */
 
   return (
-    <div className="w-full min-w-0 flex-1">
+    <div className="dashboard-scope w-full min-w-0 flex-1">
       <div className="p-3 lg:py-6 lg:px-0">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-6">
           <BreadcrumbNav />
-          <h1 className="text-gray-900 text-xl font-bold mb-0">POS Dashboard</h1>
+          <h1 className="text-gray-900 dark:text-gray-100 text-xl font-bold mb-0">POS Dashboard</h1>
           <div className="flex items-center gap-2">
             <div className="relative rangepicker-input w-[174px] h-[28px] leading-none">
               <span className="absolute inset-y-0 left-0 flex items-center px-3 text-muted-foreground text-dark text-xs!">

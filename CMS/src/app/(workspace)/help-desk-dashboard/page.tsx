@@ -181,7 +181,7 @@ export default function HelpDeskDashboardPage() {
   );
 
   return (
-    <div className="p-0">
+    <div className="dashboard-scope p-0">
       {/* ── Page Header (matching ui/support-dashboard.html lines 1272-1298) ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4 lg:mb-6">
         <div>

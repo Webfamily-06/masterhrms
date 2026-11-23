@@ -570,22 +570,23 @@ export default function PayrollDashboardPage() {
 
 								<div className="row align-items-center my-3">
 									<div className="col-12 col-md-5 d-flex justify-content-center">
-										<div id="process-chart" style={{ width: "200px", height: "200px" }}>
+										<div id="process-chart" style={{ width: "180px", height: "180px" }}>
   {isMounted && (
-    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+    <Suspense fallback={<div className="h-44 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
       <Chart options={{
         ...processRadialOptions,
-        chart: { height: 200, type: 'radialBar', sparkline: { enabled: true } },
+        chart: { height: 180, type: 'radialBar', sparkline: { enabled: true } },
         plotOptions: {
           radialBar: {
             hollow: { size: '60%' },
+            track: { background: 'rgba(255, 255, 255, 0.08)' },
             dataLabels: {
-              name: { show: true, fontSize: '12px', color: '#6B7280', offsetY: -5 },
-              value: { show: true, fontSize: '20px', fontWeight: 'bold', offsetY: 5, formatter: (val: any) => `${val}%` }
+              name: { show: true, fontSize: '12px', color: '#94a3b8', offsetY: -5 },
+              value: { show: true, fontSize: '20px', fontWeight: 'bold', color: '#f8fafc', offsetY: 5, formatter: (val: any) => `${val}%` }
             }
           }
         }
-      }} series={processRadialSeries} type="radialBar" height={200} width={200} />
+      }} series={processRadialSeries} type="radialBar" height={180} width={180} />
     </Suspense>
   )}
 </div>

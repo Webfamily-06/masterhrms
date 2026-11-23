@@ -116,7 +116,7 @@ export default function DealsDashboardPage() {
 						<nav>
 							<ol className="breadcrumb mb-0">
 								<li className="breadcrumb-item">
-									<a href="https://smarthr.dreamstechnologies.com/hrm/html/index.html"><i className="ti ti-smart-home"></i></a>
+									<a href="#"><i className="ti ti-smart-home"></i></a>
 								</li>
 								<li className="breadcrumb-item">
 									Dashboard
@@ -614,7 +614,7 @@ export default function DealsDashboardPage() {
 								<div className="d-flex align-items-center justify-content-between flex-wrap row-gap-2">
 									<h5>Deals By Country</h5>
 									<div>
-										<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html" className="btn btn-light btn-md">View All</a>
+										<a href="#" className="btn btn-light btn-md">View All</a>
 									</div>
 								</div>
 							</div>
@@ -625,13 +625,13 @@ export default function DealsDashboardPage() {
 											<tr>
 												<td className="px-0">
 													<div className="d-flex align-items-center mb-2">
-														<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html"
+														<a href="#"
 															className="avatar rounded-circle border border-2">
 															<img src="/flags/us.svg"
 																className="img-fluid rounded-circle" alt="img" />
 														</a>
 														<div className="ms-2">
-															<h6 className="fw-medium mb-1"><a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html">USA</a>
+															<h6 className="fw-medium mb-1"><a href="#">USA</a>
 															</h6>
 															<span className="fs-13 d-inline-flex align-items-center">Deals :
 																350</span>
@@ -654,13 +654,13 @@ export default function DealsDashboardPage() {
 											<tr>
 												<td className="px-0">
 													<div className="d-flex align-items-center mb-2">
-														<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html"
+														<a href="#"
 															className="avatar rounded-circle border border-2">
 															<img src="/flags/ae.svg"
 																className="img-fluid rounded-circle" alt="img" />
 														</a>
 														<div className="ms-2">
-															<h6 className="fw-medium mb-1"><a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html">UAE</a>
+															<h6 className="fw-medium mb-1"><a href="#">UAE</a>
 															</h6>
 															<span className="fs-13 d-inline-flex align-items-center">Deals :
 																221</span>
@@ -683,14 +683,14 @@ export default function DealsDashboardPage() {
 											<tr>
 												<td className="px-0">
 													<div className="d-flex align-items-center mb-2">
-														<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html"
+														<a href="#"
 															className="avatar rounded-circle border border-2">
 															<img src="/flags/sg.svg"
 																className="img-fluid rounded-circle" alt="img" />
 														</a>
 														<div className="ms-2">
 															<h6 className="fw-medium mb-1"><a
-																	href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html">Singapore</a></h6>
+																	href="#">Singapore</a></h6>
 															<span className="fs-13 d-inline-flex align-items-center">Deals :
 																236</span>
 														</div>
@@ -712,14 +712,14 @@ export default function DealsDashboardPage() {
 											<tr>
 												<td className="px-0">
 													<div className="d-flex align-items-center mb-2">
-														<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html"
+														<a href="#"
 															className="avatar rounded-circle border border-2">
 															<img src="/flags/fr.svg"
 																className="img-fluid rounded-circle" alt="img" />
 														</a>
 														<div className="ms-2">
 															<h6 className="fw-medium mb-1"><a
-																	href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html">France</a></h6>
+																	href="#">France</a></h6>
 															<span className="fs-13 d-inline-flex align-items-center">Deals :
 																589</span>
 														</div>
@@ -741,14 +741,14 @@ export default function DealsDashboardPage() {
 											<tr>
 												<td className="px-0">
 													<div className="d-flex align-items-center">
-														<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html"
+														<a href="#"
 															className="avatar rounded-circle border border-2">
 															<img src="/flags/no.svg"
 																className="img-fluid rounded-circle" alt="img" />
 														</a>
 														<div className="ms-2">
 															<h6 className="fw-medium mb-1"><a
-																	href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html">Norway</a></h6>
+																	href="#">Norway</a></h6>
 															<span className="fs-13 d-inline-flex align-items-center">Deals :
 																221</span>
 														</div>
@@ -947,7 +947,7 @@ export default function DealsDashboardPage() {
 								<h5>Recent Deals</h5>
 								<div className="d-flex align-items-center">
 									<div>
-										<a href="https://smarthr.dreamstechnologies.com/hrm/html/deals.html" className="btn btn-md btn-light">View All</a>
+										<a href="#" className="btn btn-md btn-light">View All</a>
 									</div>
 								</div>
 							</div>
@@ -966,7 +966,7 @@ export default function DealsDashboardPage() {
 										<tbody>
 											<tr>
 												<td>
-													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/deals-details.html">Collins</a></h6>
+													<h6 className="fw-medium"><a href="#">Collins</a></h6>
 												</td>
 												<td>Quality To Buy</td>
 												<td>
@@ -984,7 +984,7 @@ export default function DealsDashboardPage() {
 											</tr>
 											<tr>
 												<td>
-													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/deals-details.html">Konopelski</a>
+													<h6 className="fw-medium"><a href="#">Konopelski</a>
 													</h6>
 												</td>
 												<td>Proposal Made</td>
@@ -1003,7 +1003,7 @@ export default function DealsDashboardPage() {
 											</tr>
 											<tr>
 												<td>
-													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/deals-details.html">Adams</a></h6>
+													<h6 className="fw-medium"><a href="#">Adams</a></h6>
 												</td>
 												<td>Contact Made</td>
 												<td>
@@ -1021,7 +1021,7 @@ export default function DealsDashboardPage() {
 											</tr>
 											<tr>
 												<td>
-													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/deals-details.html">Schumm</a></h6>
+													<h6 className="fw-medium"><a href="#">Schumm</a></h6>
 												</td>
 												<td>Quality To Buy</td>
 												<td>
@@ -1039,7 +1039,7 @@ export default function DealsDashboardPage() {
 											</tr>
 											<tr>
 												<td>
-													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/deals-details.html">Wisozk</a></h6>
+													<h6 className="fw-medium"><a href="#">Wisozk</a></h6>
 												</td>
 												<td>Presentation</td>
 												<td>
@@ -1067,7 +1067,7 @@ export default function DealsDashboardPage() {
 								<div className="d-flex align-items-center justify-content-between flex-wrap row-gap-2">
 									<h5>Recent Activities</h5>
 									<div>
-										<a href="https://smarthr.dreamstechnologies.com/hrm/html/activity.html" className="btn btn-md btn-light">View All</a>
+										<a href="#" className="btn btn-md btn-light">View All</a>
 									</div>
 								</div>
 							</div>
@@ -1077,7 +1077,7 @@ export default function DealsDashboardPage() {
 										<i className="ti ti-phone-filled fs-16"></i>
 									</div>
 									<div className="flex-fill ps-3 pb-4 timeline-flow">
-										<p className="fw-medium text-gray-9 mb-1"><a href="https://smarthr.dreamstechnologies.com/hrm/html/activity.html">Drain responded to
+										<p className="fw-medium text-gray-9 mb-1"><a href="#">Drain responded to
 												your appointment schedule question.</a></p>
 										<span>09:25 PM</span>
 									</div>
@@ -1087,7 +1087,7 @@ export default function DealsDashboardPage() {
 										<i className="ti ti-message-circle-2-filled fs-16"></i>
 									</div>
 									<div className="flex-fill ps-3 pb-4 timeline-flow">
-										<p className="fw-medium text-gray-9 mb-1"><a href="https://smarthr.dreamstechnologies.com/hrm/html/activity.html">You sent 1 Message
+										<p className="fw-medium text-gray-9 mb-1"><a href="#">You sent 1 Message
 												to the James.</a></p>
 										<span>10:25 PM</span>
 									</div>
@@ -1097,7 +1097,7 @@ export default function DealsDashboardPage() {
 										<i className="ti ti-phone-filled fs-16"></i>
 									</div>
 									<div className="flex-fill ps-3 pb-4 timeline-flow">
-										<p className="fw-medium text-gray-9 mb-1"><a href="https://smarthr.dreamstechnologies.com/hrm/html/activity.html">Denwar responded
+										<p className="fw-medium text-gray-9 mb-1"><a href="#">Denwar responded
 												to your appointment on 25 Jan 2025, 08:15 PM</a></p>
 										<span>09:25 PM</span>
 									</div>
@@ -1107,7 +1107,7 @@ export default function DealsDashboardPage() {
 										<i className="ti ti-user-circle fs-16"></i>
 									</div>
 									<div className="flex-fill ps-3 timeline-flow">
-										<p className="fw-medium text-gray-9 mb-1"><a href="https://smarthr.dreamstechnologies.com/hrm/html/activity.html"
+										<p className="fw-medium text-gray-9 mb-1"><a href="#"
 												className="d-flex align-items-center">Meeting With <img
 													src="/assets/img/users/user-58.jpg"
 													className="avatar avatar-sm rounded-circle mx-2" alt="Img" />Abraham</a>

@@ -495,10 +495,10 @@ export default function RecruitmentDashboardPage() {
   )}
 
 									{/*  Center Text  */}
-									<div className="position-absolute text-center"
-										style={{ bottom: "18%", left: "50%", transform: "translateX(-50%)" }}>
-										<h2 className="fw-bold mb-0">2,384</h2>
-										<p className="mb-0 ">Total Applications</p>
+									<div className="position-absolute text-center pointer-events-none"
+										style={{ bottom: "26%", left: "50%", transform: "translateX(-50%)" }}>
+										<h2 className="fw-bold mb-0 text-foreground">2,384</h2>
+										<p className="mb-0 text-muted-foreground fs-12">Total Applications</p>
 									</div>
 								</div>
 							</div>

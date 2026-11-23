@@ -264,7 +264,7 @@ export default function AIHiringForecastPage() {
 						<nav>
 							<ol className="breadcrumb mb-0">
 								<li className="breadcrumb-item">
-									<a href="https://smarthr.dreamstechnologies.com/hrm/html/index.html"><i className="ti ti-smart-home"></i></a>
+									<a href="#"><i className="ti ti-smart-home"></i></a>
 								</li>
 								<li className="breadcrumb-item">
 									AI Center
@@ -526,7 +526,7 @@ export default function AIHiringForecastPage() {
 										<tbody>
 											<tr>
 												<td>
-													<p className="fw-semibold mb-0"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Office Management App</a></p>
+													<p className="fw-semibold mb-0"><a href="#">Office Management App</a></p>
 												</td>
 												<td><p className="fw-medium mb-0">Engineering</p></td>
 												<td> 
@@ -545,7 +545,7 @@ export default function AIHiringForecastPage() {
 											</tr>
 											<tr>
 												<td>
-													<p className="fw-semibold mb-0"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Sales Executive</a></p>
+													<p className="fw-semibold mb-0"><a href="#">Sales Executive</a></p>
 												</td>
 												<td><p className="fw-medium mb-0">Sales</p></td>
 												<td> 
@@ -564,7 +564,7 @@ export default function AIHiringForecastPage() {
 											</tr>
 											<tr>
 												<td>
-													<p className="fw-semibold mb-0"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Product Designer</a></p>
+													<p className="fw-semibold mb-0"><a href="#">Product Designer</a></p>
 												</td>
 												<td><p className="fw-medium mb-0">Product</p></td>
 												<td> 
@@ -583,7 +583,7 @@ export default function AIHiringForecastPage() {
 											</tr>
 											<tr>
 												<td>
-													<p className="fw-semibold mb-0"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Data Analyst</a></p>
+													<p className="fw-semibold mb-0"><a href="#">Data Analyst</a></p>
 												</td>
 												<td><p className="fw-medium mb-0">Operations</p></td>
 												<td> 
@@ -602,7 +602,7 @@ export default function AIHiringForecastPage() {
 											</tr>
 											<tr>
 												<td>
-													<p className="fw-semibold mb-0"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">HR Business Partner</a></p>
+													<p className="fw-semibold mb-0"><a href="#">HR Business Partner</a></p>
 												</td>
 												<td><p className="fw-medium mb-0">HR & Admin</p></td>
 												<td> 
@@ -621,7 +621,7 @@ export default function AIHiringForecastPage() {
 											</tr>
 											<tr>
 												<td>
-													<p className="fw-semibold mb-0"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Digital Marketing Specialist</a></p>
+													<p className="fw-semibold mb-0"><a href="#">Digital Marketing Specialist</a></p>
 												</td>
 												<td><p className="fw-medium mb-0">Marketing</p></td>
 												<td> 
@@ -640,7 +640,7 @@ export default function AIHiringForecastPage() {
 											</tr>
 											<tr>
 												<td>
-													<p className="fw-semibold mb-0"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Business Analyst</a></p>
+													<p className="fw-semibold mb-0"><a href="#">Business Analyst</a></p>
 												</td>
 												<td><p className="fw-medium mb-0">Operations</p></td>
 												<td> 
@@ -746,7 +746,7 @@ export default function AIHiringForecastPage() {
 											<span className="badge bg-white p-2 text-dark">30-day trend</span>
 										</div>
 									</div>
-									<img src="https://smarthr.dreamstechnologies.com/hrm/html/assets/img/icons/star.svg" alt="star-icon" className="img-fluid w-25 position-absolute bottom-0 end-0" />
+									<img src="#" alt="star-icon" className="img-fluid w-25 position-absolute bottom-0 end-0" />
 								</div>
 
 								
@@ -759,7 +759,7 @@ export default function AIHiringForecastPage() {
 											<span className="badge bg-white p-2 text-dark">Actionable</span>
 										</div>
 									</div>
-									<img src="https://smarthr.dreamstechnologies.com/hrm/html/assets/img/icons/star.svg" alt="star-icon" className="img-fluid w-25 position-absolute bottom-0 end-0" />
+									<img src="#" alt="star-icon" className="img-fluid w-25 position-absolute bottom-0 end-0" />
 								</div>
 							</div>
 						</div>

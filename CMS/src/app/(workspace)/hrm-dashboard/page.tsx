@@ -115,7 +115,7 @@ export default function HrmDashboardPage() {
 						<nav>
 							<ol className="breadcrumb mb-0">
 								<li className="breadcrumb-item">
-									<a href="https://smarthr.dreamstechnologies.com/hrm/html/index.html"><i className="ti ti-smart-home"></i></a>
+									<a href="#"><i className="ti ti-smart-home"></i></a>
 								</li>
 								<li className="breadcrumb-item">
 									Dashboard
@@ -172,13 +172,13 @@ export default function HrmDashboardPage() {
 							</a>
 							<ul className="dropdown-menu  dropdown-menu-end p-3">
 								<li>
-									<a href="https://smarthr.dreamstechnologies.com/hrm/html/employees.html" className="dropdown-item rounded-1">Employee</a>
+									<a href="#" className="dropdown-item rounded-1">Employee</a>
 								</li>
 								<li>
-									<a href="https://smarthr.dreamstechnologies.com/hrm/html/attendance-employee.html" className="dropdown-item rounded-1">Attendance</a>
+									<a href="#" className="dropdown-item rounded-1">Attendance</a>
 								</li>
 								<li>
-									<a href="https://smarthr.dreamstechnologies.com/hrm/html/leaves.html" className="dropdown-item rounded-1">Leave</a>
+									<a href="#" className="dropdown-item rounded-1">Leave</a>
 								</li>
 							</ul>
 						</div>
@@ -201,7 +201,7 @@ export default function HrmDashboardPage() {
 								<div
 									className="border rounded border-start border-start-primary d-flex align-items-center justify-content-between p-2 gap-2 flex-wrap mb-3">
 									<h2 className="card-title mb-0">Employee Status & Type</h2>
-									<a href="https://smarthr.dreamstechnologies.com/hrm/html/employee-report.html" className="btn btn-md btn-light">View All</a>
+									<a href="#" className="btn btn-md btn-light">View All</a>
 								</div>
 								<div id="status-chart" className="mb-3">
   {isMounted && (
@@ -550,7 +550,7 @@ export default function HrmDashboardPage() {
 								<div
 									className="border rounded border-start border-start-primary d-flex align-items-center justify-content-between p-2 gap-2 flex-wrap mb-0">
 									<h2 className="card-title mb-0">Top Employee Distribution</h2>
-									<a href="https://smarthr.dreamstechnologies.com/hrm/html/employees.html" className="btn btn-md btn-light">View All</a>
+									<a href="#" className="btn btn-md btn-light">View All</a>
 								</div>
 								<div id="employee-distribution">
     {isMounted && (
@@ -953,7 +953,7 @@ export default function HrmDashboardPage() {
 										</div>
 									</div>
 								</div>
-								<a href="https://smarthr.dreamstechnologies.com/hrm/html/candidates-grid.html" className="btn btn-light w-100">View All<i
+								<a href="#" className="btn btn-light w-100">View All<i
 										className="ti ti-arrow-right ms-1"></i></a>
 							</div> {/*  end card body  */}
 						</div> {/*  end card  */}
@@ -1122,7 +1122,7 @@ export default function HrmDashboardPage() {
 								<div
 									className="border rounded border-start border-start-primary d-flex align-items-center justify-content-between p-2 gap-2 flex-wrap mb-3">
 									<h2 className="card-title mb-0">Pending Approvals</h2>
-									<a href="https://smarthr.dreamstechnologies.com/hrm/html/leaves-employee.html" className="btn btn-md btn-light">View All</a>
+									<a href="#" className="btn btn-md btn-light">View All</a>
 								</div>
 								<div
 									className="p-2 rounded border d-flex align-items-sm-center justify-content-between gap-2 flex-column flex-sm-row mb-2">

@@ -43,7 +43,7 @@ export default function LeadsDashboardPage() {
   // SmartHR donut-chart-3: Top Countries Distribution
   const donut3Options: ApexCharts.ApexOptions = useMemo(() => ({
     chart: { type: 'donut', height: 270, toolbar: { show: false } },
-    colors: ['#0d6efd', '#0C4B5E', '#0dcaf0', '#dc3545', '#ffc107'],
+    colors: ['#3b82f6', '#10b981', '#06b6d4', '#f43f5e', '#f59e0b'],
     labels: ['Singapore', 'France', 'Norway', 'USA', 'UAE'],
     plotOptions: {
       pie: {
@@ -56,14 +56,14 @@ export default function LeadsDashboardPage() {
               label: 'Total Leads',
               fontSize: '13px',
               fontWeight: 500,
-              color: '#6c757d',
+              color: '#94a3b8',
               formatter: () => '1,617'
             },
             value: {
               show: true,
               fontSize: '22px',
               fontWeight: 700,
-              color: '#111827',
+              color: '#f8fafc',
               offsetY: 4,
               formatter: (val) => val
             }
@@ -73,7 +73,7 @@ export default function LeadsDashboardPage() {
     },
     legend: { show: false },
     dataLabels: { enabled: false },
-    stroke: { width: 2, colors: ['#ffffff'] }
+    stroke: { width: 2, colors: ['transparent'] }
   }), []);
   const donut3Series = useMemo(() => [236, 589, 221, 350, 221], []);
 
@@ -154,7 +154,7 @@ export default function LeadsDashboardPage() {
 						<nav>
 							<ol className="breadcrumb mb-0">
 								<li className="breadcrumb-item">
-									<a href="https://smarthr.dreamstechnologies.com/hrm/html/index.html"><i className="ti ti-smart-home"></i></a>
+									<a href="#"><i className="ti ti-smart-home"></i></a>
 								</li>
 								<li className="breadcrumb-item">
 									Dashboard
@@ -732,7 +732,7 @@ export default function LeadsDashboardPage() {
 								<div className="d-flex align-items-center justify-content-between flex-wrap row-gap-2">
 									<h5>Recent Activities</h5>
 									<div>
-										<a href="https://smarthr.dreamstechnologies.com/hrm/html/activity.html" className="btn btn-light btn-md">View All</a>
+										<a href="#" className="btn btn-light btn-md">View All</a>
 									</div>
 								</div>
 							</div>
@@ -742,7 +742,7 @@ export default function LeadsDashboardPage() {
 										<i className="ti ti-phone fs-20"></i>
 									</div>
 									<div className="flex-fill ps-3 pb-4 timeline-flow">
-										<p className="fw-medium text-gray-9 mb-1"><a href="https://smarthr.dreamstechnologies.com/hrm/html/activity.html">Drain responded to
+										<p className="fw-medium text-gray-9 mb-1"><a href="#">Drain responded to
 												your appointment schedule question.</a></p>
 										<span>09:25 PM</span>
 									</div>
@@ -752,7 +752,7 @@ export default function LeadsDashboardPage() {
 										<i className="ti ti-message-circle-2 fs-20"></i>
 									</div>
 									<div className="flex-fill ps-3 pb-4 timeline-flow">
-										<p className="fw-medium text-gray-9 mb-1"><a href="https://smarthr.dreamstechnologies.com/hrm/html/activity.html">You sent 1 Message
+										<p className="fw-medium text-gray-9 mb-1"><a href="#">You sent 1 Message
 												to the James.</a></p>
 										<span>10:25 PM</span>
 									</div>
@@ -762,7 +762,7 @@ export default function LeadsDashboardPage() {
 										<i className="ti ti-phone fs-20"></i>
 									</div>
 									<div className="flex-fill ps-3 pb-4 timeline-flow">
-										<p className="fw-medium text-gray-9 mb-1"><a href="https://smarthr.dreamstechnologies.com/hrm/html/activity.html">Denwar responded
+										<p className="fw-medium text-gray-9 mb-1"><a href="#">Denwar responded
 												to your appointment on 25 Jan 2025, 08:15 PM</a></p>
 										<span>09:25 PM</span>
 									</div>
@@ -772,7 +772,7 @@ export default function LeadsDashboardPage() {
 										<i className="ti ti-user-circle fs-20"></i>
 									</div>
 									<div className="flex-fill ps-3 timeline-flow">
-										<p className="fw-medium text-gray-9 mb-1"><a href="https://smarthr.dreamstechnologies.com/hrm/html/activity.html"
+										<p className="fw-medium text-gray-9 mb-1"><a href="#"
 												className="d-flex align-items-center">Meeting With <img
 													src="/assets/img/users/user-58.jpg"
 													className="avatar avatar-sm rounded-circle mx-2" alt="Img" />Abraham</a>
@@ -884,70 +884,70 @@ export default function LeadsDashboardPage() {
 											<div className="d-flex align-items-center mb-4">
 												<span className="me-2"><i
 														className="ti ti-point-filled text-primary fs-16"></i></span>
-												<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html"
+												<a href="#"
 													className="avatar rounded-circle flex-shrink-0 border border-2">
 													<img src="/flags/sg.svg"
 														className="img-fluid rounded-circle" alt="img" />
 												</a>
 												<div className="ms-2">
 													<h6 className="fw-medium text-truncate mb-1"><a
-															href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html">Singapore</a></h6>
+															href="#">Singapore</a></h6>
 													<span className="fs-13 text-truncate">Leads : 236</span>
 												</div>
 											</div>
 											<div className="d-flex align-items-center mb-4">
 												<span className="me-2"><i
 														className="ti ti-point-filled text-secondary fs-16"></i></span>
-												<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html"
+												<a href="#"
 													className="avatar rounded-circle flex-shrink-0 border border-2">
 													<img src="/flags/fr.svg"
 														className="img-fluid rounded-circle" alt="img" />
 												</a>
 												<div className="ms-2">
 													<h6 className="fw-medium text-truncate mb-1"><a
-															href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html">France</a></h6>
+															href="#">France</a></h6>
 													<span className="fs-13 text-truncate">Leads : 589</span>
 												</div>
 											</div>
 											<div className="d-flex align-items-center mb-4">
 												<span className="me-2"><i
 														className="ti ti-point-filled text-info fs-16"></i></span>
-												<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html"
+												<a href="#"
 													className="avatar rounded-circle flex-shrink-0 border border-2">
 													<img src="/flags/no.svg"
 														className="img-fluid rounded-circle" alt="img" />
 												</a>
 												<div className="ms-2">
 													<h6 className="fw-medium text-truncate mb-1"><a
-															href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html">Norway</a></h6>
+															href="#">Norway</a></h6>
 													<span className="fs-13 text-truncate">Leads : 221</span>
 												</div>
 											</div>
 											<div className="d-flex align-items-center mb-4">
 												<span className="me-2"><i
 														className="ti ti-point-filled text-danger fs-16"></i></span>
-												<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html"
+												<a href="#"
 													className="avatar rounded-circle flex-shrink-0 border border-2">
 													<img src="/flags/us.svg"
 														className="img-fluid rounded-circle" alt="img" />
 												</a>
 												<div className="ms-2">
 													<h6 className="fw-medium text-truncate mb-1"><a
-															href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html">USA</a></h6>
+															href="#">USA</a></h6>
 													<span className="fs-13 text-truncate">Leads : 350</span>
 												</div>
 											</div>
 											<div className="d-flex align-items-center">
 												<span className="me-2"><i
 														className="ti ti-point-filled text-warning fs-16"></i></span>
-												<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html"
+												<a href="#"
 													className="avatar rounded-circle flex-shrink-0 border border-2">
 													<img src="/flags/ae.svg"
 														className="img-fluid rounded-circle" alt="img" />
 												</a>
 												<div className="ms-2">
 													<h6 className="fw-medium text-truncate mb-1"><a
-															href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html">UAE</a></h6>
+															href="#">UAE</a></h6>
 													<span className="fs-13 text-truncate">Leads : 221</span>
 												</div>
 											</div>
@@ -973,7 +973,7 @@ export default function LeadsDashboardPage() {
 								<h5>Recent Leads</h5>
 								<div className="d-flex align-items-center">
 									<div>
-										<a href="https://smarthr.dreamstechnologies.com/hrm/html/leads.html" className="btn btn-light btn-md">View All</a>
+										<a href="#" className="btn btn-light btn-md">View All</a>
 									</div>
 								</div>
 							</div>
@@ -992,14 +992,14 @@ export default function LeadsDashboardPage() {
 											<tr>
 												<td>
 													<div className="d-flex align-items-center file-name-icon">
-														<a href="https://smarthr.dreamstechnologies.com/hrm/html/company-details.html"
+														<a href="#"
 															className="avatar border rounded-circle">
 															<img src="/assets/img/company/company-01.svg"
 																className="img-fluid" alt="img" />
 														</a>
 														<div className="ms-2">
 															<h6 className="fw-medium"><a
-																	href="https://smarthr.dreamstechnologies.com/hrm/html/company-details.html">BrightWave</a></h6>
+																	href="#">BrightWave</a></h6>
 														</div>
 													</div>
 												</td>
@@ -1018,14 +1018,14 @@ export default function LeadsDashboardPage() {
 											<tr>
 												<td>
 													<div className="d-flex align-items-center file-name-icon">
-														<a href="https://smarthr.dreamstechnologies.com/hrm/html/company-details.html"
+														<a href="#"
 															className="avatar border rounded-circle">
 															<img src="/assets/img/company/company-02.svg"
 																className="img-fluid" alt="img" />
 														</a>
 														<div className="ms-2">
 															<h6 className="fw-medium"><a
-																	href="https://smarthr.dreamstechnologies.com/hrm/html/company-details.html">Stellar</a></h6>
+																	href="#">Stellar</a></h6>
 														</div>
 													</div>
 												</td>
@@ -1043,14 +1043,14 @@ export default function LeadsDashboardPage() {
 											<tr>
 												<td>
 													<div className="d-flex align-items-center file-name-icon">
-														<a href="https://smarthr.dreamstechnologies.com/hrm/html/company-details.html"
+														<a href="#"
 															className="avatar border rounded-circle">
 															<img src="/assets/img/company/company-03.svg"
 																className="img-fluid" alt="img" />
 														</a>
 														<div className="ms-2">
 															<h6 className="fw-medium"><a
-																	href="https://smarthr.dreamstechnologies.com/hrm/html/company-details.html">Quantum</a></h6>
+																	href="#">Quantum</a></h6>
 														</div>
 													</div>
 												</td>
@@ -1068,14 +1068,14 @@ export default function LeadsDashboardPage() {
 											<tr>
 												<td>
 													<div className="d-flex align-items-center file-name-icon">
-														<a href="https://smarthr.dreamstechnologies.com/hrm/html/company-details.html"
+														<a href="#"
 															className="avatar border rounded-circle">
 															<img src="/assets/img/company/company-04.svg"
 																className="img-fluid" alt="img" />
 														</a>
 														<div className="ms-2">
 															<h6 className="fw-medium"><a
-																	href="https://smarthr.dreamstechnologies.com/hrm/html/company-details.html">EcoVision</a></h6>
+																	href="#">EcoVision</a></h6>
 														</div>
 													</div>
 												</td>
@@ -1093,14 +1093,14 @@ export default function LeadsDashboardPage() {
 											<tr>
 												<td>
 													<div className="d-flex align-items-center file-name-icon">
-														<a href="https://smarthr.dreamstechnologies.com/hrm/html/company-details.html"
+														<a href="#"
 															className="avatar border rounded-circle">
 															<img src="/assets/img/company/company-05.svg"
 																className="img-fluid" alt="img" />
 														</a>
 														<div className="ms-2">
 															<h6 className="fw-medium"><a
-																	href="https://smarthr.dreamstechnologies.com/hrm/html/company-details.html">Aurora</a></h6>
+																	href="#">Aurora</a></h6>
 														</div>
 													</div>
 												</td>

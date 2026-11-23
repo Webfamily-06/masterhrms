@@ -101,7 +101,7 @@ export default function EmployeeDashboardPage() {
 						<nav>
 							<ol className="breadcrumb mb-0">
 								<li className="breadcrumb-item">
-									<a href="https://smarthr.dreamstechnologies.com/hrm/html/index.html"><i className="ti ti-smart-home"></i></a>
+									<a href="#"><i className="ti ti-smart-home"></i></a>
 								</li>
 								<li className="breadcrumb-item">
 									Dashboard
@@ -1223,7 +1223,7 @@ export default function EmployeeDashboardPage() {
 										<h5 className="mb-1">Next Holiday</h5>
 										<p className="text-gray-9">Diwali, 15 Sep 2025</p>
 									</div>
-									<a href="https://smarthr.dreamstechnologies.com/hrm/html/holidays.html" className="btn btn-white btn-sm px-3">View All</a>
+									<a href="#" className="btn btn-white btn-sm px-3">View All</a>
 								</div>
 							</div>
 						</div>

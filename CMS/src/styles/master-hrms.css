@@ -1,5 +1,5 @@
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *, [data-theme-mode="dark"], [data-theme-mode="dark"] *));
 
 html,
 html:not([data-theme]),
@@ -356,7 +356,7 @@ textarea,
   --sidebar-ring: oklch(0.55 0.22 280);
 }
 
-.dark {
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) {
   --background: oklch(0.155 0.025 265);
   --foreground: oklch(0.97 0.004 260);
   --card: oklch(0.195 0.028 265);
@@ -1536,17 +1536,37 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
 .border-border-color {
   border-color: var(--border) !important;
 }
-.dark .text-gray-900 {
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .text-gray-900 {
   color: var(--foreground) !important;
 }
-.dark .bg-light {
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .bg-light {
   background-color: rgba(255, 255, 255, 0.05) !important;
 }
-.dark .apexcharts-text {
-  fill: #94a3b8 !important;
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .apexcharts-text {
+  fill: #cbd5e1 !important;
 }
-.dark .apexcharts-legend-text {
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .apexcharts-legend-text {
   color: #f1f5f9 !important;
+}
+
+/* Custom Sleek Scrollbar */
+.scrollbar-thin {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(150, 150, 150, 0.35) transparent !important;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 5px !important;
+  height: 5px !important;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.3) !important;
+  border-radius: 4px !important;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0.6) !important;
 }
 
 

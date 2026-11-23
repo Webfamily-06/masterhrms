@@ -40,13 +40,13 @@ export default function SupportDashboardPage() {
 				startAngle: -110,
 				endAngle: 250,
 				hollow: { size: '62%' },
-				track: { background: '#E5E7EB', strokeWidth: '100%' },
+				track: { background: 'rgba(255, 255, 255, 0.08)', strokeWidth: '100%' },
 				dataLabels: {
 					name: { show: false },
 					value: {
 						fontSize: '24px',
 						fontWeight: 600,
-						color: '#1F2937',
+						color: '#f8fafc',
 						offsetY: 0,
 						formatter: (val: any) => `${Number(val).toFixed(1)}%`
 					}
@@ -452,9 +452,8 @@ export default function SupportDashboardPage() {
 							<div className="d-flex flex-column gap-3">
 								<div className="d-flex align-items-center justify-content-between">
 									<div className="d-flex align-items-center">
-										<span
-											className="d-block border border-2 h-12 border-success rounded-5 me-2"></span>
-										<p>First Response SLA</p>
+										<span className="bg-success rounded-pill me-2 d-inline-block" style={{ width: 4, height: 16 }}></span>
+										<p className="mb-0 fs-13 text-muted-foreground">First Response SLA</p>
 									</div>
 									<span
 										className="badge bg-success d-inline-flex align-items-center gap-1 rounded-pill fs-13">96.2%</span>
@@ -462,9 +461,8 @@ export default function SupportDashboardPage() {
 
 								<div className="d-flex align-items-center justify-content-between">
 									<div className="d-flex align-items-center">
-										<span
-											className="d-block border border-2 h-12 border-success rounded-5 me-2"></span>
-										<p className="fs-14">Resolution SLA</p>
+										<span className="bg-success rounded-pill me-2 d-inline-block" style={{ width: 4, height: 16 }}></span>
+										<p className="mb-0 fs-13 text-muted-foreground">Resolution SLA</p>
 									</div>
 									<span
 										className="badge bg-success d-inline-flex align-items-center gap-1 rounded-pill fs-13">92.8%</span>
@@ -472,9 +470,8 @@ export default function SupportDashboardPage() {
 
 								<div className="d-flex align-items-center justify-content-between">
 									<div className="d-flex align-items-center">
-										<span
-											className="d-block border border-2 h-12 border-warning rounded-5 me-2"></span>
-										<p className="fs-14">Escalation SLA</p>
+										<span className="bg-warning rounded-pill me-2 d-inline-block" style={{ width: 4, height: 16 }}></span>
+										<p className="mb-0 fs-13 text-muted-foreground">Escalation SLA</p>
 									</div>
 									<span
 										className="badge bg-danger d-inline-flex align-items-center gap-1 rounded-pill fs-13">89.5%</span>
@@ -574,49 +571,48 @@ export default function SupportDashboardPage() {
 										</Suspense>
 									)}
 								</div>
-								<div className="gauge-center-text">Compliance</div>
 							</div>
 
-							<div className="row row-gap-4">
+							<div className="row row-gap-3">
 								<div className="col-lg-4 col-md-4">
-									<div className="border-5 border-start border-primary text-center">
-										<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">IT Support</p>
-										<h4 className="fs-14">485</h4>
+									<div className="border-start border-2 border-primary/60 text-center ps-2 py-1">
+										<p className="d-inline-flex align-items-center mb-1 fs-12 text-muted-foreground">IT Support</p>
+										<h4 className="fs-14 mb-0 text-foreground">485</h4>
 									</div>
 								</div>
 
 								<div className="col-lg-4 col-md-4">
-									<div className="border-5 border-start border-secondary text-center">
-										<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">HR</p>
-										<h4 className="fs-14">342</h4>
+									<div className="border-start border-2 border-slate-500/60 text-center ps-2 py-1">
+										<p className="d-inline-flex align-items-center mb-1 fs-12 text-muted-foreground">HR</p>
+										<h4 className="fs-14 mb-0 text-foreground">342</h4>
 									</div>
 								</div>
 
 								<div className="col-lg-4 col-md-4">
-									<div className="border-5 border-start border-success text-center">
-										<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">Payroll</p>
-										<h4 className="fs-14">268</h4>
+									<div className="border-start border-2 border-success/60 text-center ps-2 py-1">
+										<p className="d-inline-flex align-items-center mb-1 fs-12 text-muted-foreground">Payroll</p>
+										<h4 className="fs-14 mb-0 text-foreground">268</h4>
 									</div>
 								</div>
 
 								<div className="col-lg-4 col-md-4">
-									<div className="border-5 border-start border-warning text-center">
-										<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">Access</p>
-										<h4 className="fs-14">195</h4>
+									<div className="border-start border-2 border-warning/60 text-center ps-2 py-1">
+										<p className="d-inline-flex align-items-center mb-1 fs-12 text-muted-foreground">Access</p>
+										<h4 className="fs-14 mb-0 text-foreground">195</h4>
 									</div>
 								</div>
 
 								<div className="col-lg-4 col-md-4">
-									<div className="border-5 border-start border-info text-center">
-										<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">Hardware</p>
-										<h4 className="fs-14">412</h4>
+									<div className="border-start border-2 border-info/60 text-center ps-2 py-1">
+										<p className="d-inline-flex align-items-center mb-1 fs-12 text-muted-foreground">Hardware</p>
+										<h4 className="fs-14 mb-0 text-foreground">412</h4>
 									</div>
 								</div>
 
 								<div className="col-lg-4 col-md-4">
-									<div className="border-5 border-start border-danger text-center">
-										<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">Other</p>
-										<h4 className="fs-14">145</h4>
+									<div className="border-start border-2 border-danger/60 text-center ps-2 py-1">
+										<p className="d-inline-flex align-items-center mb-1 fs-12 text-muted-foreground">Other</p>
+										<h4 className="fs-14 mb-0 text-foreground">145</h4>
 									</div>
 								</div>
 

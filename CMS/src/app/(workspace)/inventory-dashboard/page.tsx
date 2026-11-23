@@ -170,7 +170,7 @@ export default function InventoryDashboardPage() {
   /* Role access bypass for UI preview */
 
   return (
-    <div className="w-full min-w-0 flex-1">
+    <div className="dashboard-scope w-full min-w-0 flex-1">
       <div className="p-3 lg:py-6 lg:px-0">
         {/* Top Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-6">
