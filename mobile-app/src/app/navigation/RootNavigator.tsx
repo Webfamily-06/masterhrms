@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../providers/ThemeProvider';
 import { RootStackParamList, AuthStackParamList } from '../../types/navigation.types';
 import { SplashScreen } from '../../modules/authentication/screens/SplashScreen';
+import { OnboardingScreen } from '../../modules/authentication/screens/OnboardingScreen';
 import { RegisterScreen } from '../../modules/authentication/screens/RegisterScreen';
 import { CompanyDiscoveryScreen } from '../../modules/authentication/screens/CompanyDiscoveryScreen';
 import { LoginScreen } from '../../modules/authentication/screens/LoginScreen';
@@ -25,6 +26,7 @@ const AuthNavigator: React.FC = () => {
   return (
     <AuthStack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="Splash" component={SplashScreen} />
+      <AuthStack.Screen name="Onboarding" component={OnboardingScreen} />
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Register" component={RegisterScreen} />
       <AuthStack.Screen name="TwoFactorVerify" component={TwoFactorVerifyScreen} />

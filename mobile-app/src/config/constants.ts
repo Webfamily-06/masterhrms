@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
   BIOMETRIC_SAVED_SECRET: 'masterhrms_biometric_saved_secret',
   THEME_MODE: 'masterhrms_theme_mode',
   LAST_WORKSPACE_NAME: 'masterhrms_last_workspace_name',
+  HAS_SEEN_ONBOARDING: 'masterhrms_has_seen_onboarding',
 } as const;
 
 export const QUERY_KEYS = {

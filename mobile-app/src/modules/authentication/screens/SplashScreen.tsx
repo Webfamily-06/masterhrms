@@ -10,6 +10,8 @@ import { Text } from '../../../components/common/Text';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 import { useAuthStore } from '../../../store/authStore';
+import { localStorage } from '../../../core/storage/localStorage';
+import { STORAGE_KEYS } from '../../../config/constants';
 
 const logoSource = require('../../../assets/images/logo.webp');
 
@@ -53,9 +55,16 @@ export const SplashScreen: React.FC = () => {
       }),
     ]).start();
 
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       if (!isAuthenticated) {
-        navigation.navigate('Login', {});
+        const hasSeenOnboarding = await localStorage.getItemAsync(
+          STORAGE_KEYS.HAS_SEEN_ONBOARDING
+        );
+        if (!hasSeenOnboarding) {
+          (navigation as any).navigate('Onboarding');
+        } else {
+          navigation.navigate('Login', {});
+        }
       }
     }, 2200);
 

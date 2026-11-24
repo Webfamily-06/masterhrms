@@ -424,15 +424,25 @@ export const LoginScreen: React.FC = () => {
             </View>
           )}
 
-          {/* New Workspace Registration */}
-          <TouchableOpacity
-            style={styles.registerLink}
-            onPress={() => (navigation as any).navigate('Register')}
-          >
-            <Text style={styles.registerLinkText}>
-              Create New Workspace / Account →
-            </Text>
-          </TouchableOpacity>
+          {/* New Workspace Registration & Tour */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 16 }}>
+            <TouchableOpacity
+              style={styles.registerLink}
+              onPress={() => (navigation as any).navigate('Register')}
+            >
+              <Text style={styles.registerLinkText}>
+                Create New Workspace →
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.registerLink}
+              onPress={() => (navigation as any).navigate('Onboarding')}
+            >
+              <Text style={[styles.registerLinkText, { color: '#64748b' }]}>
+                View App Tour
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Divider */}
           <View style={styles.dividerRow}>

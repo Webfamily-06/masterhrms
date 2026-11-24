@@ -29,6 +29,8 @@ import { useAuthStore } from '../../../store/authStore';
 import { useTheme } from '../../../app/providers/ThemeProvider';
 import { BiometricService } from '../../../core/auth/biometricService';
 import { AuthService } from '../../../core/auth/authService';
+import { localStorage } from '../../../core/storage/localStorage';
+import { STORAGE_KEYS } from '../../../config/constants';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 
@@ -515,6 +517,46 @@ export const SettingsScreen: React.FC = () => {
               </Text>
               <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
                 FAQs, tickets & HR guidance
+              </Text>
+            </View>
+            <Text style={styles.arrowText}>→</Text>
+          </TouchableOpacity>
+
+          <View style={[styles.divider, { backgroundColor: theme.colors.borderLight }]} />
+
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => {
+              localStorage.removeItem(STORAGE_KEYS.HAS_SEEN_ONBOARDING);
+              Alert.alert(
+                'Launch App Tour',
+                'Do you want to preview the 3-step onboarding walkthrough?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'View Tour',
+                    onPress: () => {
+                      (navigation as any).navigate('Onboarding');
+                    },
+                  },
+                ]
+              );
+            }}
+          >
+            <View
+              style={[
+                styles.rowIconCircle,
+                { backgroundColor: theme.isDark ? '#1F2937' : '#EFF6FF' },
+              ]}
+            >
+              <Smartphone size={18} color="#0D6EFD" strokeWidth={2.2} />
+            </View>
+            <View style={styles.rowTextCol}>
+              <Text style={[styles.rowTitle, { color: theme.colors.text }]}>
+                App Tour & Feature Guide
+              </Text>
+              <Text style={[styles.rowSub, { color: theme.colors.textSecondary }]}>
+                Revisit the 3-step onboarding walkthrough
               </Text>
             </View>
             <Text style={styles.arrowText}>→</Text>
