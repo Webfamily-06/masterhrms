@@ -6,7 +6,10 @@
     "slug": "masterhrms",
     "version": "0.0.1",
     "orientation": "portrait",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
@@ -19,7 +22,8 @@
         ],
         "NSCameraUsageDescription": "MasterHRMS requires access to your camera for profile photo and attachment uploads.",
         "NSMicrophoneUsageDescription": "MasterHRMS requires access to your microphone for recording voice notes.",
-        "NSPhotoLibraryUsageDescription": "MasterHRMS requires access to your photo library to select and upload photos."
+        "NSPhotoLibraryUsageDescription": "MasterHRMS requires access to your photo library to select and upload photos.",
+        "NSFaceIDUsageDescription": "MasterHRMS uses Face ID to securely unlock your workspace."
       }
     },
     "android": {
@@ -31,7 +35,9 @@
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.USE_EXACT_ALARM",
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ]
     },
     "plugins": [
@@ -43,8 +49,15 @@
           "defaultChannel": "default"
         }
       ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow MasterHRMS to use Face ID to securely unlock your workspace."
+        }
+      ],
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      "expo-secure-store"
     ]
   }
 }

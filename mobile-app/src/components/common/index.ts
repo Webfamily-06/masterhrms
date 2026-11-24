@@ -6,3 +6,4 @@ export * from './OfflineBanner';
 export * from './Text';
 export * from './AppTopBar';
 export * from './AppBottomNav';
+export * from './UserAvatar';

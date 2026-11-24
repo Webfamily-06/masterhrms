@@ -26,14 +26,18 @@ import {
   Settings,
   ArrowLeft,
   Bell,
+  Moon,
+  Sun,
 } from 'lucide-react-native';
 import { Text } from '../../../components/common/Text';
 import { AppBottomNav } from '../../../components/common/AppBottomNav';
+import { useTheme } from '../../../app/providers/ThemeProvider';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 
 export const EmployeeServicesHubScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'EmployeeServicesHub'>>();
+  const { theme, toggleTheme } = useTheme();
 
   const services = [
     { title: 'Chat & Messages', icon: MessageSquare, color: '#4F46E5', route: 'ChatConversations' as const, desc: 'Direct messages & groups' },
@@ -53,13 +57,17 @@ export const EmployeeServicesHubScreen: React.FC = () => {
     { title: 'Document Vault', icon: Folder, color: '#7C3AED', route: 'DocumentsVault' as const, desc: 'Policies, contracts & letters' },
     { title: 'Shift Schedule', icon: Clock, color: '#D97706', route: 'ShiftSchedule' as const, desc: 'Work rosters & shift swap' },
     { title: 'Timesheets', icon: TrendingUp, color: '#0284C7', route: 'Timesheet' as const, desc: 'Project work hours log' },
-    { title: 'App Settings', icon: Settings, color: '#475569', route: 'Settings' as const, desc: 'Security & preferences' },
+    { title: 'App Settings', icon: Settings, color: '#475569', route: 'Settings' as const, desc: 'Biometrics & Dark Mode' },
   ];
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View
+        style={[
+          styles.header,
+          theme.isDark && { backgroundColor: '#0F172A', borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
@@ -69,18 +77,34 @@ export const EmployeeServicesHubScreen: React.FC = () => {
           <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2.4} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Employee Services</Text>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('Notifications')}
-          style={styles.bellBtn}
-          accessibilityRole="button"
-          accessibilityLabel="View notifications"
-        >
-          <Bell size={18} color="#FFFFFF" strokeWidth={2.2} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity
+            onPress={toggleTheme}
+            style={styles.bellBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle dark mode"
+          >
+            {theme.isDark ? (
+              <Sun size={18} color="#FBBF24" strokeWidth={2.2} />
+            ) : (
+              <Moon size={18} color="#FFFFFF" strokeWidth={2.2} />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Notifications')}
+            style={styles.bellBtn}
+            accessibilityRole="button"
+            accessibilityLabel="View notifications"
+          >
+            <Bell size={18} color="#FFFFFF" strokeWidth={2.2} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.sectionSubtitle}>Select a service to get started</Text>
+        <Text style={[styles.sectionSubtitle, { color: theme.colors.textSecondary }]}>
+          Select a service to get started
+        </Text>
 
         <View style={styles.servicesGrid}>
           {services.map((item, idx) => {
@@ -88,24 +112,30 @@ export const EmployeeServicesHubScreen: React.FC = () => {
             return (
               <TouchableOpacity
                 key={idx}
-                style={styles.serviceCard}
+                style={[
+                  styles.serviceCard,
+                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                ]}
                 onPress={() => navigation.navigate(item.route)}
                 accessibilityRole="button"
                 accessibilityLabel={item.title}
                 activeOpacity={0.8}
               >
-                <View style={[styles.iconCircle, { backgroundColor: `${item.color}15` }]}>
+                <View style={[styles.iconCircle, { backgroundColor: `${item.color}18` }]}>
                   <IconComp size={22} color={item.color} strokeWidth={2.2} />
                 </View>
-                <Text style={styles.serviceTitle}>{item.title}</Text>
-                <Text style={styles.serviceDesc}>{item.desc}</Text>
+                <Text style={[styles.serviceTitle, { color: theme.colors.text }]}>
+                  {item.title}
+                </Text>
+                <Text style={[styles.serviceDesc, { color: theme.colors.textSecondary }]}>
+                  {item.desc}
+                </Text>
               </TouchableOpacity>
             );
           })}
         </View>
       </ScrollView>
 
-      {/* Pinned Bottom Navigation */}
       <AppBottomNav activeRoute="EmployeeServicesHub" />
     </View>
   );
@@ -114,7 +144,6 @@ export const EmployeeServicesHubScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAF8',
   },
   header: {
     flexDirection: 'row',
@@ -152,7 +181,6 @@ const styles = StyleSheet.create({
   },
   sectionSubtitle: {
     fontSize: 13,
-    color: '#64748B',
     marginBottom: 16,
   },
   servicesGrid: {
@@ -162,16 +190,9 @@ const styles = StyleSheet.create({
   },
   serviceCard: {
     width: '48%',
-    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
   },
   iconCircle: {
     width: 44,
@@ -184,12 +205,10 @@ const styles = StyleSheet.create({
   serviceTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0F172A',
     marginBottom: 4,
   },
   serviceDesc: {
     fontSize: 11,
-    color: '#64748B',
     lineHeight: 15,
   },
 });

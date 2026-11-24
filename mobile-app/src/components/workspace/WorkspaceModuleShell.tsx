@@ -14,8 +14,10 @@ import { Text } from '../common/Text';
 import { Button } from '../common/Button';
 import { OfflineBanner } from '../common/OfflineBanner';
 import { PersonaSwitcher } from '../../modules/navigation/PersonaSwitcher';
+import { UserAvatar } from '../common/UserAvatar';
 import { useAuthStore } from '../../store/authStore';
 import { useTenantStore } from '../../store/tenantStore';
+import { useTheme } from '../../app/providers/ThemeProvider';
 import { usePermission } from '../../hooks/usePermission';
 import { realtimeManager } from '../../core/realtime/realtimeManager';
 import {
@@ -26,6 +28,8 @@ import {
   ArrowLeft,
   AlertTriangle,
   FolderOpen,
+  Moon,
+  Sun,
 } from 'lucide-react-native';
 import { AppBottomNav } from '../common/AppBottomNav';
 
@@ -117,6 +121,7 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
   const currentTenant = useTenantStore((s) => s.currentTenant);
+  const { theme, toggleTheme } = useTheme();
   const { permissions } = usePermission();
   let insets = { top: 0, bottom: 0, left: 0, right: 0 };
   try {
@@ -161,13 +166,19 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
   };
 
   return (
-    <View style={[styles.root, backgroundColor ? { backgroundColor } : null]}>
+    <View
+      style={[
+        styles.root,
+        { backgroundColor: backgroundColor || theme.colors.background },
+      ]}
+    >
       <OfflineBanner />
 
       {/* Top Branded Header */}
       <View
         style={[
           styles.header,
+          theme.isDark && { backgroundColor: '#0F172A' },
           headerBackgroundColor ? { backgroundColor: headerBackgroundColor } : null,
           { paddingTop: insets.top > 0 ? insets.top + 8 : Platform.OS === 'ios' ? 50 : 24 },
         ]}
@@ -206,7 +217,31 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
 
           <View style={styles.headerRight}>
             <PersonaSwitcher />
+            <TouchableOpacity
+              onPress={toggleTheme}
+              style={styles.backBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Toggle dark mode"
+            >
+              {theme.isDark ? (
+                <Sun size={16} color="#FBBF24" strokeWidth={2.2} />
+              ) : (
+                <Moon size={16} color="#FFFFFF" strokeWidth={2.2} />
+              )}
+            </TouchableOpacity>
             {rightActions}
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Profile')}
+              accessibilityRole="button"
+              accessibilityLabel="Profile"
+            >
+              <UserAvatar
+                entity={user}
+                size={34}
+                borderWidth={1.5}
+                borderColor="rgba(255,255,255,0.45)"
+              />
+            </TouchableOpacity>
           </View>
         </View>
       </View>

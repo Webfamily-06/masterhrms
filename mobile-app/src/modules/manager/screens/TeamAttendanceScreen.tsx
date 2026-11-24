@@ -9,12 +9,14 @@ import {
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
 import { ArrowLeft } from 'lucide-react-native';
-import { AppBottomNav } from '../../../components/common';
+import { AppBottomNav, UserAvatar } from '../../../components/common';
 import { ManagerService, TeamMember } from '../../../core/services/managerService';
+import { useTheme } from '../../../app/providers/ThemeProvider';
 import { useNavigation } from '@react-navigation/native';
 
 export const TeamAttendanceScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { theme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -33,12 +35,12 @@ export const TeamAttendanceScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [loadData]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadData();
+    void loadData();
   };
 
   const getDesignationName = (desig: any) => {
@@ -48,17 +50,24 @@ export const TeamAttendanceScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={styles.backButton}
+          style={[styles.backButton, { backgroundColor: theme.colors.surfaceSecondary }]}
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <ArrowLeft size={20} color="#0F172A" />
+          <ArrowLeft size={20} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Team Attendance Status</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          Team Attendance Status
+        </Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -71,31 +80,45 @@ export const TeamAttendanceScreen: React.FC = () => {
           contentContainerStyle={styles.scrollContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
-          <Text style={styles.subHeading}>
+          <Text style={[styles.subHeading, { color: theme.colors.textSecondary }]}>
             Direct Reports ({team.length})
           </Text>
 
           {team.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No direct reports assigned to your team.</Text>
+              <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>
+                No direct reports assigned to your team.
+              </Text>
             </View>
           ) : (
             team.map((member) => (
-              <View key={member.id} style={styles.memberCard}>
+              <View
+                key={member.id}
+                style={[
+                  styles.memberCard,
+                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                ]}
+              >
                 <View style={styles.memberRow}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                      {(member.firstName?.[0] || 'U') + (member.lastName?.[0] || '')}
-                    </Text>
-                  </View>
+                  <UserAvatar
+                    entity={member}
+                    name={`${member.firstName || ''} ${member.lastName || ''}`.trim()}
+                    email={member.email}
+                    size={46}
+                    borderWidth={1.5}
+                    borderColor={theme.colors.border}
+                    style={{ marginRight: 12 }}
+                  />
                   <View style={styles.memberInfo}>
-                    <Text style={styles.memberName}>
+                    <Text style={[styles.memberName, { color: theme.colors.text }]}>
                       {member.firstName} {member.lastName}
                     </Text>
-                    <Text style={styles.memberRole}>
+                    <Text style={[styles.memberRole, { color: theme.colors.textSecondary }]}>
                       {getDesignationName(member.designation)} • {member.employeeCode}
                     </Text>
-                    <Text style={styles.memberContact}>{member.email}</Text>
+                    <Text style={[styles.memberContact, { color: theme.colors.textMuted }]}>
+                      {member.email}
+                    </Text>
                   </View>
                   <View
                     style={[
@@ -105,7 +128,12 @@ export const TeamAttendanceScreen: React.FC = () => {
                         : styles.pillPresent,
                     ]}
                   >
-                    <Text style={styles.statusPillText}>
+                    <Text
+                      style={[
+                        styles.statusPillText,
+                        { color: member.todayStatus === 'ABSENT' ? '#DC2626' : '#15803D' },
+                      ]}
+                    >
                       {member.todayStatus || 'PRESENT'}
                     </Text>
                   </View>
@@ -123,7 +151,6 @@ export const TeamAttendanceScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAF8',
   },
   header: {
     flexDirection: 'row',
@@ -132,27 +159,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 16,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   backButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  backButtonText: {
-    fontSize: 20,
-    color: '#0F172A',
-    fontWeight: '600',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F172A',
   },
   placeholder: {
     width: 36,
@@ -168,7 +186,6 @@ const styles = StyleSheet.create({
   subHeading: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#475569',
     marginBottom: 12,
   },
   emptyContainer: {
@@ -177,38 +194,16 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: '#94A3B8',
   },
   memberCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
   },
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#DCFCE7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  avatarText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#15803D',
   },
   memberInfo: {
     flex: 1,
@@ -216,16 +211,13 @@ const styles = StyleSheet.create({
   memberName: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
   },
   memberRole: {
     fontSize: 12,
-    color: '#64748B',
     marginTop: 2,
   },
   memberContact: {
     fontSize: 11.5,
-    color: '#94A3B8',
     marginTop: 2,
   },
   statusPill: {
@@ -242,6 +234,5 @@ const styles = StyleSheet.create({
   statusPillText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#0F172A',
   },
 });

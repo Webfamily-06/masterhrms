@@ -39,6 +39,13 @@ employeeSelfServiceRouter.get("/profile", async (req: EmployeeAuthRequest, res: 
         department: { select: { id: true, name: true } },
         designation: { select: { id: true, name: true } },
         branch: { select: { id: true, name: true, address: true } },
+        user: {
+          select: {
+            profile: {
+              select: { avatarUrl: true },
+            },
+          },
+        },
         manager: {
           select: {
             id: true,
@@ -75,6 +82,11 @@ employeeSelfServiceRouter.get("/profile", async (req: EmployeeAuthRequest, res: 
       fullName: `${emp.firstName} ${emp.lastName}`.trim(),
       email: emp.email,
       phone: emp.phone,
+      avatarUrl: (emp as any).user?.profile?.avatarUrl || null,
+      address: emp.presentAddress || emp.addressLine1 || null,
+      emergencyContactName: emp.emergencyContactName || null,
+      emergencyContactPhone: emp.emergencyContactPhone || null,
+      emergencyContactRelation: emp.emergencyContactRelationship || null,
       position: emp.position,
       employmentType: emp.employmentType,
       status: emp.status,
@@ -109,29 +121,80 @@ employeeSelfServiceRouter.get("/profile", async (req: EmployeeAuthRequest, res: 
 
 /**
  * PUT /api/v1/me/profile
- * Updates instant non-sensitive fields (phone, gender, emergency contact notes)
+ * Updates instant non-sensitive fields (phone, gender, avatarUrl, address, emergency contact)
  */
 employeeSelfServiceRouter.put("/profile", async (req: EmployeeAuthRequest, res: Response) => {
   const db = rawPrisma || prisma;
   const employeeId = req.employee!.id;
-  const { phone, gender } = req.body;
+  const userId = req.user!.userId;
+  const {
+    phone,
+    gender,
+    firstName,
+    lastName,
+    address,
+    emergencyContactName,
+    emergencyContactPhone,
+    emergencyContactRelation,
+    avatarUrl,
+  } = req.body;
 
   try {
     const updated = await db.employee.update({
       where: { id: employeeId },
       data: {
-        phone: typeof phone === "string" ? phone : undefined,
-        gender: typeof gender === "string" ? gender : undefined,
+        ...(typeof firstName === "string" && firstName.trim() ? { firstName: firstName.trim() } : {}),
+        ...(typeof lastName === "string" ? { lastName: lastName.trim() } : {}),
+        ...(typeof phone === "string" ? { phone } : {}),
+        ...(typeof gender === "string" ? { gender } : {}),
+        ...(typeof address === "string" ? { presentAddress: address, addressLine1: address } : {}),
+        ...(typeof emergencyContactName === "string" ? { emergencyContactName } : {}),
+        ...(typeof emergencyContactPhone === "string" ? { emergencyContactPhone } : {}),
+        ...(typeof emergencyContactRelation === "string" ? { emergencyContactRelationship: emergencyContactRelation } : {}),
       },
       select: {
         id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
         phone: true,
         gender: true,
+        presentAddress: true,
+        emergencyContactName: true,
+        emergencyContactPhone: true,
+        emergencyContactRelationship: true,
         updatedAt: true,
       },
     });
 
-    return res.json({ success: true, message: "Profile updated successfully", data: updated });
+    let updatedAvatarUrl: string | undefined = undefined;
+    if (typeof avatarUrl === "string" && userId) {
+      const fullName = `${updated.firstName || ""} ${updated.lastName || ""}`.trim() || undefined;
+      const prof = await db.profile.upsert({
+        where: { userId },
+        update: {
+          avatarUrl,
+          ...(fullName ? { fullName } : {}),
+        },
+        create: {
+          userId,
+          email: updated.email,
+          fullName: fullName || updated.email.split("@")[0],
+          avatarUrl,
+          tenantId: req.user?.tenantId || null,
+        },
+      });
+      updatedAvatarUrl = prof.avatarUrl || undefined;
+    }
+
+    return res.json({
+      success: true,
+      message: "Profile updated successfully",
+      data: {
+        ...updated,
+        avatarUrl: updatedAvatarUrl,
+      },
+    });
   } catch (err: any) {
     console.error("[PUT /me/profile] Error:", err);
     return res.status(500).json({ error: "Failed to update profile" });
@@ -1561,11 +1624,17 @@ employeeSelfServiceRouter.get("/team", async (req: EmployeeAuthRequest, res: Res
         joinedAt: true,
         department: { select: { id: true, name: true } },
         designation: { select: { id: true, name: true } },
+        user: { select: { profile: { select: { avatarUrl: true } } } },
       },
       orderBy: { firstName: "asc" },
     });
 
-    return res.json({ success: true, data: directReports });
+    const formattedTeam = directReports.map((r: any) => ({
+      ...r,
+      avatarUrl: r.user?.profile?.avatarUrl || null,
+    }));
+
+    return res.json({ success: true, data: formattedTeam });
   } catch (err: any) {
     console.error("[GET /me/team] Error:", err);
     return res.status(500).json({ error: "Failed to fetch team members" });
@@ -2409,6 +2478,7 @@ employeeSelfServiceRouter.get("/employees", async (req: EmployeeAuthRequest, res
           branch: { select: { id: true, name: true } },
           designation: { select: { id: true, name: true } },
           manager: { select: { id: true, firstName: true, lastName: true } },
+          user: { select: { profile: { select: { avatarUrl: true } } } },
         },
         orderBy: { [pagination.sortField]: pagination.sortType },
         skip: pagination.skip,
@@ -2419,6 +2489,7 @@ employeeSelfServiceRouter.get("/employees", async (req: EmployeeAuthRequest, res
     const formatted = colleagues.map((c: any) => ({
       ...c,
       fullName: `${c.firstName} ${c.lastName}`.trim(),
+      avatarUrl: c.user?.profile?.avatarUrl || null,
     }));
 
     return res.json(formatPaginatedResponse(formatted, total, pagination));

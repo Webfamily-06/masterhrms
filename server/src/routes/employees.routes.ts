@@ -180,8 +180,12 @@ employeesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =>
       }),
     ]);
 
-    // WAVE 2 — Apply PII masking based on caller privilege
-    const maskedEmployees = applyPIIMaskList(employees, req);
+    // WAVE 2 — Apply PII masking based on caller privilege + flatten avatarUrl
+    const enrichedEmployees = employees.map((emp: any) => ({
+      ...emp,
+      avatarUrl: emp.avatarUrl || emp.user?.profile?.avatarUrl || null,
+    }));
+    const maskedEmployees = applyPIIMaskList(enrichedEmployees, req);
 
     if (pagination.isPaginated) {
       return res.json(formatPaginatedResponse(maskedEmployees, total, pagination));

@@ -93,6 +93,9 @@ export type ManagerStackParamList = SharedCollaborationModuleParamList & {
   TeamAttendance: undefined;
   TeamApprovals: undefined;
   TeamProjects: undefined;
+  Notifications: undefined;
+  FingerprintAuth: undefined;
+  FaceIdAuth: undefined;
   Profile: undefined;
   EditProfile: undefined;
   EmployeeDirectory: undefined;
@@ -108,6 +111,8 @@ export type HrAdminStackParamList = SharedCollaborationModuleParamList & {
   PendingApprovals: undefined;
   PayrollOverview: undefined;
   Notifications: undefined;
+  FingerprintAuth: undefined;
+  FaceIdAuth: undefined;
   Profile: undefined;
   EditProfile: undefined;
   Performance: undefined;
@@ -121,6 +126,9 @@ export type TenantAdminStackParamList = SharedCollaborationModuleParamList & {
   WorkspaceSettings: undefined;
   SecurityOverview: undefined;
   ModulesOverview: undefined;
+  Notifications: undefined;
+  FingerprintAuth: undefined;
+  FaceIdAuth: undefined;
   Profile: undefined;
   EditProfile: undefined;
   EmployeeDirectory: undefined;

@@ -12,6 +12,8 @@ import { EditProfileScreen } from '../ess/screens/EditProfileScreen';
 import { PerformanceScreen } from '../ess/screens/PerformanceScreen';
 import { DocumentsVaultScreen } from '../ess/screens/DocumentsVaultScreen';
 import { SettingsScreen } from '../ess/screens/SettingsScreen';
+import { FingerprintAuthScreen } from '../authentication/screens/FingerprintAuthScreen';
+import { FaceIdAuthScreen } from '../authentication/screens/FaceIdAuthScreen';
 import { ChatConversationsScreen } from '../chat/screens/ChatConversationsScreen';
 import { ChatConversationDetailScreen } from '../chat/screens/ChatConversationDetailScreen';
 import { ChatCallScreen } from '../chat/screens/ChatCallScreen';
@@ -35,6 +37,8 @@ export const HrAdminNavigator: React.FC = () => {
       <Stack.Screen name="Performance" component={PerformanceScreen} />
       <Stack.Screen name="DocumentsVault" component={DocumentsVaultScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="FingerprintAuth" component={FingerprintAuthScreen} />
+      <Stack.Screen name="FaceIdAuth" component={FaceIdAuthScreen} />
       <Stack.Screen name="ChatConversations" component={ChatConversationsScreen} />
       <Stack.Screen name="ChatConversationDetail" component={ChatConversationDetailScreen} />
       <Stack.Screen name="ChatCall" component={ChatCallScreen} />

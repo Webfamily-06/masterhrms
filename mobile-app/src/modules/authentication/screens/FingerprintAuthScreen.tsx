@@ -1,39 +1,85 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
-import { ArrowLeft, Fingerprint } from 'lucide-react-native';
+import { ArrowLeft, Fingerprint, CheckCircle2 } from 'lucide-react-native';
 import { Text } from '../../../components/common/Text';
 import { useNavigation } from '@react-navigation/native';
 import { AuthService } from '../../../core/auth/authService';
+import { BiometricService } from '../../../core/auth/biometricService';
+import { useAuthStore } from '../../../store/authStore';
+import { useTheme } from '../../../app/providers/ThemeProvider';
 
 export const FingerprintAuthScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { theme } = useTheme();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const unlockApp = useAuthStore((s) => s.unlockApp);
+
   const [scanning, setScanning] = useState(false);
+  const [verified, setVerified] = useState(false);
 
   const handleFingerprintScan = async () => {
     if (scanning) return;
     setScanning(true);
     try {
+      const bioCheck = await BiometricService.verifyHardwareBiometric(
+        Platform.OS === 'ios'
+          ? 'Touch ID Verification to unlock MasterHRMS'
+          : 'Touch fingerprint sensor to unlock MasterHRMS',
+        'fingerprint'
+      );
+
+      if (!bioCheck.success) {
+        Alert.alert(
+          'Fingerprint Verification Failed',
+          bioCheck.error || 'Could not verify your fingerprint. Please try again or use your password.',
+          [
+            { text: 'Try Again', onPress: () => setScanning(false) },
+            {
+              text: 'Use Password',
+              onPress: () => {
+                setScanning(false);
+                if (navigation.canGoBack()) navigation.goBack();
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      if (isAuthenticated) {
+        await BiometricService.setFingerprintEnabled(true);
+        unlockApp();
+        setVerified(true);
+        Alert.alert('Fingerprint Verified', 'Fingerprint unlock is active and verified for your account.', [
+          {
+            text: 'Done',
+            onPress: () => {
+              if (navigation.canGoBack()) navigation.goBack();
+            },
+          },
+        ]);
+        return;
+      }
+
       await AuthService.restoreBiometricSession();
-      // Navigation to AppNavigator will be triggered automatically by RootNavigator via isAuthenticated in authStore
+      setVerified(true);
     } catch (err: any) {
       Alert.alert(
-        'Touch ID Authentication Failed',
-        err?.message || 'Could not verify biometric credentials. Please try again or use your password.',
+        'Fingerprint Login',
+        err?.message ||
+          'No saved biometric session found yet. Sign in once with your email and password to link Fingerprint unlock.',
         [
-          { text: 'Try Again', onPress: () => setScanning(false) },
           {
-            text: 'Use Password',
+            text: 'Go to Login',
             onPress: () => {
-              setScanning(false);
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              }
+              if (navigation.canGoBack()) navigation.goBack();
             },
           },
         ]
@@ -43,8 +89,15 @@ export const FingerprintAuthScreen: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void handleFingerprintScan();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -53,16 +106,20 @@ export const FingerprintAuthScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <ArrowLeft size={20} color="#1E293B" strokeWidth={2.4} />
+          <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2.4} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Touch ID</Text>
+        <Text style={styles.headerTitle}>
+          {Platform.OS === 'ios' ? 'Touch ID Unlock' : 'Fingerprint Unlock'}
+        </Text>
         <View style={styles.placeholder} />
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.title}>Welcome Back</Text>
-        <Text style={styles.subtitle}>
-          Touch the fingerprint sensor to quickly unlock your MasterHRMS account.
+        <Text style={[styles.title, { color: theme.colors.text }]}>
+          {verified ? 'Identity Verified' : 'Fingerprint Unlock'}
+        </Text>
+        <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+          Touch your device fingerprint sensor to quickly unlock your MasterHRMS workspace.
         </Text>
 
         {/* Fingerprint Sensor Visual */}
@@ -73,10 +130,28 @@ export const FingerprintAuthScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Scan fingerprint"
         >
-          <View style={styles.scannerOuter}>
-            <View style={styles.scannerInner}>
+          <View
+            style={[
+              styles.scannerOuter,
+              {
+                backgroundColor: theme.isDark ? 'rgba(79, 70, 229, 0.18)' : '#EEF2FF',
+                borderColor: verified ? '#22C55E' : '#818CF8',
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.scannerInner,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: verified ? '#16A34A' : '#818CF8',
+                },
+              ]}
+            >
               {scanning ? (
                 <ActivityIndicator color="#4F46E5" size="large" />
+              ) : verified ? (
+                <CheckCircle2 size={52} color="#16A34A" strokeWidth={2} />
               ) : (
                 <Fingerprint size={52} color="#4F46E5" strokeWidth={1.8} />
               )}
@@ -85,16 +160,25 @@ export const FingerprintAuthScreen: React.FC = () => {
         </TouchableOpacity>
 
         <Text style={styles.scanInstruction}>
-          {scanning ? 'Verifying biometric fingerprint...' : 'Touch sensor to verify identity'}
+          {scanning
+            ? 'Scanning fingerprint sensor...'
+            : verified
+            ? 'Fingerprint verified!'
+            : 'Tap sensor icon to scan fingerprint'}
         </Text>
 
         {/* Fallback buttons */}
         <View style={styles.fallbackContainer}>
           <TouchableOpacity
-            style={styles.fallbackBtn}
+            style={[
+              styles.fallbackBtn,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
             onPress={() => navigation.navigate('FaceIdAuth')}
           >
-            <Text style={styles.fallbackBtnText}>Switch to Face ID</Text>
+            <Text style={[styles.fallbackBtnText, { color: theme.colors.text }]}>
+              Switch to Face ID Unlock
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -105,7 +189,9 @@ export const FingerprintAuthScreen: React.FC = () => {
               }
             }}
           >
-            <Text style={styles.passwordBtnText}>Use Password Instead</Text>
+            <Text style={[styles.passwordBtnText, { color: theme.colors.textSecondary }]}>
+              {isAuthenticated ? 'Back to Settings' : 'Use Password Instead'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -116,7 +202,6 @@ export const FingerprintAuthScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   header: {
     backgroundColor: '#1E1B4B',
@@ -135,11 +220,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  backBtnText: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
   headerTitle: {
     color: '#FFFFFF',
     fontSize: 18,
@@ -157,12 +237,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#0F172A',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: '#64748B',
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 40,
@@ -171,22 +249,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   scannerOuter: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: '#EEF2FF',
+    width: 144,
+    height: 144,
+    borderRadius: 72,
     borderWidth: 2,
-    borderColor: '#C7D2FE',
     justifyContent: 'center',
     alignItems: 'center',
   },
   scannerInner: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#FFFFFF',
+    width: 104,
+    height: 104,
+    borderRadius: 52,
     borderWidth: 2,
-    borderColor: '#818CF8',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#4F46E5',
@@ -195,26 +269,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
-  fingerprintIcon: {
-    fontSize: 48,
-  },
   scanInstruction: {
     fontSize: 13,
     color: '#4F46E5',
     fontWeight: '600',
-    marginBottom: 50,
+    marginBottom: 44,
   },
   fallbackContainer: {
     width: '100%',
     alignItems: 'center',
   },
   fallbackBtn: {
-    paddingVertical: 12,
+    paddingVertical: 13,
     paddingHorizontal: 20,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     width: '100%',
     alignItems: 'center',
     marginBottom: 12,
@@ -222,7 +291,6 @@ const styles = StyleSheet.create({
   fallbackBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1E1B4B',
   },
   passwordBtn: {
     paddingVertical: 10,
@@ -230,6 +298,5 @@ const styles = StyleSheet.create({
   passwordBtnText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#64748B',
   },
 });

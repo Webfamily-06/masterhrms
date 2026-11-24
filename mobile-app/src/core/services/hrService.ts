@@ -71,15 +71,37 @@ export class HrService {
     page?: number;
     limit?: number;
   }): Promise<EmployeeSummary[]> {
+    const normalizeList = (rawList: any[]): EmployeeSummary[] =>
+      rawList.map((emp: any) => ({
+        ...emp,
+        avatarUrl:
+          emp.avatarUrl ||
+          emp.profilePhotoUrl ||
+          emp.photoUrl ||
+          emp.avatar ||
+          emp.user?.profile?.avatarUrl ||
+          null,
+      }));
+
     try {
       const response = await apiClient.get<any>('/api/employees', { params });
-      if (Array.isArray(response.data)) return response.data;
-      if (response.data && Array.isArray(response.data.data)) return response.data.data;
-      if (response.data && Array.isArray(response.data.employees)) return response.data.employees;
-      return [];
+      if (Array.isArray(response.data)) return normalizeList(response.data);
+      if (response.data && Array.isArray(response.data.data)) return normalizeList(response.data.data);
+      if (response.data && Array.isArray(response.data.employees)) return normalizeList(response.data.employees);
     } catch {
-      return [];
+      // Fallback to ESS colleague directory (/api/v1/me/employees) for non-HR employee roles
     }
+
+    try {
+      const essResp = await apiClient.get<any>('/api/v1/me/employees', { params });
+      if (Array.isArray(essResp.data)) return normalizeList(essResp.data);
+      if (essResp.data && Array.isArray(essResp.data.data)) return normalizeList(essResp.data.data);
+      if (essResp.data && Array.isArray(essResp.data.employees)) return normalizeList(essResp.data.employees);
+    } catch {
+      // Handled
+    }
+
+    return [];
   }
 
   /**

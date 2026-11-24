@@ -28,10 +28,12 @@ interface AuthState {
   isMfaPending: boolean;
   mfaChallenge: MfaChallenge | null;
   isSuperAdmin: boolean;
+  isAppLocked: boolean;
 
   // Actions
   setToken: (token: string) => void;
   setUser: (user: User) => void;
+  updateUserAvatar: (avatarUrl: string) => void;
   setActiveRole: (role: CanonicalRole) => void;
   setSession: (session: {
     token: string;
@@ -42,6 +44,8 @@ interface AuthState {
   }) => Promise<void>;
   setMfaPending: (challenge: MfaChallenge) => void;
   clearMfaPending: () => void;
+  lockApp: () => void;
+  unlockApp: () => void;
   logout: () => Promise<void>;
   setLoading: (loading: boolean) => void;
 }
@@ -62,6 +66,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isMfaPending: false,
   mfaChallenge: null,
   isSuperAdmin: false,
+  isAppLocked: false,
 
   setToken: (token: string) => set({ token, isAuthenticated: Boolean(token) }),
 
@@ -89,6 +94,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       enabledModules: user.enabledModules || [],
       allowedDashboards: user.allowedDashboards || [],
       isSuperAdmin,
+    });
+  },
+
+  updateUserAvatar: (avatarUrl: string) => {
+    const current = get().user;
+    if (!current) return;
+    set({
+      user: {
+        ...current,
+        profile: {
+          ...(current.profile || { email: current.email }),
+          avatarUrl,
+        },
+      },
     });
   },
 
@@ -144,6 +163,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       mfaChallenge: null,
     }),
 
+  lockApp: () => set({ isAppLocked: true }),
+
+  unlockApp: () => set({ isAppLocked: false }),
+
   logout: async () => {
     try {
       await PushNotificationService.unregisterDeviceToken();
@@ -177,6 +200,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       mfaChallenge: null,
       isLoading: false,
       isSuperAdmin: false,
+      isAppLocked: false,
     });
   },
 

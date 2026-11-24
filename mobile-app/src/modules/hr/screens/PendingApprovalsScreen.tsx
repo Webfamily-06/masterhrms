@@ -10,13 +10,15 @@ import {
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
 import { ArrowLeft } from 'lucide-react-native';
-import { AppBottomNav } from '../../../components/common';
+import { AppBottomNav, UserAvatar } from '../../../components/common';
 import { HrService } from '../../../core/services/hrService';
 import { LeaveRequest } from '../../../core/services/leaveService';
+import { useTheme } from '../../../app/providers/ThemeProvider';
 import { useNavigation } from '@react-navigation/native';
 
 export const PendingApprovalsScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { theme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -67,17 +69,24 @@ export const PendingApprovalsScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={styles.backButton}
+          style={[styles.backButton, { backgroundColor: theme.colors.surfaceSecondary }]}
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <ArrowLeft size={20} color="#0F172A" />
+          <ArrowLeft size={20} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Leave Approvals Queue</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          Leave Approvals Queue
+        </Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -100,13 +109,31 @@ export const PendingApprovalsScreen: React.FC = () => {
             </View>
           ) : (
             requests.map((r) => (
-              <View key={r.id} style={styles.card}>
+              <View
+                key={r.id}
+                style={[
+                  styles.card,
+                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                ]}
+              >
                 <View style={styles.cardHeader}>
-                  <Text style={styles.empName}>
-                    {r.employee
-                      ? `${r.employee.firstName} ${r.employee.lastName} (${r.employee.employeeCode})`
-                      : 'Employee'}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                    <UserAvatar
+                      entity={r.employee}
+                      name={
+                        r.employee
+                          ? `${r.employee.firstName || ''} ${r.employee.lastName || ''}`.trim()
+                          : 'Employee'
+                      }
+                      size={38}
+                      style={{ marginRight: 10 }}
+                    />
+                    <Text style={[styles.empName, { color: theme.colors.text, flex: 1 }]} numberOfLines={1}>
+                      {r.employee
+                        ? `${r.employee.firstName} ${r.employee.lastName} (${r.employee.employeeCode})`
+                        : 'Employee'}
+                    </Text>
+                  </View>
                   <View style={styles.pendingBadge}>
                     <Text style={styles.pendingBadgeText}>PENDING</Text>
                   </View>

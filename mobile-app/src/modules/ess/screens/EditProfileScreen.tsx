@@ -7,10 +7,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Image,
   Platform,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Text } from '../../../components/common/Text';
+import { UserAvatar } from '../../../components/common/UserAvatar';
 import {
   ArrowLeft,
   User,
@@ -20,32 +21,19 @@ import {
 } from 'lucide-react-native';
 import { EmployeeService } from '../../../core/services/employeeService';
 import { useAuthStore } from '../../../store/authStore';
+import { useTheme } from '../../../app/providers/ThemeProvider';
 import { useNavigation } from '@react-navigation/native';
-import { Config } from '../../../config/environment';
-
-const normalizeAvatarUrl = (url?: string | null): string | null => {
-  if (!url) return null;
-  let normalized = url.trim();
-  if (!normalized) return null;
-  if (normalized.includes('api.dicebear.com') && normalized.includes('/svg?')) {
-    normalized = normalized.replace('/svg?', '/png?');
-  }
-  if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
-    return normalized;
-  }
-  if (normalized.startsWith('/')) {
-    return `${Config.API_BASE_URL}${normalized}`;
-  }
-  return normalized;
-};
 
 export const EditProfileScreen: React.FC = () => {
   const navigation = useNavigation();
   const user = useAuthStore((state) => state.user);
+  const updateUserAvatar = useAuthStore((state) => state.updateUserAvatar);
+  const { theme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.profile?.avatarUrl || null);
   const [fullName, setFullName] = useState(user?.profile?.fullName || '');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [gender, setGender] = useState('Male');
@@ -73,6 +61,7 @@ export const EditProfileScreen: React.FC = () => {
           if (data.emergencyContactRelation) setEmergencyRelation(data.emergencyContactRelation);
           if (data.emergencyContactPhone) setEmergencyPhone(data.emergencyContactPhone);
           if (data.gender) setGender(data.gender);
+          if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
         } else if (user?.profile?.fullName) {
           setFullName(user.profile.fullName);
         }
@@ -82,10 +71,41 @@ export const EditProfileScreen: React.FC = () => {
         setLoading(false);
       }
     }
-    fetchCurrent();
+    void fetchCurrent();
   }, [user]);
 
-  const avatarUri = normalizeAvatarUrl(user?.profile?.avatarUrl);
+  const handleUploadPhoto = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          'Permission Required',
+          'Please allow photo library access in Settings to choose a profile image.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.35,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      const mimeType = asset.mimeType || 'image/jpeg';
+      const dataUri = asset.base64
+        ? `data:${mimeType};base64,${asset.base64}`
+        : asset.uri;
+
+      setAvatarUrl(dataUri);
+      updateUserAvatar(dataUri);
+    } catch (err: any) {
+      Alert.alert('Photo Error', err?.message || 'Unable to pick photo.');
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -102,9 +122,14 @@ export const EditProfileScreen: React.FC = () => {
         emergencyContactName: emergencyName.trim() || undefined,
         emergencyContactPhone: emergencyPhone.trim() || undefined,
         emergencyContactRelation: emergencyRelation.trim() || undefined,
+        ...(avatarUrl ? { avatarUrl } : {}),
       });
 
-      Alert.alert('Profile Updated', 'Your profile details have been saved successfully.', [
+      if (avatarUrl) {
+        updateUserAvatar(avatarUrl);
+      }
+
+      Alert.alert('Profile Updated', 'Your profile details and photo have been saved successfully.', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (err: any) {
@@ -114,19 +139,31 @@ export const EditProfileScreen: React.FC = () => {
     }
   };
 
+  const inputThemeStyle = {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+    color: theme.colors.text,
+  };
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <ArrowLeft size={20} color="#0F172A" strokeWidth={2.4} />
+          <ArrowLeft size={20} color={theme.colors.text} strokeWidth={2.4} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Edit Personal Information</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          Edit Personal Information
+        </Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -136,147 +173,173 @@ export const EditProfileScreen: React.FC = () => {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {/* ─────────────────────────────────────────────────────────── */}
-          {/* Basic Information Card (Matches 83)                         */}
-          {/* ─────────────────────────────────────────────────────────── */}
-          <View style={styles.card}>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
+          >
             <View style={styles.cardHeaderRow}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <User size={18} color="#2563EB" />
-                <Text style={styles.cardTitle}>Basic Information</Text>
-              </View>
-              <View style={styles.readOnlyBadge}>
-                <Text style={styles.readOnlyBadgeText}>Read-only</Text>
+                <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
+                  Basic Information
+                </Text>
               </View>
             </View>
 
             <View style={styles.avatarRow}>
-              {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
-              ) : (
-                <View style={[styles.avatarImg, styles.avatarFallback]}>
-                  <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 18 }}>
-                    {fullName.substring(0, 2).toUpperCase()}
-                  </Text>
-                </View>
-              )}
+              <UserAvatar
+                uri={avatarUrl}
+                entity={user}
+                name={fullName}
+                email={email}
+                size={64}
+              />
               <TouchableOpacity
                 style={{ marginLeft: 16 }}
-                onPress={() => Alert.alert('Upload Photo', 'Select image from gallery or camera.')}
+                onPress={handleUploadPhoto}
               >
-                <Text style={styles.uploadPhotoLink}>↑ Upload Photo</Text>
+                <Text style={styles.uploadPhotoLink}>↑ Upload / Change Photo</Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.fieldLabel}>Full Name</Text>
+            <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>Full Name</Text>
             <TextInput
-              style={[styles.inputBox, styles.readOnlyInput]}
+              style={[styles.inputBox, inputThemeStyle]}
               value={fullName}
-              editable={false}
+              onChangeText={setFullName}
             />
 
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.fieldLabel}>Date of Birth</Text>
+                <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>
+                  Date of Birth
+                </Text>
                 <TextInput
-                  style={[styles.inputBox, styles.readOnlyInput]}
+                  style={[
+                    styles.inputBox,
+                    { backgroundColor: theme.colors.surfaceSecondary, borderColor: theme.colors.border, color: theme.colors.textSecondary },
+                  ]}
                   value={dateOfBirth}
                   editable={false}
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.fieldLabel}>Gender</Text>
+                <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>Gender</Text>
                 <TextInput
-                  style={[styles.inputBox, styles.readOnlyInput]}
+                  style={[styles.inputBox, inputThemeStyle]}
                   value={gender}
                   onChangeText={setGender}
-                  editable={false}
                 />
               </View>
             </View>
           </View>
 
-          {/* ─────────────────────────────────────────────────────────── */}
-          {/* Contact Information Card (Matches 83)                       */}
-          {/* ─────────────────────────────────────────────────────────── */}
-          <View style={styles.card}>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
+          >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <Phone size={18} color="#2563EB" />
-              <Text style={styles.cardTitle}>Contact Information</Text>
+              <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
+                Contact Information
+              </Text>
             </View>
 
-            <Text style={styles.fieldLabel}>Phone Number</Text>
-            <View style={styles.phoneInputRow}>
-              <View style={styles.countryCodeBadge}>
-                <Text style={styles.countryFlagText}>🇺🇸 +1</Text>
-                <ChevronDown size={14} color="#64748B" />
+            <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>
+              Phone Number
+            </Text>
+            <View style={[styles.phoneInputRow, { borderColor: theme.colors.border }]}>
+              <View style={[styles.countryCodeBadge, { borderRightColor: theme.colors.border }]}>
+                <Text style={[styles.countryFlagText, { color: theme.colors.text }]}>+91</Text>
+                <ChevronDown size={14} color={theme.colors.textSecondary} />
               </View>
               <TextInput
-                style={styles.phoneTextInput}
+                style={[styles.phoneTextInput, { color: theme.colors.text }]}
                 value={phone}
                 onChangeText={setPhone}
-                placeholder="(555) 123-4567"
+                placeholder="98765 43210"
+                placeholderTextColor={theme.colors.textMuted}
               />
             </View>
 
-            <Text style={styles.fieldLabel}>Personal Email</Text>
+            <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>Work Email</Text>
             <TextInput
-              style={styles.inputBox}
+              style={[styles.inputBox, inputThemeStyle]}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
             />
 
-            <Text style={styles.fieldLabel}>Residential Address</Text>
+            <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>
+              Residential Address
+            </Text>
             <TextInput
-              style={styles.textAreaBox}
+              style={[styles.textAreaBox, inputThemeStyle]}
               value={address}
               onChangeText={setAddress}
               multiline
               maxLength={200}
+              placeholderTextColor={theme.colors.textMuted}
             />
             <Text style={styles.charCountText}>{address.length}/200</Text>
           </View>
 
-          {/* ─────────────────────────────────────────────────────────── */}
-          {/* Emergency Contact Card (Matches 83)                         */}
-          {/* ─────────────────────────────────────────────────────────── */}
-          <View style={styles.card}>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
+          >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <ShieldCheck size={18} color="#2563EB" />
-              <Text style={styles.cardTitle}>Emergency Contact</Text>
+              <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
+                Emergency Contact
+              </Text>
             </View>
 
-            <Text style={styles.fieldLabel}>Contact Name</Text>
+            <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>
+              Contact Name
+            </Text>
             <TextInput
-              style={styles.inputBox}
+              style={[styles.inputBox, inputThemeStyle]}
               value={emergencyName}
               onChangeText={setEmergencyName}
             />
 
-            <Text style={styles.fieldLabel}>Relationship</Text>
-            <View style={styles.dropdownPickerBox}>
-              <Text style={styles.dropdownPickerText}>{emergencyRelation}</Text>
-              <ChevronDown size={16} color="#64748B" />
-            </View>
+            <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>
+              Relationship
+            </Text>
+            <TextInput
+              style={[styles.inputBox, inputThemeStyle]}
+              value={emergencyRelation}
+              onChangeText={setEmergencyRelation}
+              placeholder="Spouse / Parent / Sibling"
+              placeholderTextColor={theme.colors.textMuted}
+            />
 
-            <Text style={styles.fieldLabel}>Phone Number</Text>
-            <View style={styles.phoneInputRow}>
-              <View style={styles.countryCodeBadge}>
-                <Text style={styles.countryFlagText}>🇺🇸 +1</Text>
-                <ChevronDown size={14} color="#64748B" />
+            <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>
+              Phone Number
+            </Text>
+            <View style={[styles.phoneInputRow, { borderColor: theme.colors.border }]}>
+              <View style={[styles.countryCodeBadge, { borderRightColor: theme.colors.border }]}>
+                <Text style={[styles.countryFlagText, { color: theme.colors.text }]}>+91</Text>
+                <ChevronDown size={14} color={theme.colors.textSecondary} />
               </View>
               <TextInput
-                style={styles.phoneTextInput}
+                style={[styles.phoneTextInput, { color: theme.colors.text }]}
                 value={emergencyPhone}
                 onChangeText={setEmergencyPhone}
-                placeholder="(555) 987-6543"
+                placeholder="98765 43210"
+                placeholderTextColor={theme.colors.textMuted}
               />
             </View>
           </View>
 
-          {/* Bottom Buttons: Save Changes & Cancel */}
           <TouchableOpacity
             style={styles.saveChangesBtn}
             onPress={handleSave}
@@ -290,10 +353,13 @@ export const EditProfileScreen: React.FC = () => {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.cancelBtn}
+            style={[
+              styles.cancelBtn,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.cancelBtnText}>Cancel</Text>
+            <Text style={[styles.cancelBtnText, { color: theme.colors.text }]}>Cancel</Text>
           </TouchableOpacity>
         </ScrollView>
       )}
@@ -304,7 +370,6 @@ export const EditProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   scrollContent: {
     padding: 16,
@@ -315,8 +380,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-
-  /* Header */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -324,9 +387,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'ios' ? 50 : 36,
     paddingBottom: 14,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   backBtn: {
     width: 36,
@@ -338,16 +399,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#0F172A',
   },
-
-  /* Card */
   card: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
     marginBottom: 16,
   },
   cardHeaderRow: {
@@ -359,65 +415,33 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
   },
-  readOnlyBadge: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  readOnlyBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-
   avatarRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-  },
-  avatarImg: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-  },
-  avatarFallback: {
-    backgroundColor: '#2563EB',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   uploadPhotoLink: {
     fontSize: 13,
     fontWeight: '700',
     color: '#2563EB',
   },
-
   fieldLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#64748B',
     marginBottom: 6,
   },
   inputBox: {
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#0F172A',
     marginBottom: 14,
-  },
-  readOnlyInput: {
-    backgroundColor: '#F8FAFC',
-    color: '#475569',
   },
   phoneInputRow: {
     flexDirection: 'row',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     borderRadius: 12,
     alignItems: 'center',
     paddingHorizontal: 10,
@@ -428,7 +452,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     borderRightWidth: 1,
-    borderRightColor: '#E2E8F0',
     paddingRight: 10,
     marginRight: 10,
     paddingVertical: 10,
@@ -436,22 +459,18 @@ const styles = StyleSheet.create({
   countryFlagText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#0F172A',
   },
   phoneTextInput: {
     flex: 1,
     fontSize: 14,
-    color: '#0F172A',
     paddingVertical: 10,
   },
   textAreaBox: {
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#0F172A',
     minHeight: 80,
     textAlignVertical: 'top',
   },
@@ -462,24 +481,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 10,
   },
-  dropdownPickerBox: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 14,
-  },
-  dropdownPickerText: {
-    fontSize: 14,
-    color: '#0F172A',
-    fontWeight: '500',
-  },
-
-  /* Buttons */
   saveChangesBtn: {
     backgroundColor: '#2563EB',
     height: 50,
@@ -499,16 +500,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   cancelBtn: {
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#CBD5E1',
     height: 50,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
   cancelBtnText: {
-    color: '#0F172A',
     fontSize: 15,
     fontWeight: '700',
   },

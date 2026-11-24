@@ -18,10 +18,15 @@ import {
   User,
   Check,
   FileText,
+  Moon,
+  Sun,
+  Clock,
 } from 'lucide-react-native';
 import { AppBottomNav } from '../../../components/common/AppBottomNav';
+import { UserAvatar } from '../../../components/common/UserAvatar';
 import { useAuthStore } from '../../../store/authStore';
 import { useTenantStore } from '../../../store/tenantStore';
+import { useTheme } from '../../../app/providers/ThemeProvider';
 import { PersonaSwitcher } from '../../navigation/PersonaSwitcher';
 import { AuthService } from '../../../core/auth/authService';
 import { HrService, DailyAttendanceReport, EmployeeSummary } from '../../../core/services/hrService';
@@ -61,6 +66,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'HrAdminHome'>>();
   const user = useAuthStore((state) => state.user);
   const currentTenant = useTenantStore((state) => state.currentTenant);
+  const { theme, toggleTheme } = useTheme();
 
   const [refreshing, setRefreshing] = useState(false);
   const [employees, setEmployees] = useState<EmployeeSummary[]>([]);
@@ -180,20 +186,6 @@ export const HrAdminDashboardScreen: React.FC = () => {
     return 'HR Director';
   }, [user]);
 
-  const [avatarError, setAvatarError] = useState(false);
-
-  const adminInitials = useMemo(() => {
-    return (
-      adminFullName
-        .split(' ')
-        .map((n: string) => n[0])
-        .filter(Boolean)
-        .join('')
-        .substring(0, 2)
-        .toUpperCase() || 'HR'
-    );
-  }, [adminFullName]);
-
   const adminDesignation = useMemo(() => {
     const rawDesig =
       user?.designation ||
@@ -224,47 +216,82 @@ export const HrAdminDashboardScreen: React.FC = () => {
     return `https://api.dicebear.com/7.x/avataaars/png?seed=${seed}&backgroundColor=4f46e5`;
   }, [user, adminFullName]);
 
+  const cardTheme = theme.isDark
+    ? { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }
+    : undefined;
+  const textPrimary = theme.isDark ? { color: theme.colors.text } : undefined;
+  const textSecondary = theme.isDark ? { color: theme.colors.textSecondary } : undefined;
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Top Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          theme.isDark && {
+            backgroundColor: theme.colors.surface,
+            borderBottomColor: theme.colors.border,
+          },
+        ]}
+      >
         <View style={styles.brandRow}>
           <Image source={logoSource} style={styles.logo} resizeMode="contain" />
           <View style={styles.brandTextCol}>
-            <Text style={styles.brandTitle}>{tenantName}</Text>
-            <Text style={styles.brandSub}>Powered by MasterHRMS</Text>
+            <Text style={[styles.brandTitle, textPrimary]}>{tenantName}</Text>
+            <Text style={[styles.brandSub, textSecondary]}>Powered by MasterHRMS</Text>
           </View>
         </View>
 
         <View style={styles.headerRightActions}>
           <TouchableOpacity
+            onPress={toggleTheme}
+            style={[
+              styles.bellBtn,
+              theme.isDark && {
+                backgroundColor: theme.colors.surfaceSecondary,
+                borderColor: theme.colors.border,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle dark mode"
+          >
+            {theme.isDark ? (
+              <Sun size={18} color="#FBBF24" strokeWidth={2.2} />
+            ) : (
+              <Moon size={18} color="#0F172A" strokeWidth={2.2} />
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
             onPress={() => navigation.navigate('Notifications')}
-            style={styles.bellBtn}
+            style={[
+              styles.bellBtn,
+              theme.isDark && {
+                backgroundColor: theme.colors.surfaceSecondary,
+                borderColor: theme.colors.border,
+              },
+            ]}
             accessibilityRole="button"
             accessibilityLabel="Notifications"
           >
-            <Bell size={18} color="#0F172A" strokeWidth={2.2} />
+            <Bell size={18} color={theme.colors.text} strokeWidth={2.2} />
             <View style={styles.unreadDot} />
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => navigation.navigate('Profile')}
-            style={styles.profileBtn}
             accessibilityRole="button"
             accessibilityLabel="User Profile"
           >
-            {avatarUri && !avatarError ? (
-              <Image
-                source={{ uri: avatarUri }}
-                style={styles.avatarImage}
-                resizeMode="cover"
-                onError={() => setAvatarError(true)}
-              />
-            ) : (
-              <View style={styles.avatarInner}>
-                <Text style={styles.avatarInitials}>{adminInitials}</Text>
-              </View>
-            )}
+            <UserAvatar
+              entity={user}
+              uri={avatarUri}
+              name={adminFullName}
+              email={user?.email}
+              size={40}
+              borderWidth={2}
+              borderColor="#4F46E5"
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -313,7 +340,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
         <View style={styles.statsGrid}>
           {/* Card 1: Total Employees */}
           <TouchableOpacity
-            style={styles.statCard}
+            style={[styles.statCard, cardTheme]}
             activeOpacity={0.85}
             onPress={() => navigation.navigate('EmployeeDirectory')}
           >
@@ -325,13 +352,13 @@ export const HrAdminDashboardScreen: React.FC = () => {
                 <Text style={styles.statTrendGreenText}>↑ +4.2%</Text>
               </View>
             </View>
-            <Text style={styles.statNumber}>{totalEmployeesCount}</Text>
-            <Text style={styles.statLabel}>Total Employees</Text>
+            <Text style={[styles.statNumber, textPrimary]}>{totalEmployeesCount}</Text>
+            <Text style={[styles.statLabel, textSecondary]}>Total Employees</Text>
           </TouchableOpacity>
 
           {/* Card 2: Present Today */}
           <TouchableOpacity
-            style={styles.statCard}
+            style={[styles.statCard, cardTheme]}
             activeOpacity={0.85}
             onPress={() => navigation.navigate('OrgAttendance')}
           >
@@ -343,13 +370,13 @@ export const HrAdminDashboardScreen: React.FC = () => {
                 <Text style={styles.statTrendGreenText}>↑ 85.5%</Text>
               </View>
             </View>
-            <Text style={styles.statNumber}>{presentCount}</Text>
-            <Text style={styles.statLabel}>Present Today</Text>
+            <Text style={[styles.statNumber, textPrimary]}>{presentCount}</Text>
+            <Text style={[styles.statLabel, textSecondary]}>Present Today</Text>
           </TouchableOpacity>
 
           {/* Card 3: On Leave */}
           <TouchableOpacity
-            style={styles.statCard}
+            style={[styles.statCard, cardTheme]}
             activeOpacity={0.85}
             onPress={() => navigation.navigate('PendingApprovals')}
           >
@@ -361,33 +388,33 @@ export const HrAdminDashboardScreen: React.FC = () => {
                 <Text style={styles.statTrendRedText}>↓ -8.3%</Text>
               </View>
             </View>
-            <Text style={styles.statNumber}>{onLeaveCount}</Text>
-            <Text style={styles.statLabel}>On Leave</Text>
+            <Text style={[styles.statNumber, textPrimary]}>{onLeaveCount}</Text>
+            <Text style={[styles.statLabel, textSecondary]}>On Leave</Text>
           </TouchableOpacity>
 
           {/* Card 4: Late Arrivals */}
           <TouchableOpacity
-            style={styles.statCard}
+            style={[styles.statCard, cardTheme]}
             activeOpacity={0.85}
             onPress={() => navigation.navigate('OrgAttendance')}
           >
             <View style={styles.statTopRow}>
               <View style={[styles.statIconCircle, styles.statIconOrange]}>
-                <Text style={styles.statEmoji}>⏰</Text>
+                <Clock size={18} color="#EA580C" strokeWidth={2.2} />
               </View>
               <View style={styles.statTrendRed}>
                 <Text style={styles.statTrendRedText}>↓ -14.2%</Text>
               </View>
             </View>
-            <Text style={styles.statNumber}>{lateCount}</Text>
-            <Text style={styles.statLabel}>Late Arrivals</Text>
+            <Text style={[styles.statNumber, textPrimary]}>{lateCount}</Text>
+            <Text style={[styles.statLabel, textSecondary]}>Late Arrivals</Text>
           </TouchableOpacity>
         </View>
 
         {/* Attendance Overview Card with Interactive Bar Chart */}
-        <View style={styles.chartCard}>
+        <View style={[styles.chartCard, cardTheme]}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Attendance Overview</Text>
+            <Text style={[styles.sectionTitle, textPrimary]}>Attendance Overview</Text>
             <TouchableOpacity style={styles.filterPill} activeOpacity={0.7}>
               <Text style={styles.filterPillText}>This Week ⌵</Text>
             </TouchableOpacity>
@@ -446,8 +473,8 @@ export const HrAdminDashboardScreen: React.FC = () => {
         {/* Workforce by Department & Leave Summary Side-by-Side */}
         <View style={styles.dualCardRow}>
           {/* Left Card: Workforce by Department */}
-          <View style={styles.donutCard}>
-            <Text style={styles.cardHeaderTitle}>Workforce by Dept</Text>
+          <View style={[styles.donutCard, cardTheme]}>
+            <Text style={[styles.cardHeaderTitle, textPrimary]}>Workforce by Dept</Text>
 
             <View style={styles.donutContentRow}>
               {/* Circular Gauge Representation */}
@@ -492,8 +519,8 @@ export const HrAdminDashboardScreen: React.FC = () => {
           </View>
 
           {/* Right Card: Leave Summary */}
-          <View style={styles.gaugeCard}>
-            <Text style={styles.cardHeaderTitle}>Leave Summary</Text>
+          <View style={[styles.gaugeCard, cardTheme]}>
+            <Text style={[styles.cardHeaderTitle, textPrimary]}>Leave Summary</Text>
 
             {/* Half Gauge Representation */}
             <View style={styles.halfGaugeWrapper}>
@@ -534,13 +561,13 @@ export const HrAdminDashboardScreen: React.FC = () => {
         {/* Pending Approvals Section */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Pending Approvals</Text>
+            <Text style={[styles.sectionTitle, textPrimary]}>Pending Approvals</Text>
             <TouchableOpacity onPress={() => navigation.navigate('PendingApprovals')}>
               <Text style={styles.viewAllLink}>View All &gt;</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.listCard}>
+          <View style={[styles.listCard, cardTheme]}>
             {/* Row 1: Leave Requests */}
             <TouchableOpacity
               style={styles.approvalRow}
@@ -550,14 +577,14 @@ export const HrAdminDashboardScreen: React.FC = () => {
               <View style={[styles.approvalIconCircle, styles.bgBlueLight]}>
                 <User size={16} color="#3B82F6" strokeWidth={2.2} />
               </View>
-              <Text style={styles.approvalTitle}>Leave Requests</Text>
+              <Text style={[styles.approvalTitle, textPrimary]}>Leave Requests</Text>
               <View style={styles.pendingBadge}>
                 <Text style={styles.pendingBadgeText}>{pendingCount} pending</Text>
               </View>
               <Text style={styles.chevronIcon}>&gt;</Text>
             </TouchableOpacity>
 
-            <View style={styles.rowDivider} />
+            <View style={[styles.rowDivider, theme.isDark && { backgroundColor: theme.colors.borderLight }]} />
 
             {/* Row 2: Attendance Regularizations */}
             <TouchableOpacity
@@ -568,14 +595,14 @@ export const HrAdminDashboardScreen: React.FC = () => {
               <View style={[styles.approvalIconCircle, styles.bgSkyLight]}>
                 <Check size={16} color="#0284C7" strokeWidth={2.4} />
               </View>
-              <Text style={styles.approvalTitle}>Attendance Regularizations</Text>
+              <Text style={[styles.approvalTitle, textPrimary]}>Attendance Regularizations</Text>
               <View style={styles.pendingBadge}>
                 <Text style={styles.pendingBadgeText}>4 pending</Text>
               </View>
               <Text style={styles.chevronIcon}>&gt;</Text>
             </TouchableOpacity>
 
-            <View style={styles.rowDivider} />
+            <View style={[styles.rowDivider, theme.isDark && { backgroundColor: theme.colors.borderLight }]} />
 
             {/* Row 3: Document Requests */}
             <TouchableOpacity
@@ -586,7 +613,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
               <View style={[styles.approvalIconCircle, styles.bgPurpleLight]}>
                 <FileText size={16} color="#8B5CF6" strokeWidth={2.2} />
               </View>
-              <Text style={styles.approvalTitle}>Document Requests</Text>
+              <Text style={[styles.approvalTitle, textPrimary]}>Document Requests</Text>
               <View style={styles.pendingBadge}>
                 <Text style={styles.pendingBadgeText}>3 pending</Text>
               </View>
@@ -598,13 +625,13 @@ export const HrAdminDashboardScreen: React.FC = () => {
         {/* Upcoming Events Section */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Upcoming Events</Text>
+            <Text style={[styles.sectionTitle, textPrimary]}>Upcoming Events</Text>
             <TouchableOpacity onPress={() => navigation.navigate('CalendarMain')}>
               <Text style={styles.viewAllLink}>View Calendar &gt;</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.listCard}>
+          <View style={[styles.listCard, cardTheme]}>
             {events.length > 0 ? (
               events.map((evt, idx) => {
                 const d = evt.startDate ? new Date(evt.startDate) : new Date();
@@ -655,13 +682,13 @@ export const HrAdminDashboardScreen: React.FC = () => {
         {/* My Tasks Section */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>My Tasks</Text>
+            <Text style={[styles.sectionTitle, textPrimary]}>My Tasks</Text>
             <TouchableOpacity onPress={() => navigation.navigate('TodoList')}>
               <Text style={styles.viewAllLink}>View All &gt;</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.listCard}>
+          <View style={[styles.listCard, cardTheme]}>
             {tasks.map((task, idx) => (
               <React.Fragment key={task.id}>
                 <TouchableOpacity
@@ -696,13 +723,13 @@ export const HrAdminDashboardScreen: React.FC = () => {
         {/* Recent Notifications Section */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Recent Notifications</Text>
+            <Text style={[styles.sectionTitle, textPrimary]}>Recent Notifications</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
               <Text style={styles.viewAllLink}>View All &gt;</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.listCard}>
+          <View style={[styles.listCard, cardTheme]}>
             {recentNotifs.length > 0 ? (
               recentNotifs.map((notif, idx) => {
                 const timeStr = notif.createdAt

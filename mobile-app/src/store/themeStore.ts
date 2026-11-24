@@ -5,16 +5,18 @@ import { lightTheme, darkTheme, createTenantTheme } from '../theme/theme';
 import { localStorage } from '../core/storage/localStorage';
 import { STORAGE_KEYS } from '../config/constants';
 
-type ThemeMode = 'light' | 'dark' | 'system';
+export type ThemeMode = 'light' | 'dark' | 'system';
 
 interface ThemeState {
   mode: ThemeMode;
   theme: AppTheme;
   tenantColor: string | null;
+  hydrated: boolean;
 
   setMode: (mode: ThemeMode) => void;
   setTenantColor: (color: string | null) => void;
   toggleTheme: () => void;
+  hydrateTheme: () => Promise<void>;
 }
 
 function resolveActiveTheme(mode: ThemeMode, tenantColor?: string | null): AppTheme {
@@ -25,12 +27,15 @@ function resolveActiveTheme(mode: ThemeMode, tenantColor?: string | null): AppTh
 }
 
 export const useThemeStore = create<ThemeState>((set, get) => {
-  const savedMode = (localStorage.getItem(STORAGE_KEYS.THEME_MODE) as ThemeMode) || 'system';
+  const rawSaved = localStorage.getItem(STORAGE_KEYS.THEME_MODE);
+  const savedMode: ThemeMode =
+    rawSaved === 'light' || rawSaved === 'dark' || rawSaved === 'system' ? rawSaved : 'light';
 
   return {
     mode: savedMode,
     theme: resolveActiveTheme(savedMode),
     tenantColor: null,
+    hydrated: false,
 
     setMode: (mode: ThemeMode) => {
       localStorage.setItem(STORAGE_KEYS.THEME_MODE, mode);
@@ -48,9 +53,26 @@ export const useThemeStore = create<ThemeState>((set, get) => {
     },
 
     toggleTheme: () => {
-      const current = get().mode;
-      const nextMode: ThemeMode = current === 'dark' ? 'light' : 'dark';
+      const currentlyDark = get().theme.isDark;
+      const nextMode: ThemeMode = currentlyDark ? 'light' : 'dark';
       get().setMode(nextMode);
+    },
+
+    hydrateTheme: async () => {
+      try {
+        const stored = await localStorage.getItemAsync(STORAGE_KEYS.THEME_MODE);
+        if (stored === 'light' || stored === 'dark' || stored === 'system') {
+          set({
+            mode: stored,
+            theme: resolveActiveTheme(stored, get().tenantColor),
+            hydrated: true,
+          });
+          return;
+        }
+      } catch {
+        // Ignore
+      }
+      set({ hydrated: true });
     },
   };
 });

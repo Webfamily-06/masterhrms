@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,34 +6,77 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { ArrowLeft, ScanFace } from 'lucide-react-native';
+import { ArrowLeft, ScanFace, CheckCircle2 } from 'lucide-react-native';
 import { Text } from '../../../components/common/Text';
 import { useNavigation } from '@react-navigation/native';
 import { AuthService } from '../../../core/auth/authService';
+import { BiometricService } from '../../../core/auth/biometricService';
+import { useAuthStore } from '../../../store/authStore';
+import { useTheme } from '../../../app/providers/ThemeProvider';
 
 export const FaceIdAuthScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { theme } = useTheme();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const unlockApp = useAuthStore((s) => s.unlockApp);
+
   const [scanning, setScanning] = useState(false);
+  const [verified, setVerified] = useState(false);
 
   const handleFaceScan = async () => {
     if (scanning) return;
     setScanning(true);
     try {
+      const bioCheck = await BiometricService.verifyHardwareBiometric(
+        'Face ID Verification to unlock MasterHRMS',
+        'face'
+      );
+
+      if (!bioCheck.success) {
+        Alert.alert(
+          'Face ID Verification Failed',
+          bioCheck.error || 'Could not verify Face ID. Please try again or use your password.',
+          [
+            { text: 'Try Again', onPress: () => setScanning(false) },
+            {
+              text: 'Use Password',
+              onPress: () => {
+                setScanning(false);
+                if (navigation.canGoBack()) navigation.goBack();
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      if (isAuthenticated) {
+        await BiometricService.setFaceIdEnabled(true);
+        unlockApp();
+        setVerified(true);
+        Alert.alert('Face ID Verified', 'Face ID unlock is active and verified for your account.', [
+          {
+            text: 'Done',
+            onPress: () => {
+              if (navigation.canGoBack()) navigation.goBack();
+            },
+          },
+        ]);
+        return;
+      }
+
       await AuthService.restoreBiometricSession();
-      // Navigation to AppNavigator will be triggered automatically by RootNavigator via isAuthenticated in authStore
+      setVerified(true);
     } catch (err: any) {
       Alert.alert(
-        'Face ID Authentication Failed',
-        err?.message || 'Could not verify biometric credentials. Please try again or use your password.',
+        'Face ID Login',
+        err?.message ||
+          'No saved biometric session found yet. Sign in once with your email and password to link Face ID unlock.',
         [
-          { text: 'Try Again', onPress: () => setScanning(false) },
           {
-            text: 'Use Password',
+            text: 'Go to Login',
             onPress: () => {
-              setScanning(false);
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              }
+              if (navigation.canGoBack()) navigation.goBack();
             },
           },
         ]
@@ -43,8 +86,15 @@ export const FaceIdAuthScreen: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void handleFaceScan();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -53,16 +103,18 @@ export const FaceIdAuthScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <ArrowLeft size={20} color="#1E293B" strokeWidth={2.4} />
+          <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2.4} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Face ID</Text>
+        <Text style={styles.headerTitle}>Face ID Unlock</Text>
         <View style={styles.placeholder} />
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.title}>Face ID Verification</Text>
-        <Text style={styles.subtitle}>
-          Position your face within the frame to authenticate with MasterHRMS.
+        <Text style={[styles.title, { color: theme.colors.text }]}>
+          {verified ? 'Face ID Verified' : 'Face ID Verification'}
+        </Text>
+        <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+          Position your face in front of the camera to unlock your MasterHRMS workspace.
         </Text>
 
         {/* Face ID Viewfinder Graphic */}
@@ -73,14 +125,23 @@ export const FaceIdAuthScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Scan face"
         >
-          <View style={styles.cornerTL} />
-          <View style={styles.cornerTR} />
-          <View style={styles.cornerBL} />
-          <View style={styles.cornerBR} />
+          <View style={[styles.cornerTL, verified && { borderColor: '#16A34A' }]} />
+          <View style={[styles.cornerTR, verified && { borderColor: '#16A34A' }]} />
+          <View style={[styles.cornerBL, verified && { borderColor: '#16A34A' }]} />
+          <View style={[styles.cornerBR, verified && { borderColor: '#16A34A' }]} />
 
-          <View style={styles.faceIconCircle}>
+          <View
+            style={[
+              styles.faceIconCircle,
+              {
+                backgroundColor: theme.isDark ? 'rgba(79, 70, 229, 0.2)' : '#EEF2FF',
+              },
+            ]}
+          >
             {scanning ? (
               <ActivityIndicator color="#4F46E5" size="large" />
+            ) : verified ? (
+              <CheckCircle2 size={54} color="#16A34A" strokeWidth={2} />
             ) : (
               <ScanFace size={54} color="#4F46E5" strokeWidth={1.8} />
             )}
@@ -88,16 +149,25 @@ export const FaceIdAuthScreen: React.FC = () => {
         </TouchableOpacity>
 
         <Text style={styles.scanInstruction}>
-          {scanning ? 'Analyzing biometric face geometry...' : 'Tap to scan your face'}
+          {scanning
+            ? 'Analyzing biometric face geometry...'
+            : verified
+            ? 'Face ID verified!'
+            : 'Tap frame to scan Face ID'}
         </Text>
 
         {/* Fallback buttons */}
         <View style={styles.fallbackContainer}>
           <TouchableOpacity
-            style={styles.fallbackBtn}
+            style={[
+              styles.fallbackBtn,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
             onPress={() => navigation.navigate('FingerprintAuth')}
           >
-            <Text style={styles.fallbackBtnText}>Switch to Fingerprint / Touch ID</Text>
+            <Text style={[styles.fallbackBtnText, { color: theme.colors.text }]}>
+              Switch to Fingerprint / Touch ID
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -108,7 +178,9 @@ export const FaceIdAuthScreen: React.FC = () => {
               }
             }}
           >
-            <Text style={styles.passwordBtnText}>Use Password Instead</Text>
+            <Text style={[styles.passwordBtnText, { color: theme.colors.textSecondary }]}>
+              {isAuthenticated ? 'Back to Settings' : 'Use Password Instead'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -119,7 +191,6 @@ export const FaceIdAuthScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   header: {
     backgroundColor: '#1E1B4B',
@@ -138,11 +209,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  backBtnText: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
   headerTitle: {
     color: '#FFFFFF',
     fontSize: 18,
@@ -160,12 +226,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#0F172A',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: '#64748B',
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 40,
@@ -226,30 +290,24 @@ const styles = StyleSheet.create({
     width: 110,
     height: 110,
     borderRadius: 55,
-    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  faceIcon: {
-    fontSize: 54,
   },
   scanInstruction: {
     fontSize: 13,
     color: '#4F46E5',
     fontWeight: '600',
-    marginBottom: 50,
+    marginBottom: 44,
   },
   fallbackContainer: {
     width: '100%',
     alignItems: 'center',
   },
   fallbackBtn: {
-    paddingVertical: 12,
+    paddingVertical: 13,
     paddingHorizontal: 20,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     width: '100%',
     alignItems: 'center',
     marginBottom: 12,
@@ -257,7 +315,6 @@ const styles = StyleSheet.create({
   fallbackBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1E1B4B',
   },
   passwordBtn: {
     paddingVertical: 10,
@@ -265,6 +322,5 @@ const styles = StyleSheet.create({
   passwordBtnText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#64748B',
   },
 });

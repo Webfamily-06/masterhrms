@@ -9,15 +9,20 @@ import {
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
 import {
-  User,
   MessageSquare,
   Calendar,
   CheckSquare,
   BarChart2,
+  Moon,
+  Sun,
+  Users,
+  Settings,
 } from 'lucide-react-native';
 import { AppBottomNav } from '../../../components/common/AppBottomNav';
+import { UserAvatar } from '../../../components/common/UserAvatar';
 import { useAuthStore } from '../../../store/authStore';
 import { useTenantStore } from '../../../store/tenantStore';
+import { useTheme } from '../../../app/providers/ThemeProvider';
 import { PersonaSwitcher } from '../../navigation/PersonaSwitcher';
 import { usePermission } from '../../../hooks/usePermission';
 import { ERP_MODULE_REGISTRY, ErpModuleKey } from '../../../types/modules.types';
@@ -50,6 +55,7 @@ export const TenantAdminDashboardScreen: React.FC = () => {
   const currentTenant = useTenantStore((state) => state.currentTenant);
   const logout = useAuthStore((state) => state.logout);
   const { enabledModules } = usePermission();
+  const { theme, toggleTheme } = useTheme();
 
   const [refreshing, setRefreshing] = useState(false);
   const [usage, setUsage] = useState<SeatUtilization>({
@@ -79,51 +85,86 @@ export const TenantAdminDashboardScreen: React.FC = () => {
     loadData();
   }, [loadData]);
 
-  const [avatarError, setAvatarError] = useState(false);
   const avatarUri = useMemo(
     () => normalizeAvatarUrl(user?.profile?.avatarUrl),
     [user?.profile?.avatarUrl]
   );
 
-  useEffect(() => {
-    setAvatarError(false);
-  }, [avatarUri]);
-
   const adminName = user?.profile?.fullName || user?.email?.split('@')[0] || 'Administrator';
+  const cardTheme = theme.isDark
+    ? { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }
+    : undefined;
+  const textPrimary = theme.isDark ? { color: theme.colors.text } : undefined;
+  const textSecondary = theme.isDark ? { color: theme.colors.textSecondary } : undefined;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.mintGlow} pointerEvents="none" />
-      <View style={styles.yellowGlow} pointerEvents="none" />
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {!theme.isDark && <View style={styles.mintGlow} pointerEvents="none" />}
+      {!theme.isDark && <View style={styles.yellowGlow} pointerEvents="none" />}
 
       {/* Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          theme.isDark && {
+            backgroundColor: theme.colors.surface,
+            borderBottomColor: theme.colors.border,
+          },
+        ]}
+      >
         <View style={styles.brandRow}>
           <Image source={logoSource} style={styles.logo} resizeMode="contain" />
           <View style={styles.headerRightActions}>
             <PersonaSwitcher />
             <TouchableOpacity
-              onPress={() => navigation.navigate('Profile')}
-              style={styles.profileBtn}
+              onPress={toggleTheme}
+              style={[
+                styles.profileBtn,
+                theme.isDark && { backgroundColor: theme.colors.surfaceSecondary },
+              ]}
               accessibilityRole="button"
+              accessibilityLabel="Toggle dark mode"
             >
-              {avatarUri && !avatarError ? (
-                <Image
-                  source={{ uri: avatarUri }}
-                  style={styles.avatarImage}
-                  resizeMode="cover"
-                  onError={() => setAvatarError(true)}
-                />
+              {theme.isDark ? (
+                <Sun size={18} color="#FBBF24" strokeWidth={2.2} />
               ) : (
-                <User size={18} color="#0F172A" strokeWidth={2.2} />
+                <Moon size={18} color="#0F172A" strokeWidth={2.2} />
               )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Settings')}
+              style={[
+                styles.profileBtn,
+                theme.isDark && { backgroundColor: theme.colors.surfaceSecondary },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Settings"
+            >
+              <Settings size={18} color={theme.colors.text} strokeWidth={2.2} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Profile')}
+              accessibilityRole="button"
+              accessibilityLabel="Profile"
+            >
+              <UserAvatar
+                entity={user}
+                uri={avatarUri}
+                name={adminName}
+                email={user?.email}
+                size={38}
+                borderWidth={1.5}
+                borderColor="#4F46E5"
+              />
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.greetingSection}>
-          <Text style={styles.greetingSub}>Workspace Administration</Text>
-          <Text style={styles.greetingTitle}>{currentTenant?.name || 'Organization'}</Text>
+          <Text style={[styles.greetingSub, textSecondary]}>Workspace Administration</Text>
+          <Text style={[styles.greetingTitle, textPrimary]}>
+            {currentTenant?.name || 'Organization'}
+          </Text>
         </View>
       </View>
 
@@ -132,14 +173,32 @@ export const TenantAdminDashboardScreen: React.FC = () => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
+        {/* Employee Directory Quick Card */}
+        <TouchableOpacity
+          style={[styles.card, cardTheme]}
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('EmployeeDirectory')}
+        >
+          <View style={styles.cardHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Users size={18} color="#4F46E5" />
+              <Text style={[styles.cardTitle, textPrimary]}>Employee Directory</Text>
+            </View>
+            <Text style={styles.viewDetailsText}>Browse All →</Text>
+          </View>
+          <Text style={[styles.statText, textSecondary]}>
+            View organization staff profiles, avatars, departments, and status
+          </Text>
+        </TouchableOpacity>
+
         {/* Organization Status */}
         <TouchableOpacity
-          style={styles.card}
+          style={[styles.card, cardTheme]}
           activeOpacity={0.85}
           onPress={() => navigation.navigate('WorkspaceSettings')}
         >
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Tenant Profile</Text>
+            <Text style={[styles.cardTitle, textPrimary]}>Tenant Profile</Text>
             <View style={styles.activePill}>
               <Text style={styles.activePillText}>
                 {currentTenant?.subscription?.status?.toUpperCase() || 'ACTIVE'}
@@ -147,30 +206,30 @@ export const TenantAdminDashboardScreen: React.FC = () => {
             </View>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Organization Slug:</Text>
-            <Text style={styles.infoValue}>{currentTenant?.slug || 'default'}</Text>
+            <Text style={[styles.infoLabel, textSecondary]}>Organization Slug:</Text>
+            <Text style={[styles.infoValue, textPrimary]}>{currentTenant?.slug || 'default'}</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Plan Tier:</Text>
-            <Text style={styles.infoValue}>
+            <Text style={[styles.infoLabel, textSecondary]}>Plan Tier:</Text>
+            <Text style={[styles.infoValue, textPrimary]}>
               {currentTenant?.subscription?.planName || usage.planName}
             </Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Workspace Admin:</Text>
-            <Text style={styles.infoValue}>{adminName}</Text>
+            <Text style={[styles.infoLabel, textSecondary]}>Workspace Admin:</Text>
+            <Text style={[styles.infoValue, textPrimary]}>{adminName}</Text>
           </View>
           <Text style={styles.manageHint}>Tap to edit workspace settings →</Text>
         </TouchableOpacity>
 
         {/* License & Seat Utilization */}
         <TouchableOpacity
-          style={styles.card}
+          style={[styles.card, cardTheme]}
           activeOpacity={0.85}
           onPress={() => navigation.navigate('UserAccess')}
         >
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>License & Seat Usage</Text>
+            <Text style={[styles.cardTitle, textPrimary]}>License & Seat Usage</Text>
             <Text style={styles.viewDetailsText}>Details →</Text>
           </View>
           <View style={styles.progressBar}>
@@ -182,41 +241,41 @@ export const TenantAdminDashboardScreen: React.FC = () => {
             />
           </View>
           <View style={styles.statRow}>
-            <Text style={styles.statText}>
+            <Text style={[styles.statText, textSecondary]}>
               {usage.activeEmployees} of {usage.maxSeats} active seats
             </Text>
-            <Text style={styles.statPercent}>{usage.utilizationPercentage}%</Text>
+            <Text style={[styles.statPercent, textPrimary]}>{usage.utilizationPercentage}%</Text>
           </View>
         </TouchableOpacity>
 
         {/* Security Overview */}
         <TouchableOpacity
-          style={styles.card}
+          style={[styles.card, cardTheme]}
           activeOpacity={0.85}
           onPress={() => navigation.navigate('SecurityOverview')}
         >
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Security & Access Policy</Text>
+            <Text style={[styles.cardTitle, textPrimary]}>Security & Access Policy</Text>
             <Text style={styles.viewDetailsText}>View →</Text>
           </View>
           <View style={styles.securityItem}>
-            <Text style={styles.securityTitle}>Two-Factor Authentication (2FA)</Text>
+            <Text style={[styles.securityTitle, textPrimary]}>Two-Factor Authentication (2FA)</Text>
             <Text style={styles.securityStatus}>Configured & Active</Text>
           </View>
           <View style={styles.securityItem}>
-            <Text style={styles.securityTitle}>Multi-Tenant Isolation</Text>
+            <Text style={[styles.securityTitle, textPrimary]}>Multi-Tenant Isolation</Text>
             <Text style={styles.securityStatus}>Prisma Extension Fail-Closed</Text>
           </View>
         </TouchableOpacity>
 
         {/* Subscribed ERP Modules */}
         <TouchableOpacity
-          style={styles.card}
+          style={[styles.card, cardTheme]}
           activeOpacity={0.85}
           onPress={() => navigation.navigate('ModulesOverview')}
         >
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Subscribed ERP Modules</Text>
+            <Text style={[styles.cardTitle, textPrimary]}>Subscribed ERP Modules</Text>
             <Text style={styles.viewDetailsText}>All Modules →</Text>
           </View>
           <View style={styles.moduleGrid}>
@@ -233,9 +292,9 @@ export const TenantAdminDashboardScreen: React.FC = () => {
         </TouchableOpacity>
 
         {/* Workspace Collaboration Applications (Shared UI) */}
-        <View style={styles.card}>
+        <View style={[styles.card, cardTheme]}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Workspace Collaboration</Text>
+            <Text style={[styles.cardTitle, textPrimary]}>Workspace Collaboration</Text>
           </View>
           <View style={styles.collabGrid}>
             <TouchableOpacity

@@ -1,21 +1,27 @@
 import React, { createContext, useContext, useEffect } from 'react';
 import { Appearance, StatusBar, Platform } from 'react-native';
 import { AppTheme } from '../../theme/types';
-import { useThemeStore } from '../../store/themeStore';
+import { useThemeStore, ThemeMode } from '../../store/themeStore';
 import { useTenantStore } from '../../store/tenantStore';
 
 interface ThemeContextValue {
   theme: AppTheme;
-  mode: 'light' | 'dark' | 'system';
-  setMode: (mode: 'light' | 'dark' | 'system') => void;
+  mode: ThemeMode;
+  isDark: boolean;
+  setMode: (mode: ThemeMode) => void;
   toggleTheme: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { theme, mode, setMode, toggleTheme, setTenantColor } = useThemeStore();
+  const { theme, mode, setMode, toggleTheme, setTenantColor, hydrateTheme } = useThemeStore();
   const currentTenant = useTenantStore((s) => s.currentTenant);
+
+  // Hydrate persisted theme mode on initial boot
+  useEffect(() => {
+    void hydrateTheme();
+  }, [hydrateTheme]);
 
   // Sync tenant primary branding color into theme whenever tenant changes
   useEffect(() => {
@@ -25,15 +31,23 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Listen for system appearance changes when mode is 'system'
   useEffect(() => {
     const subscription = Appearance.addChangeListener(() => {
-      if (mode === 'system') {
+      if (useThemeStore.getState().mode === 'system') {
         useThemeStore.getState().setMode('system');
       }
     });
     return () => subscription.remove();
-  }, [mode]);
+  }, []);
 
   return (
-    <ThemeContext.Provider value={{ theme, mode, setMode, toggleTheme }}>
+    <ThemeContext.Provider
+      value={{
+        theme,
+        mode,
+        isDark: theme.isDark,
+        setMode,
+        toggleTheme,
+      }}
+    >
       <StatusBar
         barStyle={theme.isDark ? 'light-content' : 'dark-content'}
         {...(Platform.OS === 'android' ? { backgroundColor: theme.colors.background } : {})}

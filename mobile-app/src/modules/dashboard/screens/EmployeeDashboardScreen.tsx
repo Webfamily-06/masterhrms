@@ -5,7 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Image,
   Modal,
   Dimensions,
   Platform,
@@ -32,14 +31,17 @@ import {
   Bell,
   Hourglass,
   Moon,
+  Sun,
   Flame,
   Target,
   Sparkles,
   TrendingUp,
 } from 'lucide-react-native';
 import { AppBottomNav } from '../../../components/common/AppBottomNav';
+import { UserAvatar } from '../../../components/common/UserAvatar';
 import { useAuthStore } from '../../../store/authStore';
 import { useTenantStore } from '../../../store/tenantStore';
+import { useTheme } from '../../../app/providers/ThemeProvider';
 import { useCallStore } from '../../../store/callStore';
 import { PersonaSwitcher } from '../../navigation/PersonaSwitcher';
 import { AttendanceService, DashboardSummaryResponse } from '../../../core/services/attendanceService';
@@ -71,6 +73,7 @@ export const EmployeeDashboardScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'EmployeeHome'>>();
   const user = useAuthStore((state) => state.user);
   const currentTenant = useTenantStore((state) => state.currentTenant);
+  const { theme, toggleTheme } = useTheme();
 
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState<DashboardSummaryResponse>({});
@@ -213,15 +216,21 @@ export const EmployeeDashboardScreen: React.FC = () => {
     }
   };
 
+  const cardBgStyle = theme.isDark
+    ? { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }
+    : undefined;
+  const textPrimaryStyle = theme.isDark ? { color: theme.colors.text } : undefined;
+  const textSecondaryStyle = theme.isDark ? { color: theme.colors.textSecondary } : undefined;
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
         {/* Curved Deep Blue/Purple Gradient Header Banner */}
-        <View style={styles.headerCurvedBanner}>
+        <View style={[styles.headerCurvedBanner, theme.isDark && { backgroundColor: '#1E1B4B' }]}>
           <View style={styles.headerTopRow}>
             <View>
               <Text style={styles.headerDateText}>{currentDateStr || 'Today'}{currentTenant?.name ? ` • ${currentTenant.name}` : ''}</Text>
@@ -231,12 +240,24 @@ export const EmployeeDashboardScreen: React.FC = () => {
                 </Text>
               </View>
               <Text style={styles.headerName}>
-                {firstName} {isOnLeave ? '🌴' : '👋'}
+                {firstName}
               </Text>
             </View>
 
             <View style={styles.headerRightActions}>
               <PersonaSwitcher />
+              <TouchableOpacity
+                style={styles.bellIconBtn}
+                onPress={toggleTheme}
+                accessibilityRole="button"
+                accessibilityLabel="Toggle dark mode"
+              >
+                {theme.isDark ? (
+                  <Sun size={18} color="#FBBF24" />
+                ) : (
+                  <Moon size={18} color="#FFFFFF" />
+                )}
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.bellIconBtn}
                 onPress={() => navigation.navigate('Notifications')}
@@ -251,13 +272,15 @@ export const EmployeeDashboardScreen: React.FC = () => {
                 accessibilityRole="button"
                 accessibilityLabel="Profile"
               >
-                {avatarUri ? (
-                  <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
-                ) : (
-                  <View style={styles.avatarFallback}>
-                    <Text style={styles.avatarFallbackText}>{firstName.substring(0, 2).toUpperCase()}</Text>
-                  </View>
-                )}
+                <UserAvatar
+                  entity={user}
+                  uri={avatarUri}
+                  name={employeeName}
+                  email={user?.email}
+                  size={44}
+                  borderWidth={2}
+                  borderColor="#FFFFFF"
+                />
                 <View style={styles.avatarActiveDot} />
               </TouchableOpacity>
             </View>
@@ -265,13 +288,13 @@ export const EmployeeDashboardScreen: React.FC = () => {
         </View>
 
         {/* Floating Attendance Card (Matches 13, 14, 15, 16) */}
-        <View style={styles.attendanceCard}>
+        <View style={[styles.attendanceCard, cardBgStyle]}>
           <View style={styles.cardTopRow}>
             <View>
-              <Text style={styles.currentTimeLabel}>CURRENT TIME</Text>
+              <Text style={[styles.currentTimeLabel, textSecondaryStyle]}>CURRENT TIME</Text>
               <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                <Text style={styles.currentTimeVal}>{currentTimeStr.split(' ')[0] || '08:32'}</Text>
-                <Text style={styles.currentTimeAmPm}> {currentTimeStr.split(' ')[1] || 'AM'}</Text>
+                <Text style={[styles.currentTimeVal, textPrimaryStyle]}>{currentTimeStr.split(' ')[0] || '08:32'}</Text>
+                <Text style={[styles.currentTimeAmPm, textSecondaryStyle]}> {currentTimeStr.split(' ')[1] || 'AM'}</Text>
               </View>
             </View>
 
@@ -404,7 +427,7 @@ export const EmployeeDashboardScreen: React.FC = () => {
 
         {/* Quick Actions (4-pack matching 13. Home - Default.png) */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <Text style={[styles.sectionTitle, textPrimaryStyle]}>Quick Actions</Text>
         </View>
         <View style={styles.quickActionsRow}>
           {/* Attendance */}
@@ -414,10 +437,10 @@ export const EmployeeDashboardScreen: React.FC = () => {
             accessibilityRole="button"
             accessibilityLabel="Attendance"
           >
-            <View style={[styles.quickActionIconBox, { backgroundColor: '#EFF6FF' }]}>
+            <View style={[styles.quickActionIconBox, { backgroundColor: theme.isDark ? '#1E293B' : '#EFF6FF' }]}>
               <Calendar size={24} color="#2563EB" />
             </View>
-            <Text style={styles.quickActionLabel}>Attendance</Text>
+            <Text style={[styles.quickActionLabel, textPrimaryStyle]}>Attendance</Text>
           </TouchableOpacity>
 
           {/* Leave */}
@@ -427,10 +450,10 @@ export const EmployeeDashboardScreen: React.FC = () => {
             accessibilityRole="button"
             accessibilityLabel="Leave"
           >
-            <View style={[styles.quickActionIconBox, { backgroundColor: '#FFF7ED' }]}>
+            <View style={[styles.quickActionIconBox, { backgroundColor: theme.isDark ? '#1E293B' : '#FFF7ED' }]}>
               <Umbrella size={24} color="#F97316" />
             </View>
-            <Text style={styles.quickActionLabel}>Leave</Text>
+            <Text style={[styles.quickActionLabel, textPrimaryStyle]}>Leave</Text>
           </TouchableOpacity>
 
           {/* Payslip */}
@@ -440,10 +463,10 @@ export const EmployeeDashboardScreen: React.FC = () => {
             accessibilityRole="button"
             accessibilityLabel="Payslip"
           >
-            <View style={[styles.quickActionIconBox, { backgroundColor: '#ECFDF5' }]}>
+            <View style={[styles.quickActionIconBox, { backgroundColor: theme.isDark ? '#1E293B' : '#ECFDF5' }]}>
               <Receipt size={24} color="#10B981" />
             </View>
-            <Text style={styles.quickActionLabel}>Payslip</Text>
+            <Text style={[styles.quickActionLabel, textPrimaryStyle]}>Payslip</Text>
           </TouchableOpacity>
 
           {/* More */}
@@ -453,16 +476,16 @@ export const EmployeeDashboardScreen: React.FC = () => {
             accessibilityRole="button"
             accessibilityLabel="More Shortcuts"
           >
-            <View style={[styles.quickActionIconBox, { backgroundColor: '#F1F5F9' }]}>
-              <Grid size={24} color="#64748B" />
+            <View style={[styles.quickActionIconBox, { backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}>
+              <Grid size={24} color={theme.isDark ? '#94A3B8' : '#64748B'} />
             </View>
-            <Text style={styles.quickActionLabel}>More</Text>
+            <Text style={[styles.quickActionLabel, textPrimaryStyle]}>More</Text>
           </TouchableOpacity>
         </View>
 
         {/* Smart Widgets & Dynamic Island Hub (Matches Widget/Finance & Dynamic Iland/) */}
         <View style={[styles.sectionHeaderRow, { marginTop: 22 }]}>
-          <Text style={styles.sectionTitle}>Live Widgets & Dynamic Island</Text>
+          <Text style={[styles.sectionTitle, textPrimaryStyle]}>Live Widgets & Dynamic Island</Text>
           <TouchableOpacity onPress={() => navigation.navigate('PaymentCards')}>
             <Text style={styles.viewAllLink}>All Widgets</Text>
           </TouchableOpacity>
@@ -470,7 +493,7 @@ export const EmployeeDashboardScreen: React.FC = () => {
 
         <View style={styles.widgetsRow}>
           <TouchableOpacity
-            style={styles.smallHomeWidget}
+            style={[styles.smallHomeWidget, cardBgStyle]}
             activeOpacity={0.85}
             onPress={() =>
               useCallStore.getState().showDynamicIsland({
@@ -491,8 +514,8 @@ export const EmployeeDashboardScreen: React.FC = () => {
               </View>
               <Text style={styles.widgetPinText}>Pin</Text>
             </View>
-            <Text style={styles.widgetBigNum}>{widgetsSummary.attendanceStreakDays} Days</Text>
-            <Text style={styles.widgetSubLabel}>Attendance Streak</Text>
+            <Text style={[styles.widgetBigNum, textPrimaryStyle]}>{widgetsSummary.attendanceStreakDays} Days</Text>
+            <Text style={[styles.widgetSubLabel, textSecondaryStyle]}>Attendance Streak</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -522,15 +545,15 @@ export const EmployeeDashboardScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.mediumGoalWidget}>
+        <View style={[styles.mediumGoalWidget, cardBgStyle]}>
           <View style={styles.mediumGoalTop}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <View style={[styles.widgetMiniIcon, { backgroundColor: '#EEF2FF' }]}>
                 <Target size={15} color="#4F46E5" />
               </View>
               <View>
-                <Text style={styles.mediumGoalTitle}>Q4 OKR Goal Progress</Text>
-                <Text style={styles.widgetSubLabel}>
+                <Text style={[styles.mediumGoalTitle, textPrimaryStyle]}>Q4 OKR Goal Progress</Text>
+                <Text style={[styles.widgetSubLabel, textSecondaryStyle]}>
                   {widgetsSummary.okrProgress}% completed • {widgetsSummary.okrRemainingMilestones} milestones left
                 </Text>
               </View>
@@ -559,7 +582,7 @@ export const EmployeeDashboardScreen: React.FC = () => {
 
         {/* Recent Updates (Matches 13. Home - Default.png and 18. Home – Notification Preview.png) */}
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
-          <Text style={styles.sectionTitle}>Recent Updates</Text>
+          <Text style={[styles.sectionTitle, textPrimaryStyle]}>Recent Updates</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
             <Text style={styles.viewAllLink}>View All</Text>
           </TouchableOpacity>
@@ -571,17 +594,17 @@ export const EmployeeDashboardScreen: React.FC = () => {
             leaveRequests.slice(0, 1).map((lr) => (
               <TouchableOpacity
                 key={lr.id}
-                style={styles.updateCard}
+                style={[styles.updateCard, cardBgStyle]}
                 onPress={() => navigation.navigate('LeaveDetail')}
               >
                 <View style={[styles.updateIconCircle, { backgroundColor: '#DCFCE7' }]}>
                   <CheckCircle2 size={20} color="#16A34A" />
                 </View>
                 <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={styles.updateTitle}>
+                  <Text style={[styles.updateTitle, textPrimaryStyle]}>
                     {lr.status === 'APPROVED' ? 'Leave Request Approved' : 'Leave Request Submitted'}
                   </Text>
-                  <Text style={styles.updateSnippet} numberOfLines={1}>
+                  <Text style={[styles.updateSnippet, textSecondaryStyle]} numberOfLines={1}>
                     {lr.reason || `Your leave starting ${lr.startDate} is ${lr.status.toLowerCase()}`}
                   </Text>
                 </View>
@@ -590,15 +613,15 @@ export const EmployeeDashboardScreen: React.FC = () => {
             ))
           ) : (
             <TouchableOpacity
-              style={styles.updateCard}
+              style={[styles.updateCard, cardBgStyle]}
               onPress={() => navigation.navigate('LeaveDetail')}
             >
               <View style={[styles.updateIconCircle, { backgroundColor: '#DCFCE7' }]}>
                 <CheckCircle2 size={20} color="#16A34A" />
               </View>
               <View style={{ flex: 1, marginRight: 8 }}>
-                <Text style={styles.updateTitle}>Leave Request Approved</Text>
-                <Text style={styles.updateSnippet} numberOfLines={1}>
+                <Text style={[styles.updateTitle, textPrimaryStyle]}>Leave Request Approved</Text>
+                <Text style={[styles.updateSnippet, textSecondaryStyle]} numberOfLines={1}>
                   Your annual leave for next month has been approved.
                 </Text>
               </View>
@@ -611,15 +634,15 @@ export const EmployeeDashboardScreen: React.FC = () => {
             announcements.slice(0, 1).map((ann) => (
               <TouchableOpacity
                 key={ann.id}
-                style={styles.updateCard}
+                style={[styles.updateCard, cardBgStyle]}
                 onPress={() => navigation.navigate('Notifications')}
               >
                 <View style={[styles.updateIconCircle, { backgroundColor: '#EFF6FF' }]}>
                   <Megaphone size={20} color="#2563EB" />
                 </View>
                 <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={styles.updateTitle}>{ann.title || 'Office Announcement'}</Text>
-                  <Text style={styles.updateSnippet} numberOfLines={1}>
+                  <Text style={[styles.updateTitle, textPrimaryStyle]}>{ann.title || 'Office Announcement'}</Text>
+                  <Text style={[styles.updateSnippet, textSecondaryStyle]} numberOfLines={1}>
                     {ann.content || 'Office will be closed this Friday for maintenance.'}
                   </Text>
                 </View>
@@ -628,15 +651,15 @@ export const EmployeeDashboardScreen: React.FC = () => {
             ))
           ) : (
             <TouchableOpacity
-              style={styles.updateCard}
+              style={[styles.updateCard, cardBgStyle]}
               onPress={() => navigation.navigate('Notifications')}
             >
               <View style={[styles.updateIconCircle, { backgroundColor: '#EFF6FF' }]}>
                 <Megaphone size={20} color="#2563EB" />
               </View>
               <View style={{ flex: 1, marginRight: 8 }}>
-                <Text style={styles.updateTitle}>Office Announcement</Text>
-                <Text style={styles.updateSnippet} numberOfLines={1}>
+                <Text style={[styles.updateTitle, textPrimaryStyle]}>Office Announcement</Text>
+                <Text style={[styles.updateSnippet, textSecondaryStyle]} numberOfLines={1}>
                   Office will be closed this Friday for system upgrades.
                 </Text>
               </View>

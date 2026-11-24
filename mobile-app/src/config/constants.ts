@@ -4,6 +4,10 @@ export const STORAGE_KEYS = {
   TENANT_ID: 'masterhrms_tenant_id',
   TENANT_SLUG: 'masterhrms_tenant_slug',
   BIOMETRIC_ENABLED: 'masterhrms_biometric_enabled',
+  FINGERPRINT_ENABLED: 'masterhrms_fingerprint_enabled',
+  FACE_ID_ENABLED: 'masterhrms_face_id_enabled',
+  BIOMETRIC_SAVED_EMAIL: 'masterhrms_biometric_saved_email',
+  BIOMETRIC_SAVED_SECRET: 'masterhrms_biometric_saved_secret',
   THEME_MODE: 'masterhrms_theme_mode',
   LAST_WORKSPACE_NAME: 'masterhrms_last_workspace_name',
 } as const;

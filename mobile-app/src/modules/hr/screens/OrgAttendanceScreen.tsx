@@ -9,13 +9,15 @@ import {
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
 import { ArrowLeft } from 'lucide-react-native';
-import { AppBottomNav } from '../../../components/common';
+import { AppBottomNav, UserAvatar } from '../../../components/common';
 import { HrService, DailyAttendanceReport } from '../../../core/services/hrService';
 import { AttendanceRecord } from '../../../core/services/attendanceService';
+import { useTheme } from '../../../app/providers/ThemeProvider';
 import { useNavigation } from '@react-navigation/native';
 
 export const OrgAttendanceScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { theme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -55,17 +57,24 @@ export const OrgAttendanceScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={styles.backButton}
+          style={[styles.backButton, { backgroundColor: theme.colors.surfaceSecondary }]}
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <ArrowLeft size={20} color="#0F172A" />
+          <ArrowLeft size={20} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Organization Attendance</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          Organization Attendance
+        </Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -108,20 +117,40 @@ export const OrgAttendanceScreen: React.FC = () => {
           </View>
 
           {/* Records Table / List */}
-          <Text style={styles.sectionTitle}>Employee Attendance Log</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+            Employee Attendance Log
+          </Text>
           {records.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>No attendance records found for today.</Text>
             </View>
           ) : (
             records.map((rec) => (
-              <View key={rec.id} style={styles.recordCard}>
+              <View
+                key={rec.id}
+                style={[
+                  styles.recordCard,
+                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                ]}
+              >
                 <View style={styles.recordHeader}>
-                  <Text style={styles.empName}>
-                    {rec.employee
-                      ? `${rec.employee.firstName} ${rec.employee.lastName} (${rec.employee.employeeCode})`
-                      : 'Employee'}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                    <UserAvatar
+                      entity={rec.employee}
+                      name={
+                        rec.employee
+                          ? `${rec.employee.firstName || ''} ${rec.employee.lastName || ''}`.trim()
+                          : 'Employee'
+                      }
+                      size={36}
+                      style={{ marginRight: 10 }}
+                    />
+                    <Text style={[styles.empName, { color: theme.colors.text, flex: 1 }]} numberOfLines={1}>
+                      {rec.employee
+                        ? `${rec.employee.firstName} ${rec.employee.lastName} (${rec.employee.employeeCode})`
+                        : 'Employee'}
+                    </Text>
+                  </View>
                   <View
                     style={[
                       styles.statusPill,

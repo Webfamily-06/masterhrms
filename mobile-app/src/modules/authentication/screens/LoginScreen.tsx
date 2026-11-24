@@ -11,12 +11,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
-import { AlertCircle } from 'lucide-react-native';
+import { AlertCircle, Fingerprint, ScanFace } from 'lucide-react-native';
 import { AuthService } from '../../../core/auth/authService';
 import { Config } from '../../../config/environment';
 import { apiClient, updateApiClientBaseUrl } from '../../../core/api/apiClient';
 import { NavigationProp } from '../../../types/navigation.types';
 import { useNavigation } from '@react-navigation/native';
+import { useTheme } from '../../../app/providers/ThemeProvider';
 
 const logoSource = require('../../../assets/images/logo.webp');
 const emailIcon = require('../../../assets/images/email.png');
@@ -31,6 +32,7 @@ const appleIcon = require('../../../assets/images/apple.png');
 
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'Login'>>();
+  const { theme } = useTheme();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -111,7 +113,7 @@ export const LoginScreen: React.FC = () => {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, theme.isDark && { backgroundColor: theme.colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Ambient background glows */}
@@ -249,6 +251,57 @@ export const LoginScreen: React.FC = () => {
               <Text style={styles.loginButtonText}>Log In</Text>
             )}
           </TouchableOpacity>
+
+          {/* Biometric Unlock Options: Fingerprint & Face ID */}
+          <View style={styles.biometricLoginRow}>
+            <TouchableOpacity
+              style={[
+                styles.biometricLoginBtn,
+                theme.isDark && {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+              onPress={() => navigation.navigate('FingerprintAuth')}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Unlock with Fingerprint"
+            >
+              <Fingerprint size={18} color="#4F46E5" strokeWidth={2.2} />
+              <Text
+                style={[
+                  styles.biometricLoginBtnText,
+                  theme.isDark && { color: theme.colors.text },
+                ]}
+              >
+                {Platform.OS === 'ios' ? 'Touch ID' : 'Fingerprint'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.biometricLoginBtn,
+                theme.isDark && {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+              onPress={() => navigation.navigate('FaceIdAuth')}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Unlock with Face ID"
+            >
+              <ScanFace size={18} color="#059669" strokeWidth={2.2} />
+              <Text
+                style={[
+                  styles.biometricLoginBtnText,
+                  theme.isDark && { color: theme.colors.text },
+                ]}
+              >
+                Face ID
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Organization Contact Guidance Notice */}
           <View style={styles.orgGuidanceContainer}>
@@ -781,5 +834,27 @@ const styles = StyleSheet.create({
   apiSwitchTextActive: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  biometricLoginRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  biometricLoginBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  biometricLoginBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
   },
 });

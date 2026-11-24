@@ -12,12 +12,14 @@ import {
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
 import { ArrowLeft } from 'lucide-react-native';
-import { AppBottomNav } from '../../../components/common';
+import { AppBottomNav, UserAvatar } from '../../../components/common';
 import { ManagerService, TeamApprovals } from '../../../core/services/managerService';
+import { useTheme } from '../../../app/providers/ThemeProvider';
 import { useNavigation } from '@react-navigation/native';
 
 export const TeamApprovalsScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { theme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -102,22 +104,32 @@ export const TeamApprovalsScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={styles.backButton}
+          style={[styles.backButton, { backgroundColor: theme.colors.surfaceSecondary }]}
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <ArrowLeft size={20} color="#0F172A" />
+          <ArrowLeft size={20} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Team Approvals</Text>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Team Approvals</Text>
         <View style={styles.placeholder} />
       </View>
 
       {/* Segmented Control */}
-      <View style={styles.tabContainer}>
+      <View
+        style={[
+          styles.tabContainer,
+          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
+        ]}
+      >
         <TouchableOpacity
           style={[styles.tab, activeTab === 'leaves' && styles.activeTab]}
           onPress={() => setActiveTab('leaves')}
@@ -152,13 +164,31 @@ export const TeamApprovalsScreen: React.FC = () => {
               </View>
             ) : (
               approvals.leaves.map((l) => (
-                <View key={l.id} style={styles.approvalCard}>
+                <View
+                  key={l.id}
+                  style={[
+                    styles.approvalCard,
+                    { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                  ]}
+                >
                   <View style={styles.cardTop}>
-                    <Text style={styles.empName}>
-                      {l.employee
-                        ? `${l.employee.firstName} ${l.employee.lastName} (${l.employee.employeeCode})`
-                        : 'Team Member'}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                      <UserAvatar
+                        entity={l.employee}
+                        name={
+                          l.employee
+                            ? `${l.employee.firstName || ''} ${l.employee.lastName || ''}`.trim()
+                            : 'Team Member'
+                        }
+                        size={36}
+                        style={{ marginRight: 10 }}
+                      />
+                      <Text style={[styles.empName, { color: theme.colors.text, flex: 1 }]} numberOfLines={1}>
+                        {l.employee
+                          ? `${l.employee.firstName} ${l.employee.lastName} (${l.employee.employeeCode})`
+                          : 'Team Member'}
+                      </Text>
+                    </View>
                     <View style={styles.pendingBadge}>
                       <Text style={styles.pendingBadgeText}>PENDING</Text>
                     </View>

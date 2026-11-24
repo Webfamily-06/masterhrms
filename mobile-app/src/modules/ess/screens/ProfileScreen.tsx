@@ -6,10 +6,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Modal,
-  Image,
   RefreshControl,
   Platform,
+  Alert,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Text } from '../../../components/common/Text';
 import {
   ArrowLeft,
@@ -22,43 +23,34 @@ import {
   Phone,
   Calendar,
   CheckCircle2,
+  Settings,
+  Camera,
+  Moon,
+  Sun,
 } from 'lucide-react-native';
 import { AppBottomNav } from '../../../components/common/AppBottomNav';
+import { UserAvatar } from '../../../components/common/UserAvatar';
 import {
   EmployeeService,
   EmployeeProfile,
 } from '../../../core/services/employeeService';
 import { useAuthStore } from '../../../store/authStore';
+import { useTheme } from '../../../app/providers/ThemeProvider';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
-import { Config } from '../../../config/environment';
-
-const normalizeAvatarUrl = (url?: string | null): string | null => {
-  if (!url) return null;
-  let normalized = url.trim();
-  if (!normalized) return null;
-  if (normalized.includes('api.dicebear.com') && normalized.includes('/svg?')) {
-    normalized = normalized.replace('/svg?', '/png?');
-  }
-  if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
-    return normalized;
-  }
-  if (normalized.startsWith('/')) {
-    return `${Config.API_BASE_URL}${normalized}`;
-  }
-  return normalized;
-};
 
 export const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'Profile'>>();
   const user = useAuthStore((state) => state.user);
+  const updateUserAvatar = useAuthStore((state) => state.updateUserAvatar);
   const logout = useAuthStore((state) => state.logout);
+  const { theme, toggleTheme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
 
-  // Modals for 82 (Personal Info), 84 (Identity Verification), 89 (Job History), 77 (Logout)
   const [personalInfoModalOpen, setPersonalInfoModalOpen] = useState(false);
   const [identityModalOpen, setIdentityModalOpen] = useState(false);
   const [jobHistoryModalOpen, setJobHistoryModalOpen] = useState(false);
@@ -68,21 +60,69 @@ export const ProfileScreen: React.FC = () => {
     try {
       const profData = await EmployeeService.getMyProfile();
       setProfile(profData);
+      if (profData?.avatarUrl) {
+        updateUserAvatar(profData.avatarUrl);
+      }
     } catch {
       // Handled
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [updateUserAvatar]);
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [loadData]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadData();
+    void loadData();
+  };
+
+  const handlePickAvatar = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          'Permission Required',
+          'Please allow photo library access in Settings to update your profile image.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.35,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      const mimeType = asset.mimeType || 'image/jpeg';
+      const dataUri = asset.base64
+        ? `data:${mimeType};base64,${asset.base64}`
+        : asset.uri;
+
+      setUploadingPhoto(true);
+      updateUserAvatar(dataUri);
+      setProfile((prev) => (prev ? { ...prev, avatarUrl: dataUri } : prev));
+
+      try {
+        await EmployeeService.updateMyProfile({ avatarUrl: dataUri });
+      } catch {
+        // Local avatar already updated cleanly
+      }
+
+      Alert.alert('Profile Photo Updated', 'Your profile photo is now active across the app.');
+    } catch (err: any) {
+      Alert.alert('Upload Failed', err?.message || 'Could not select profile image.');
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   const fullName = useMemo(() => {
@@ -92,36 +132,51 @@ export const ProfileScreen: React.FC = () => {
     return user?.profile?.fullName || user?.email?.split('@')[0] || 'Sarah Miller';
   }, [profile, user]);
 
-  const designation = profile?.designation?.name || 'Senior Software Engineer';
-  const department = profile?.department?.name || 'Engineering';
+  const designation = profile?.designation?.name || user?.profile?.designation || 'Senior Software Engineer';
+  const department = profile?.department?.name || user?.profile?.department || 'Engineering';
   const employeeId = profile?.employeeCode || 'EMP-2024-889';
-
-  const avatarUri = useMemo(
-    () => normalizeAvatarUrl(user?.profile?.avatarUrl),
-    [user?.profile?.avatarUrl]
-  );
+  const rawAvatar = profile?.avatarUrl || user?.profile?.avatarUrl;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <ArrowLeft size={20} color="#0F172A" strokeWidth={2.4} />
+          <ArrowLeft size={20} color={theme.colors.text} strokeWidth={2.4} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profile</Text>
-        <TouchableOpacity
-          onPress={() => setLogoutModalOpen(true)}
-          style={styles.backBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Log Out"
-        >
-          <LogOut size={20} color="#EF4444" strokeWidth={2.2} />
-        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Profile</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <TouchableOpacity
+            onPress={toggleTheme}
+            style={styles.backBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle dark mode"
+          >
+            {theme.isDark ? (
+              <Sun size={19} color="#FBBF24" strokeWidth={2.2} />
+            ) : (
+              <Moon size={19} color={theme.colors.text} strokeWidth={2.2} />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setLogoutModalOpen(true)}
+            style={styles.backBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Log Out"
+          >
+            <LogOut size={20} color="#EF4444" strokeWidth={2.2} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
@@ -134,47 +189,75 @@ export const ProfileScreen: React.FC = () => {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           showsVerticalScrollIndicator={false}
         >
-          {/* ─────────────────────────────────────────────────────────── */}
-          {/* 81. Profile – Default View                                  */}
-          {/* ─────────────────────────────────────────────────────────── */}
+          {/* Profile Avatar Hero Section */}
           <View style={styles.avatarSection}>
-            <View style={styles.avatarWrap}>
-              {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.avatarLargeImg} />
-              ) : (
-                <View style={styles.avatarFallbackLarge}>
-                  <Text style={styles.avatarFallbackLargeText}>
-                    {fullName.substring(0, 2).toUpperCase()}
-                  </Text>
-                </View>
-              )}
-            </View>
+            <TouchableOpacity
+              style={styles.avatarWrap}
+              onPress={handlePickAvatar}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Change profile photo"
+            >
+              <UserAvatar
+                uri={rawAvatar}
+                entity={user}
+                name={fullName}
+                email={user?.email}
+                size={108}
+                borderWidth={3}
+                borderColor={theme.colors.surface}
+              />
+              <View style={styles.cameraOverlayBtn}>
+                {uploadingPhoto ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Camera size={15} color="#FFFFFF" strokeWidth={2.4} />
+                )}
+              </View>
+            </TouchableOpacity>
 
-            <Text style={styles.profileFullName}>{fullName}</Text>
-            <Text style={styles.profileRoleDept}>
+            <Text style={[styles.profileFullName, { color: theme.colors.text }]}>{fullName}</Text>
+            <Text style={[styles.profileRoleDept, { color: theme.colors.textSecondary }]}>
               {designation} • {department}
             </Text>
 
-            <View style={styles.empIdBadge}>
-              <Text style={styles.empIdText}>ID: {employeeId}</Text>
+            <View
+              style={[
+                styles.empIdBadge,
+                { backgroundColor: theme.colors.surfaceSecondary },
+              ]}
+            >
+              <Text style={[styles.empIdText, { color: theme.colors.textSecondary }]}>
+                ID: {employeeId}
+              </Text>
             </View>
           </View>
 
-          {/* 3 Main Section Cards */}
+          {/* Main Section Cards */}
           <View style={styles.mainActionCardsList}>
             {/* 1. Personal Information */}
             <TouchableOpacity
-              style={styles.actionNavCard}
+              style={[
+                styles.actionNavCard,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
               onPress={() => setPersonalInfoModalOpen(true)}
               activeOpacity={0.8}
             >
-              <View style={[styles.cardIconCircle, { backgroundColor: '#EFF6FF' }]}>
+              <View
+                style={[
+                  styles.cardIconCircle,
+                  { backgroundColor: theme.isDark ? 'rgba(37, 99, 235, 0.2)' : '#EFF6FF' },
+                ]}
+              >
                 <User size={22} color="#2563EB" />
               </View>
               <View style={{ flex: 1, marginRight: 8 }}>
-                <Text style={styles.actionCardTitle}>Personal Information</Text>
-                <Text style={styles.actionCardSub}>
-                  Contact details, address, and emergency
+                <Text style={[styles.actionCardTitle, { color: theme.colors.text }]}>
+                  Personal Information
+                </Text>
+                <Text style={[styles.actionCardSub, { color: theme.colors.textSecondary }]}>
+                  Contact details, photo, address, and emergency
                 </Text>
               </View>
               <ChevronRight size={20} color="#94A3B8" />
@@ -182,16 +265,26 @@ export const ProfileScreen: React.FC = () => {
 
             {/* 2. Identity Verification */}
             <TouchableOpacity
-              style={styles.actionNavCard}
+              style={[
+                styles.actionNavCard,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
               onPress={() => setIdentityModalOpen(true)}
               activeOpacity={0.8}
             >
-              <View style={[styles.cardIconCircle, { backgroundColor: '#EEF2FF' }]}>
+              <View
+                style={[
+                  styles.cardIconCircle,
+                  { backgroundColor: theme.isDark ? 'rgba(79, 70, 229, 0.2)' : '#EEF2FF' },
+                ]}
+              >
                 <ShieldCheck size={22} color="#4F46E5" />
               </View>
               <View style={{ flex: 1, marginRight: 8 }}>
-                <Text style={styles.actionCardTitle}>Identity Verification</Text>
-                <Text style={styles.actionCardSub}>
+                <Text style={[styles.actionCardTitle, { color: theme.colors.text }]}>
+                  Identity Verification
+                </Text>
+                <Text style={[styles.actionCardSub, { color: theme.colors.textSecondary }]}>
                   Passport, ID card, tax information
                 </Text>
               </View>
@@ -200,17 +293,55 @@ export const ProfileScreen: React.FC = () => {
 
             {/* 3. Employment Information */}
             <TouchableOpacity
-              style={styles.actionNavCard}
+              style={[
+                styles.actionNavCard,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
               onPress={() => setJobHistoryModalOpen(true)}
               activeOpacity={0.8}
             >
-              <View style={[styles.cardIconCircle, { backgroundColor: '#EFF6FF' }]}>
+              <View
+                style={[
+                  styles.cardIconCircle,
+                  { backgroundColor: theme.isDark ? 'rgba(37, 99, 235, 0.2)' : '#EFF6FF' },
+                ]}
+              >
                 <Briefcase size={22} color="#2563EB" />
               </View>
               <View style={{ flex: 1, marginRight: 8 }}>
-                <Text style={styles.actionCardTitle}>Employment Information</Text>
-                <Text style={styles.actionCardSub}>
+                <Text style={[styles.actionCardTitle, { color: theme.colors.text }]}>
+                  Employment Information
+                </Text>
+                <Text style={[styles.actionCardSub, { color: theme.colors.textSecondary }]}>
                   Position, department, employment details
+                </Text>
+              </View>
+              <ChevronRight size={20} color="#94A3B8" />
+            </TouchableOpacity>
+
+            {/* 4. App Settings, Biometrics & Dark Mode */}
+            <TouchableOpacity
+              style={[
+                styles.actionNavCard,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
+              onPress={() => navigation.navigate('Settings')}
+              activeOpacity={0.8}
+            >
+              <View
+                style={[
+                  styles.cardIconCircle,
+                  { backgroundColor: theme.isDark ? 'rgba(124, 58, 237, 0.2)' : '#F3E8FF' },
+                ]}
+              >
+                <Settings size={22} color="#7C3AED" />
+              </View>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={[styles.actionCardTitle, { color: theme.colors.text }]}>
+                  Security, Biometrics & Appearance
+                </Text>
+                <Text style={[styles.actionCardSub, { color: theme.colors.textSecondary }]}>
+                  Fingerprint unlock, Face ID & Dark Mode settings
                 </Text>
               </View>
               <ChevronRight size={20} color="#94A3B8" />
@@ -219,103 +350,139 @@ export const ProfileScreen: React.FC = () => {
 
           {/* Edit Profile Quick Shortcut */}
           <TouchableOpacity
-            style={styles.editProfileBtn}
+            style={[
+              styles.editProfileBtn,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
             onPress={() => navigation.navigate('EditProfile')}
           >
-            <Text style={styles.editProfileBtnText}>Edit Profile Details</Text>
+            <Text style={[styles.editProfileBtnText, { color: theme.colors.text }]}>
+              Edit Profile Details
+            </Text>
           </TouchableOpacity>
         </ScrollView>
       )}
 
-      {/* ───────────────────────────────────────────────────────────────── */}
-      {/* 82. Profile – Personal Information Detail Modal                   */}
-      {/* ───────────────────────────────────────────────────────────────── */}
+      {/* Personal Information Detail Modal */}
       <Modal visible={personalInfoModalOpen} animationType="slide" transparent onRequestClose={() => setPersonalInfoModalOpen(false)}>
-        <View style={styles.fullModalContainer}>
-          <View style={styles.modalHeaderRow}>
+        <View style={[styles.fullModalContainer, { backgroundColor: theme.colors.background }]}>
+          <View
+            style={[
+              styles.modalHeaderRow,
+              { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
+            ]}
+          >
             <TouchableOpacity onPress={() => setPersonalInfoModalOpen(false)} style={styles.backBtn}>
-              <ArrowLeft size={20} color="#0F172A" strokeWidth={2.4} />
+              <ArrowLeft size={20} color={theme.colors.text} strokeWidth={2.4} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Personal Information</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Personal Information</Text>
             <View style={{ width: 36 }} />
           </View>
 
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-            {/* Basic Information Card */}
-            <View style={styles.infoSectionCard}>
+            <View
+              style={[
+                styles.infoSectionCard,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
+            >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                 <User size={18} color="#2563EB" />
-                <Text style={styles.infoSectionTitle}>Basic Information</Text>
+                <Text style={[styles.infoSectionTitle, { color: theme.colors.text }]}>Basic Information</Text>
               </View>
 
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                {avatarUri ? (
-                  <Image source={{ uri: avatarUri }} style={styles.smallInfoAvatar} />
-                ) : (
-                  <View style={[styles.smallInfoAvatar, { backgroundColor: '#2563EB', justifyContent: 'center', alignItems: 'center' }]}>
-                    <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{fullName.substring(0, 2).toUpperCase()}</Text>
-                  </View>
-                )}
-                <TouchableOpacity style={{ marginLeft: 16 }}>
-                  <Text style={styles.uploadPhotoLink}>↑ Upload Photo</Text>
+                <UserAvatar
+                  uri={rawAvatar}
+                  entity={user}
+                  name={fullName}
+                  email={user?.email}
+                  size={56}
+                />
+                <TouchableOpacity style={{ marginLeft: 16 }} onPress={handlePickAvatar}>
+                  <Text style={styles.uploadPhotoLink}>
+                    {uploadingPhoto ? 'Uploading...' : '↑ Upload Photo'}
+                  </Text>
                 </TouchableOpacity>
               </View>
 
               <Text style={styles.fieldItemLabel}>Full Name</Text>
-              <Text style={styles.fieldItemVal}>{fullName}</Text>
+              <Text style={[styles.fieldItemVal, { color: theme.colors.text }]}>{fullName}</Text>
 
               <View style={{ flexDirection: 'row', marginTop: 12 }}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fieldItemLabel}>Date of Birth</Text>
-                  <Text style={styles.fieldItemVal}>{profile?.dateOfBirth || '14 Oct 1992'}</Text>
+                  <Text style={[styles.fieldItemVal, { color: theme.colors.text }]}>
+                    {profile?.dateOfBirth || '14 Oct 1992'}
+                  </Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fieldItemLabel}>Gender</Text>
-                  <Text style={styles.fieldItemVal}>Male</Text>
+                  <Text style={[styles.fieldItemVal, { color: theme.colors.text }]}>
+                    {profile?.gender || 'Not specified'}
+                  </Text>
                 </View>
               </View>
             </View>
 
-            {/* Contact Information Card */}
-            <View style={styles.infoSectionCard}>
+            <View
+              style={[
+                styles.infoSectionCard,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
+            >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                 <Phone size={18} color="#2563EB" />
-                <Text style={styles.infoSectionTitle}>Contact Information</Text>
+                <Text style={[styles.infoSectionTitle, { color: theme.colors.text }]}>Contact Information</Text>
               </View>
 
               <Text style={styles.fieldItemLabel}>Phone Number</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={styles.fieldItemVal}>{profile?.phone || '+1 (555) 123-4567'}</Text>
+                <Text style={[styles.fieldItemVal, { color: theme.colors.text }]}>
+                  {profile?.phone || '+1 (555) 123-4567'}
+                </Text>
                 <CheckCircle2 size={16} color="#16A34A" />
               </View>
 
-              <Text style={[styles.fieldItemLabel, { marginTop: 12 }]}>Personal Email</Text>
-              <Text style={styles.fieldItemVal}>{profile?.email || user?.email || 'sarah@karajo.app'}</Text>
+              <Text style={[styles.fieldItemLabel, { marginTop: 12 }]}>Work Email</Text>
+              <Text style={[styles.fieldItemVal, { color: theme.colors.text }]}>
+                {profile?.email || user?.email}
+              </Text>
 
               <Text style={[styles.fieldItemLabel, { marginTop: 12 }]}>Residential Address</Text>
-              <Text style={styles.fieldItemVal}>
-                {profile?.address || '42 Innovation Drive, Apt 304\nSan Francisco, CA 94107'}
+              <Text style={[styles.fieldItemVal, { color: theme.colors.text }]}>
+                {profile?.address || '42 Innovation Drive, Apt 304'}
               </Text>
             </View>
 
-            {/* Emergency Contact Card */}
-            <View style={styles.infoSectionCard}>
+            <View
+              style={[
+                styles.infoSectionCard,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
+            >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                 <ShieldCheck size={18} color="#2563EB" />
-                <Text style={styles.infoSectionTitle}>Emergency Contact</Text>
+                <Text style={[styles.infoSectionTitle, { color: theme.colors.text }]}>Emergency Contact</Text>
               </View>
 
               <Text style={styles.fieldItemLabel}>Contact Name</Text>
-              <Text style={styles.fieldItemVal}>{profile?.emergencyContactName || 'Hanna Jenkins'}</Text>
+              <Text style={[styles.fieldItemVal, { color: theme.colors.text }]}>
+                {profile?.emergencyContactName || 'Hanna Jenkins'}
+              </Text>
 
               <View style={{ flexDirection: 'row', marginTop: 12 }}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fieldItemLabel}>Relationship</Text>
-                  <Text style={styles.fieldItemVal}>{profile?.emergencyContactRelation || 'Spouse'}</Text>
+                  <Text style={[styles.fieldItemVal, { color: theme.colors.text }]}>
+                    {profile?.emergencyContactRelation || 'Spouse'}
+                  </Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fieldItemLabel}>Phone Number</Text>
-                  <Text style={styles.fieldItemVal}>{profile?.emergencyContactPhone || '+1 (555) 987-6543'}</Text>
+                  <Text style={[styles.fieldItemVal, { color: theme.colors.text }]}>
+                    {profile?.emergencyContactPhone || '+1 (555) 987-6543'}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -333,36 +500,54 @@ export const ProfileScreen: React.FC = () => {
         </View>
       </Modal>
 
-      {/* ───────────────────────────────────────────────────────────────── */}
-      {/* 84. Profile – Identity Verification Modal                         */}
-      {/* ───────────────────────────────────────────────────────────────── */}
+      {/* Identity Verification Modal */}
       <Modal visible={identityModalOpen} animationType="slide" transparent onRequestClose={() => setIdentityModalOpen(false)}>
-        <View style={styles.fullModalContainer}>
-          <View style={styles.modalHeaderRow}>
+        <View style={[styles.fullModalContainer, { backgroundColor: theme.colors.background }]}>
+          <View
+            style={[
+              styles.modalHeaderRow,
+              { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
+            ]}
+          >
             <TouchableOpacity onPress={() => setIdentityModalOpen(false)} style={styles.backBtn}>
-              <ArrowLeft size={20} color="#0F172A" strokeWidth={2.4} />
+              <ArrowLeft size={20} color={theme.colors.text} strokeWidth={2.4} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Identity Verification</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Identity Verification</Text>
             <View style={{ width: 36 }} />
           </View>
 
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-            {/* Status Hero Pill */}
-            <View style={styles.identityConfirmedHeroCard}>
+            <View
+              style={[
+                styles.identityConfirmedHeroCard,
+                theme.isDark && { backgroundColor: 'rgba(22, 163, 74, 0.18)' },
+              ]}
+            >
               <View style={styles.verifiedCheckBadge}>
                 <CheckCircle2 size={28} color="#16A34A" />
               </View>
               <Text style={styles.identityHeroTitle}>Identity Verified</Text>
-              <Text style={styles.identityHeroSub}>
+              <Text
+                style={[
+                  styles.identityHeroSub,
+                  theme.isDark && { color: '#86EFAC' },
+                ]}
+              >
                 All government issued documents have been confirmed by HR compliance.
               </Text>
             </View>
 
-            {/* Document Checklist */}
-            <View style={styles.infoSectionCard}>
+            <View
+              style={[
+                styles.infoSectionCard,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
+            >
               <View style={styles.docVerifyRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.docVerifyName}>National ID / Aadhaar Card</Text>
+                  <Text style={[styles.docVerifyName, { color: theme.colors.text }]}>
+                    National ID / Aadhaar Card
+                  </Text>
                   <Text style={styles.docVerifyNum}>**** **** 4589</Text>
                 </View>
                 <View style={styles.confirmedPill}>
@@ -370,11 +555,13 @@ export const ProfileScreen: React.FC = () => {
                 </View>
               </View>
 
-              <View style={styles.dividerThin} />
+              <View style={[styles.dividerThin, { backgroundColor: theme.colors.borderLight }]} />
 
               <View style={styles.docVerifyRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.docVerifyName}>Tax Identification / PAN Card</Text>
+                  <Text style={[styles.docVerifyName, { color: theme.colors.text }]}>
+                    Tax Identification / PAN Card
+                  </Text>
                   <Text style={styles.docVerifyNum}>ABCDE****F</Text>
                 </View>
                 <View style={styles.confirmedPill}>
@@ -382,11 +569,13 @@ export const ProfileScreen: React.FC = () => {
                 </View>
               </View>
 
-              <View style={styles.dividerThin} />
+              <View style={[styles.dividerThin, { backgroundColor: theme.colors.borderLight }]} />
 
               <View style={styles.docVerifyRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.docVerifyName}>Bank Account Verification</Text>
+                  <Text style={[styles.docVerifyName, { color: theme.colors.text }]}>
+                    Bank Account Verification
+                  </Text>
                   <Text style={styles.docVerifyNum}>HDFC Bank • ****4582</Text>
                 </View>
                 <View style={styles.confirmedPill}>
@@ -398,22 +587,29 @@ export const ProfileScreen: React.FC = () => {
         </View>
       </Modal>
 
-      {/* ───────────────────────────────────────────────────────────────── */}
-      {/* 89. Profile – Job History Modal                                    */}
-      {/* ───────────────────────────────────────────────────────────────── */}
+      {/* Job History Modal */}
       <Modal visible={jobHistoryModalOpen} animationType="slide" transparent onRequestClose={() => setJobHistoryModalOpen(false)}>
-        <View style={styles.fullModalContainer}>
-          <View style={styles.modalHeaderRow}>
+        <View style={[styles.fullModalContainer, { backgroundColor: theme.colors.background }]}>
+          <View
+            style={[
+              styles.modalHeaderRow,
+              { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
+            ]}
+          >
             <TouchableOpacity onPress={() => setJobHistoryModalOpen(false)} style={styles.backBtn}>
-              <ArrowLeft size={20} color="#0F172A" strokeWidth={2.4} />
+              <ArrowLeft size={20} color={theme.colors.text} strokeWidth={2.4} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Job History</Text>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Job History</Text>
             <View style={{ width: 36 }} />
           </View>
 
           <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-            {/* Active Position Card */}
-            <View style={styles.activeJobCard}>
+            <View
+              style={[
+                styles.activeJobCard,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
+            >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <View style={styles.activeJobPill}>
                   <Text style={styles.activeJobPillText}>Active</Text>
@@ -423,75 +619,39 @@ export const ProfileScreen: React.FC = () => {
                 </View>
               </View>
 
-              <Text style={styles.activeJobTitle}>{designation}</Text>
+              <Text style={[styles.activeJobTitle, { color: theme.colors.text }]}>{designation}</Text>
               <Text style={styles.activeJobDept}>{department} Department</Text>
 
-              <View style={styles.dividerThin} />
+              <View style={[styles.dividerThin, { backgroundColor: theme.colors.borderLight }]} />
 
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Calendar size={14} color="#2563EB" />
-                <Text style={styles.activeJobDates}>Jan 2023 - Present • 1 yr 4 mos</Text>
+                <Text style={styles.activeJobDates}>Jan 2023 - Present</Text>
               </View>
-            </View>
-
-            {/* Timeline Past Roles */}
-            <View style={styles.timelineList}>
-              {[
-                {
-                  role: 'Product Designer',
-                  dept: 'Design Team',
-                  period: 'Jan 2021 - Dec 2022 • 2 yrs',
-                  manager: 'Alex Smith',
-                },
-                {
-                  role: 'Junior UI Designer',
-                  dept: 'Creative Studio',
-                  period: 'Jun 2019 - Dec 2020 • 1 yr 6 mos',
-                  manager: 'Jennifer Lopez',
-                },
-                {
-                  role: 'Design Intern',
-                  dept: 'Creative Studio',
-                  period: 'Jan 2019 - May 2019 • 5 mos',
-                  manager: 'David Kim',
-                },
-              ].map((item, idx) => (
-                <View key={idx} style={styles.timelineCard}>
-                  <Text style={styles.timelineRole}>{item.role}</Text>
-                  <Text style={styles.timelineDept}>{item.dept}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 6 }}>
-                    <Calendar size={13} color="#64748B" />
-                    <Text style={styles.timelineDates}>{item.period}</Text>
-                  </View>
-                  <View style={styles.dividerThin} />
-                  <Text style={styles.timelineManager}>Manager: {item.manager}</Text>
-                </View>
-              ))}
             </View>
           </ScrollView>
         </View>
       </Modal>
 
-      {/* ───────────────────────────────────────────────────────────────── */}
-      {/* 77_Logout Modal (Matches 77_Logout.png)                            */}
-      {/* ───────────────────────────────────────────────────────────────── */}
+      {/* Logout Modal */}
       <Modal visible={logoutModalOpen} animationType="slide" transparent onRequestClose={() => setLogoutModalOpen(false)}>
         <View style={styles.logoutBackdrop}>
-          <View style={styles.logoutSheet}>
-            {/* Close Circle floating on top */}
-            <TouchableOpacity onPress={() => setLogoutModalOpen(false)} style={styles.logoutCloseBtn}>
-              <X size={20} color="#0F172A" />
+          <View style={[styles.logoutSheet, { backgroundColor: theme.colors.surface }]}>
+            <TouchableOpacity
+              onPress={() => setLogoutModalOpen(false)}
+              style={[styles.logoutCloseBtn, { backgroundColor: theme.colors.surfaceSecondary }]}
+            >
+              <X size={20} color={theme.colors.text} />
             </TouchableOpacity>
 
-            {/* Arched Yellow Graphic with Logout Icon */}
             <View style={styles.yellowArchGraphic}>
               <View style={styles.logoutDocWhiteCard}>
                 <LogOut size={32} color="#D97706" />
               </View>
             </View>
 
-            <Text style={styles.logoutModalTitle}>Logout ?</Text>
-            <Text style={styles.logoutModalSub}>
+            <Text style={[styles.logoutModalTitle, { color: theme.colors.text }]}>Logout ?</Text>
+            <Text style={[styles.logoutModalSub, { color: theme.colors.textSecondary }]}>
               Are you sure you want to logout of your account
             </Text>
 
@@ -506,7 +666,7 @@ export const ProfileScreen: React.FC = () => {
               style={styles.confirmedLogoutBtn}
               onPress={() => {
                 setLogoutModalOpen(false);
-                logout();
+                void logout();
               }}
             >
               <Text style={styles.confirmedLogoutBtnText}>Confirmed Logout</Text>
@@ -515,7 +675,6 @@ export const ProfileScreen: React.FC = () => {
         </View>
       </Modal>
 
-      {/* Persistent Bottom Nav */}
       <AppBottomNav activeRoute="Profile" />
     </View>
   );
@@ -524,7 +683,6 @@ export const ProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   scrollContent: {
     paddingBottom: 32,
@@ -534,8 +692,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-
-  /* Header */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -543,9 +699,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'ios' ? 50 : 36,
     paddingBottom: 14,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   backBtn: {
     width: 36,
@@ -557,51 +711,37 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F172A',
   },
-
-  /* Avatar Profile Section (81. Profile – Default.png) */
   avatarSection: {
     alignItems: 'center',
     paddingVertical: 24,
   },
   avatarWrap: {
     marginBottom: 14,
+    position: 'relative',
   },
-  avatarLargeImg: {
-    width: 104,
-    height: 104,
-    borderRadius: 52,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-  },
-  avatarFallbackLarge: {
-    width: 104,
-    height: 104,
-    borderRadius: 52,
+  cameraOverlayBtn: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#2563EB',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: '#FFFFFF',
-  },
-  avatarFallbackLargeText: {
-    color: '#FFFFFF',
-    fontSize: 34,
-    fontWeight: '800',
   },
   profileFullName: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#0F172A',
   },
   profileRoleDept: {
     fontSize: 13,
-    color: '#64748B',
     marginTop: 4,
   },
   empIdBadge: {
-    backgroundColor: '#F1F5F9',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 20,
@@ -610,23 +750,18 @@ const styles = StyleSheet.create({
   empIdText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#475569',
   },
-
-  /* Action Nav Cards (81) */
   mainActionCardsList: {
     marginHorizontal: 16,
     gap: 12,
     marginTop: 10,
   },
   actionNavCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#F1F5F9',
   },
   cardIconCircle: {
     width: 48,
@@ -639,17 +774,13 @@ const styles = StyleSheet.create({
   actionCardTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
   },
   actionCardSub: {
     fontSize: 12,
-    color: '#64748B',
     marginTop: 2,
   },
   editProfileBtn: {
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#CBD5E1',
     marginHorizontal: 16,
     marginTop: 20,
     height: 48,
@@ -660,13 +791,9 @@ const styles = StyleSheet.create({
   editProfileBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0F172A',
   },
-
-  /* Full Screen Modals (82, 84, 89) */
   fullModalContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   modalHeaderRow: {
     flexDirection: 'row',
@@ -675,27 +802,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'ios' ? 50 : 36,
     paddingBottom: 14,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   infoSectionCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 18,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
     marginBottom: 14,
   },
   infoSectionTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
-  },
-  smallInfoAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
   },
   uploadPhotoLink: {
     fontSize: 13,
@@ -710,7 +827,6 @@ const styles = StyleSheet.create({
   fieldItemVal: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0F172A',
   },
   modalPrimaryActionBtn: {
     backgroundColor: '#2563EB',
@@ -725,8 +841,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-
-  /* Identity Verification (84) */
   identityConfirmedHeroCard: {
     backgroundColor: '#DCFCE7',
     borderRadius: 20,
@@ -757,7 +871,6 @@ const styles = StyleSheet.create({
   docVerifyName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0F172A',
   },
   docVerifyNum: {
     fontSize: 12,
@@ -777,17 +890,12 @@ const styles = StyleSheet.create({
   },
   dividerThin: {
     height: 1,
-    backgroundColor: '#F1F5F9',
     marginVertical: 10,
   },
-
-  /* Job History (89) */
   activeJobCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 18,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     marginBottom: 16,
   },
   activeJobPill: {
@@ -802,17 +910,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   jobIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   activeJobTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0F172A',
-    marginTop: 10,
+    marginTop: 12,
   },
   activeJobDept: {
     fontSize: 13,
@@ -824,120 +931,77 @@ const styles = StyleSheet.create({
     color: '#2563EB',
     fontWeight: '600',
   },
-  timelineList: {
-    gap: 12,
-  },
-  timelineCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-  },
-  timelineRole: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  timelineDept: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  timelineDates: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  timelineManager: {
-    fontSize: 12,
-    color: '#94A3B8',
-  },
-
-  /* 77_Logout Modal */
   logoutBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
     justifyContent: 'flex-end',
-    alignItems: 'center',
   },
   logoutSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    width: '100%',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     padding: 24,
     alignItems: 'center',
-    position: 'relative',
   },
   logoutCloseBtn: {
-    position: 'absolute',
-    top: -48,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#FFFFFF',
+    alignSelf: 'flex-end',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     justifyContent: 'center',
     alignItems: 'center',
   },
   yellowArchGraphic: {
-    width: 120,
-    height: 100,
-    backgroundColor: '#F59E0B',
-    borderTopLeftRadius: 60,
-    borderTopRightRadius: 60,
-    justifyContent: 'flex-end',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 8,
-    marginVertical: 12,
+    marginBottom: 16,
   },
   logoutDocWhiteCard: {
-    width: 64,
-    height: 70,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   logoutModalTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
-    color: '#0F172A',
-    marginTop: 8,
+    marginBottom: 6,
   },
   logoutModalSub: {
-    fontSize: 13,
-    color: '#64748B',
+    fontSize: 14,
     textAlign: 'center',
-    marginTop: 6,
-    marginBottom: 20,
+    marginBottom: 22,
   },
   keepItBtn: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
     width: '100%',
     height: 48,
     borderRadius: 14,
+    backgroundColor: '#2563EB',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
   },
   keepItBtnText: {
-    fontSize: 14,
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
   },
   confirmedLogoutBtn: {
-    backgroundColor: '#EF4444',
     width: '100%',
     height: 48,
     borderRadius: 14,
+    backgroundColor: '#FEE2E2',
     justifyContent: 'center',
     alignItems: 'center',
   },
   confirmedLogoutBtnText: {
-    fontSize: 14,
+    color: '#DC2626',
+    fontSize: 15,
     fontWeight: '700',
-    color: '#FFFFFF',
   },
 });

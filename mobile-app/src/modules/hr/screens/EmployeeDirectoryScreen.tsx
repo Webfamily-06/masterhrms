@@ -9,13 +9,15 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
-import { ArrowLeft, Search } from 'lucide-react-native';
-import { AppBottomNav } from '../../../components/common';
+import { ArrowLeft, Search, Moon, Sun } from 'lucide-react-native';
+import { AppBottomNav, UserAvatar } from '../../../components/common';
 import { HrService, EmployeeSummary, Department } from '../../../core/services/hrService';
+import { useTheme } from '../../../app/providers/ThemeProvider';
 import { useNavigation } from '@react-navigation/native';
 
 export const EmployeeDirectoryScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { theme, toggleTheme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -44,12 +46,12 @@ export const EmployeeDirectoryScreen: React.FC = () => {
   }, [search, selectedDept]);
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [loadData]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadData();
+    void loadData();
   };
 
   const getDeptName = (dept: any) => {
@@ -58,74 +60,137 @@ export const EmployeeDirectoryScreen: React.FC = () => {
     return dept.name || 'General';
   };
 
-  const getDesigName = (desig: any) => {
-    if (!desig) return 'Employee';
-    if (typeof desig === 'string') return desig;
-    return desig.name || 'Employee';
+  const getDesigName = (desig: any, fallbackPos?: any) => {
+    if (desig) {
+      if (typeof desig === 'string') return desig;
+      if (desig.name) return desig.name;
+    }
+    if (fallbackPos && typeof fallbackPos === 'string') return fallbackPos;
+    return 'Employee';
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={styles.backButton}
+          style={[
+            styles.backButton,
+            { backgroundColor: theme.colors.surfaceSecondary },
+          ]}
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <ArrowLeft size={20} color="#0F172A" />
+          <ArrowLeft size={20} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Employee Directory</Text>
-        <View style={styles.placeholder} />
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+          Employee Directory
+        </Text>
+        <TouchableOpacity
+          onPress={toggleTheme}
+          style={[
+            styles.backButton,
+            { backgroundColor: theme.colors.surfaceSecondary },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Toggle dark mode"
+        >
+          {theme.isDark ? (
+            <Sun size={18} color="#FBBF24" />
+          ) : (
+            <Moon size={18} color={theme.colors.text} />
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* Search Bar */}
-      <View style={[styles.searchBar, { flexDirection: 'row', alignItems: 'center' }]}>
-        <Search size={16} color="#94A3B8" style={{ marginRight: 8 }} />
-        <TextInput
-          style={[styles.searchInput, { flex: 1 }]}
-          placeholder="Search by name or employee code..."
-          placeholderTextColor="#94A3B8"
-          value={search}
-          onChangeText={setSearch}
-          onSubmitEditing={loadData}
-          returnKeyType="search"
-        />
+      <View
+        style={[
+          styles.searchBar,
+          { backgroundColor: theme.colors.surface },
+        ]}
+      >
+        <View
+          style={[
+            styles.searchBoxInner,
+            {
+              backgroundColor: theme.colors.surfaceSecondary,
+              borderColor: theme.colors.border,
+            },
+          ]}
+        >
+          <Search size={16} color={theme.colors.textMuted} style={{ marginRight: 8 }} />
+          <TextInput
+            style={[styles.searchInput, { color: theme.colors.text }]}
+            placeholder="Search by name, email or employee code..."
+            placeholderTextColor={theme.colors.textMuted}
+            value={search}
+            onChangeText={setSearch}
+            onSubmitEditing={loadData}
+            returnKeyType="search"
+          />
+        </View>
       </View>
 
       {/* Department Filter Chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterScroll}
+      <View
+        style={{
+          backgroundColor: theme.colors.surface,
+          borderBottomWidth: 1,
+          borderBottomColor: theme.colors.border,
+        }}
       >
-        <TouchableOpacity
-          style={[styles.filterChip, selectedDept === 'all' && styles.filterChipActive]}
-          onPress={() => setSelectedDept('all')}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScroll}
         >
-          <Text
-            style={[styles.filterChipText, selectedDept === 'all' && styles.filterChipTextActive]}
-          >
-            All Departments
-          </Text>
-        </TouchableOpacity>
-        {departments.map((d) => (
           <TouchableOpacity
-            key={d.id}
-            style={[styles.filterChip, selectedDept === d.id && styles.filterChipActive]}
-            onPress={() => setSelectedDept(d.id)}
+            style={[
+              styles.filterChip,
+              { backgroundColor: theme.colors.surfaceSecondary },
+              selectedDept === 'all' && styles.filterChipActive,
+            ]}
+            onPress={() => setSelectedDept('all')}
           >
             <Text
               style={[
                 styles.filterChipText,
-                selectedDept === d.id && styles.filterChipTextActive,
+                { color: theme.colors.textSecondary },
+                selectedDept === 'all' && styles.filterChipTextActive,
               ]}
             >
-              {d.name}
+              All Departments
             </Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+          {departments.map((d) => (
+            <TouchableOpacity
+              key={d.id}
+              style={[
+                styles.filterChip,
+                { backgroundColor: theme.colors.surfaceSecondary },
+                selectedDept === d.id && styles.filterChipActive,
+              ]}
+              onPress={() => setSelectedDept(d.id)}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  { color: theme.colors.textSecondary },
+                  selectedDept === d.id && styles.filterChipTextActive,
+                ]}
+              >
+                {d.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
       {loading ? (
         <View style={styles.centered}>
@@ -136,47 +201,76 @@ export const EmployeeDirectoryScreen: React.FC = () => {
           contentContainerStyle={styles.scrollContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
-          <Text style={styles.countText}>Total: {employees.length} Employee(s)</Text>
+          <Text style={[styles.countText, { color: theme.colors.textSecondary }]}>
+            Total: {employees.length} Employee(s)
+          </Text>
 
           {employees.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No employees matched your query.</Text>
+              <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>
+                No employees matched your query.
+              </Text>
             </View>
           ) : (
-            employees.map((emp) => (
-              <View key={emp.id} style={styles.empCard}>
-                <View style={styles.empRow}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                      {(emp.firstName?.[0] || 'E') + (emp.lastName?.[0] || '')}
-                    </Text>
-                  </View>
-                  <View style={styles.empInfo}>
-                    <Text style={styles.empName}>
-                      {emp.firstName} {emp.lastName}
-                    </Text>
-                    <Text style={styles.empRole}>
-                      {getDesigName(emp.designation)} • {getDeptName(emp.department)}
-                    </Text>
-                    <Text style={styles.empCode}>
-                      {emp.employeeCode} • {emp.email}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.statusPill,
-                      emp.status === 'ACTIVE' ? styles.statusActive : styles.statusInactive,
-                    ]}
-                  >
-                    <Text style={styles.statusPillText}>{emp.status || 'ACTIVE'}</Text>
+            employees.map((emp) => {
+              const statusUpper = String(emp.status || 'ACTIVE').toUpperCase();
+              const isActive = statusUpper === 'ACTIVE';
+              return (
+                <View
+                  key={emp.id}
+                  style={[
+                    styles.empCard,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                >
+                  <View style={styles.empRow}>
+                    <UserAvatar
+                      entity={emp}
+                      name={`${emp.firstName || ''} ${emp.lastName || ''}`.trim()}
+                      email={emp.email}
+                      size={48}
+                      borderWidth={1.5}
+                      borderColor={theme.colors.border}
+                      style={{ marginRight: 12 }}
+                    />
+                    <View style={styles.empInfo}>
+                      <Text style={[styles.empName, { color: theme.colors.text }]}>
+                        {emp.firstName} {emp.lastName}
+                      </Text>
+                      <Text style={[styles.empRole, { color: theme.colors.textSecondary }]}>
+                        {getDesigName(emp.designation, (emp as any).position)} •{' '}
+                        {getDeptName(emp.department)}
+                      </Text>
+                      <Text style={[styles.empCode, { color: theme.colors.textMuted }]}>
+                        {emp.employeeCode} • {emp.email}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.statusPill,
+                        isActive ? styles.statusActive : styles.statusInactive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusPillText,
+                          { color: isActive ? '#15803D' : '#DC2626' },
+                        ]}
+                      >
+                        {statusUpper}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              </View>
-            ))
+              );
+            })
           )}
         </ScrollView>
       )}
-      <AppBottomNav activeRoute="HrAdminHome" />
+      <AppBottomNav activeRoute="EmployeeDirectory" />
     </View>
   );
 };
@@ -184,7 +278,6 @@ export const EmployeeDirectoryScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAF8',
   },
   header: {
     flexDirection: 'row',
@@ -193,63 +286,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 16,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   backButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  backButtonText: {
-    fontSize: 20,
-    color: '#0F172A',
-    fontWeight: '600',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F172A',
-  },
-  placeholder: {
-    width: 36,
   },
   searchBar: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  searchInput: {
+  searchBoxInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+  },
+  searchInput: {
+    flex: 1,
     fontSize: 14,
-    color: '#0F172A',
+    height: 44,
   },
   filterScroll: {
     paddingHorizontal: 16,
     paddingVertical: 10,
     gap: 8,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   filterChip: {
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: '#F1F5F9',
   },
   filterChipActive: {
     backgroundColor: '#DCFCE7',
   },
   filterChipText: {
     fontSize: 12.5,
-    color: '#64748B',
     fontWeight: '500',
   },
   filterChipTextActive: {
@@ -263,10 +344,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+    paddingBottom: 32,
   },
   countText: {
     fontSize: 13,
-    color: '#64748B',
     marginBottom: 12,
     fontWeight: '600',
   },
@@ -276,50 +357,31 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: '#94A3B8',
   },
   empCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   empRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#E0E7FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  avatarText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#4338CA',
-  },
   empInfo: {
     flex: 1,
+    paddingRight: 8,
   },
   empName: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
   },
   empRole: {
     fontSize: 12,
-    color: '#64748B',
     marginTop: 2,
   },
   empCode: {
     fontSize: 11,
-    color: '#94A3B8',
     marginTop: 2,
   },
   statusPill: {
@@ -336,6 +398,5 @@ const styles = StyleSheet.create({
   statusPillText: {
     fontSize: 10.5,
     fontWeight: '700',
-    color: '#0F172A',
   },
 });

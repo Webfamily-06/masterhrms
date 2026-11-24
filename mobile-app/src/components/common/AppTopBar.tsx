@@ -8,12 +8,13 @@ import {
   StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowLeft, Bell } from 'lucide-react-native';
+import { ArrowLeft, Bell, Moon, Sun } from 'lucide-react-native';
 import { Text } from './Text';
+import { UserAvatar } from './UserAvatar';
 import { PersonaSwitcher } from '../../modules/navigation/PersonaSwitcher';
 import { useTenantStore } from '../../store/tenantStore';
 import { useAuthStore } from '../../store/authStore';
-import { Config } from '../../config/environment';
+import { useTheme } from '../../app/providers/ThemeProvider';
 
 const logoSource = require('../../assets/images/logo.webp');
 
@@ -26,6 +27,7 @@ export interface AppTopBarProps {
   showNotifications?: boolean;
   showPersonaSwitcher?: boolean;
   showProfileAvatar?: boolean;
+  showThemeToggle?: boolean;
   rightAction?: React.ReactNode;
 }
 
@@ -38,30 +40,14 @@ export const AppTopBar: React.FC<AppTopBarProps> = ({
   showNotifications = true,
   showPersonaSwitcher = true,
   showProfileAvatar = true,
+  showThemeToggle = true,
   rightAction,
 }) => {
   const navigation = useNavigation<any>();
   const currentTenant = useTenantStore((s) => s.currentTenant);
   const user = useAuthStore((s) => s.user);
+  const { theme, toggleTheme } = useTheme();
   const effectiveSubtitle = subtitle || currentTenant?.name || 'MasterHRMS';
-
-  const avatarUri = React.useMemo(() => {
-    const raw =
-      user?.profile?.avatarUrl ||
-      (user?.profile as any)?.avatar ||
-      (user as any)?.avatarUrl;
-    if (raw) {
-      let trimmed = raw.trim();
-      if (trimmed.includes('api.dicebear.com') && trimmed.includes('/svg?')) {
-        trimmed = trimmed.replace('/svg?', '/png?');
-      }
-      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
-      if (trimmed.startsWith('/')) return `${Config.API_BASE_URL}${trimmed}`;
-      if (trimmed.startsWith('uploads/')) return `${Config.API_BASE_URL}/${trimmed}`;
-    }
-    const seed = encodeURIComponent(user?.profile?.fullName || user?.email || 'user');
-    return `https://api.dicebear.com/7.x/avataaars/png?seed=${seed}&backgroundColor=4f46e5`;
-  }, [user]);
 
   const handleBack = () => {
     if (onBack) {
@@ -76,10 +62,17 @@ export const AppTopBar: React.FC<AppTopBarProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        theme.isDark && {
+          backgroundColor: '#0F172A',
+          borderBottomColor: theme.colors.border,
+        },
+      ]}
+    >
       <StatusBar barStyle="light-content" />
       <View style={styles.content}>
-        {/* Left Section: Back button and/or Logo & Title */}
         <View style={styles.leftSection}>
           {showBack && (
             <TouchableOpacity
@@ -109,9 +102,24 @@ export const AppTopBar: React.FC<AppTopBarProps> = ({
           </View>
         </View>
 
-        {/* Right Section: Persona Switcher, Notifications, Custom Actions */}
         <View style={styles.rightSection}>
           {showPersonaSwitcher && <PersonaSwitcher />}
+
+          {showThemeToggle && (
+            <TouchableOpacity
+              onPress={toggleTheme}
+              style={styles.actionBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Toggle dark mode"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              {theme.isDark ? (
+                <Sun size={18} color="#FBBF24" strokeWidth={2.2} />
+              ) : (
+                <Moon size={18} color="#FFFFFF" strokeWidth={2.2} />
+              )}
+            </TouchableOpacity>
+          )}
 
           {showNotifications && (
             <TouchableOpacity
@@ -129,12 +137,16 @@ export const AppTopBar: React.FC<AppTopBarProps> = ({
           {showProfileAvatar && (
             <TouchableOpacity
               onPress={() => navigation.navigate('Profile')}
-              style={styles.topBarAvatarBtn}
               accessibilityRole="button"
               accessibilityLabel="Profile"
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <Image source={{ uri: avatarUri }} style={styles.topBarAvatarImg} resizeMode="cover" />
+              <UserAvatar
+                entity={user}
+                size={36}
+                borderWidth={1.5}
+                borderColor="rgba(255, 255, 255, 0.45)"
+              />
             </TouchableOpacity>
           )}
 
@@ -202,9 +214,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -212,27 +224,13 @@ const styles = StyleSheet.create({
   },
   unreadDot: {
     position: 'absolute',
-    top: 9,
-    right: 9,
+    top: 8,
+    right: 8,
     width: 7,
     height: 7,
     borderRadius: 3.5,
     backgroundColor: '#EF4444',
     borderWidth: 1.5,
     borderColor: '#1E1B4B',
-  },
-  topBarAvatarBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    overflow: 'hidden',
-    backgroundColor: '#312E81',
-  },
-  topBarAvatarImg: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 18,
   },
 });

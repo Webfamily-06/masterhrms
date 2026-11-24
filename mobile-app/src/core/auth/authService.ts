@@ -6,6 +6,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useTenantStore } from '../../store/tenantStore';
 import { queryClient } from '../../app/providers/queryClient';
 import { PushNotificationService } from '../services/pushNotificationService';
+import { BiometricService } from './biometricService';
 import {
   LoginResult,
   LoginResponseSuccess,
@@ -84,6 +85,12 @@ export class AuthService {
         sessionId: successData.sessionId,
         refreshToken: successData.refreshToken,
       });
+
+      // Persist encrypted credentials for Fingerprint / Face ID unlock across sign-outs
+      await BiometricService.saveBiometricCredentials(
+        credentials.email.trim().toLowerCase(),
+        credentials.password
+      );
 
       // Automatically hydrate tenant based on login details
       const tenantId = successData.user?.profile?.tenantId;
@@ -246,6 +253,17 @@ export class AuthService {
       const activeSessionId = await secureStorage.getItem(STORAGE_KEYS.SESSION_ID);
 
       if (!activeRefreshToken || !activeSessionId) {
+        // Fallback to SecureStore biometric-linked credentials if user previously signed out
+        const savedCreds = await BiometricService.getSavedBiometricCredentials();
+        if (savedCreds?.email && savedCreds?.password) {
+          const loginRes = await this.login({
+            email: savedCreds.email,
+            password: savedCreds.password,
+          });
+          if ('user' in loginRes && loginRes.user) {
+            return { success: true, user: loginRes.user };
+          }
+        }
         throw new Error('No saved biometric session found. Please sign in with your email and password first.');
       }
 

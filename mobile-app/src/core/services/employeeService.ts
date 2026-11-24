@@ -33,6 +33,7 @@ export interface EmployeeProfile {
   bloodGroup?: string | null;
   gender?: string | null;
   address?: string | null;
+  avatarUrl?: string | null;
 }
 
 export interface EmployeeDocument {

@@ -8,10 +8,12 @@ import {
   Image,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
-import { User } from 'lucide-react-native';
+import { Moon, Sun } from 'lucide-react-native';
 import { AppBottomNav } from '../../../components/common/AppBottomNav';
+import { UserAvatar } from '../../../components/common/UserAvatar';
 import { useAuthStore } from '../../../store/authStore';
 import { useTenantStore } from '../../../store/tenantStore';
+import { useTheme } from '../../../app/providers/ThemeProvider';
 import { PersonaSwitcher } from '../../navigation/PersonaSwitcher';
 import { usePermission } from '../../../hooks/usePermission';
 import { ManagerService, TeamApprovals, TeamMember } from '../../../core/services/managerService';
@@ -28,6 +30,7 @@ export const ManagerDashboardScreen: React.FC = () => {
   const setActiveRole = useAuthStore((state) => state.setActiveRole);
   const logout = useAuthStore((state) => state.logout);
   const { canAccessModule } = usePermission();
+  const { theme, toggleTheme } = useTheme();
 
   const [refreshing, setRefreshing] = useState(false);
   const [team, setTeam] = useState<TeamMember[]>([]);
@@ -62,31 +65,66 @@ export const ManagerDashboardScreen: React.FC = () => {
 
   const managerName = user?.profile?.fullName || user?.email?.split('@')[0] || 'Manager';
   const totalPending = approvals.leaves.length + approvals.regularizations.length;
+  const cardTheme = theme.isDark
+    ? { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }
+    : undefined;
+  const textPrimary = theme.isDark ? { color: theme.colors.text } : undefined;
+  const textSecondary = theme.isDark ? { color: theme.colors.textSecondary } : undefined;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.mintGlow} pointerEvents="none" />
-      <View style={styles.yellowGlow} pointerEvents="none" />
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {!theme.isDark && <View style={styles.mintGlow} pointerEvents="none" />}
+      {!theme.isDark && <View style={styles.yellowGlow} pointerEvents="none" />}
 
       {/* Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          theme.isDark && {
+            backgroundColor: theme.colors.surface,
+            borderBottomColor: theme.colors.border,
+          },
+        ]}
+      >
         <View style={styles.brandRow}>
           <Image source={logoSource} style={styles.logo} resizeMode="contain" />
           <View style={styles.headerRightActions}>
             <PersonaSwitcher />
             <TouchableOpacity
-              onPress={() => navigation.navigate('Profile')}
-              style={styles.profileBtn}
+              onPress={toggleTheme}
+              style={[
+                styles.profileBtn,
+                theme.isDark && { backgroundColor: theme.colors.surfaceSecondary },
+              ]}
               accessibilityRole="button"
+              accessibilityLabel="Toggle dark mode"
             >
-              <User size={18} color="#0F172A" strokeWidth={2.2} />
+              {theme.isDark ? (
+                <Sun size={18} color="#FBBF24" strokeWidth={2.2} />
+              ) : (
+                <Moon size={18} color="#0F172A" strokeWidth={2.2} />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Profile')}
+              accessibilityRole="button"
+              accessibilityLabel="Profile"
+            >
+              <UserAvatar
+                entity={user}
+                name={managerName}
+                email={user?.email}
+                size={38}
+                borderWidth={1.5}
+                borderColor="#4F46E5"
+              />
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.greetingSection}>
-          <Text style={styles.greetingSub}>{currentTenant?.name || 'Workspace'}</Text>
-          <Text style={styles.greetingTitle}>Team Overview — {managerName}</Text>
+          <Text style={[styles.greetingSub, textSecondary]}>{currentTenant?.name || 'Workspace'}</Text>
+          <Text style={[styles.greetingTitle, textPrimary]}>Team Overview — {managerName}</Text>
         </View>
       </View>
 
@@ -97,12 +135,12 @@ export const ManagerDashboardScreen: React.FC = () => {
       >
         {/* Team Attendance Snapshot */}
         <TouchableOpacity
-          style={styles.card}
+          style={[styles.card, cardTheme]}
           activeOpacity={0.85}
           onPress={() => navigation.navigate('TeamAttendance')}
         >
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Today's Team Attendance</Text>
+            <Text style={[styles.cardTitle, textPrimary]}>Today's Team Attendance</Text>
             <Text style={styles.viewAllText}>View All ({team.length}) →</Text>
           </View>
           <View style={styles.metricsRow}>
@@ -125,12 +163,12 @@ export const ManagerDashboardScreen: React.FC = () => {
 
         {/* Pending Approvals */}
         <TouchableOpacity
-          style={styles.card}
+          style={[styles.card, cardTheme]}
           activeOpacity={0.85}
           onPress={() => navigation.navigate('TeamApprovals')}
         >
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Pending Approvals</Text>
+            <Text style={[styles.cardTitle, textPrimary]}>Pending Approvals</Text>
             <View style={styles.badgeCount}>
               <Text style={styles.badgeCountText}>
                 {totalPending > 0 ? `${totalPending} Pending` : 'All Clear'}
@@ -160,15 +198,15 @@ export const ManagerDashboardScreen: React.FC = () => {
         {/* Team Projects (if enabled) */}
         {canAccessModule('project') ? (
           <TouchableOpacity
-            style={styles.card}
+            style={[styles.card, cardTheme]}
             activeOpacity={0.85}
             onPress={() => navigation.navigate('TeamProjects')}
           >
             <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Team Active Projects</Text>
+              <Text style={[styles.cardTitle, textPrimary]}>Team Active Projects</Text>
               <Text style={styles.viewAllText}>View Details →</Text>
             </View>
-            <Text style={styles.moduleDetail}>Sprint Cycle 4 — 85% completed</Text>
+            <Text style={[styles.moduleDetail, textSecondary]}>Sprint Cycle 4 — 85% completed</Text>
           </TouchableOpacity>
         ) : null}
 

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react-native';
 import { Text } from './Text';
 import { useAuthStore } from '../../store/authStore';
+import { useTheme } from '../../app/providers/ThemeProvider';
 
 export interface AppBottomNavProps {
   activeRoute?: string;
@@ -38,6 +39,7 @@ interface NavTabItem {
 export const AppBottomNav: React.FC<AppBottomNavProps> = ({ activeRoute }) => {
   const navigation = useNavigation<any>();
   const activeRole = useAuthStore((s) => s.activeRole);
+  const { theme } = useTheme();
 
   const getTabsForRole = (): NavTabItem[] => {
     switch (activeRole as string | null) {
@@ -63,9 +65,9 @@ export const AppBottomNav: React.FC<AppBottomNavProps> = ({ activeRoute }) => {
         return [
           { key: 'TenantAdminHome', label: 'Home', route: 'TenantAdminHome', icon: LayoutDashboard },
           { key: 'ChatConversations', label: 'Chat', route: 'ChatConversations', icon: MessageSquare },
-          { key: 'UserAccess', label: 'Users', route: 'UserAccess', icon: Users },
+          { key: 'EmployeeDirectory', label: 'Employees', route: 'EmployeeDirectory', icon: Users },
           { key: 'SecurityOverview', label: 'Security', route: 'SecurityOverview', icon: ShieldCheck },
-          { key: 'WorkspaceSettings', label: 'Settings', route: 'WorkspaceSettings', icon: Settings },
+          { key: 'Settings', label: 'Settings', route: 'Settings', icon: Settings },
         ];
       case 'super_admin':
         return [
@@ -97,13 +99,23 @@ export const AppBottomNav: React.FC<AppBottomNavProps> = ({ activeRoute }) => {
     }
   };
 
+  const inactiveColor = theme.isDark ? '#9CA3AF' : '#64748B';
+
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.colors.surface,
+          borderTopColor: theme.colors.border,
+        },
+      ]}
+    >
       <View style={styles.tabBar}>
         {tabs.map((tab) => {
           const isActive = activeRoute === tab.key || activeRoute === tab.route;
           const IconComponent = tab.icon;
-          const color = isActive ? '#FF6B00' : '#64748B';
+          const color = isActive ? '#FF6B00' : inactiveColor;
 
           return (
             <TouchableOpacity
