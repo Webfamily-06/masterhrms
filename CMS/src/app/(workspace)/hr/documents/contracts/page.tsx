@@ -1,30 +1,18 @@
-'use client';
+"use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, unwrapArray } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -34,1466 +22,1146 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import {
-  FileSignature,
   Plus,
-  Calendar,
-  DollarSign,
-  RefreshCw,
-  Clock,
-  AlertTriangle,
-  AlertCircle,
-  CheckCircle2,
-  FileText,
-  Building2,
-  UserCheck,
-  Briefcase,
-  Layers,
-  Settings2,
-  ExternalLink,
-  Receipt,
-  XCircle,
-  FileEdit,
   Search,
+  Filter,
+  ArrowUpDown,
+  CheckCircle2,
+  Clock,
+  FileText,
+  MoreHorizontal,
+  Eye,
+  Edit,
+  RefreshCw,
+  Trash2,
+  LayoutGrid,
+  AlertCircle,
+  XCircle,
+  RotateCcw,
 } from "lucide-react";
 
-const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
-  direct_contract: { label: "Direct Contract", color: "bg-blue-100 text-blue-800 border-blue-200" },
-  vendor_outsourced: { label: "Vendor / Outsourced", color: "bg-purple-100 text-purple-800 border-purple-200" },
-  consultant_freelancer: { label: "Consultant / Freelancer", color: "bg-amber-100 text-amber-800 border-amber-200" },
-  temporary: { label: "Temporary Staff", color: "bg-teal-100 text-teal-800 border-teal-200" },
-  intern: { label: "Intern / Trainee", color: "bg-emerald-100 text-emerald-800 border-emerald-200" },
-  permanent: { label: "Permanent Staff", color: "bg-gray-100 text-gray-800 border-gray-200" },
-};
+interface ContractTypeOption {
+  id: string;
+  name: string;
+}
+
+interface EmployeeOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+}
+
+interface EmployeeContractItem {
+  id: string;
+  contractNumber: string;
+  contractTypeId?: string | null;
+  contractType?: { id: string; name: string } | null;
+  title: string;
+  employeeId: string;
+  employee?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email?: string;
+    employeeCode?: string;
+    avatarUrl?: string | null;
+  } | null;
+  startDate: string;
+  endDate?: string;
+  salary: number;
+  notes?: string;
+  status: string;
+  approvedAt?: string;
+  approvedByName?: string;
+  createdAt?: string;
+}
+
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(amount) || 0);
+}
+
+function computeDurationInfo(startDate?: string, endDate?: string, status?: string) {
+  if (!startDate) {
+    return { label: "Indefinite", range: "-", percent: 0, isExpired: false };
+  }
+  const start = new Date(startDate);
+  if (Number.isNaN(start.getTime())) {
+    return { label: "-", range: startDate, percent: 0, isExpired: false };
+  }
+  if (!endDate) {
+    return {
+      label: "Permanent",
+      range: `${startDate} — Present`,
+      percent: 100,
+      isExpired: String(status).toLowerCase() === "expired",
+    };
+  }
+  const end = new Date(endDate);
+  if (Number.isNaN(end.getTime()) || end <= start) {
+    return {
+      label: "0 Months",
+      range: `${startDate} — ${endDate}`,
+      percent: 100,
+      isExpired: true,
+    };
+  }
+
+  // Human-readable years & months
+  let totalMonths =
+    (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+  if (end.getDate() >= start.getDate() + 15) {
+    totalMonths += 1;
+  }
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+  let label = "";
+  if (years > 0 && months > 0) {
+    label = `${years} ${years === 1 ? "Year" : "Years"} ${months} ${
+      months === 1 ? "Month" : "Months"
+    }`;
+  } else if (years > 0) {
+    label = `${years} ${years === 1 ? "Year" : "Years"}`;
+  } else if (months > 0) {
+    label = `${months} ${months === 1 ? "Month" : "Months"}`;
+  } else {
+    const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+    label = `${days} ${days === 1 ? "Day" : "Days"}`;
+  }
+
+  const now = Date.now();
+  const totalMs = end.getTime() - start.getTime();
+  const elapsedMs = now - start.getTime();
+  const percent = Math.max(0, Math.min(100, Math.round((elapsedMs / totalMs) * 100)));
+  const isExpired =
+    String(status).toLowerCase() === "expired" ||
+    String(status).toLowerCase() === "terminated" ||
+    now > end.getTime();
+
+  return {
+    label,
+    range: `${startDate} — ${endDate}`,
+    percent,
+    isExpired,
+  };
+}
+
+function ContractStatusBadge({ status }: { status: string }) {
+  const s = String(status || "active").toLowerCase();
+  const styles: Record<string, string> = {
+    active: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+    expired: "bg-rose-500/10 text-rose-600 border-rose-500/20",
+    terminated: "bg-rose-500/10 text-rose-600 border-rose-500/20",
+    pending: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+    draft: "bg-slate-500/10 text-slate-600 border-slate-500/20",
+    renewed: "bg-sky-500/10 text-sky-600 border-sky-500/20",
+  };
+  const label = s.charAt(0).toUpperCase() + s.slice(1);
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+        styles[s] || styles.draft
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
 
 export default function HrEmployeeContractsPage() {
   const queryClient = useQueryClient();
 
-  // Dialog Controls
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isRenewOpen, setIsRenewOpen] = useState(false);
-  const [isConvertOpen, setIsConvertOpen] = useState(false);
-  const [isAmendOpen, setIsAmendOpen] = useState(false);
-  const [isTerminateOpen, setIsTerminateOpen] = useState(false);
-  const [isVoucherOpen, setIsVoucherOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [selectedType, setSelectedType] = useState("all");
+  const [selectedEmployee, setSelectedEmployee] = useState("all");
+  const [activeTab, setActiveTab] = useState<
+    "all" | "draft" | "pending" | "active" | "expired" | "terminated" | "renewed"
+  >("all");
+  const [sortBy, setSortBy] = useState<"contractNumber" | "duration">("contractNumber");
+  const [sortAsc, setSortAsc] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  const [selectedContract, setSelectedContract] = useState<any>(null);
+  // Modals
+  const [formOpen, setFormOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<EmployeeContractItem | null>(null);
+  const [viewTarget, setViewTarget] = useState<EmployeeContractItem | null>(null);
+  const [statusTarget, setStatusTarget] = useState<EmployeeContractItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<EmployeeContractItem | null>(null);
 
-  // Filters & Navigation
-  const [activeCategoryTab, setActiveCategoryTab] = useState<string>("ALL");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [workflowFilter, setWorkflowFilter] = useState<string>("ALL");
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  // Form fields
+  const [formEmpId, setFormEmpId] = useState("");
+  const [formTypeId, setFormTypeId] = useState("");
+  const [formStartDate, setFormStartDate] = useState("");
+  const [formEndDate, setFormEndDate] = useState("");
+  const [formSalary, setFormSalary] = useState("");
+  const [formNotes, setFormNotes] = useState("");
+  const [nextStatus, setNextStatus] = useState("active");
 
-  // Create Contract Form State
-  const [formData, setFormData] = useState({
-    employeeId: "",
-    contractNumber: "",
-    contractTypeId: "",
-    category: "direct_contract",
-    paymentWorkflow: "PAYROLL",
-    supplierId: "",
-    title: "",
-    startDate: new Date().toISOString().split("T")[0],
-    endDate: "",
-    salary: 60000,
-    hourlyRate: 0,
-    billingFrequency: "monthly",
-    noticePeriodDays: 30,
-    autoRenew: false,
-    notes: "",
-  });
-
-  // Renewal Form State
-  const [renewalData, setRenewalData] = useState({
-    startDate: "",
-    endDate: "",
-    title: "",
-    contractTypeId: "",
-    salary: 60000,
-    hourlyRate: 0,
-    billingFrequency: "monthly",
-    category: "",
-    paymentWorkflow: "",
-    supplierId: "",
-    notes: "",
-  });
-
-  // Convert to Permanent Form State
-  const [convertData, setConvertData] = useState({
-    salary: 60000,
-    notes: "Conversion to permanent employment based on contract performance review.",
-  });
-
-  // Amend Form State
-  const [amendData, setAmendData] = useState({
-    endDate: "",
-    salary: 60000,
-    hourlyRate: 0,
-    title: "",
-    notes: "",
-  });
-
-  // Terminate Form State
-  const [terminateData, setTerminateData] = useState({
-    reason: "Contract term concluded by operational mutual agreement.",
-  });
-
-  // AP Voucher Form State (Workflow B)
-  const [voucherData, setVoucherData] = useState({
-    period: new Date().toISOString().slice(0, 7),
-    amount: 50000,
-    invoiceNumber: "",
-    notes: "",
-  });
-
-  // Settings Form State
-  const [settingsData, setSettingsData] = useState({
-    reminderIntervals: [60, 30, 15, 7],
-    notifyEmployee: true,
-    notifyHR: true,
-    notifyManager: true,
-    escalationDays: 7,
-  });
-
-  // Queries
-  const { data: overview } = useQuery({
-    queryKey: ["hr-employee-contracts-overview"],
-    queryFn: async () => {
-      try {
-        const res = await api.get("/hr/documents/contracts/overview");
-        return res.data;
-      } catch (e) {
-        return null;
-      }
-    },
-  });
-
-  const { data: contracts = [], isLoading } = useQuery({
+  const { data: contracts = [], isLoading } = useQuery<EmployeeContractItem[]>({
     queryKey: ["hr-employee-contracts"],
     queryFn: async () => {
       const res = await api.get("/hr/documents/contracts");
-      return res.data;
+      return unwrapArray<EmployeeContractItem>(res);
     },
   });
 
-  const { data: contractTypes = [] } = useQuery({
-    queryKey: ["hr-contract-types-picker"],
+  const { data: contractTypes = [] } = useQuery<ContractTypeOption[]>({
+    queryKey: ["hr-contract-types-for-contracts"],
     queryFn: async () => {
       const res = await api.get("/hr/documents/contract-types");
-      return res.data;
+      return unwrapArray<ContractTypeOption>(res);
     },
   });
 
-  const { data: employees = [] } = useQuery({
-    queryKey: ["hr-employees-picker-contracts"],
+  const { data: employees = [] } = useQuery<EmployeeOption[]>({
+    queryKey: ["hr-employees-for-contracts"],
     queryFn: async () => {
-      const res = await api.get("/hr/employees");
-      return res.data?.items || res.data || [];
+      const res = await api.get("/hr/employees?limit=500");
+      return unwrapArray<EmployeeOption>(res);
     },
   });
 
-  const { data: vendors = [] } = useQuery({
-    queryKey: ["hr-vendors-picker-contracts"],
-    queryFn: async () => {
-      try {
-        const res = await api.get("/hr/documents/contracts/vendors");
-        return res.data || [];
-      } catch (e) {
-        return [];
+  const saveMutation = useMutation({
+    mutationFn: async (payload: {
+      id?: string;
+      employeeId: string;
+      contractTypeId?: string;
+      startDate: string;
+      endDate?: string;
+      salary: number;
+      notes?: string;
+    }) => {
+      if (payload.id) {
+        return api.put(`/hr/documents/contracts/${payload.id}`, payload);
       }
-    },
-  });
-
-  const { data: savedSettings } = useQuery({
-    queryKey: ["hr-contracts-settings"],
-    queryFn: async () => {
-      try {
-        const res = await api.get("/hr/documents/contracts/settings");
-        return res.data;
-      } catch (e) {
-        return null;
-      }
-    },
-  });
-
-  // Mutations
-  const createMutation = useMutation({
-    mutationFn: async (payload: any) => {
-      const res = await api.post("/hr/documents/contracts", payload);
-      return res.data;
+      return api.post("/hr/documents/contracts", payload);
     },
     onSuccess: () => {
-      toast.success("Employee contract issued successfully");
       queryClient.invalidateQueries({ queryKey: ["hr-employee-contracts"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-employee-contracts-overview"] });
-      setIsModalOpen(false);
-      setFormData({
-        employeeId: "",
-        contractNumber: "",
-        contractTypeId: "",
-        category: "direct_contract",
-        paymentWorkflow: "PAYROLL",
-        supplierId: "",
-        title: "",
-        startDate: new Date().toISOString().split("T")[0],
-        endDate: "",
-        salary: 60000,
-        hourlyRate: 0,
-        billingFrequency: "monthly",
-        noticePeriodDays: 30,
-        autoRenew: false,
-        notes: "",
-      });
+      toast.success(editTarget ? "Contract updated." : "Contract created.");
+      setFormOpen(false);
+      setEditTarget(null);
+      resetForm();
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to create contract");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to save contract.");
     },
   });
 
-  const renewMutation = useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: any }) => {
-      const res = await api.post(`/hr/documents/contracts/${id}/renew`, payload);
-      return res.data;
+  const statusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      return api.patch(`/hr/documents/contracts/${id}/status`, { status });
     },
     onSuccess: () => {
-      toast.success("Contract renewed successfully. Predecessor contract archived.");
       queryClient.invalidateQueries({ queryKey: ["hr-employee-contracts"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-employee-contracts-overview"] });
-      setIsRenewOpen(false);
-      setSelectedContract(null);
+      toast.success("Contract status updated.");
+      setStatusTarget(null);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to renew contract");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to update status.");
     },
   });
 
-  const convertMutation = useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: any }) => {
-      const res = await api.post(`/hr/documents/contracts/${id}/convert`, payload);
-      return res.data;
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return api.delete(`/hr/documents/contracts/${id}`);
     },
     onSuccess: () => {
-      toast.success("Worker successfully converted to permanent statutory employment!");
       queryClient.invalidateQueries({ queryKey: ["hr-employee-contracts"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-employee-contracts-overview"] });
-      setIsConvertOpen(false);
-      setSelectedContract(null);
+      toast.success("Contract deleted.");
+      setDeleteTarget(null);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to convert contract");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to delete contract.");
     },
   });
 
-  const amendMutation = useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: any }) => {
-      const res = await api.post(`/hr/documents/contracts/${id}/amend`, payload);
-      return res.data;
-    },
-    onSuccess: () => {
-      toast.success("Contract amended successfully with incremented amendment number.");
-      queryClient.invalidateQueries({ queryKey: ["hr-employee-contracts"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-employee-contracts-overview"] });
-      setIsAmendOpen(false);
-      setSelectedContract(null);
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to amend contract");
-    },
-  });
+  function resetForm() {
+    setFormEmpId("");
+    setFormTypeId("");
+    setFormStartDate("");
+    setFormEndDate("");
+    setFormSalary("");
+    setFormNotes("");
+  }
 
-  const terminateMutation = useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: any }) => {
-      const res = await api.post(`/hr/documents/contracts/${id}/terminate`, payload);
-      return res.data;
-    },
-    onSuccess: () => {
-      toast.success("Contract concluded and marked terminated.");
-      queryClient.invalidateQueries({ queryKey: ["hr-employee-contracts"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-employee-contracts-overview"] });
-      setIsTerminateOpen(false);
-      setSelectedContract(null);
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to terminate contract");
-    },
-  });
+  function openAdd() {
+    resetForm();
+    setEditTarget(null);
+    setFormOpen(true);
+  }
 
-  const voucherMutation = useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: any }) => {
-      const res = await api.post(`/hr/documents/contracts/${id}/payable-voucher`, payload);
-      return res.data;
-    },
-    onSuccess: (data: any) => {
-      toast.success(`Accounts Payable Voucher ${data.invoiceNo} generated successfully for Vendor!`);
-      queryClient.invalidateQueries({ queryKey: ["hr-employee-contracts"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-employee-contracts-overview"] });
-      setIsVoucherOpen(false);
-      setSelectedContract(null);
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to generate payable voucher");
-    },
-  });
+  function openEdit(c: EmployeeContractItem) {
+    setEditTarget(c);
+    setFormEmpId(c.employeeId || c.employee?.id || "");
+    setFormTypeId(c.contractTypeId || c.contractType?.id || "");
+    setFormStartDate(c.startDate || "");
+    setFormEndDate(c.endDate || "");
+    setFormSalary(c.salary !== undefined && c.salary !== null ? String(c.salary) : "");
+    setFormNotes(c.notes || "");
+    setFormOpen(true);
+  }
 
-  const settingsMutation = useMutation({
-    mutationFn: async (payload: any) => {
-      const res = await api.put("/hr/documents/contracts/settings", payload);
-      return res.data;
-    },
-    onSuccess: () => {
-      toast.success("Contract expiry reminder configuration saved.");
-      queryClient.invalidateQueries({ queryKey: ["hr-contracts-settings"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-employee-contracts-overview"] });
-      setIsSettingsOpen(false);
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to save settings");
-    },
-  });
+  function handleResetFilters() {
+    setSearch("");
+    setSelectedType("all");
+    setSelectedEmployee("all");
+    setActiveTab("all");
+    setPage(1);
+  }
 
-  // Open Handlers
-  const openRenewalDialog = (contract: any) => {
-    setSelectedContract(contract);
-    let defaultStart = new Date().toISOString().split("T")[0];
-    if (contract.endDate) {
-      const end = new Date(contract.endDate);
-      end.setDate(end.getDate() + 1);
-      defaultStart = end.toISOString().split("T")[0];
-    }
-    setRenewalData({
-      startDate: defaultStart,
-      endDate: "",
-      title: `${contract.title} (Renewed)`,
-      contractTypeId: contract.contractTypeId || "",
-      salary: Number(contract.salary || 60000),
-      hourlyRate: Number(contract.hourlyRate || 0),
-      billingFrequency: contract.billingFrequency || "monthly",
-      category: contract.category || "direct_contract",
-      paymentWorkflow: contract.paymentWorkflow || "PAYROLL",
-      supplierId: contract.supplierId || "",
-      notes: `Renewal of contract ${contract.title}`,
-    });
-    setIsRenewOpen(true);
-  };
+  // KPI metrics
+  const kpis = useMemo(() => {
+    const now = Date.now();
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    let activeCount = 0;
+    let nearExpireCount = 0;
+    let draftCount = 0;
 
-  const openConvertDialog = (contract: any) => {
-    setSelectedContract(contract);
-    setConvertData({
-      salary: Number(contract.salary || 60000),
-      notes: "Conversion to permanent employment based on contract tenure review.",
-    });
-    setIsConvertOpen(true);
-  };
-
-  const openAmendDialog = (contract: any) => {
-    setSelectedContract(contract);
-    setAmendData({
-      endDate: contract.endDate ? contract.endDate.slice(0, 10) : "",
-      salary: Number(contract.salary || 0),
-      hourlyRate: Number(contract.hourlyRate || 0),
-      title: contract.title,
-      notes: "Contract amendment for revised scope/compensation.",
-    });
-    setIsAmendOpen(true);
-  };
-
-  const openTerminateDialog = (contract: any) => {
-    setSelectedContract(contract);
-    setTerminateData({
-      reason: "Contract term concluded by operational agreement.",
-    });
-    setIsTerminateOpen(true);
-  };
-
-  const openVoucherDialog = (contract: any) => {
-    setSelectedContract(contract);
-    const estAmount = contract.salary ? Number(contract.salary) : 50000;
-    setVoucherData({
-      period: new Date().toISOString().slice(0, 7),
-      amount: estAmount,
-      invoiceNumber: `INV-${contract.contractNumber || contract.id.slice(0, 8)}-${new Date().toISOString().slice(0, 7)}`,
-      notes: `Service voucher for ${contract.employee?.firstName} ${contract.employee?.lastName} (${contract.title})`,
-    });
-    setIsVoucherOpen(true);
-  };
-
-  const openSettingsDialog = () => {
-    if (savedSettings) {
-      setSettingsData({
-        reminderIntervals: savedSettings.reminderIntervals || [60, 30, 15, 7],
-        notifyEmployee: savedSettings.notifyEmployee ?? true,
-        notifyHR: savedSettings.notifyHR ?? true,
-        notifyManager: savedSettings.notifyManager ?? true,
-        escalationDays: savedSettings.escalationDays ?? 7,
-      });
-    }
-    setIsSettingsOpen(true);
-  };
-
-  const now = new Date();
-
-  // Metrics
-  const totalContracts = overview?.metrics?.total ?? contracts.length;
-  const activeContracts = overview?.metrics?.active ?? contracts.filter((c: any) => c.status === "active").length;
-  const expiring30 = overview?.metrics?.expiring30 ?? contracts.filter((c: any) => c.stage === "30_days").length;
-  const expiring60 = overview?.metrics?.expiring60 ?? contracts.filter((c: any) => c.stage === "60_days").length;
-  const apContracts = overview?.byPaymentWorkflow?.accountsPayable ?? contracts.filter((c: any) => c.paymentWorkflow === "ACCOUNTS_PAYABLE").length;
-  const convertedContracts = overview?.metrics?.converted ?? contracts.filter((c: any) => c.status === "converted").length;
-
-  // Filtered List
-  const filteredContracts = contracts.filter((c: any) => {
-    // 1. Category Tab
-    if (activeCategoryTab !== "ALL" && c.category !== activeCategoryTab) {
-      return false;
-    }
-
-    // 2. Status Filter
-    if (statusFilter !== "ALL") {
-      if (statusFilter === "expiring") {
-        if (!c.isExpiringSoon || c.status !== "active") return false;
-      } else if (c.status !== statusFilter) {
-        return false;
+    for (const c of contracts) {
+      const s = String(c.status || "").toLowerCase();
+      if (s === "active") {
+        activeCount += 1;
+        if (c.endDate) {
+          const endMs = new Date(c.endDate).getTime();
+          if (!Number.isNaN(endMs) && endMs >= now && endMs - now <= thirtyDaysMs) {
+            nearExpireCount += 1;
+          }
+        }
+      } else if (s === "draft") {
+        draftCount += 1;
       }
     }
+    return { activeCount, nearExpireCount, draftCount };
+  }, [contracts]);
 
-    // 3. Workflow Filter
-    if (workflowFilter !== "ALL" && c.paymentWorkflow !== workflowFilter) {
-      return false;
-    }
+  const baseFiltered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return contracts.filter((c) => {
+      if (selectedType !== "all" && c.contractTypeId !== selectedType) return false;
+      if (selectedEmployee !== "all" && c.employeeId !== selectedEmployee) return false;
+      if (q) {
+        const empName = c.employee
+          ? `${c.employee.firstName} ${c.employee.lastName}`.toLowerCase()
+          : "";
+        const num = (c.contractNumber || "").toLowerCase();
+        const title = (c.title || c.contractType?.name || "").toLowerCase();
+        const email = (c.employee?.email || "").toLowerCase();
+        if (!empName.includes(q) && !num.includes(q) && !title.includes(q) && !email.includes(q)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [contracts, search, selectedType, selectedEmployee]);
 
-    // 4. Search Query
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      const matchTitle = c.title?.toLowerCase().includes(q);
-      const matchNumber = c.contractNumber?.toLowerCase().includes(q);
-      const matchEmp = `${c.employee?.firstName || ""} ${c.employee?.lastName || ""} ${c.employee?.employeeCode || ""}`.toLowerCase().includes(q);
-      const matchVendor = c.supplier?.name?.toLowerCase().includes(q);
-      if (!matchTitle && !matchNumber && !matchEmp && !matchVendor) {
-        return false;
+  const tabCounts = useMemo(() => {
+    const counts = {
+      all: baseFiltered.length,
+      draft: 0,
+      pending: 0,
+      active: 0,
+      expired: 0,
+      terminated: 0,
+      renewed: 0,
+    };
+    for (const c of baseFiltered) {
+      const s = String(c.status || "active").toLowerCase() as keyof typeof counts;
+      if (s in counts && s !== "all") {
+        counts[s] += 1;
       }
     }
+    return counts;
+  }, [baseFiltered]);
 
-    return true;
-  });
+  const filteredAndSorted = useMemo(() => {
+    const list =
+      activeTab === "all"
+        ? baseFiltered
+        : baseFiltered.filter((c) => String(c.status || "").toLowerCase() === activeTab);
+
+    return [...list].sort((a, b) => {
+      if (sortBy === "duration") {
+        const durA = a.endDate
+          ? new Date(a.endDate).getTime() - new Date(a.startDate).getTime()
+          : Number.MAX_SAFE_INTEGER;
+        const durB = b.endDate
+          ? new Date(b.endDate).getTime() - new Date(b.startDate).getTime()
+          : Number.MAX_SAFE_INTEGER;
+        return sortAsc ? durA - durB : durB - durA;
+      }
+      const cmp = (a.contractNumber || "").localeCompare(b.contractNumber || "");
+      return sortAsc ? cmp : -cmp;
+    });
+  }, [baseFiltered, activeTab, sortBy, sortAsc]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredAndSorted.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const paginated = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filteredAndSorted.slice(start, start + pageSize);
+  }, [filteredAndSorted, safePage, pageSize]);
+
+  function toggleSort(col: "contractNumber" | "duration") {
+    if (sortBy === col) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortBy(col);
+      setSortAsc(false);
+    }
+  }
+
+  function handleFormSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!formEmpId || !formTypeId || !formStartDate || formSalary === "") {
+      toast.error("Please fill all required fields.");
+      return;
+    }
+    saveMutation.mutate({
+      id: editTarget?.id,
+      employeeId: formEmpId,
+      contractTypeId: formTypeId,
+      startDate: formStartDate,
+      endDate: formEndDate || undefined,
+      salary: Number(formSalary),
+      notes: formNotes.trim() || undefined,
+    });
+  }
+
+  const tabs: Array<{
+    key: "all" | "draft" | "pending" | "active" | "expired" | "terminated" | "renewed";
+    label: string;
+    count: number;
+    icon: React.ReactNode;
+  }> = [
+    { key: "all", label: "All", count: tabCounts.all, icon: <LayoutGrid className="h-3.5 w-3.5" /> },
+    { key: "draft", label: "Draft", count: tabCounts.draft, icon: <FileText className="h-3.5 w-3.5" /> },
+    { key: "pending", label: "Pending", count: tabCounts.pending, icon: <Clock className="h-3.5 w-3.5" /> },
+    {
+      key: "active",
+      label: "Active",
+      count: tabCounts.active,
+      icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+    },
+    {
+      key: "expired",
+      label: "Expired",
+      count: tabCounts.expired,
+      icon: <AlertCircle className="h-3.5 w-3.5" />,
+    },
+    {
+      key: "terminated",
+      label: "Terminated",
+      count: tabCounts.terminated,
+      icon: <XCircle className="h-3.5 w-3.5" />,
+    },
+    {
+      key: "renewed",
+      label: "Renewed",
+      count: tabCounts.renewed,
+      icon: <RotateCcw className="h-3.5 w-3.5" />,
+    },
+  ];
+
+  const startIdx = filteredAndSorted.length === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const endIdx = Math.min(safePage * pageSize, filteredAndSorted.length);
 
   return (
-    <div className="space-y-6">
-      {/* PAGE HEADER */}
+    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
       <PageHeader
-        title="Employment Lifecycle & Contract Workforce"
-        description="Comprehensive administration of Direct Contracts, Vendor Personnel, Consultants, Temporary Staff & Interns with automated expiry tracking and dual settlement workflows."
-      >
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={openSettingsDialog} className="gap-2">
-            <Settings2 className="h-4 w-4" /> Expiry Settings
+        title="Employee Contracts"
+        description="Manage employee contracts and monitor expiry dates."
+        actions={
+          <Button
+            onClick={openAdd}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            Add Contract
           </Button>
-          <Button onClick={() => setIsModalOpen(true)} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
-            <Plus className="h-4 w-4" /> Issue Contract
-          </Button>
-        </div>
-      </PageHeader>
+        }
+      />
 
-      {/* KPI STAT CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <StatCard
-          title="Total Workforce Contracts"
-          value={totalContracts.toString()}
-          icon={<FileSignature className="h-5 w-5 text-blue-500" />}
-          description="Active & historical agreements"
-        />
-        <StatCard
-          title="Active Direct & Temp"
-          value={activeContracts.toString()}
-          icon={<CheckCircle2 className="h-5 w-5 text-emerald-500" />}
-          description="In force on Payroll"
-        />
-        <StatCard
-          title="Expiring (≤30 Days)"
-          value={expiring30.toString()}
-          icon={<AlertTriangle className="h-5 w-5 text-amber-500" />}
-          description={`${expiring60} in ≤60 day window`}
-        />
-        <StatCard
-          title="Vendor & AP Workforce"
-          value={apContracts.toString()}
-          icon={<Building2 className="h-5 w-5 text-purple-500" />}
-          description="Workflow B (Accounts Payable)"
-        />
-        <StatCard
-          title="Converted to Permanent"
-          value={convertedContracts.toString()}
-          icon={<UserCheck className="h-5 w-5 text-indigo-500" />}
-          description="Transitioned to full-time staff"
-        />
-      </div>
-
-      {/* MAIN CARD: CATEGORY TABS & FILTER TOOLBAR */}
-      <Card>
-        <CardHeader className="pb-3 border-b">
-          <div className="flex flex-col gap-4">
-            {/* Category Switcher Tabs */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { id: "ALL", label: `All Workforce (${contracts.length})`, icon: Layers },
-                  { id: "direct_contract", label: `Direct Contracts (${overview?.byCategory?.directContract ?? 0})`, icon: Briefcase },
-                  { id: "vendor_outsourced", label: `Vendor / Outsourced (${overview?.byCategory?.vendorOutsourced ?? 0})`, icon: Building2 },
-                  { id: "consultant_freelancer", label: `Consultants (${overview?.byCategory?.consultantFreelancer ?? 0})`, icon: DollarSign },
-                  { id: "temporary", label: `Temporary (${overview?.byCategory?.temporary ?? 0})`, icon: Clock },
-                  { id: "intern", label: `Interns (${overview?.byCategory?.intern ?? 0})`, icon: UserCheck },
-                ].map((tab) => {
-                  const Icon = tab.icon;
-                  const isActive = activeCategoryTab === tab.id;
-                  return (
-                    <Button
-                      key={tab.id}
-                      variant={isActive ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setActiveCategoryTab(tab.id)}
-                      className={`h-9 gap-1.5 text-xs font-medium ${isActive ? "bg-indigo-600 hover:bg-indigo-700 text-white" : ""}`}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                      <span>{tab.label}</span>
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Search and Secondary Filter Controls */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-              <div className="relative w-full sm:w-80">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search employee, contract#, vendor..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-9 text-xs"
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="h-9 w-36 text-xs">
-                    <SelectValue placeholder="Status: All" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Statuses</SelectItem>
-                    <SelectItem value="active">Active Only</SelectItem>
-                    <SelectItem value="expiring">Expiring Soon</SelectItem>
-                    <SelectItem value="expired">Expired</SelectItem>
-                    <SelectItem value="renewed">Renewed</SelectItem>
-                    <SelectItem value="converted">Converted</SelectItem>
-                    <SelectItem value="terminated">Terminated</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select value={workflowFilter} onValueChange={setWorkflowFilter}>
-                  <SelectTrigger className="h-9 w-44 text-xs">
-                    <SelectValue placeholder="Workflow: All" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All Payment Engines</SelectItem>
-                    <SelectItem value="PAYROLL">Workflow A: Payroll</SelectItem>
-                    <SelectItem value="ACCOUNTS_PAYABLE">Workflow B: Accounts Payable</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+      {/* Top 3 KPI Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="rounded-xl border border-border/80 bg-card shadow-xs p-5 flex items-center justify-between">
+          <div className="space-y-1">
+            <div className="text-xs font-medium text-muted-foreground">Active Contract</div>
+            <div className="text-2xl font-bold text-foreground">{kpis.activeCount}</div>
+            <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              Currently running
             </div>
           </div>
-        </CardHeader>
+          <div className="h-11 w-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 flex items-center justify-center">
+            <CheckCircle2 className="h-5 w-5" />
+          </div>
+        </div>
 
-        <CardContent className="pt-4">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Contract / Ref</TableHead>
-                <TableHead>Worker Details</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Agency / Supplier</TableHead>
-                <TableHead>Validity & Timeline</TableHead>
-                <TableHead>Compensation & Engine</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+        <div className="rounded-xl border border-border/80 bg-card shadow-xs p-5 flex items-center justify-between">
+          <div className="space-y-1">
+            <div className="text-xs font-medium text-muted-foreground">Contract Near Expire</div>
+            <div className="text-2xl font-bold text-foreground">{kpis.nearExpireCount}</div>
+            <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="h-2 w-2 rounded-full bg-amber-500" />
+              Expiring within 30 days
+            </div>
+          </div>
+          <div className="h-11 w-11 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 flex items-center justify-center">
+            <Clock className="h-5 w-5" />
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border/80 bg-card shadow-xs p-5 flex items-center justify-between">
+          <div className="space-y-1">
+            <div className="text-xs font-medium text-muted-foreground">Draft Contract</div>
+            <div className="text-2xl font-bold text-foreground">{kpis.draftCount}</div>
+            <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="h-2 w-2 rounded-full bg-slate-400" />
+              Pending approval
+            </div>
+          </div>
+          <div className="h-11 w-11 rounded-xl bg-slate-500/10 border border-slate-500/20 text-slate-600 flex items-center justify-center">
+            <FileText className="h-5 w-5" />
+          </div>
+        </div>
+      </div>
+
+      {/* Filter Card + Status Tabs */}
+      <div className="rounded-xl border border-border/80 bg-card shadow-xs overflow-hidden">
+        <div className="p-4 flex flex-wrap items-center gap-3 border-b border-border/60">
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
+            <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+            <Input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search..."
+              className="pl-9 h-9"
+            />
+          </div>
+
+          <Select
+            value={selectedType}
+            onValueChange={(v) => {
+              setSelectedType(v);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[180px] h-9">
+              <SelectValue placeholder="All Types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {contractTypes.map((ct) => (
+                <SelectItem key={ct.id} value={ct.id}>
+                  {ct.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={selectedEmployee}
+            onValueChange={(v) => {
+              setSelectedEmployee(v);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[190px] h-9">
+              <SelectValue placeholder="All Employees" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Employees</SelectItem>
+              {employees.map((emp) => (
+                <SelectItem key={emp.id} value={emp.id}>
+                  {`${emp.firstName} ${emp.lastName}`.trim()}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="ml-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetFilters}
+              className="h-9 gap-1.5"
+            >
+              <Filter className="h-3.5 w-3.5" />
+              Filters
+            </Button>
+          </div>
+        </div>
+
+        {/* Status Tabs */}
+        <div className="px-4 flex items-center gap-1 overflow-x-auto bg-card">
+          {tabs.map((t) => {
+            const active = activeTab === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => {
+                  setActiveTab(t.key);
+                  setPage(1);
+                }}
+                className={`inline-flex items-center gap-2 px-3 py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  active
+                    ? "border-emerald-600 text-emerald-600"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {t.icon}
+                <span>{t.label}</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                    active
+                      ? "bg-emerald-600 text-white"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {t.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Data Table */}
+      <div className="rounded-xl border border-border/80 bg-card shadow-xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border/80 bg-muted/50">
+                <th className="text-left text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3 w-12">
+                  #
+                </th>
+                <th className="text-left text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("contractNumber")}
+                    className="inline-flex items-center gap-1 hover:text-foreground transition-colors uppercase"
+                  >
+                    Contract Number
+                    <ArrowUpDown className="h-3 w-3" />
+                  </button>
+                </th>
+                <th className="text-left text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3">
+                  Contract Name
+                </th>
+                <th className="text-left text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3">
+                  Assigned to
+                </th>
+                <th className="text-left text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3">
+                  Status
+                </th>
+                <th className="text-left text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("duration")}
+                    className="inline-flex items-center gap-1 hover:text-foreground transition-colors uppercase"
+                  >
+                    Contract Duration
+                    <ArrowUpDown className="h-3 w-3" />
+                  </button>
+                </th>
+                <th className="text-left text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3">
+                  Contract Amount
+                </th>
+                <th className="text-right text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3 w-16">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
               {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                    <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-indigo-500" />
-                    Loading workforce agreements...
-                  </TableCell>
-                </TableRow>
-              ) : filteredContracts.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                    <FileSignature className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
-                    No contract records match the active criteria.
-                  </TableCell>
-                </TableRow>
+                <tr>
+                  <td colSpan={8} className="p-8 text-center text-muted-foreground">
+                    Loading employee contracts...
+                  </td>
+                </tr>
+              ) : paginated.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="p-10 text-center text-muted-foreground">
+                    No employee contracts found.
+                  </td>
+                </tr>
               ) : (
-                filteredContracts.map((c: any) => {
-                  const catCfg = CATEGORY_LABELS[c.category] || CATEGORY_LABELS.direct_contract;
-                  const isAP = c.paymentWorkflow === "ACCOUNTS_PAYABLE";
+                paginated.map((c, idx) => {
+                  const rowNum = (safePage - 1) * pageSize + idx + 1;
+                  const empName = c.employee
+                    ? `${c.employee.firstName} ${c.employee.lastName}`.trim()
+                    : "Unknown Employee";
+                  const duration = computeDurationInfo(c.startDate, c.endDate, c.status);
 
                   return (
-                    <TableRow key={c.id} className="hover:bg-muted/50">
-                      {/* Contract / Ref */}
-                      <TableCell>
-                        <div className="font-medium text-sm text-foreground">{c.title}</div>
-                        <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                          <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-[11px]">
-                            {c.contractNumber || c.id.slice(0, 8)}
-                          </span>
-                          {c.amendmentNumber > 0 && (
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-700">
-                              Amend #{c.amendmentNumber}
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-
-                      {/* Worker Details */}
-                      <TableCell>
-                        <div className="font-medium text-sm">
-                          {c.employee?.firstName} {c.employee?.lastName}
-                        </div>
-                        <div className="text-xs text-muted-foreground font-mono">
-                          {c.employee?.employeeCode}
-                        </div>
-                      </TableCell>
-
-                      {/* Category */}
-                      <TableCell>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${catCfg.color}`}>
-                          {catCfg.label}
-                        </span>
-                      </TableCell>
-
-                      {/* Agency / Supplier */}
-                      <TableCell>
-                        {c.supplier ? (
-                          <div>
-                            <div className="text-xs font-medium text-purple-900 flex items-center gap-1">
-                              <Building2 className="h-3 w-3 text-purple-600" />
-                              <span>{c.supplier.name}</span>
+                    <tr key={c.id} className="hover:bg-muted/40 transition-colors">
+                      <td className="p-3 font-medium text-muted-foreground">{rowNum}</td>
+                      <td className="p-3 font-semibold text-foreground whitespace-nowrap">
+                        {c.contractNumber}
+                      </td>
+                      <td className="p-3 text-foreground">
+                        {c.contractType?.name || c.title}
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-2.5">
+                          {c.employee?.avatarUrl ? (
+                            <img
+                              src={c.employee.avatarUrl}
+                              alt={empName}
+                              className="h-8 w-8 rounded-full object-cover border border-border/60 shrink-0"
+                            />
+                          ) : (
+                            <div className="h-8 w-8 rounded-full bg-primary/10 text-primary text-[11px] font-semibold flex items-center justify-center border border-primary/20 shrink-0">
+                              {getInitials(empName)}
                             </div>
-                            {c.supplier.gstin && (
-                              <div className="text-[11px] text-muted-foreground font-mono">
-                                GST: {c.supplier.gstin}
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-semibold text-foreground text-xs truncate">
+                              {empName}
+                            </div>
+                            {c.employee?.email && (
+                              <div className="text-[11px] text-muted-foreground truncate">
+                                {c.employee.email}
                               </div>
                             )}
                           </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground italic">Direct Company</span>
-                        )}
-                      </TableCell>
-
-                      {/* Validity & Timeline */}
-                      <TableCell>
-                        <div className="text-xs text-foreground">
-                          {c.startDate?.slice(0, 10)} to {c.endDate ? c.endDate.slice(0, 10) : "Indefinite"}
                         </div>
-                        {c.daysRemaining !== null && c.status === "active" && (
-                          <div className="mt-1">
-                            {c.daysRemaining < 0 ? (
-                              <span className="text-[11px] text-red-600 font-semibold">Expired</span>
-                            ) : c.daysRemaining === 0 ? (
-                              <span className="text-[11px] text-orange-600 font-bold">Concludes Today</span>
-                            ) : c.daysRemaining <= 7 ? (
-                              <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-200">
-                                ⚠ {c.daysRemaining}d Left (Urgent)
-                              </Badge>
-                            ) : c.daysRemaining <= 30 ? (
-                              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
-                                ⏱ {c.daysRemaining}d Left
-                              </Badge>
-                            ) : (
-                              <span className="text-[11px] text-muted-foreground">{c.daysRemaining} days remaining</span>
-                            )}
+                      </td>
+                      <td className="p-3">
+                        <ContractStatusBadge status={c.status} />
+                      </td>
+                      <td className="p-3 min-w-[200px]">
+                        <div className="space-y-1">
+                          <div className="font-semibold text-foreground text-xs">
+                            {duration.label}
                           </div>
-                        )}
-                      </TableCell>
-
-                      {/* Compensation & Engine */}
-                      <TableCell>
-                        <div className="text-xs font-medium">
-                          {c.hourlyRate ? (
-                            <span>₹{Number(c.hourlyRate).toLocaleString()} / hr</span>
-                          ) : c.salary ? (
-                            <span>₹{Number(c.salary).toLocaleString()} / mo</span>
-                          ) : (
-                            <span className="text-muted-foreground">Fixed Deliverable</span>
-                          )}
+                          <div className="text-[11px] text-muted-foreground">
+                            {duration.range}
+                          </div>
+                          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                duration.isExpired ? "bg-rose-500" : "bg-amber-500"
+                              }`}
+                              style={{ width: `${duration.percent}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="mt-0.5">
-                          {isAP ? (
-                            <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 border-purple-200">
-                              Workflow B: AP Voucher
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
-                              Workflow A: Payroll
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-
-                      {/* Status */}
-                      <TableCell>
-                        {c.status === "active" ? (
-                          c.isExpiringSoon ? (
-                            <Badge className="bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100 text-[11px]">
-                              Expiring Soon
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100 text-[11px]">
-                              Active
-                            </Badge>
-                          )
-                        ) : c.status === "renewed" ? (
-                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[11px]">
-                            Renewed
-                          </Badge>
-                        ) : c.status === "converted" ? (
-                          <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[11px]">
-                            Converted to Perm
-                          </Badge>
-                        ) : c.status === "terminated" ? (
-                          <Badge variant="outline" className="bg-gray-100 text-gray-700 border-gray-200 text-[11px]">
-                            Terminated
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-[11px]">
-                            Expired
-                          </Badge>
-                        )}
-                      </TableCell>
-
-                      {/* Actions */}
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {c.status === "active" && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openRenewalDialog(c)}
-                                className="h-7 text-xs px-2 gap-1 text-indigo-600 hover:text-indigo-700"
-                              >
-                                <RefreshCw className="h-3 w-3" /> Renew
-                              </Button>
-
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => openConvertDialog(c)}
-                                className="h-7 text-xs px-2 gap-1 text-emerald-600 hover:text-emerald-700"
-                              >
-                                <UserCheck className="h-3 w-3" /> Make Perm
-                              </Button>
-
-                              {isAP && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openVoucherDialog(c)}
-                                  className="h-7 text-xs px-2 gap-1 text-purple-600 hover:text-purple-700"
-                                >
-                                  <Receipt className="h-3 w-3" /> AP Voucher
-                                </Button>
-                              )}
-
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => openAmendDialog(c)}
-                                className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground"
-                                title="Amend Contract"
-                              >
-                                <FileEdit className="h-3.5 w-3.5" />
-                              </Button>
-
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => openTerminateDialog(c)}
-                                className="h-7 text-xs px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                title="Terminate Contract"
-                              >
-                                <XCircle className="h-3.5 w-3.5" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                      <td className="p-3 font-bold text-foreground whitespace-nowrap">
+                        {formatCurrency(c.salary)}
+                      </td>
+                      <td className="p-3 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem onClick={() => setViewTarget(c)}>
+                              <Eye className="h-4 w-4 mr-2 text-muted-foreground" />
+                              View
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEdit(c)}>
+                              <Edit className="h-4 w-4 mr-2 text-muted-foreground" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setNextStatus(c.status || "active");
+                                setStatusTarget(c);
+                              }}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-2 text-muted-foreground" />
+                              Update Status
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => setDeleteTarget(c)}
+                              className="text-rose-600 focus:text-rose-600"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
                   );
                 })
               )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </tbody>
+          </table>
+        </div>
 
-      {/* ─────────────────────────────────────────────────────────────────────────────
-          MODAL 1: ISSUE NEW CONTRACT
-      ───────────────────────────────────────────────────────────────────────────── */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Issue Workforce Contract</DialogTitle>
-            <DialogDescription>
-              Create a formal contract for direct contractors, outsourced vendor staff, consultants, temporary workers, or interns.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Select Worker / Employee</Label>
-                <Select
-                  value={formData.employeeId}
-                  onValueChange={(val) => setFormData({ ...formData, employeeId: val })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose employee record" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map((emp: any) => (
-                      <SelectItem key={emp.id} value={emp.id}>
-                        {emp.firstName} {emp.lastName} ({emp.employeeCode})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Workforce Category</Label>
-                <Select
-                  value={formData.category}
-                  onValueChange={(val) => {
-                    const isVendorOrConsultant = val === "vendor_outsourced" || val === "consultant_freelancer";
-                    setFormData({
-                      ...formData,
-                      category: val,
-                      paymentWorkflow: isVendorOrConsultant ? "ACCOUNTS_PAYABLE" : "PAYROLL",
-                    });
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="direct_contract">Direct Contract Employee</SelectItem>
-                    <SelectItem value="vendor_outsourced">Vendor / Outsourced Personnel</SelectItem>
-                    <SelectItem value="consultant_freelancer">Consultant / Freelancer</SelectItem>
-                    <SelectItem value="temporary">Temporary / Seasonal Employee</SelectItem>
-                    <SelectItem value="intern">Intern / Trainee</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Contract Title</Label>
-                <Input
-                  placeholder="e.g. Technical Consultant Agreement"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Contract Number (Auto if blank)</Label>
-                <Input
-                  placeholder="e.g. CNT-2026-8092"
-                  value={formData.contractNumber}
-                  onChange={(e) => setFormData({ ...formData, contractNumber: e.target.value })}
-                />
-              </div>
-            </div>
-
-            {/* Vendor / Supplier Linkage if Vendor or Consultant */}
-            {(formData.category === "vendor_outsourced" || formData.category === "consultant_freelancer") && (
-              <div className="p-3 bg-purple-50 rounded-lg border border-purple-200 space-y-2">
-                <div className="flex items-center gap-2 text-purple-900 font-semibold text-xs">
-                  <Building2 className="h-4 w-4 text-purple-600" />
-                  <span>Vendor Agency & Accounts Payable Routing</span>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-purple-900">Manpower Supplier / Agency</Label>
-                    <Select
-                      value={formData.supplierId}
-                      onValueChange={(val) => setFormData({ ...formData, supplierId: val })}
-                    >
-                      <SelectTrigger className="bg-white">
-                        <SelectValue placeholder="Choose Supplier" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {vendors.map((v: any) => (
-                          <SelectItem key={v.id} value={v.id}>
-                            {v.name} {v.gstin ? `(${v.gstin})` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-purple-900">Settlement Engine</Label>
-                    <Select
-                      value={formData.paymentWorkflow}
-                      onValueChange={(val) => setFormData({ ...formData, paymentWorkflow: val })}
-                    >
-                      <SelectTrigger className="bg-white">
-                        <SelectValue placeholder="Workflow" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ACCOUNTS_PAYABLE">Workflow B: Accounts Payable (Voucher)</SelectItem>
-                        <SelectItem value="PAYROLL">Workflow A: Employee Payroll</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Commencement Date</Label>
-                <Input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Conclusion Date (Optional for Indefinite)</Label>
-                <Input
-                  type="date"
-                  value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-1.5">
-                <Label>Monthly Salary / CTC (₹)</Label>
-                <Input
-                  type="number"
-                  value={formData.salary}
-                  onChange={(e) => setFormData({ ...formData, salary: Number(e.target.value) })}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Hourly Rate (Optional ₹)</Label>
-                <Input
-                  type="number"
-                  value={formData.hourlyRate}
-                  onChange={(e) => setFormData({ ...formData, hourlyRate: Number(e.target.value) })}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Billing Frequency</Label>
-                <Select
-                  value={formData.billingFrequency}
-                  onValueChange={(val) => setFormData({ ...formData, billingFrequency: val })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Frequency" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                    <SelectItem value="hourly">Hourly</SelectItem>
-                    <SelectItem value="milestone">Milestone / Deliverable</SelectItem>
-                    <SelectItem value="fixed">Fixed Lump Sum</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Contract Terms & Notes</Label>
-              <Textarea
-                rows={2}
-                placeholder="Scope, deliverable commitments, or notice period stipulations..."
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              />
-            </div>
+        {/* Pagination Footer */}
+        <div className="px-4 py-3 border-t border-border/60 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+          <div>
+            Showing <span className="font-semibold text-foreground">{startIdx}</span> to{" "}
+            <span className="font-semibold text-foreground">{endIdx}</span> of{" "}
+            <span className="font-semibold text-foreground">{filteredAndSorted.length}</span>{" "}
+            results
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-indigo-600 hover:bg-indigo-700"
-              onClick={() => createMutation.mutate(formData)}
-              disabled={!formData.employeeId || !formData.title || createMutation.isPending}
-            >
-              {createMutation.isPending ? "Issuing..." : "Issue Contract"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─────────────────────────────────────────────────────────────────────────────
-          MODAL 2: RENEW CONTRACT
-      ───────────────────────────────────────────────────────────────────────────── */}
-      <Dialog open={isRenewOpen} onOpenChange={setIsRenewOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Renew Workforce Contract</DialogTitle>
-            <DialogDescription>
-              Renew terms for {selectedContract?.employee?.firstName} {selectedContract?.employee?.lastName}. Predecessor agreement is atomically archived.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="rounded-md bg-blue-50 p-3 text-xs text-blue-900 border border-blue-200">
-              <strong>Predecessor Agreement:</strong> {selectedContract?.title} (
-              {selectedContract?.startDate?.slice(0, 10)} to {selectedContract?.endDate?.slice(0, 10) || "Indefinite"})
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span>Rows per page:</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(v) => {
+                  setPageSize(Number(v));
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="h-8 w-[70px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Renewed Contract Title</Label>
-              <Input
-                value={renewalData.title}
-                onChange={(e) => setRenewalData({ ...renewalData, title: e.target.value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>New Start Date</Label>
-                <Input
-                  type="date"
-                  value={renewalData.startDate}
-                  onChange={(e) => setRenewalData({ ...renewalData, startDate: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>New End Date</Label>
-                <Input
-                  type="date"
-                  value={renewalData.endDate}
-                  onChange={(e) => setRenewalData({ ...renewalData, endDate: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Revised Salary (₹)</Label>
-                <Input
-                  type="number"
-                  value={renewalData.salary}
-                  onChange={(e) => setRenewalData({ ...renewalData, salary: Number(e.target.value) })}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Hourly Rate (₹)</Label>
-                <Input
-                  type="number"
-                  value={renewalData.hourlyRate}
-                  onChange={(e) => setRenewalData({ ...renewalData, hourlyRate: Number(e.target.value) })}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Renewal Notes</Label>
-              <Textarea
-                rows={2}
-                value={renewalData.notes}
-                onChange={(e) => setRenewalData({ ...renewalData, notes: e.target.value })}
-              />
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="xs"
+                disabled={safePage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                « Previous
+              </Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .slice(Math.max(0, safePage - 3), Math.min(totalPages, safePage + 2))
+                .map((pNum) => (
+                  <Button
+                    key={pNum}
+                    variant={pNum === safePage ? "primary" : "outline"}
+                    size="xs"
+                    className={
+                      pNum === safePage
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600"
+                        : ""
+                    }
+                    onClick={() => setPage(pNum)}
+                  >
+                    {pNum}
+                  </Button>
+                ))}
+              <Button
+                variant="outline"
+                size="xs"
+                disabled={safePage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next »
+              </Button>
             </div>
           </div>
+        </div>
+      </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRenewOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-indigo-600 hover:bg-indigo-700"
-              onClick={() => {
-                if (selectedContract) {
-                  renewMutation.mutate({ id: selectedContract.id, payload: renewalData });
-                }
-              }}
-              disabled={!renewalData.startDate || renewMutation.isPending}
-            >
-              {renewMutation.isPending ? "Renewing..." : "Execute Renewal"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─────────────────────────────────────────────────────────────────────────────
-          MODAL 3: CONVERT TO PERMANENT
-      ───────────────────────────────────────────────────────────────────────────── */}
-      <Dialog open={isConvertOpen} onOpenChange={setIsConvertOpen}>
-        <DialogContent className="max-w-md">
+      {/* Add / Edit Employee Contract Modal */}
+      <Dialog
+        open={formOpen}
+        onOpenChange={(o) => {
+          setFormOpen(o);
+          if (!o) {
+            setEditTarget(null);
+            resetForm();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Convert to Permanent Employment</DialogTitle>
-            <DialogDescription>
-              Transition {selectedContract?.employee?.firstName} {selectedContract?.employee?.lastName} to permanent statutory headcount without duplicate employee creation.
-            </DialogDescription>
+            <DialogTitle>
+              {editTarget ? "Edit Employee Contract" : "Add Employee Contract"}
+            </DialogTitle>
           </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="rounded-md bg-emerald-50 p-3 text-xs text-emerald-900 border border-emerald-200">
-              <strong>Permanent Appointment Effect:</strong>
-              <ul className="list-disc ml-4 mt-1 space-y-0.5">
-                <li>Updates employee master: <code>employmentType = 'full_time'</code></li>
-                <li>Updates category: <code>employmentCategory = 'permanent'</code></li>
-                <li>Clears agency affiliation and sets permanent tenure date</li>
-                <li>Preserves historical contract lineage and employee ID</li>
-              </ul>
+          <form onSubmit={handleFormSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>
+                Employee <span className="text-rose-500">*</span>
+              </Label>
+              <Select value={formEmpId} onValueChange={setFormEmpId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {`${emp.firstName} ${emp.lastName}`.trim()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">
-              <Label>Full-Time Monthly CTC / Salary (₹)</Label>
+              <Label>
+                Contract Type <span className="text-rose-500">*</span>
+              </Label>
+              <Select value={formTypeId} onValueChange={setFormTypeId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Contract Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {contractTypes.map((ct) => (
+                    <SelectItem key={ct.id} value={ct.id}>
+                      {ct.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>
+                  Start Date <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  type="date"
+                  value={formStartDate}
+                  onChange={(e) => setFormStartDate(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>End Date</Label>
+                <Input
+                  type="date"
+                  value={formEndDate}
+                  onChange={(e) => setFormEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>
+                Basic Salary <span className="text-rose-500">*</span>
+              </Label>
               <Input
                 type="number"
-                value={convertData.salary}
-                onChange={(e) => setConvertData({ ...convertData, salary: Number(e.target.value) })}
+                step="0.01"
+                min="0"
+                value={formSalary}
+                onChange={(e) => setFormSalary(e.target.value)}
+                placeholder="e.g. 88000"
+                required
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label>Appointment Notes</Label>
+              <Label>Terms &amp; Conditions</Label>
               <Textarea
-                rows={2}
-                value={convertData.notes}
-                onChange={(e) => setConvertData({ ...convertData, notes: e.target.value })}
+                rows={4}
+                value={formNotes}
+                onChange={(e) => setFormNotes(e.target.value)}
+                placeholder="Enter contract terms and conditions..."
               />
             </div>
-          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsConvertOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-emerald-600 hover:bg-emerald-700"
-              onClick={() => {
-                if (selectedContract) {
-                  convertMutation.mutate({ id: selectedContract.id, payload: convertData });
-                }
-              }}
-              disabled={convertMutation.isPending}
-            >
-              {convertMutation.isPending ? "Converting..." : "Appoint as Permanent"}
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setFormOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={saveMutation.isPending}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {saveMutation.isPending ? "Saving..." : "Save"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
-      {/* ─────────────────────────────────────────────────────────────────────────────
-          MODAL 4: AMEND ACTIVE CONTRACT
-      ───────────────────────────────────────────────────────────────────────────── */}
-      <Dialog open={isAmendOpen} onOpenChange={setIsAmendOpen}>
-        <DialogContent className="max-w-md">
+      {/* Employee Contract Details Modal */}
+      <Dialog open={Boolean(viewTarget)} onOpenChange={(o) => !o && setViewTarget(null)}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Amend Contract Terms</DialogTitle>
-            <DialogDescription>
-              Revise end date, compensation, or title. Increments amendment version with audit logging.
-            </DialogDescription>
+            <DialogTitle>Employee Contract Details</DialogTitle>
           </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Title</Label>
-              <Input
-                value={amendData.title}
-                onChange={(e) => setAmendData({ ...amendData, title: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Revised Conclusion Date</Label>
-              <Input
-                type="date"
-                value={amendData.endDate}
-                onChange={(e) => setAmendData({ ...amendData, endDate: e.target.value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Salary (₹)</Label>
-                <Input
-                  type="number"
-                  value={amendData.salary}
-                  onChange={(e) => setAmendData({ ...amendData, salary: Number(e.target.value) })}
-                />
+          {viewTarget && (
+            <div className="space-y-4 text-sm">
+              <div className="pb-3 border-b border-border/60 flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-base font-bold text-foreground">
+                    {viewTarget.contractNumber}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {viewTarget.contractType?.name || viewTarget.title}
+                  </div>
+                </div>
+                <ContractStatusBadge status={viewTarget.status} />
               </div>
 
-              <div className="space-y-1.5">
-                <Label>Hourly Rate (₹)</Label>
-                <Input
-                  type="number"
-                  value={amendData.hourlyRate}
-                  onChange={(e) => setAmendData({ ...amendData, hourlyRate: Number(e.target.value) })}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Employee</div>
+                  <div className="font-semibold text-foreground">
+                    {viewTarget.employee
+                      ? `${viewTarget.employee.firstName} ${viewTarget.employee.lastName}`.trim()
+                      : "Unknown"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Basic Salary</div>
+                  <div className="font-bold text-foreground">
+                    {formatCurrency(viewTarget.salary)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Start Date</div>
+                  <div className="font-medium text-foreground">
+                    {viewTarget.startDate || "-"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">End Date</div>
+                  <div className="font-medium text-foreground">
+                    {viewTarget.endDate || "Indefinite"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Approved At</div>
+                  <div className="font-medium text-foreground">
+                    {viewTarget.approvedAt || "-"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Approved By</div>
+                  <div className="font-medium text-foreground">
+                    {viewTarget.approvedByName || "-"}
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <Label>Amendment Justification</Label>
-              <Textarea
-                rows={2}
-                value={amendData.notes}
-                onChange={(e) => setAmendData({ ...amendData, notes: e.target.value })}
-              />
-            </div>
-          </div>
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">
+                  Terms &amp; Conditions
+                </div>
+                <div className="rounded-lg border border-border/80 bg-muted/30 p-3 text-foreground whitespace-pre-wrap">
+                  {viewTarget.notes || "No terms & conditions recorded."}
+                </div>
+              </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAmendOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-indigo-600 hover:bg-indigo-700"
-              onClick={() => {
-                if (selectedContract) {
-                  amendMutation.mutate({ id: selectedContract.id, payload: amendData });
-                }
-              }}
-              disabled={amendMutation.isPending}
-            >
-              {amendMutation.isPending ? "Amending..." : "Save Amendment"}
-            </Button>
-          </DialogFooter>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setViewTarget(null)}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
-      {/* ─────────────────────────────────────────────────────────────────────────────
-          MODAL 5: TERMINATE CONTRACT
-      ───────────────────────────────────────────────────────────────────────────── */}
-      <Dialog open={isTerminateOpen} onOpenChange={setIsTerminateOpen}>
-        <DialogContent className="max-w-md">
+      {/* Update Contract Status Modal */}
+      <Dialog open={Boolean(statusTarget)} onOpenChange={(o) => !o && setStatusTarget(null)}>
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Terminate Contract</DialogTitle>
-            <DialogDescription>
-              Conclude engagement for {selectedContract?.employee?.firstName} {selectedContract?.employee?.lastName}.
-            </DialogDescription>
+            <DialogTitle>Update Contract Status</DialogTitle>
           </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="rounded-md bg-red-50 p-3 text-xs text-red-900 border border-red-200">
-              Contract will be marked <strong>TERMINATED</strong> and blocked from subsequent attendance punches.
-            </div>
-
+          <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Termination Reason & Remarks</Label>
-              <Textarea
-                rows={3}
-                value={terminateData.reason}
-                onChange={(e) => setTerminateData({ ...terminateData, reason: e.target.value })}
-              />
+              <Label>
+                Status <span className="text-rose-500">*</span>
+              </Label>
+              <Select value={nextStatus} onValueChange={setNextStatus}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                  <SelectItem value="terminated">Terminated</SelectItem>
+                  <SelectItem value="renewed">Renewed</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStatusTarget(null)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={statusMutation.isPending}
+                onClick={() =>
+                  statusTarget &&
+                  statusMutation.mutate({ id: statusTarget.id, status: nextStatus })
+                }
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {statusMutation.isPending ? "Updating..." : "Update Status"}
+              </Button>
+            </DialogFooter>
           </div>
+        </DialogContent>
+      </Dialog>
 
+      {/* Delete Confirmation Modal */}
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Employee Contract</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete contract{" "}
+            <span className="font-semibold text-foreground">
+              {deleteTarget?.contractNumber}
+            </span>
+            ? This action cannot be undone.
+          </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsTerminateOpen(false)}>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
               Cancel
             </Button>
             <Button
               variant="destructive"
-              onClick={() => {
-                if (selectedContract) {
-                  terminateMutation.mutate({ id: selectedContract.id, payload: terminateData });
-                }
-              }}
-              disabled={terminateMutation.isPending}
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
             >
-              {terminateMutation.isPending ? "Terminating..." : "Confirm Termination"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─────────────────────────────────────────────────────────────────────────────
-          MODAL 6: ACCOUNTS PAYABLE VOUCHER (WORKFLOW B)
-      ───────────────────────────────────────────────────────────────────────────── */}
-      <Dialog open={isVoucherOpen} onOpenChange={setIsVoucherOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Generate Accounts Payable Voucher</DialogTitle>
-            <DialogDescription>
-              Workflow B: Creates a commercial AP Purchase invoice against vendor <strong>{selectedContract?.supplier?.name}</strong>. Never touches employee payroll.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Billing Period (YYYY-MM)</Label>
-                <Input
-                  value={voucherData.period}
-                  onChange={(e) => setVoucherData({ ...voucherData, period: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Voucher Amount (₹)</Label>
-                <Input
-                  type="number"
-                  value={voucherData.amount}
-                  onChange={(e) => setVoucherData({ ...voucherData, amount: Number(e.target.value) })}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Vendor Invoice Ref Number</Label>
-              <Input
-                value={voucherData.invoiceNumber}
-                onChange={(e) => setVoucherData({ ...voucherData, invoiceNumber: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Service Voucher Remarks</Label>
-              <Textarea
-                rows={2}
-                value={voucherData.notes}
-                onChange={(e) => setVoucherData({ ...voucherData, notes: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsVoucherOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-purple-600 hover:bg-purple-700"
-              onClick={() => {
-                if (selectedContract) {
-                  voucherMutation.mutate({ id: selectedContract.id, payload: voucherData });
-                }
-              }}
-              disabled={voucherMutation.isPending}
-            >
-              {voucherMutation.isPending ? "Generating..." : "Generate AP Voucher"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─────────────────────────────────────────────────────────────────────────────
-          MODAL 7: EXPIRY REMINDER CONFIGURATION
-      ───────────────────────────────────────────────────────────────────────────── */}
-      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Contract Expiry Automation Settings</DialogTitle>
-            <DialogDescription>
-              Configure tenant-level contract notification thresholds, recipients, and escalation rules.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Reminder Intervals (Days before expiry)</Label>
-              <div className="flex gap-2">
-                {[60, 45, 30, 15, 7].map((days) => {
-                  const isSelected = settingsData.reminderIntervals.includes(days);
-                  return (
-                    <Button
-                      key={days}
-                      type="button"
-                      size="sm"
-                      variant={isSelected ? "default" : "outline"}
-                      className={`h-8 text-xs ${isSelected ? "bg-indigo-600 text-white" : ""}`}
-                      onClick={() => {
-                        const newIntervals = isSelected
-                          ? settingsData.reminderIntervals.filter((d) => d !== days)
-                          : [...settingsData.reminderIntervals, days].sort((a, b) => b - a);
-                        setSettingsData({ ...settingsData, reminderIntervals: newIntervals });
-                      }}
-                    >
-                      {days} Days
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-2 border-t pt-3">
-              <Label className="text-xs font-semibold">Notification Recipient Groups</Label>
-              <div className="space-y-2 text-xs">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={settingsData.notifyEmployee}
-                    onChange={(e) => setSettingsData({ ...settingsData, notifyEmployee: e.target.checked })}
-                    className="rounded border-gray-300 text-indigo-600"
-                  />
-                  <span>Notify Contract Worker / Employee</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={settingsData.notifyHR}
-                    onChange={(e) => setSettingsData({ ...settingsData, notifyHR: e.target.checked })}
-                    className="rounded border-gray-300 text-indigo-600"
-                  />
-                  <span>Notify HR Admins & Workforce Managers</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={settingsData.notifyManager}
-                    onChange={(e) => setSettingsData({ ...settingsData, notifyManager: e.target.checked })}
-                    className="rounded border-gray-300 text-indigo-600"
-                  />
-                  <span>Notify Reporting Manager</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="space-y-1.5 border-t pt-3">
-              <Label>Urgent Escalation Window (Days)</Label>
-              <Input
-                type="number"
-                value={settingsData.escalationDays}
-                onChange={(e) => setSettingsData({ ...settingsData, escalationDays: Number(e.target.value) })}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-indigo-600 hover:bg-indigo-700"
-              onClick={() => settingsMutation.mutate(settingsData)}
-              disabled={settingsMutation.isPending}
-            >
-              {settingsMutation.isPending ? "Saving..." : "Save Settings"}
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

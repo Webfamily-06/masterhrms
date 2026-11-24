@@ -327,7 +327,7 @@ awardsRouter.get("/", async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const { employeeId, awardTypeId, search, month } = req.query;
+    const { employeeId, awardTypeId, search, month, dateFrom, dateTo } = req.query;
 
     const where: any = { tenantId };
     if (employeeId && employeeId !== "all") {
@@ -336,14 +336,29 @@ awardsRouter.get("/", async (req: AuthRequest, res: Response) => {
     if (awardTypeId && awardTypeId !== "all") {
       where.awardTypeId = String(awardTypeId);
     }
+    if (dateFrom || dateTo) {
+      where.awardDate = {};
+      if (dateFrom) {
+        const dFrom = new Date(String(dateFrom));
+        if (!isNaN(dFrom.getTime())) where.awardDate.gte = dFrom;
+      }
+      if (dateTo) {
+        const dTo = new Date(String(dateTo));
+        if (!isNaN(dTo.getTime())) {
+          dTo.setHours(23, 59, 59, 999);
+          where.awardDate.lte = dTo;
+        }
+      }
+    }
     if (search) {
       where.OR = [
-        { giftItem: { contains: String(search) } },
-        { certificateNo: { contains: String(search) } },
-        { description: { contains: String(search) } },
-        { employee: { firstName: { contains: String(search) } } },
-        { employee: { lastName: { contains: String(search) } } },
-        { employee: { employeeCode: { contains: String(search) } } },
+        { giftItem: { contains: String(search), mode: "insensitive" } },
+        { certificateNo: { contains: String(search), mode: "insensitive" } },
+        { description: { contains: String(search), mode: "insensitive" } },
+        { employee: { firstName: { contains: String(search), mode: "insensitive" } } },
+        { employee: { lastName: { contains: String(search), mode: "insensitive" } } },
+        { employee: { email: { contains: String(search), mode: "insensitive" } } },
+        { employee: { employeeCode: { contains: String(search), mode: "insensitive" } } },
       ];
     }
 
@@ -359,8 +374,11 @@ awardsRouter.get("/", async (req: AuthRequest, res: Response) => {
               id: true,
               firstName: true,
               lastName: true,
+              email: true,
               employeeCode: true,
+              position: true,
               department: { select: { id: true, name: true } },
+              user: { select: { profile: { select: { avatarUrl: true } } } },
             },
           },
           awardType: true,
@@ -383,8 +401,18 @@ awardsRouter.get("/", async (req: AuthRequest, res: Response) => {
       }),
     ]);
 
+    const enrichedAwards = awards.map((a: any) => ({
+      ...a,
+      employee: a.employee
+        ? {
+            ...a.employee,
+            avatarUrl: a.employee.avatarUrl || a.employee.user?.profile?.avatarUrl || null,
+          }
+        : a.employee,
+    }));
+
     return res.json({
-      ...formatPaginatedResponse(awards, total, pagination),
+      ...formatPaginatedResponse(enrichedAwards, total, pagination),
       stats: {
         totalAwards: total,
         totalGiftValue: Number(totalGiftValue._sum.giftAmount || 0),
@@ -548,6 +576,7 @@ awardsRouter.put("/:id", async (req: AuthRequest, res: Response) => {
 
     const { id } = req.params;
     const {
+      employeeId,
       awardTypeId,
       awardDate,
       giftItem,
@@ -564,6 +593,7 @@ awardsRouter.put("/:id", async (req: AuthRequest, res: Response) => {
     const updated = await prisma.award.update({
       where: { id },
       data: {
+        employeeId: employeeId || existing.employeeId,
         awardTypeId: awardTypeId !== undefined ? awardTypeId : existing.awardTypeId,
         awardDate: awardDate ? new Date(awardDate) : existing.awardDate,
         giftItem: giftItem !== undefined ? giftItem : existing.giftItem,
@@ -579,8 +609,10 @@ awardsRouter.put("/:id", async (req: AuthRequest, res: Response) => {
             id: true,
             firstName: true,
             lastName: true,
+            email: true,
             employeeCode: true,
             department: { select: { id: true, name: true } },
+            user: { select: { profile: { select: { avatarUrl: true } } } },
           },
         },
         awardType: true,

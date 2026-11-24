@@ -269,7 +269,7 @@ export const hrSidebar: HRMenuItem[] = [
       {
         label: "Zoom Meeting",
         path: "/hr/zoom-meetings",
-        icon: "ph-video-conference",
+        icon: "ph-video",
         permission: "hrm.dashboard.view",
       },
       {

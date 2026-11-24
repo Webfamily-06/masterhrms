@@ -1,30 +1,18 @@
-'use client';
-import {  createFileRoute  } from "@/src/lib/router-compat";
-import { useState } from "react";
+"use client";
+
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, unwrapArray } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -35,297 +23,471 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Calendar, Plus, CheckCircle2, Send, Clock, Layers, Sparkles } from "lucide-react";
+import {
+  Search,
+  RefreshCw,
+  Edit,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  ArrowUpDown,
+} from "lucide-react";
 
+interface ReviewCycleItem {
+  id: string;
+  name: string;
+  title?: string;
+  periodType?: string;
+  frequency?: string;
+  description?: string | null;
+  status: string;
+}
 
+const FREQUENCY_OPTIONS = [
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "semi-annual", label: "Semi-Annual" },
+  { value: "annual", label: "Annual" },
+];
+
+function formatFrequencyLabel(raw?: string) {
+  const s = String(raw || "quarterly").toLowerCase();
+  const match = FREQUENCY_OPTIONS.find((f) => f.value === s);
+  if (match) return match.label;
+  if (s === "semi_annual" || s === "biannual") return "Semi-Annual";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 export default function HrPerformanceCyclesPage() {
   const queryClient = useQueryClient();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    title: "",
-    startDate: new Date().toISOString().split("T")[0],
-    endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-    selfReviewDeadline: "",
-    managerReviewDeadline: "",
-    description: "",
-  });
 
-  const { data: cycles = [], isLoading } = useQuery({
+  const [editing, setEditing] = useState<ReviewCycleItem | null>(null);
+  const [name, setName] = useState("");
+  const [frequency, setFrequency] = useState("");
+  const [description, setDescription] = useState("");
+  const [status, setStatus] = useState<"active" | "inactive">("active");
+
+  const [searchInput, setSearchInput] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [freqFilter, setFreqFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"name" | "frequency">("name");
+  const [sortAsc, setSortAsc] = useState(true);
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  const [deleteTarget, setDeleteTarget] = useState<ReviewCycleItem | null>(null);
+
+  const { data: cycles = [], isLoading } = useQuery<ReviewCycleItem[]>({
     queryKey: ["hr-performance-cycles"],
     queryFn: async () => {
       const res = await api.get("/hr/performance/cycles");
-      return res.data;
+      return unwrapArray<ReviewCycleItem>(res);
     },
   });
 
-  const createMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      return await api.post("/hr/performance/cycles", data);
+  const resetForm = () => {
+    setEditing(null);
+    setName("");
+    setFrequency("");
+    setDescription("");
+    setStatus("active");
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        name: name.trim(),
+        frequency: frequency || "quarterly",
+        periodType: frequency || "quarterly",
+        description: description.trim(),
+        status,
+      };
+      if (editing) {
+        return api.put(`/hr/performance/cycles/${editing.id}`, payload);
+      }
+      return api.post("/hr/performance/cycles", payload);
     },
     onSuccess: () => {
-      toast.success("Appraisal cycle configured successfully");
+      toast.success(editing ? "Review cycle updated" : "Review cycle added");
       queryClient.invalidateQueries({ queryKey: ["hr-performance-cycles"] });
-      setIsModalOpen(false);
-      setFormData({
-        title: "",
-        startDate: new Date().toISOString().split("T")[0],
-        endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-        selfReviewDeadline: "",
-        managerReviewDeadline: "",
-        description: "",
+      resetForm();
+    },
+    onError: (err: any) => toast.error(err?.message || "Failed to save review cycle"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => api.delete(`/hr/performance/cycles/${id}`),
+    onSuccess: () => {
+      toast.success("Review cycle deleted");
+      queryClient.invalidateQueries({ queryKey: ["hr-performance-cycles"] });
+      setDeleteTarget(null);
+      if (editing?.id === deleteTarget?.id) resetForm();
+    },
+    onError: (err: any) => toast.error(err?.message || "Failed to delete review cycle"),
+  });
+
+  const filtered = useMemo(() => {
+    const q = (appliedSearch || searchInput).trim().toLowerCase();
+    return cycles
+      .filter((c) => {
+        const cFreq = String(c.frequency || c.periodType || "quarterly").toLowerCase();
+        const cStatus = String(c.status || "active").toLowerCase();
+        if (freqFilter !== "all" && cFreq !== freqFilter) return false;
+        if (statusFilter !== "all" && cStatus !== statusFilter) return false;
+        if (q) {
+          const text = `${c.name || c.title || ""} ${c.description || ""} ${cFreq}`.toLowerCase();
+          if (!text.includes(q)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "frequency") {
+          const fa = formatFrequencyLabel(a.frequency || a.periodType);
+          const fb = formatFrequencyLabel(b.frequency || b.periodType);
+          return sortAsc ? fa.localeCompare(fb) : fb.localeCompare(fa);
+        }
+        const na = a.name || a.title || "";
+        const nb = b.name || b.title || "";
+        return sortAsc ? na.localeCompare(nb) : nb.localeCompare(na);
       });
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to create cycle");
-    },
-  });
+  }, [cycles, appliedSearch, searchInput, freqFilter, statusFilter, sortBy, sortAsc]);
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      return await api.put(`/hr/performance/cycles/${id}/status`, { status });
-    },
-    onSuccess: () => {
-      toast.success("Cycle stage updated");
-      queryClient.invalidateQueries({ queryKey: ["hr-performance-cycles"] });
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to update cycle status");
-    },
-  });
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return toast.error("Review Cycle Name is required");
+    if (!frequency) return toast.error("Please select a frequency");
+    saveMutation.mutate();
+  };
 
-  const releaseMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return await api.post(`/hr/performance/cycles/${id}/release`);
-    },
-    onSuccess: () => {
-      toast.success("Appraisal results published to Employee Self-Service (ESS)");
-      queryClient.invalidateQueries({ queryKey: ["hr-performance-cycles"] });
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to release cycle reviews");
-    },
-  });
-
-  const activeCycles = cycles.filter((c: any) => c.status === "active");
+  const startEdit = (item: ReviewCycleItem) => {
+    setEditing(item);
+    setName(item.name || item.title || "");
+    setFrequency(String(item.frequency || item.periodType || "quarterly").toLowerCase());
+    setDescription(item.description || "");
+    setStatus(String(item.status || "active").toLowerCase() === "inactive" ? "inactive" : "active");
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 lg:p-6 space-y-5 max-w-7xl mx-auto">
       <PageHeader
-        title="Appraisal Cycles"
-        description="Schedule corporate review cycles, manage progression from goal-setting to calibration, and release final ratings to staff."
-        actions={
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" /> New Cycle
-          </Button>
-        }
+        title="Review Cycles"
+        description="Manage performance review cycles and their schedules."
       />
 
-      {/* STAT CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard
-          title="Total Configured Cycles"
-          value={cycles.length.toString()}
-          icon={<Calendar className="h-5 w-5 text-indigo-500" />}
-          description="Historical & active cycles"
-        />
-        <StatCard
-          title="Active Appraisal Cycles"
-          value={activeCycles.length.toString()}
-          icon={<Clock className="h-5 w-5 text-emerald-500" />}
-          description="In progress"
-        />
-        <StatCard
-          title="Completed / Released"
-          value={cycles.filter((c: any) => c.status === "completed").length.toString()}
-          icon={<CheckCircle2 className="h-5 w-5 text-blue-500" />}
-          description="Finalized cycles"
-        />
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Left Form Card */}
+        <div className="lg:col-span-4 bg-card border border-border/80 rounded-xl shadow-xs p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-bold text-foreground">
+              {editing ? "Edit Review Cycle" : "Add New Review Cycle"}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {editing
+                ? "Update the selected review cycle details"
+                : "Fill in the details to create a new review cycle"}
+            </p>
+          </div>
 
-      {/* TABLE */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold flex items-center justify-between">
-            <span>Cycle Registry</span>
-            <span className="text-sm font-normal text-muted-foreground">
-              Total: {cycles.length} Cycles
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="py-8 text-center text-muted-foreground">Loading cycles...</div>
-          ) : cycles.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
-              No performance cycles configured. Click "New Cycle" to initialize one.
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cycle Title</TableHead>
-                  <TableHead>Period</TableHead>
-                  <TableHead>Self Review Due</TableHead>
-                  <TableHead>Manager Review Due</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Reviews</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {cycles.map((c: any) => (
-                  <TableRow key={c.id}>
-                    <TableCell className="font-medium">
-                      <div>
-                        <span>{c.title}</span>
-                        {c.description && (
-                          <span className="block text-xs text-muted-foreground line-clamp-1">
-                            {c.description}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {new Date(c.startDate).toLocaleDateString()} –{" "}
-                      {new Date(c.endDate).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      {c.selfReviewDeadline
-                        ? new Date(c.selfReviewDeadline).toLocaleDateString()
-                        : "—"}
-                    </TableCell>
-                    <TableCell>
-                      {c.managerReviewDeadline
-                        ? new Date(c.managerReviewDeadline).toLocaleDateString()
-                        : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          c.status === "active"
-                            ? "default"
-                            : c.status === "completed"
-                            ? "secondary"
-                            : "outline"
-                        }
-                      >
-                        {c.status.toUpperCase()}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{c.reviews?.length || 0} evaluations</TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Select
-                        value={c.status}
-                        onValueChange={(val) => updateStatusMutation.mutate({ id: c.id, status: val })}
-                      >
-                        <SelectTrigger className="w-[130px] inline-flex h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="planning">Planning</SelectItem>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="review">Review</SelectItem>
-                          <SelectItem value="calibration">Calibration</SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs"
-                        disabled={releaseMutation.isPending}
-                        onClick={() => releaseMutation.mutate(c.id)}
-                        title="Release ratings and feedback to Employee Self-Service"
-                      >
-                        <Send className="h-3.5 w-3.5 mr-1" /> Release
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* CREATE MODAL */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Configure Appraisal Cycle</DialogTitle>
-            <DialogDescription>
-              Set up appraisal timelines, evaluation boundaries, and submission deadlines.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <Label>Cycle Title</Label>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>
+                Review Cycle Name <span className="text-rose-500">*</span>
+              </Label>
               <Input
-                placeholder="e.g. FY 2026 Annual Performance Review"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Annual Review 2026"
+                required
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Start Date</Label>
-                <Input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>End Date</Label>
-                <Input
-                  type="date"
-                  value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                />
-              </div>
+
+            <div className="space-y-1.5">
+              <Label>
+                Frequency <span className="text-rose-500">*</span>
+              </Label>
+              <Select value={frequency} onValueChange={setFrequency}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select frequency" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FREQUENCY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Self Review Deadline</Label>
-                <Input
-                  type="date"
-                  value={formData.selfReviewDeadline}
-                  onChange={(e) =>
-                    setFormData({ ...formData, selfReviewDeadline: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <Label>Manager Review Deadline</Label>
-                <Input
-                  type="date"
-                  value={formData.managerReviewDeadline}
-                  onChange={(e) =>
-                    setFormData({ ...formData, managerReviewDeadline: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-            <div>
-              <Label>Cycle Description / Guidelines</Label>
+
+            <div className="space-y-1.5">
+              <Label>Description</Label>
               <Textarea
-                placeholder="Optional notes or evaluation guidelines for managers and staff..."
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={4}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Brief description of the review cycle"
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>
+                Status <span className="text-rose-500">*</span>
+              </Label>
+              <Select
+                value={status}
+                onValueChange={(val) => setStatus(val as "active" | "inactive")}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              {editing && (
+                <Button type="button" variant="outline" onClick={resetForm} className="flex-1">
+                  Cancel
+                </Button>
+              )}
+              <Button
+                type="submit"
+                disabled={saveMutation.isPending}
+                className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white"
+              >
+                {saveMutation.isPending
+                  ? "Saving..."
+                  : editing
+                  ? "Update Review Cycle"
+                  : "Add Review Cycle"}
+              </Button>
+            </div>
+          </form>
+        </div>
+
+        {/* Right List Column */}
+        <div className="lg:col-span-8 space-y-4">
+          {/* Search & Filter Card */}
+          <div className="bg-card border border-border/80 rounded-xl shadow-xs p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Input
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && setAppliedSearch(searchInput)}
+                  placeholder="Search review cycles..."
+                  className="pl-9 h-9 bg-background"
+                />
+              </div>
+              <Button
+                type="button"
+                onClick={() => setAppliedSearch(searchInput)}
+                className="h-9 bg-emerald-500 hover:bg-emerald-600 text-white px-4"
+              >
+                Search
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Select value={freqFilter} onValueChange={setFreqFilter}>
+                <SelectTrigger className="h-9 bg-background">
+                  <SelectValue placeholder="All Frequencies" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Frequencies</SelectItem>
+                  {FREQUENCY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-9 bg-background">
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
+
+          {/* Table Card */}
+          <div className="bg-card border border-border/80 rounded-xl shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-border/80 bg-muted/50">
+                    <th className="p-3.5 text-xs font-semibold text-muted-foreground">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSortBy("name");
+                          setSortAsc((p) => !p);
+                        }}
+                        className="inline-flex items-center gap-1 hover:text-foreground"
+                      >
+                        <span>Name</span>
+                        <ArrowUpDown className="h-3.5 w-3.5" />
+                      </button>
+                    </th>
+                    <th className="p-3.5 text-xs font-semibold text-muted-foreground w-36">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSortBy("frequency");
+                          setSortAsc((p) => !p);
+                        }}
+                        className="inline-flex items-center gap-1 hover:text-foreground"
+                      >
+                        <span>Frequency</span>
+                        <ArrowUpDown className="h-3.5 w-3.5" />
+                      </button>
+                    </th>
+                    <th className="p-3.5 text-xs font-semibold text-muted-foreground w-28">
+                      Status
+                    </th>
+                    <th className="p-3.5 text-xs font-semibold text-muted-foreground text-right pr-5 w-24">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={4} className="p-10 text-center text-sm text-muted-foreground">
+                        Loading review cycles...
+                      </td>
+                    </tr>
+                  ) : filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="p-10 text-center text-sm text-muted-foreground">
+                        No review cycles found. Create your first review cycle on the left.
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((cycle) => {
+                      const desc = cycle.description || "";
+                      const isLong = desc.length > 90;
+                      const expanded = Boolean(expandedIds[cycle.id]);
+                      const isActive = String(cycle.status || "active").toLowerCase() !== "inactive";
+                      return (
+                        <tr key={cycle.id} className="hover:bg-muted/35 transition-colors">
+                          <td className="p-3.5">
+                            <div className="flex items-start gap-3">
+                              <div className="h-9 w-9 rounded-lg bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                                <RefreshCw className="h-4 w-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold text-foreground">
+                                  {cycle.name || cycle.title}
+                                </div>
+                                {desc && (
+                                  <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                                    {isLong && !expanded ? `${desc.slice(0, 90)}...` : desc}
+                                  </div>
+                                )}
+                                {isLong && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setExpandedIds((prev) => ({
+                                        ...prev,
+                                        [cycle.id]: !prev[cycle.id],
+                                      }))
+                                    }
+                                    className="inline-flex items-center gap-0.5 text-xs font-medium text-sky-600 hover:text-sky-700 mt-1"
+                                  >
+                                    {expanded ? (
+                                      <>
+                                        <ChevronUp className="h-3.5 w-3.5" /> Show less
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ChevronDown className="h-3.5 w-3.5" /> Show more
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3.5 align-middle">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20">
+                              {formatFrequencyLabel(cycle.frequency || cycle.periodType)}
+                            </span>
+                          </td>
+                          <td className="p-3.5 align-middle">
+                            {isActive ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                                Active
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-muted text-muted-foreground border border-border/80">
+                                Inactive
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3.5 pr-5 align-middle">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-sky-600"
+                                title="Edit Review Cycle"
+                                onClick={() => startEdit(cycle)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600"
+                                title="Delete Review Cycle"
+                                onClick={() => setDeleteTarget(cycle)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Delete Confirm Modal */}
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Review Cycle</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground py-2">
+            Are you sure you want to delete{" "}
+            <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
+          </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
               Cancel
             </Button>
             <Button
-              disabled={createMutation.isPending || !formData.title}
-              onClick={() => createMutation.mutate(formData)}
+              variant="destructive"
+              disabled={deleteMutation.isPending || !deleteTarget}
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
             >
-              {createMutation.isPending ? "Creating..." : "Create Cycle"}
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

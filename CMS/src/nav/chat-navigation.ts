@@ -9,7 +9,7 @@
  */
 
 export interface ChatSubmenuEntry {
-  label: "Personal" | "Group" | "Call Logs" | "Personal Chat" | "Chat Groups" | "Chat Contacts";
+  label: "Personal" | "Group" | "Contacts" | "Call Logs" | "Personal Chat" | "Chat Groups" | "Chat Contacts";
   path: string;
   icon?: string;
   permission?: string;
@@ -29,6 +29,7 @@ export const HR_CHAT_NAV_GROUP: ChatNavigationGroup = {
   children: [
     { label: "Personal", path: "/hr/chat", icon: "ph-chat-circle", permission: "hrm.dashboard.view" },
     { label: "Group", path: "/hr/chat/groups", icon: "ph-users-three", permission: "hrm.dashboard.view" },
+    { label: "Contacts", path: "/hr/chat/contacts", icon: "ph-address-book", permission: "hrm.dashboard.view" },
     { label: "Call Logs", path: "/hr/chat/calls", icon: "ph-phone-call", permission: "hrm.dashboard.view" },
   ],
 };
@@ -39,6 +40,7 @@ export const EMPLOYEE_CHAT_NAV_GROUP: ChatNavigationGroup = {
   children: [
     { label: "Personal", path: "/me/chat", icon: "ph-chat-circle" },
     { label: "Group", path: "/me/chat/groups", icon: "ph-users-three" },
+    { label: "Contacts", path: "/me/chat/contacts", icon: "ph-address-book" },
     { label: "Call Logs", path: "/me/chat/calls", icon: "ph-phone-call" },
   ],
 };
@@ -50,6 +52,7 @@ export const TENANT_CHAT_NAV_GROUP: ChatNavigationGroup = {
   children: [
     { label: "Personal", path: "/tenant/chat", icon: "ph-chat-circle", permission: "hrm.manage" },
     { label: "Group", path: "/tenant/chat/groups", icon: "ph-users-three", permission: "hrm.manage" },
+    { label: "Contacts", path: "/tenant/chat/contacts", icon: "ph-address-book", permission: "hrm.manage" },
     { label: "Call Logs", path: "/tenant/chat/calls", icon: "ph-phone-call", permission: "hrm.manage" },
   ],
 };

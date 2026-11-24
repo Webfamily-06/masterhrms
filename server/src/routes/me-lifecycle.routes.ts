@@ -86,11 +86,33 @@ meLifecycleRouter.get("/transfers", requireAuth, async (req: AuthRequest, res: R
     if (!employee) return res.json([]);
 
     const db = getTenantDb();
-    const transfers = await db.employeeTransfer.findMany({
-      where: { tenantId, employeeId: employee.id },
-      orderBy: { effectiveDate: "desc" },
-    });
-    return res.json(transfers);
+    const [transfers, branches, departments, designations] = await Promise.all([
+      db.employeeTransfer.findMany({
+        where: { tenantId, employeeId: employee.id },
+        orderBy: { effectiveDate: "desc" },
+      }),
+      db.branch.findMany({ where: { tenantId }, select: { id: true, name: true } }),
+      db.department.findMany({ where: { tenantId }, select: { id: true, name: true } }),
+      db.designation.findMany({ where: { tenantId }, select: { id: true, name: true } }),
+    ]);
+
+    const branchMap = new Map(branches.map((b: any) => [b.id, b.name]));
+    const deptMap = new Map(departments.map((d: any) => [d.id, d.name]));
+    const desigMap = new Map(designations.map((d: any) => [d.id, d.name]));
+
+    const enriched = transfers.map((t: any) => ({
+      ...t,
+      fromBranchName: (t.fromBranchId && branchMap.get(t.fromBranchId)) || "—",
+      toBranchName: (t.toBranchId && branchMap.get(t.toBranchId)) || "—",
+      fromDeptName: (t.fromDeptId && deptMap.get(t.fromDeptId)) || "—",
+      toDeptName: (t.toDeptId && deptMap.get(t.toDeptId)) || "—",
+      fromDesignationName:
+        t.fromDesignation || (t.fromDesignationId && desigMap.get(t.fromDesignationId)) || "—",
+      toDesignationName:
+        t.toDesignation || (t.toDesignationId && desigMap.get(t.toDesignationId)) || "—",
+    }));
+
+    return res.json(enriched);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to load transfers." });
   }

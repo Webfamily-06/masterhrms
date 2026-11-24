@@ -146,6 +146,7 @@ import { productsRouter } from "./routes/products.routes";
 import { salesRouter } from "./routes/sales.routes";
 import { customersRouter } from "./routes/customers.routes";
 import { chatRouter } from "./routes/chat.routes";
+import { chatExtensionsRouter } from "./routes/chat-extensions.routes";
 import { pushRouter } from "./routes/push.routes";
 import { callRouter } from "./routes/call.routes";
 import { qzRouter } from "./routes/qz.routes";
@@ -225,6 +226,7 @@ import { runDocumentExpiryCron } from "./cron/document-expiry.cron";
 import { runProbationContractExpiryCron } from "./cron/probation-contract-expiry.cron";
 import { runReportingManagerChangeScheduler } from "./cron/reporting-manager-change.cron";
 import { runExpireTrialsCron, runRenewalsAndGraceCron } from "./cron/saas-billing.cron";
+import { runComplaintFollowUpReminderCron } from "./cron/complaint-followup-reminder.cron";
 import { CalendarReminderScheduler } from "./services/calendar-reminder.scheduler";
 import { backgroundTaskMiddleware } from "./lib/background-tasks";
 
@@ -679,6 +681,7 @@ app.use("/api/ai", aiRouter);
 app.use("/api/products", productsRouter);
 app.use("/api/sales", salesRouter);
 app.use("/api/customers", customersRouter);
+app.use("/api/chat", chatExtensionsRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/notifications/push", pushRouter);
 app.use("/api/push", pushRouter);
@@ -999,6 +1002,49 @@ if (!isServerless && process.env.NODE_ENV !== "test") {
     );
   }
   scheduleDailySaasBilling();
+
+  // Schedule daily Morning Office-Time (09:00 local) Complaint Follow-up In-App Reminders
+  function scheduleMorningComplaintFollowUpReminders() {
+    const now = new Date();
+    const nextRun = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      9,
+      0,
+      0,
+      0
+    );
+    let msUntilNext = nextRun.getTime() - now.getTime();
+    if (msUntilNext <= 0) {
+      // Already past 09:00 AM today — run an idempotent check once now, then schedule tomorrow 09:00 AM
+      runComplaintFollowUpReminderCron()
+        .then((res) => {
+          if (res.notificationsSent > 0) {
+            console.log("🔔 [CRON] Complaint follow-up morning reminders sent:", res);
+          }
+        })
+        .catch((err) => console.warn("⚠️ [CRON] Complaint follow-up reminder check failed:", err?.message));
+      msUntilNext += 24 * 60 * 60 * 1000;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        console.log("⏰ [CRON] Executing 09:00 AM Complaint Follow-up Reminders...");
+        const res = await runComplaintFollowUpReminderCron();
+        console.log("✅ [CRON] Complaint Follow-up Reminders finished:", res);
+      } catch (err: any) {
+        console.error("❌ [CRON] Complaint Follow-up Reminders failed:", err?.message);
+      }
+      scheduleMorningComplaintFollowUpReminders();
+    }, msUntilNext);
+    if (timer.unref) timer.unref();
+
+    console.log(
+      `⏰ Daily Complaint Follow-up Reminder scheduled in ${Math.round(msUntilNext / 60000)} min (target: 09:00 AM office time)`
+    );
+  }
+  scheduleMorningComplaintFollowUpReminders();
 
   server.listen(Number(PORT), HOST, async () => {
     console.log(`🚀 Master HRMS Backend Server running on http://${HOST}:${PORT}`);

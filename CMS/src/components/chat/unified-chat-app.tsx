@@ -51,6 +51,8 @@ import {
   type ActiveMeetingState,
   type MeetingParticipant,
 } from "./multi-participant-meeting-dialog";
+import { WhatsAppAttachmentsGrid } from "./whatsapp-attachments-grid";
+import { UpcomingMeetingsSyncBar, ChatPowerToolsBar } from "./chat-power-tools";
 
 export function resolveChatAttachmentUrl(rawUrl?: string | null): string {
   if (!rawUrl) return "";
@@ -7867,6 +7869,10 @@ export function UnifiedChatApp({
             </div>
           )}
 
+        {/* Upcoming Meetings Sync Bar + Chat Power Tools (Starred, Scheduled, Disappearing, Voice Transcribe, Push, Export) */}
+        <UpcomingMeetingsSyncBar workspacePrefix={workspacePrefix} />
+        <ChatPowerToolsBar threadId={activeThreadId} />
+
         {/* Segmented Top Navigation: Personal / Group / Call Logs */}
         <div className="p-3 border-b border-border bg-card">
           <div className="flex items-center justify-between mb-2.5">
@@ -9354,137 +9360,30 @@ export function UnifiedChatApp({
                                 </div>
                               )}
 
-                              {/* Attachments List (Images, Inline Videos, PDFs & Documents — Issue 2) */}
+                              {/* Attachments — WhatsApp-style 2x2 Media/File Grid with Per-File Delete for Me / Everyone */}
                               {msg.attachments && msg.attachments.length > 0 && (
-                                <div className="mt-2 space-y-1.5">
-                                  {msg.attachments.map((att, aIdx) => {
-                                    const attExt = (att.name || "").split(".").pop()?.toLowerCase() || "";
-                                    const isImage =
-                                      att.mimeType?.startsWith("image/") ||
-                                      ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "heic", "heif"].includes(attExt);
-                                    const isVideo =
-                                      att.mimeType?.startsWith("video/") ||
-                                      ["mp4", "webm", "mov", "m4v", "ogg"].includes(attExt);
-                                    const isPdf =
-                                      att.mimeType?.includes("pdf") || attExt === "pdf";
-                                    const fallbackMediaId = att.mediaId || att.id;
-                                    const fallbackInlineUrl = fallbackMediaId
-                                      ? resolveChatAttachmentUrl(
-                                          `/api/chat/attachments/${encodeURIComponent(fallbackMediaId)}/download?inline=1`
-                                        )
-                                      : "";
-                                    const previewSrc =
-                                      resolveChatAttachmentUrl(att.signedPreviewUrl || att.url) ||
-                                      fallbackInlineUrl;
-                                    const downloadHref =
-                                      resolveChatAttachmentUrl(
-                                        att.signedDownloadUrl || att.signedPreviewUrl || att.url
-                                      ) || fallbackInlineUrl;
-
-                                    if (isImage) {
-                                      return (
-                                        <div
-                                          key={aIdx}
-                                          data-testid="chat-attachment-image-card"
-                                          onClick={() => openAttachmentViewer(msg.attachments!, aIdx)}
-                                          className="cursor-pointer group/img relative overflow-hidden rounded-lg border border-border/60 max-w-[240px] sm:max-w-xs bg-muted/20"
-                                        >
-                                          <img
-                                            src={previewSrc}
-                                            alt={att.name}
-                                            loading="lazy"
-                                            onError={(e) => {
-                                              const img = e.currentTarget;
-                                              if (
-                                                fallbackInlineUrl &&
-                                                !img.dataset.retriedFallback &&
-                                                img.src !== fallbackInlineUrl
-                                              ) {
-                                                img.dataset.retriedFallback = "1";
-                                                img.src = fallbackInlineUrl;
-                                              }
-                                            }}
-                                            className="max-h-56 w-auto object-cover group-hover/img:scale-105 transition-transform"
-                                          />
-                                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-xs gap-1">
-                                            <Eye className="size-4" /> View Full
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-
-                                    if (isVideo) {
-                                      return (
-                                        <div
-                                          key={aIdx}
-                                          data-testid="chat-attachment-video-card"
-                                          className="relative overflow-hidden rounded-lg border border-border/60 max-w-[260px] sm:max-w-xs bg-black"
-                                        >
-                                          <video
-                                            src={previewSrc}
-                                            controls
-                                            playsInline
-                                            preload="metadata"
-                                            onError={(e) => {
-                                              const vid = e.currentTarget;
-                                              if (
-                                                fallbackInlineUrl &&
-                                                !vid.dataset.retriedFallback &&
-                                                vid.src !== fallbackInlineUrl
-                                              ) {
-                                                vid.dataset.retriedFallback = "1";
-                                                vid.src = fallbackInlineUrl;
-                                              }
-                                            }}
-                                            className="max-h-60 w-full object-contain bg-black"
-                                          />
-                                          <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-card/95 text-foreground text-[11px] border-t border-border/50">
-                                            <span className="truncate font-medium">{att.name}</span>
-                                            <button
-                                              type="button"
-                                              onClick={() => openAttachmentViewer(msg.attachments!, aIdx)}
-                                              className="text-primary hover:underline shrink-0 font-semibold cursor-pointer"
-                                            >
-                                              Expand
-                                            </button>
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-
-                                    return (
-                                      <div
-                                        key={aIdx}
-                                        onClick={() => openAttachmentViewer(msg.attachments!, aIdx)}
-                                        className="flex items-center gap-2 p-2 rounded bg-card text-foreground border border-border/70 max-w-[240px] sm:max-w-xs cursor-pointer hover:bg-muted/60 transition-colors"
-                                      >
-                                        {isPdf ? (
-                                          <FileText className="size-5 text-destructive flex-shrink-0" />
-                                        ) : (
-                                          <FileIcon className="size-5 text-primary flex-shrink-0" />
-                                        )}
-                                        <div className="flex-1 min-w-0">
-                                          <p className="font-medium text-xs truncate">{att.name}</p>
-                                          <p className="text-[10px] text-muted-foreground">{formatFileSize(att.size)}</p>
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            const link = document.createElement("a");
-                                            link.href = downloadHref;
-                                            link.download = att.name;
-                                            link.click();
-                                          }}
-                                          className="p-1 hover:bg-muted rounded text-primary dark:text-primary"
-                                          title="Download"
-                                        >
-                                          <Download className="size-4" />
-                                        </button>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
+                                <WhatsAppAttachmentsGrid
+                                  messageId={msg.id}
+                                  attachments={msg.attachments as any[]}
+                                  deletedIndexesForMe={
+                                    ((msg as any).deletedAttachmentsByUser &&
+                                      currentUserId &&
+                                      (msg as any).deletedAttachmentsByUser[currentUserId]) ||
+                                    []
+                                  }
+                                  isSent={isSent}
+                                  canDeleteForEveryone={Boolean(isSent)}
+                                  resolveUrl={resolveChatAttachmentUrl}
+                                  formatFileSize={formatFileSize}
+                                  onOpenViewer={(atts, idx) =>
+                                    openAttachmentViewer(atts as any[], idx)
+                                  }
+                                  onAttachmentsChanged={() => {
+                                    queryClient.invalidateQueries({
+                                      queryKey: ["chat", "messages", activeThreadId],
+                                    });
+                                  }}
+                                />
                               )}
 
                               {/* Poll Card */}

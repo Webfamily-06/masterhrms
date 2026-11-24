@@ -28,6 +28,7 @@ import { hrAssetsRouter } from "./hr-assets.routes";
 import { meAssetsRouter } from "./me-assets.routes";
 import { hrMeetingsRouter } from "./hr-meetings.routes";
 import { meMeetingsRouter } from "./me-meetings.routes";
+import { hrZoomMeetingsRouter } from "./hr-zoom-meetings.routes";
 import { hrDocumentsRouter } from "./hr-documents.routes";
 import { meDocumentsRouter } from "./me-documents.routes";
 import { hrCollaborationRouter } from "./hr-collaboration.routes";
@@ -83,6 +84,7 @@ platformFoundationRouter.use("/hr/assets", hrAssetsRouter);
 platformFoundationRouter.use("/me/assets", meAssetsRouter);
 platformFoundationRouter.use("/hr/meetings", hrMeetingsRouter);
 platformFoundationRouter.use("/me/meetings", meMeetingsRouter);
+platformFoundationRouter.use("/hr/zoom-meetings", hrZoomMeetingsRouter);
 platformFoundationRouter.use("/hr/documents", hrDocumentsRouter);
 platformFoundationRouter.use("/me/documents", meDocumentsRouter);
 

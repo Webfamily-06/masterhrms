@@ -2034,6 +2034,62 @@ export function DreamsSidebar({
                       href="#"
                       onClick={(e) => {
                         e.preventDefault();
+                        toggleSubmenu("tenantChat");
+                      }}
+                      className={cn(
+                        "cursor-pointer",
+                        openMenus.tenantChat && "subdrop",
+                        currentPath.startsWith("/tenant/chat") && "active"
+                      )}
+                    >
+                      <i className="ph-duotone ph-chat-circle-dots"></i>
+                      <span>Chat</span>
+                      <span className="menu-arrow"></span>
+                    </a>
+                    <ul style={{ display: !isMini && openMenus.tenantChat ? "block" : "none" }}>
+                      <li>
+                        <Link
+                          to="/tenant/chat"
+                          onClick={onCloseMobile}
+                          className={cn(currentPath === "/tenant/chat" && "active")}
+                        >
+                          Personal
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to="/tenant/chat/groups"
+                          onClick={onCloseMobile}
+                          className={cn(currentPath === "/tenant/chat/groups" && "active")}
+                        >
+                          Group
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to="/tenant/chat/contacts"
+                          onClick={onCloseMobile}
+                          className={cn(currentPath === "/tenant/chat/contacts" && "active")}
+                        >
+                          Contacts
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to="/tenant/chat/calls"
+                          onClick={onCloseMobile}
+                          className={cn(currentPath === "/tenant/chat/calls" && "active")}
+                        >
+                          Call Logs
+                        </Link>
+                      </li>
+                    </ul>
+                  </li>
+                  <li className="submenu">
+                    <a
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
                         toggleSubmenu("tenantWorkspace");
                       }}
                       className={cn(
