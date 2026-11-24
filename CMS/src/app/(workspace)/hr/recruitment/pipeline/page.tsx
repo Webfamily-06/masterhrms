@@ -135,7 +135,7 @@ export default function HrRecruitmentPipelinePage() {
               {/* Column Header */}
               <div className="flex items-center justify-between pb-3 border-b border-border/50">
                 <span className="font-semibold text-sm">{col.label}</span>
-                <Badge variant="secondary" className="font-mono text-xs">
+                <Badge variant="secondary" className="text-xs">
                   {colCandidates.length}
                 </Badge>
               </div>

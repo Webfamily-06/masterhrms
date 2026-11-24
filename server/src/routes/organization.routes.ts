@@ -101,7 +101,14 @@ organizationRouter.use(
     searchFields: ["name", "description"],
     uniqueFields: ["name"],
     include: {
-      department: { select: { id: true, name: true } },
+      department: {
+        select: {
+          id: true,
+          name: true,
+          branchId: true,
+          branch: { select: { id: true, name: true } },
+        },
+      },
     },
     dependencyCheck: async (db, id, tenantId) => {
       const empCount = await db.employee.count({ where: { designationId: id, tenantId } });
@@ -710,6 +717,126 @@ organizationRouter.get(
       return res.json({ success: true, history });
     } catch (err: any) {
       return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// =========================================================================
+// 9. CAREER PAGE SEO CONFIGURATION (GET / PUT /career-seo)
+// Persists tenant career portal meta tags & social image in PostgreSQL
+// =========================================================================
+organizationRouter.get(
+  "/career-seo",
+  requireAuth,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+      const [tenant, setting] = await Promise.all([
+        prisma.tenant.findUnique({
+          where: { id: tenantId },
+          select: { id: true, name: true, slug: true },
+        }),
+        prisma.setting.findFirst({
+          where: {
+            scope: "TENANT",
+            scopeId: tenantId,
+            key: "career_page_seo",
+          },
+        }),
+      ]);
+
+      const value = (setting?.valueJson as any) || {};
+      return res.json({
+        success: true,
+        data: {
+          metaTitle: value.metaTitle || "",
+          metaKeywords: value.metaKeywords || "",
+          metaDescription: value.metaDescription || "",
+          metaSocialImage: value.metaSocialImage || "",
+          tenantName: tenant?.name || "",
+          tenantSlug: tenant?.slug || "",
+          updatedAt: setting?.updatedAt || null,
+        },
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || "Failed to load Career Page SEO" });
+    }
+  }
+);
+
+organizationRouter.put(
+  "/career-seo",
+  requireAuth,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user?.tenantId;
+      const actorId = req.user?.userId || "system";
+      if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+      const metaTitle = String(req.body?.metaTitle || "").trim();
+      const metaKeywords = String(req.body?.metaKeywords || "").trim();
+      const metaDescription = String(req.body?.metaDescription || "").trim();
+      const metaSocialImage = typeof req.body?.metaSocialImage === "string" ? req.body.metaSocialImage.trim() : "";
+
+      if (!metaTitle) {
+        return res.status(400).json({ error: "Meta Title is required." });
+      }
+      if (!metaKeywords) {
+        return res.status(400).json({ error: "Meta Keywords are required." });
+      }
+      if (!metaDescription) {
+        return res.status(400).json({ error: "Meta Description is required." });
+      }
+
+      const payload = {
+        metaTitle,
+        metaKeywords,
+        metaDescription,
+        metaSocialImage,
+      };
+
+      const existing = await prisma.setting.findFirst({
+        where: {
+          scope: "TENANT",
+          scopeId: tenantId,
+          key: "career_page_seo",
+        },
+      });
+
+      const saved = existing
+        ? await prisma.setting.update({
+            where: { id: existing.id },
+            data: {
+              valueJson: payload,
+              updatedBy: actorId,
+              version: { increment: 1 },
+            },
+          })
+        : await prisma.setting.create({
+            data: {
+              scope: "TENANT",
+              scopeId: tenantId,
+              group: "career_seo",
+              key: "career_page_seo",
+              valueJson: payload,
+              valueType: "json",
+              isSecret: false,
+              updatedBy: actorId,
+            },
+          });
+
+      return res.json({
+        success: true,
+        message: "Career Page SEO settings saved and applied live.",
+        data: {
+          ...payload,
+          updatedAt: saved.updatedAt,
+        },
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || "Failed to save Career Page SEO" });
     }
   }
 );

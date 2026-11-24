@@ -92,6 +92,83 @@ const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
   { to: '/super/api-docs', label: 'API Reference', iconClass: 'ph-code', group: 'System Controls' },
   { to: '/super/developer', label: 'Developer & Web APIs', iconClass: 'ph-terminal-window', group: 'System Controls' },
   { to: '/super/docs', label: 'Documentation Portal', iconClass: 'ph-book-open', group: 'System Controls' },
+
+  // ── UI & Design System (Super Admin Only)
+  {
+    to: '/ui-alerts',
+    label: 'Base UI',
+    iconClass: 'ph-squares-four',
+    group: 'UI & Design System',
+    children: [
+      { to: '/ui-alerts', label: 'Alerts' },
+      { to: '/ui-accordion', label: 'Accordion' },
+      { to: '/ui-avatar', label: 'Avatar' },
+      { to: '/ui-badges', label: 'Badges' },
+      { to: '/ui-buttons', label: 'Buttons' },
+      { to: '/ui-buttons-group', label: 'Button Group' },
+      { to: '/ui-breadcrumb', label: 'Breadcrumb' },
+      { to: '/ui-cards', label: 'Cards' },
+      { to: '/ui-colors', label: 'Colors' },
+      { to: '/ui-collapse', label: 'Collapse' },
+      { to: '/ui-dropdowns', label: 'Dropdowns' },
+      { to: '/ui-grid', label: 'Grid' },
+      { to: '/ui-images', label: 'Images' },
+      { to: '/ui-modals', label: 'Modals' },
+      { to: '/ui-offcanvas', label: 'Offcanvas' },
+      { to: '/ui-pagination', label: 'Pagination' },
+      { to: '/ui-popovers', label: 'Popovers' },
+      { to: '/ui-progress', label: 'Progress' },
+      { to: '/ui-nav-tabs', label: 'Tabs' },
+      { to: '/ui-typography', label: 'Typography' },
+    ],
+  },
+  {
+    to: '/ui-dragula',
+    label: 'Advanced UI',
+    iconClass: 'ph-shooting-star',
+    group: 'UI & Design System',
+    children: [
+      { to: '/ui-dragula', label: 'Dragula' },
+      { to: '/ui-clipboard', label: 'Clipboard' },
+      { to: '/ui-rangeslider', label: 'Range Slider' },
+      { to: '/ui-lightbox', label: 'Lightbox' },
+    ],
+  },
+  {
+    to: '/form-elements',
+    label: 'Forms',
+    iconClass: 'ph-note-pencil',
+    group: 'UI & Design System',
+    children: [
+      { to: '/form-elements', label: 'Form Elements' },
+      { to: '/form-select2', label: 'Select2' },
+      { to: '/form-editors', label: 'Form Editor' },
+      { to: '/form-pickers', label: 'Form Picker' },
+    ],
+  },
+  {
+    to: '/tables-basic',
+    label: 'Tables',
+    iconClass: 'ph-table',
+    group: 'UI & Design System',
+    children: [
+      { to: '/tables-basic', label: 'Basic Tables' },
+      { to: '/data-tables', label: 'Data Table' },
+    ],
+  },
+  {
+    to: '/chart-apex',
+    label: 'Charts',
+    iconClass: 'ph-chart-pie-slice',
+    group: 'UI & Design System',
+    children: [
+      { to: '/chart-apex', label: 'Apex Charts' },
+      { to: '/chart-js', label: 'Chart Js' },
+      { to: '/chart-morris', label: 'Morris Charts' },
+      { to: '/chart-flot', label: 'Flot Charts' },
+      { to: '/chart-c3', label: 'C3 Charts' },
+    ],
+  },
 ];
 
 function SuperSidebar({
@@ -116,8 +193,13 @@ function SuperSidebar({
   const path = useRouterState({ select: (r: any) => r.location.pathname });
   const [isHovered, setIsHovered] = useState(false);
   const [ignoreHover, setIgnoreHover] = useState(false);
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({ 'Blog Insights': true });
   const { appConfig } = useAppConfig();
   const { isDark } = useThemeMode();
+
+  const toggleSubmenu = (label: string) => {
+    setOpenMenus((prev) => ({ ...prev, [label]: !prev[label] }));
+  };
 
   const activeLogo = isDark
     ? (appConfig?.logoDarkUrl || '/white-logo.webp')
@@ -141,6 +223,7 @@ function SuperSidebar({
     { title: 'Marketing & CMS', items: ALL_SUPER_SEARCH_ITEMS.filter((i) => i.group === 'Marketing & CMS') },
     { title: 'Communications', items: ALL_SUPER_SEARCH_ITEMS.filter((i) => i.group === 'Communications') },
     { title: 'System Controls', items: ALL_SUPER_SEARCH_ITEMS.filter((i) => i.group === 'System Controls') },
+    { title: 'UI & Design System', items: ALL_SUPER_SEARCH_ITEMS.filter((i) => i.group === 'UI & Design System') },
   ];
 
   return (
@@ -261,11 +344,14 @@ function SuperSidebar({
                       : path.startsWith(item.to);
 
                   if (hasChildren) {
+                    const isExpanded = Boolean(openMenus[item.label] || isAnyChildActive);
                     return (
                       <li key={item.to} className={cn('submenu-parent', isAnyChildActive && 'active')}>
-                        <div
+                        <button
+                          type="button"
+                          onClick={() => toggleSubmenu(item.label)}
                           className={cn(
-                            'flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-md transition-colors select-none',
+                            'w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-md transition-colors select-none cursor-pointer',
                             isAnyChildActive
                               ? 'bg-primary/10 text-primary font-bold dark:bg-primary/20'
                               : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/60'
@@ -275,32 +361,34 @@ function SuperSidebar({
                             <i className={cn('ph-duotone text-base', item.iconClass)}></i>
                             <span className="truncate">{item.label}</span>
                           </div>
-                          <i className="ph-bold ph-caret-down text-[10px] opacity-70"></i>
-                        </div>
-                        <ul className="pl-6 pt-1 pb-1 space-y-0.5">
-                          {item.children!.map((child) => {
-                            const isChildActive = child.to === '/super/plans' || child.to === '/super/blogs'
-                              ? path === child.to
-                              : path.startsWith(child.to);
-                            return (
-                              <li key={child.to}>
-                                <Link
-                                  to={child.to}
-                                  onClick={onCloseMobile}
-                                  className={cn(
-                                    'flex items-center gap-2 px-2.5 py-1 text-xs rounded transition-colors',
-                                    isChildActive
-                                      ? 'text-primary font-bold bg-primary/10 dark:bg-primary/20'
-                                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-800/40'
-                                  )}
-                                >
-                                  {child.iconClass && <i className={cn('ph-duotone text-xs', child.iconClass)}></i>}
-                                  <span>{child.label}</span>
-                                </Link>
-                              </li>
-                            );
-                          })}
-                        </ul>
+                          <i className={cn('ph-bold ph-caret-down text-[10px] opacity-70 transition-transform duration-200', isExpanded && 'rotate-180')}></i>
+                        </button>
+                        {isExpanded && (
+                          <ul className="pl-6 pt-1 pb-1 space-y-0.5">
+                            {item.children!.map((child) => {
+                              const isChildActive = child.to === '/super/plans' || child.to === '/super/blogs'
+                                ? path === child.to
+                                : path.startsWith(child.to);
+                              return (
+                                <li key={child.to}>
+                                  <Link
+                                    to={child.to}
+                                    onClick={onCloseMobile}
+                                    className={cn(
+                                      'flex items-center gap-2 px-2.5 py-1 text-xs rounded transition-colors',
+                                      isChildActive
+                                        ? 'text-primary font-bold bg-primary/10 dark:bg-primary/20'
+                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/50 dark:hover:bg-slate-800/40'
+                                    )}
+                                  >
+                                    {child.iconClass && <i className={cn('ph-duotone text-xs', child.iconClass)}></i>}
+                                    <span>{child.label}</span>
+                                  </Link>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
                       </li>
                     );
                   }

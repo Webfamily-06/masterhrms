@@ -32,19 +32,61 @@ if (cleanupTimer.unref) {
   cleanupTimer.unref();
 }
 
+export interface StoredBackupCodeEntry {
+  hash: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+const BACKUP_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 32 unambiguous chars (5 bits/char)
+const DEFAULT_BACKUP_CODE_TTL_DAYS = Number(process.env.BACKUP_CODE_TTL_DAYS || 365);
+
 export function hashBackupCode(rawCode: string): string {
   const normalized = rawCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
   return crypto.createHash("sha256").update(normalized).digest("hex");
 }
 
+/**
+ * SEC-005: Cryptographically secure backup code generator using crypto.randomInt().
+ * Generates 8-character codes (XXXX-XXXX) with 40 bits of entropy from an unambiguous alphabet.
+ */
 export function generateRandomBackupCodes(count = 8): string[] {
-  const codes: string[] = [];
-  for (let i = 0; i < count; i++) {
-    const part1 = crypto.randomBytes(2).toString("hex").toUpperCase();
-    const part2 = crypto.randomBytes(2).toString("hex").toUpperCase();
-    codes.push(`${part1}-${part2}`);
+  const codes = new Set<string>();
+  while (codes.size < count) {
+    let part1 = "";
+    let part2 = "";
+    for (let j = 0; j < 4; j++) {
+      part1 += BACKUP_CODE_ALPHABET[crypto.randomInt(0, BACKUP_CODE_ALPHABET.length)];
+      part2 += BACKUP_CODE_ALPHABET[crypto.randomInt(0, BACKUP_CODE_ALPHABET.length)];
+    }
+    codes.add(`${part1}-${part2}`);
   }
-  return codes;
+  return Array.from(codes);
+}
+
+export function createHashedBackupCodeEntries(
+  rawCodes: string[],
+  ttlDays = DEFAULT_BACKUP_CODE_TTL_DAYS
+): StoredBackupCodeEntry[] {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + ttlDays * 24 * 60 * 60 * 1000).toISOString();
+  const createdAt = now.toISOString();
+  return rawCodes.map((code) => ({
+    hash: hashBackupCode(code),
+    createdAt,
+    expiresAt,
+  }));
+}
+
+function timingSafeHexMatch(a: string, b: string): boolean {
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length || a.length === 0) {
+    return false;
+  }
+  try {
+    return crypto.timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
+  } catch {
+    return false;
+  }
 }
 
 export class TwoFactorService {
@@ -143,7 +185,7 @@ export class TwoFactorService {
 
     const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
     const rawBackupCodes = generateRandomBackupCodes(8);
-    const hashedBackupCodes = rawBackupCodes.map(hashBackupCode);
+    const hashedBackupCodes = createHashedBackupCodeEntries(rawBackupCodes);
 
     const encryptedSecretStr = this.serializeEncryptedSecret(secret.base32);
 
@@ -343,25 +385,48 @@ export class TwoFactorService {
       }
     }
 
-    // 2. Check if it is a valid backup code
+    // 2. Check if it is a valid backup code (supports both structured entries with expiry & legacy string[] hashes)
     if (user.twoFactorBackupCodes) {
-      let storedHashes: string[] = [];
+      let storedEntries: Array<string | StoredBackupCodeEntry> = [];
       try {
-        storedHashes = JSON.parse(user.twoFactorBackupCodes);
+        const parsed = JSON.parse(user.twoFactorBackupCodes);
+        storedEntries = Array.isArray(parsed) ? parsed : [];
       } catch {
-        storedHashes = [];
+        storedEntries = [];
       }
 
       const submittedHash = hashBackupCode(raw);
-      const matchIndex = storedHashes.indexOf(submittedHash);
+      const nowMs = Date.now();
+      let matchIndex = -1;
+      let matchedExpired = false;
+
+      for (let i = 0; i < storedEntries.length; i++) {
+        const entry = storedEntries[i];
+        const entryHash = typeof entry === "string" ? entry : entry?.hash;
+        if (entryHash && timingSafeHexMatch(entryHash, submittedHash)) {
+          if (typeof entry !== "string" && entry.expiresAt && new Date(entry.expiresAt).getTime() <= nowMs) {
+            matchedExpired = true;
+          } else {
+            matchIndex = i;
+          }
+          break;
+        }
+      }
+
+      if (matchedExpired) {
+        return {
+          valid: false,
+          error: "This backup recovery code has expired. Please use your authenticator app or regenerate backup codes.",
+        };
+      }
 
       if (matchIndex !== -1) {
-        // Consume the backup code atomically
-        storedHashes.splice(matchIndex, 1);
+        // Consume the backup code atomically (single-use)
+        storedEntries.splice(matchIndex, 1);
         await db.user.update({
           where: { id: userId },
           data: {
-            twoFactorBackupCodes: JSON.stringify(storedHashes),
+            twoFactorBackupCodes: JSON.stringify(storedEntries),
           },
         });
 
@@ -377,7 +442,7 @@ export class TwoFactorService {
             entityId: userId,
             ipAddress: actorContext?.ipAddress,
             userAgent: actorContext?.userAgent,
-            metadata: { remaining: storedHashes.length },
+            metadata: { remaining: storedEntries.length },
           });
 
           await OutboxService.createOutboxEvent({
@@ -386,14 +451,14 @@ export class TwoFactorService {
             entityType: "User",
             entityId: userId,
             actorId: userId,
-            payload: { userId, remaining: storedHashes.length },
+            payload: { userId, remaining: storedEntries.length },
           });
         }
 
         return {
           valid: true,
           method: "BACKUP_CODE",
-          remainingBackupCodes: storedHashes.length,
+          remainingBackupCodes: storedEntries.length,
         };
       }
     }
@@ -430,7 +495,7 @@ export class TwoFactorService {
     }
 
     const newCodes = generateRandomBackupCodes(8);
-    const newHashes = newCodes.map(hashBackupCode);
+    const newHashes = createHashedBackupCodeEntries(newCodes);
 
     const db = this.getDb();
     const user = await db.user.findUnique({

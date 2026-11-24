@@ -2,6 +2,71 @@ import { Router, Response } from "express";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { DocumentTypeService } from "../services/document-type.service";
+import { getTenantDb } from "../context/tenant-context";
+
+async function pushMissingDocumentAnnouncementIfNeeded(
+  req: AuthRequest,
+  tenantId: string,
+  docTypeName: string,
+  isRequired: boolean
+): Promise<boolean> {
+  if (!isRequired) return false;
+  try {
+    const db = getTenantDb(req);
+    const activeEmployees = await db.employee.findMany({
+      where: { tenantId, status: "active" },
+      select: { id: true },
+    });
+    if (activeEmployees.length === 0) return false;
+
+    const existingUploads = await db.companyDocument.findMany({
+      where: {
+        tenantId,
+        OR: [
+          { category: { equals: docTypeName, mode: "insensitive" } },
+          { title: { contains: docTypeName, mode: "insensitive" } },
+        ],
+      },
+      select: { employeeId: true },
+    });
+
+    const uploadedEmpIds = new Set(existingUploads.map((u: any) => u.employeeId).filter(Boolean));
+    const missingCount = activeEmployees.filter((e: any) => !uploadedEmpIds.has(e.id)).length;
+    if (missingCount === 0) return false;
+
+    const title = `Action Required: Upload Mandatory Document — ${docTypeName}`;
+    const existingAnn = await db.announcement.findFirst({
+      where: { tenantId, title, status: "published" },
+      select: { id: true },
+    });
+    if (existingAnn) return false;
+
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 30);
+
+    await db.announcement.create({
+      data: {
+        tenantId,
+        title,
+        summary: `${docTypeName} is now a mandatory employee document. ${missingCount} existing employee(s) need to upload this document.`,
+        content: `Dear Team,\n\n"${docTypeName}" has been marked as a mandatory employee document by HR.\n\nIf you have not yet uploaded your ${docTypeName}, please upload it from your Employee Documents portal at the earliest and acknowledge this announcement.\n\nEmployees currently missing this document: ${missingCount}.`,
+        category: "Policy Updates",
+        priority: "high",
+        status: "published",
+        targetType: "all_company",
+        isPinned: true,
+        publishDate: new Date(),
+        expiryDate,
+        authorName: "Human Resources",
+        acknowledgementRequired: true,
+      },
+    });
+    return true;
+  } catch (err) {
+    console.warn("[pushMissingDocumentAnnouncementIfNeeded] warning:", err);
+    return false;
+  }
+}
 
 export const documentTypesRouter = Router();
 
@@ -51,16 +116,25 @@ documentTypesRouter.post("/", async (req: AuthRequest, res: Response) => {
     const actorId = req.user?.userId || (req.user as any)?.id || "system";
     const { name, description, isRequired, code } = req.body;
 
+    const isReq = isRequired === true || isRequired === "true" || isRequired === "Required";
     const created = await DocumentTypeService.createDocumentType(tenantId, actorId, {
       name,
       description,
-      isRequired: isRequired === true || isRequired === "true" || isRequired === "Required",
+      isRequired: isReq,
       code,
     });
+
+    const announcementPushed = await pushMissingDocumentAnnouncementIfNeeded(
+      req,
+      tenantId,
+      created.name,
+      isReq
+    );
 
     return res.status(201).json({
       success: true,
       message: `Document type "${created.name}" created successfully.`,
+      announcementPushed,
       data: created,
     });
   } catch (err: any) {
@@ -95,9 +169,15 @@ documentTypesRouter.put("/:id", async (req: AuthRequest, res: Response) => {
       isActive,
     });
 
+    const announcementPushed =
+      parsedRequired === true
+        ? await pushMissingDocumentAnnouncementIfNeeded(req, tenantId, updated.name, true)
+        : false;
+
     return res.json({
       success: true,
       message: `Document type "${updated.name}" updated successfully.`,
+      announcementPushed,
       data: updated,
     });
   } catch (err: any) {

@@ -84,10 +84,10 @@ export function PhoneInput({
   };
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
+    const raw = e.target.value.replace(/[^\d\s-]/g, "").slice(0, 15);
     setPhoneNumber(raw);
     const dial = selectedCountry.phoneCode || "+1";
-    const full = raw ? `${dial} ${raw.trim()}` : "";
+    const full = raw.trim() ? `${dial} ${raw.trim()}` : "";
     if (onChange) onChange(full);
   };
 

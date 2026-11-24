@@ -922,15 +922,49 @@ hrAttendanceRouter.get("/live", async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Helper: compute net working hours from HH:mm start/end & break minutes
+function computeWorkingHours(startTime: string, endTime: string, breakMinutes: number): number {
+  const [sh, sm] = String(startTime || "09:00").split(":").map(Number);
+  const [eh, em] = String(endTime || "18:00").split(":").map(Number);
+  if (isNaN(sh) || isNaN(eh)) return 8.0;
+  let startTotal = sh * 60 + (sm || 0);
+  let endTotal = eh * 60 + (em || 0);
+  if (endTotal <= startTotal) endTotal += 24 * 60; // overnight / night shift
+  const netMinutes = Math.max(0, endTotal - startTotal - (Number(breakMinutes) || 0));
+  return Math.round((netMinutes / 60) * 10) / 10;
+}
+
 // GET /api/v1/hr/attendance/policies
 hrAttendanceRouter.get("/policies", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.tenantId!;
-    const policies = await rawPrisma.attendancePolicy.findMany({
-      where: { tenantId },
-      orderBy: { createdAt: "desc" },
+    const [policies, metaRows] = await Promise.all([
+      rawPrisma.attendancePolicy.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+      }),
+      rawPrisma.setting.findMany({
+        where: { scope: "TENANT", scopeId: tenantId, group: "policy_meta" },
+      }),
+    ]);
+
+    const metaMap = new Map<string, any>();
+    for (const m of metaRows) {
+      metaMap.set(m.key, m.valueJson || {});
+    }
+
+    const enriched = policies.map((p: any) => {
+      const meta = metaMap.get(`policy_meta:${p.id}`) || {};
+      return {
+        ...p,
+        lateArrivalGrace: Number(p.graceMinutes ?? meta.lateArrivalGrace ?? 15),
+        earlyDepartureGrace: Number(meta.earlyDepartureGrace ?? p.graceMinutes ?? 15),
+        overtimeRatePerHour: Number(meta.overtimeRatePerHour ?? 150),
+        status: meta.status || "active",
+      };
     });
-    return res.json(policies);
+
+    return res.json(enriched);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -940,15 +974,41 @@ hrAttendanceRouter.get("/policies", async (req: AuthRequest, res: Response) => {
 hrAttendanceRouter.post("/policies", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.tenantId!;
-    const { name, code, workingDays, graceMinutes, halfDayHours, fullDayHours, isDefault, branchId, departmentId } = req.body;
+    const actorId = req.user?.userId || "system";
+    const {
+      name,
+      code,
+      description,
+      workingDays,
+      graceMinutes,
+      lateArrivalGrace,
+      earlyDepartureGrace,
+      overtimeRatePerHour,
+      halfDayHours,
+      fullDayHours,
+      isDefault,
+      branchId,
+      departmentId,
+      status,
+    } = req.body;
+
+    if (!name?.trim()) {
+      return res.status(400).json({ error: "Policy Name is required." });
+    }
+
+    const lateGrace = Number(lateArrivalGrace ?? graceMinutes ?? 15);
+    const earlyGrace = Number(earlyDepartureGrace ?? lateGrace);
+    const otRate = Number(overtimeRatePerHour ?? 150);
+    const policyStatus = status === "inactive" ? "inactive" : "active";
 
     const policy = await rawPrisma.attendancePolicy.create({
       data: {
         tenantId,
-        name,
+        name: name.trim(),
         code: code || `POL-${Date.now()}`,
+        description: description?.trim() || null,
         workingDays: workingDays || "Mon,Tue,Wed,Thu,Fri",
-        graceMinutes: Number(graceMinutes) || 15,
+        graceMinutes: isNaN(lateGrace) ? 15 : lateGrace,
         halfDayHours: Number(halfDayHours) || 4.0,
         fullDayHours: Number(fullDayHours) || 8.0,
         isDefault: !!isDefault,
@@ -956,7 +1016,168 @@ hrAttendanceRouter.post("/policies", async (req: AuthRequest, res: Response) => 
         departmentId: departmentId || null,
       },
     });
-    return res.status(201).json(policy);
+
+    await rawPrisma.setting.create({
+      data: {
+        scope: "TENANT",
+        scopeId: tenantId,
+        group: "policy_meta",
+        key: `policy_meta:${policy.id}`,
+        valueJson: {
+          lateArrivalGrace: lateGrace,
+          earlyDepartureGrace: earlyGrace,
+          overtimeRatePerHour: otRate,
+          status: policyStatus,
+        },
+        valueType: "json",
+        isSecret: false,
+        updatedBy: actorId,
+      },
+    });
+
+    return res.status(201).json({
+      ...policy,
+      lateArrivalGrace: lateGrace,
+      earlyDepartureGrace: earlyGrace,
+      overtimeRatePerHour: otRate,
+      status: policyStatus,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/v1/hr/attendance/policies/:id
+hrAttendanceRouter.put("/policies/:id", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId!;
+    const actorId = req.user?.userId || "system";
+    const { id } = req.params;
+    const existing = await rawPrisma.attendancePolicy.findUnique({ where: { id } });
+    if (!existing || existing.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Attendance policy not found." });
+    }
+
+    const {
+      name,
+      description,
+      graceMinutes,
+      lateArrivalGrace,
+      earlyDepartureGrace,
+      overtimeRatePerHour,
+      status,
+    } = req.body;
+
+    const lateGrace = Number(lateArrivalGrace ?? graceMinutes ?? existing.graceMinutes ?? 15);
+    const earlyGrace = Number(earlyDepartureGrace ?? lateGrace);
+    const otRate = Number(overtimeRatePerHour ?? 150);
+    const policyStatus = status === "inactive" ? "inactive" : "active";
+
+    const updated = await rawPrisma.attendancePolicy.update({
+      where: { id },
+      data: {
+        name: name !== undefined ? String(name).trim() : undefined,
+        description: description !== undefined ? String(description).trim() : undefined,
+        graceMinutes: isNaN(lateGrace) ? undefined : lateGrace,
+      },
+    });
+
+    const metaKey = `policy_meta:${id}`;
+    const existingMeta = await rawPrisma.setting.findFirst({
+      where: { scope: "TENANT", scopeId: tenantId, key: metaKey },
+    });
+    const metaPayload = {
+      lateArrivalGrace: lateGrace,
+      earlyDepartureGrace: earlyGrace,
+      overtimeRatePerHour: otRate,
+      status: policyStatus,
+    };
+    if (existingMeta) {
+      await rawPrisma.setting.update({
+        where: { id: existingMeta.id },
+        data: { valueJson: metaPayload, updatedBy: actorId },
+      });
+    } else {
+      await rawPrisma.setting.create({
+        data: {
+          scope: "TENANT",
+          scopeId: tenantId,
+          group: "policy_meta",
+          key: metaKey,
+          valueJson: metaPayload,
+          valueType: "json",
+          isSecret: false,
+          updatedBy: actorId,
+        },
+      });
+    }
+
+    return res.json({ ...updated, ...metaPayload });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/v1/hr/attendance/policies/:id/status
+hrAttendanceRouter.patch("/policies/:id/status", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId!;
+    const actorId = req.user?.userId || "system";
+    const { id } = req.params;
+    const nextStatus = req.body?.status === "inactive" ? "inactive" : "active";
+
+    const existing = await rawPrisma.attendancePolicy.findUnique({ where: { id } });
+    if (!existing || existing.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Attendance policy not found." });
+    }
+
+    const metaKey = `policy_meta:${id}`;
+    const existingMeta = await rawPrisma.setting.findFirst({
+      where: { scope: "TENANT", scopeId: tenantId, key: metaKey },
+    });
+    const prev = (existingMeta?.valueJson as any) || {};
+    const nextMeta = { ...prev, status: nextStatus };
+
+    if (existingMeta) {
+      await rawPrisma.setting.update({
+        where: { id: existingMeta.id },
+        data: { valueJson: nextMeta, updatedBy: actorId },
+      });
+    } else {
+      await rawPrisma.setting.create({
+        data: {
+          scope: "TENANT",
+          scopeId: tenantId,
+          group: "policy_meta",
+          key: metaKey,
+          valueJson: nextMeta,
+          valueType: "json",
+          isSecret: false,
+          updatedBy: actorId,
+        },
+      });
+    }
+
+    return res.json({ success: true, id, status: nextStatus });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/v1/hr/attendance/policies/:id
+hrAttendanceRouter.delete("/policies/:id", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId!;
+    const { id } = req.params;
+    const existing = await rawPrisma.attendancePolicy.findUnique({ where: { id } });
+    if (!existing || existing.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Attendance policy not found." });
+    }
+    await rawPrisma.setting.deleteMany({
+      where: { scope: "TENANT", scopeId: tenantId, key: `policy_meta:${id}` },
+    });
+    await rawPrisma.attendancePolicy.delete({ where: { id } });
+    return res.json({ success: true, message: "Attendance policy deleted." });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -976,12 +1197,140 @@ hrAttendanceRouter.get("/regularizations", async (req: AuthRequest, res: Respons
             lastName: true,
             employeeCode: true,
             department: { select: { name: true } },
+            designation: { select: { name: true } },
+            user: { select: { profile: { select: { avatarUrl: true } } } },
           },
         },
       },
       orderBy: { createdAt: "desc" },
     });
     return res.json(regularizations);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/v1/hr/attendance/regularizations (HR manual regularization entry)
+hrAttendanceRouter.post("/regularizations", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId!;
+    const { employeeId, attendanceDate, proposedIn, proposedOut, reason } = req.body;
+    if (!employeeId || !attendanceDate || !reason?.trim()) {
+      return res.status(400).json({ error: "Employee, attendance date, and reason are required." });
+    }
+
+    const emp = await rawPrisma.employee.findFirst({ where: { id: employeeId, tenantId } });
+    if (!emp) return res.status(404).json({ error: "Employee not found." });
+
+    const targetDate = new Date(`${String(attendanceDate).slice(0, 10)}T00:00:00.000Z`);
+    const existingAtt = await rawPrisma.attendance.findUnique({
+      where: {
+        tenantId_employeeId_date: {
+          tenantId,
+          employeeId,
+          date: targetDate,
+        },
+      },
+    });
+
+    const parseTimeOnDate = (timeVal?: string | null) => {
+      if (!timeVal) return null;
+      if (timeVal.includes("T")) {
+        const dt = new Date(timeVal);
+        return isNaN(dt.getTime()) ? null : dt;
+      }
+      const [h, m] = String(timeVal).split(":");
+      const dt = new Date(targetDate);
+      dt.setUTCHours(Number(h) || 0, Number(m) || 0, 0, 0);
+      return isNaN(dt.getTime()) ? null : dt;
+    };
+
+    const created = await rawPrisma.attendanceRegularization.create({
+      data: {
+        tenantId,
+        employeeId,
+        attendanceDate: targetDate,
+        proposedIn: parseTimeOnDate(proposedIn),
+        proposedOut: parseTimeOnDate(proposedOut),
+        reason: String(reason).trim(),
+        status: "PENDING",
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            department: { select: { name: true } },
+            designation: { select: { name: true } },
+            user: { select: { profile: { select: { avatarUrl: true } } } },
+          },
+        },
+      },
+    });
+
+    return res.status(201).json(created);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/v1/hr/attendance/regularizations/:id
+hrAttendanceRouter.put("/regularizations/:id", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId!;
+    const { id } = req.params;
+    const { attendanceDate, proposedIn, proposedOut, reason } = req.body;
+
+    const existing = await rawPrisma.attendanceRegularization.findUnique({ where: { id } });
+    if (!existing || existing.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Regularization request not found." });
+    }
+
+    const baseDate = attendanceDate
+      ? new Date(`${String(attendanceDate).slice(0, 10)}T00:00:00.000Z`)
+      : existing.attendanceDate;
+
+    const parseTimeOnDate = (timeVal?: string | null) => {
+      if (!timeVal) return undefined;
+      if (timeVal.includes("T")) {
+        const dt = new Date(timeVal);
+        return isNaN(dt.getTime()) ? undefined : dt;
+      }
+      const [h, m] = String(timeVal).split(":");
+      const dt = new Date(baseDate);
+      dt.setUTCHours(Number(h) || 0, Number(m) || 0, 0, 0);
+      return isNaN(dt.getTime()) ? undefined : dt;
+    };
+
+    const updated = await rawPrisma.attendanceRegularization.update({
+      where: { id },
+      data: {
+        attendanceDate: baseDate,
+        proposedIn: parseTimeOnDate(proposedIn),
+        proposedOut: parseTimeOnDate(proposedOut),
+        reason: reason !== undefined ? String(reason).trim() : undefined,
+      },
+    });
+
+    return res.json(updated);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/v1/hr/attendance/regularizations/:id
+hrAttendanceRouter.delete("/regularizations/:id", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId!;
+    const { id } = req.params;
+    const existing = await rawPrisma.attendanceRegularization.findUnique({ where: { id } });
+    if (!existing || existing.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Regularization request not found." });
+    }
+    await rawPrisma.attendanceRegularization.delete({ where: { id } });
+    return res.json({ success: true, message: "Regularization request deleted." });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -1082,11 +1431,38 @@ hrAttendanceRouter.post("/regularizations/:id/action", async (req: AuthRequest, 
 hrAttendanceRouter.get("/shifts", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.tenantId!;
-    const shifts = await rawPrisma.shiftDefinition.findMany({
-      where: { tenantId },
-      orderBy: { createdAt: "asc" },
+    const [shifts, metaRows] = await Promise.all([
+      rawPrisma.shiftDefinition.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "asc" },
+      }),
+      rawPrisma.setting.findMany({
+        where: { scope: "TENANT", scopeId: tenantId, group: "shift_meta" },
+      }),
+    ]);
+
+    const metaMap = new Map<string, any>();
+    for (const m of metaRows) metaMap.set(m.key, m.valueJson || {});
+
+    const enriched = shifts.map((s: any) => {
+      const meta = metaMap.get(`shift_meta:${s.id}`) || {};
+      const startHour = parseInt(String(s.startTime || "09:00").split(":")[0], 10);
+      const inferredNight = !isNaN(startHour) && (startHour >= 20 || startHour < 5);
+      const isNightShift = meta.isNightShift !== undefined ? Boolean(meta.isNightShift) : inferredNight;
+      const workingHours = computeWorkingHours(s.startTime, s.endTime, s.breakMinutes);
+      return {
+        ...s,
+        description: meta.description || "",
+        breakStartTime: meta.breakStartTime || "",
+        breakEndTime: meta.breakEndTime || "",
+        gracePeriodMinutes: Number(meta.gracePeriodMinutes ?? 15),
+        isNightShift,
+        status: meta.status || "active",
+        workingHours,
+      };
     });
-    return res.json(shifts);
+
+    return res.json(enriched);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -1096,20 +1472,218 @@ hrAttendanceRouter.get("/shifts", async (req: AuthRequest, res: Response) => {
 hrAttendanceRouter.post("/shifts", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.tenantId!;
-    const { name, code, startTime, endTime, breakMinutes, isOvertimeEligible, color } = req.body;
+    const actorId = req.user?.userId || "system";
+    const {
+      name,
+      code,
+      description,
+      startTime,
+      endTime,
+      breakMinutes,
+      breakStartTime,
+      breakEndTime,
+      gracePeriodMinutes,
+      isNightShift,
+      isOvertimeEligible,
+      color,
+      status,
+    } = req.body;
+
+    if (!name?.trim()) {
+      return res.status(400).json({ error: "Shift Name is required." });
+    }
+
+    const startVal = startTime || "09:00";
+    const endVal = endTime || "18:00";
+    const breakVal = Number(breakMinutes ?? 60);
+    const graceVal = Number(gracePeriodMinutes ?? 15);
+    const nightFlag = Boolean(isNightShift);
+    const shiftStatus = status === "inactive" ? "inactive" : "active";
+
     const shift = await rawPrisma.shiftDefinition.create({
       data: {
         tenantId,
-        name,
-        code: code || name.slice(0, 4).toUpperCase(),
-        startTime: startTime || "09:30",
-        endTime: endTime || "18:30",
-        breakMinutes: Number(breakMinutes) || 60,
+        name: name.trim(),
+        code: code || name.trim().slice(0, 4).toUpperCase(),
+        startTime: startVal,
+        endTime: endVal,
+        breakMinutes: isNaN(breakVal) ? 60 : breakVal,
         isOvertimeEligible: isOvertimeEligible !== false,
-        color: color || "blue",
+        color: color || (nightFlag ? "slate" : "blue"),
       },
     });
-    return res.status(201).json(shift);
+
+    const metaPayload = {
+      description: description?.trim() || "",
+      breakStartTime: breakStartTime || "",
+      breakEndTime: breakEndTime || "",
+      gracePeriodMinutes: isNaN(graceVal) ? 15 : graceVal,
+      isNightShift: nightFlag,
+      status: shiftStatus,
+    };
+
+    await rawPrisma.setting.create({
+      data: {
+        scope: "TENANT",
+        scopeId: tenantId,
+        group: "shift_meta",
+        key: `shift_meta:${shift.id}`,
+        valueJson: metaPayload,
+        valueType: "json",
+        isSecret: false,
+        updatedBy: actorId,
+      },
+    });
+
+    return res.status(201).json({
+      ...shift,
+      ...metaPayload,
+      workingHours: computeWorkingHours(shift.startTime, shift.endTime, shift.breakMinutes),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/v1/hr/attendance/shifts/:id
+hrAttendanceRouter.put("/shifts/:id", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId!;
+    const actorId = req.user?.userId || "system";
+    const { id } = req.params;
+    const existing = await rawPrisma.shiftDefinition.findUnique({ where: { id } });
+    if (!existing || existing.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Shift not found." });
+    }
+
+    const {
+      name,
+      description,
+      startTime,
+      endTime,
+      breakMinutes,
+      breakStartTime,
+      breakEndTime,
+      gracePeriodMinutes,
+      isNightShift,
+      status,
+    } = req.body;
+
+    const updated = await rawPrisma.shiftDefinition.update({
+      where: { id },
+      data: {
+        name: name !== undefined ? String(name).trim() : undefined,
+        startTime: startTime || undefined,
+        endTime: endTime || undefined,
+        breakMinutes: breakMinutes !== undefined ? Number(breakMinutes) : undefined,
+      },
+    });
+
+    const metaKey = `shift_meta:${id}`;
+    const existingMeta = await rawPrisma.setting.findFirst({
+      where: { scope: "TENANT", scopeId: tenantId, key: metaKey },
+    });
+    const prev = (existingMeta?.valueJson as any) || {};
+    const metaPayload = {
+      description: description !== undefined ? String(description).trim() : prev.description || "",
+      breakStartTime: breakStartTime !== undefined ? breakStartTime : prev.breakStartTime || "",
+      breakEndTime: breakEndTime !== undefined ? breakEndTime : prev.breakEndTime || "",
+      gracePeriodMinutes:
+        gracePeriodMinutes !== undefined ? Number(gracePeriodMinutes) : Number(prev.gracePeriodMinutes ?? 15),
+      isNightShift: isNightShift !== undefined ? Boolean(isNightShift) : Boolean(prev.isNightShift),
+      status: status === "inactive" ? "inactive" : status === "active" ? "active" : prev.status || "active",
+    };
+
+    if (existingMeta) {
+      await rawPrisma.setting.update({
+        where: { id: existingMeta.id },
+        data: { valueJson: metaPayload, updatedBy: actorId },
+      });
+    } else {
+      await rawPrisma.setting.create({
+        data: {
+          scope: "TENANT",
+          scopeId: tenantId,
+          group: "shift_meta",
+          key: metaKey,
+          valueJson: metaPayload,
+          valueType: "json",
+          isSecret: false,
+          updatedBy: actorId,
+        },
+      });
+    }
+
+    return res.json({
+      ...updated,
+      ...metaPayload,
+      workingHours: computeWorkingHours(updated.startTime, updated.endTime, updated.breakMinutes),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/v1/hr/attendance/shifts/:id/status
+hrAttendanceRouter.patch("/shifts/:id/status", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId!;
+    const actorId = req.user?.userId || "system";
+    const { id } = req.params;
+    const nextStatus = req.body?.status === "inactive" ? "inactive" : "active";
+
+    const existing = await rawPrisma.shiftDefinition.findUnique({ where: { id } });
+    if (!existing || existing.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Shift not found." });
+    }
+
+    const metaKey = `shift_meta:${id}`;
+    const existingMeta = await rawPrisma.setting.findFirst({
+      where: { scope: "TENANT", scopeId: tenantId, key: metaKey },
+    });
+    const prev = (existingMeta?.valueJson as any) || {};
+    const nextMeta = { ...prev, status: nextStatus };
+
+    if (existingMeta) {
+      await rawPrisma.setting.update({
+        where: { id: existingMeta.id },
+        data: { valueJson: nextMeta, updatedBy: actorId },
+      });
+    } else {
+      await rawPrisma.setting.create({
+        data: {
+          scope: "TENANT",
+          scopeId: tenantId,
+          group: "shift_meta",
+          key: metaKey,
+          valueJson: nextMeta,
+          valueType: "json",
+          isSecret: false,
+          updatedBy: actorId,
+        },
+      });
+    }
+
+    return res.json({ success: true, id, status: nextStatus });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/v1/hr/attendance/shifts/:id
+hrAttendanceRouter.delete("/shifts/:id", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId!;
+    const { id } = req.params;
+    const existing = await rawPrisma.shiftDefinition.findUnique({ where: { id } });
+    if (!existing || existing.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Shift not found." });
+    }
+    await rawPrisma.setting.deleteMany({
+      where: { scope: "TENANT", scopeId: tenantId, key: `shift_meta:${id}` },
+    });
+    await rawPrisma.shiftDefinition.delete({ where: { id } });
+    return res.json({ success: true, message: "Shift deleted." });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -1290,7 +1864,17 @@ hrAttendanceRouter.get("/overtime", async (req: AuthRequest, res: Response) => {
     const requests = await rawPrisma.overtimeRequest.findMany({
       where: { tenantId },
       include: {
-        employee: { select: { id: true, firstName: true, lastName: true, employeeCode: true, department: { select: { name: true } } } },
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            department: { select: { name: true } },
+            designation: { select: { name: true } },
+            user: { select: { profile: { select: { avatarUrl: true } } } },
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });

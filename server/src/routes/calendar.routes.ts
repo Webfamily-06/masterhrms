@@ -871,6 +871,71 @@ calendarRouter.get("/events", async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Project active tenant Holidays directly into primary calendar feed for instant auto-sync
+    if (tenantId) {
+      try {
+        const holidayWhere: any = {
+          tenantId,
+          status: "active",
+        };
+        if (startDate || endDate) {
+          holidayWhere.date = {};
+          if (startDate) holidayWhere.date.gte = new Date(String(startDate));
+          if (endDate) holidayWhere.date.lte = new Date(String(endDate));
+        }
+
+        const holidays = await prisma.holiday.findMany({
+          where: holidayWhere,
+          orderBy: { date: "asc" },
+          take: 200,
+        });
+
+        for (const h of holidays) {
+          const hDate = new Date(h.date);
+          const hStart = new Date(hDate);
+          hStart.setHours(0, 0, 0, 0);
+          const hEnd = new Date(hDate);
+          hEnd.setHours(23, 59, 59, 999);
+
+          formatted.push({
+            id: `holiday-${h.id}`,
+            title: h.name,
+            description: h.description || `${h.type || "Public Holiday"}`,
+            startDate: hStart.toISOString(),
+            endDate: hEnd.toISOString(),
+            allDay: true,
+            category: "holiday",
+            color: "#10b981",
+            location: h.type || "Company Holiday",
+            meetingLink: null,
+            status: "confirmed",
+            visibility: "organization",
+            timezone: "Asia/Kolkata",
+            recurrenceRule: null,
+            recurringSeriesId: null,
+            originalStartTime: null,
+            roomId: null,
+            room: null,
+            cancelledAt: null,
+            cancelledById: null,
+            createdAt: h.createdAt ? new Date(h.createdAt).toISOString() : hStart.toISOString(),
+            updatedAt: h.updatedAt ? new Date(h.updatedAt).toISOString() : hStart.toISOString(),
+            shares: [],
+            reminders: [],
+            isShared: false,
+            userPermission: "view",
+            userRsvp: "accepted",
+            organizerName: "Organization",
+            sourceDomain: "holiday",
+            sourceId: h.id,
+            linkTo: "/hr/organization/holidays",
+          } as any);
+        }
+      } catch (holidayErr) {
+        console.warn("Failed to project holidays in /api/calendar/events:", holidayErr);
+      }
+    }
+
     return res.json({ success: true, data: formatted });
   } catch (error: any) {
     console.error("Error fetching calendar events:", error);

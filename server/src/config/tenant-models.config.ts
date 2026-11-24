@@ -4,6 +4,7 @@
  */
 
 // Models belonging strictly to the global SaaS platform control plane (Zero tenant isolation required)
+// SEC-006: Removed Setting, SettingSecret, SettingAudit from GLOBAL_MODELS so they never bypass isolation.
 export const GLOBAL_MODELS = new Set<string>([
   "User",
   "SubscriptionPlan",
@@ -15,9 +16,6 @@ export const GLOBAL_MODELS = new Set<string>([
   "SystemCronJob",
   "LoginHistory",
   "StateUTMaster",
-  "Setting",
-  "SettingSecret",
-  "SettingAudit",
   "PasswordResetToken",
   "CommercialPriceSchedule",
 ]);
@@ -337,11 +335,49 @@ export type ModelClassification =
   | "UNKNOWN";
 
 export function getModelClassification(model: string): ModelClassification {
-  if (GLOBAL_MODELS.has(model)) return "GLOBAL";
   if (model === ROOT_TENANT_MODEL) return "ROOT_TENANT";
   if (DIRECT_TENANT_MODELS.has(model)) return "DIRECT_TENANT";
   if (CHILD_DEPENDENT_MODELS.has(model)) return "CHILD_DEPENDENT";
   if (SCOPED_TENANT_MODELS.has(model)) return "SCOPED_TENANT";
+  if (GLOBAL_MODELS.has(model)) return "GLOBAL";
   return "UNKNOWN";
+}
+
+/**
+ * SEC-006: Startup & CI invariant validator.
+ * Verifies that every Prisma model appears in at most ONE isolation strategy bucket.
+ * Throws immediately if any model classification conflict exists.
+ */
+export function validateTenantModelClassifications(): { valid: boolean; conflicts: string[] } {
+  const seen = new Map<string, ModelClassification>();
+  const conflicts: string[] = [];
+
+  const register = (model: string, bucket: ModelClassification) => {
+    const existing = seen.get(model);
+    if (existing && existing !== bucket) {
+      conflicts.push(`Model '${model}' is classified in both ${existing} and ${bucket}`);
+    } else {
+      seen.set(model, bucket);
+    }
+  };
+
+  register(ROOT_TENANT_MODEL, "ROOT_TENANT");
+  for (const m of GLOBAL_MODELS) register(m, "GLOBAL");
+  for (const m of DIRECT_TENANT_MODELS) register(m, "DIRECT_TENANT");
+  for (const m of CHILD_DEPENDENT_MODELS.keys()) register(m, "CHILD_DEPENDENT");
+  for (const m of SCOPED_TENANT_MODELS) register(m, "SCOPED_TENANT");
+
+  return {
+    valid: conflicts.length === 0,
+    conflicts,
+  };
+}
+
+// Enforce classification uniqueness immediately on module load
+const _initialValidation = validateTenantModelClassifications();
+if (!_initialValidation.valid) {
+  throw new Error(
+    `[CRITICAL SECURITY] Tenant model classification conflict detected: ${_initialValidation.conflicts.join("; ")}`
+  );
 }
 

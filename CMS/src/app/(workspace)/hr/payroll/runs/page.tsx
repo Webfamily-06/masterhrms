@@ -53,7 +53,7 @@ export default function HrPayrollRunsPage() {
     queryKey: ["hr-payroll-runs"],
     queryFn: async () => {
       const res = await api.get("/api/v1/hr/payroll/runs");
-      return res.data;
+      return (res as any)?.data ?? res ?? { runs: [] };
     },
   });
 
@@ -65,7 +65,7 @@ export default function HrPayrollRunsPage() {
     queryFn: async () => {
       if (!selectedRunId) return null;
       const res = await api.get(`/api/v1/hr/payroll/runs/${selectedRunId}/variance`);
-      return res.data;
+      return (res as any)?.data ?? res ?? { runs: [] };
     },
     enabled: !!selectedRunId,
   });

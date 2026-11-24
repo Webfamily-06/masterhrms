@@ -35,22 +35,16 @@ import { requireAuth, requireSuperAdmin, AuthRequest, invalidateAuthCache } from
 import { invalidateChatProfileCache } from "./chat.routes";
 import { SettingsService } from "../services/settings/settings.service";
 import { OAuthFactory } from "../services/factories/oauth.factory";
-import { TwoFactorService } from "../modules/two-factor-auth/two-factor.service";
+import { TwoFactorService, generateRandomBackupCodes } from "../modules/two-factor-auth/two-factor.service";
 import { requireTurnstile } from "../middleware/turnstile.middleware";
 import { PushSubscriptionStore } from "../services/push-subscription.store";
+import { sensitiveEndpointLimiter } from "../middleware/security-hardening.middleware";
 
 export { OAuthFactory };
 export const authRouter = Router();
 
-function generateBackupCodes(count = 8): string[] {
-  const codes: string[] = [];
-  for (let i = 0; i < count; i++) {
-    const part1 = Math.floor(1000 + Math.random() * 9000);
-    const part2 = Math.floor(1000 + Math.random() * 9000);
-    codes.push(`${part1}-${part2}`);
-  }
-  return codes;
-}
+// SEC-005: Re-export cryptographically secure backup code generator (uses crypto.randomInt)
+export const generateBackupCodes = generateRandomBackupCodes;
 
 export async function resolveEffectiveUserRoles(
   user: { id: string; email: string; roles: any[]; profile?: { fullName?: string | null; tenantId?: string | null } | null },
@@ -97,7 +91,6 @@ const registerSchema = z.object({
   country: z.string().optional().default("India"),
   workspaceSlug: z.string().optional(),
   termsAccepted: z.boolean().optional(),
-  autoVerify: z.boolean().optional(),
 });
 
 const loginSchema = z.object({
@@ -190,8 +183,10 @@ authRouter.get("/public/tenant-branding", async (req, res) => {
   return res.redirect("/api/auth/public/tenant/resolve");
 });
 
-// GET /api/auth/public/tenant/credentials - Fetch tenant-specific login credentials from DB
-authRouter.get("/public/tenant/credentials", async (req, res) => {
+// GET /api/auth/public/tenant/credentials
+// SEC-004: Secured public tenant metadata endpoint.
+// Never exposes administrator, HR, or employee email addresses or personal details publicly.
+authRouter.get("/public/tenant/credentials", sensitiveEndpointLimiter, async (req, res) => {
   try {
     const rawHost = getEffectiveRequestHost(req.headers);
     const hostContext = (req as any).hostContext || resolveHostContext(rawHost);
@@ -212,136 +207,22 @@ authRouter.get("/public/tenant/credentials", async (req, res) => {
       });
     }
 
-    if (!tenant) {
-      tenant = await prisma.tenant.findFirst({
-        where: {
-          OR: [{ slug: "default-tenant" }, { slug: "master" }],
-        },
-        select: { id: true, name: true, slug: true },
-      });
-    }
-
-    const tenantId = tenant?.id;
-
-    // 1. Fetch Tenant Administrator
-    let tenantAdmin: { email: string; name: string; role: string } | null = null;
-
-    if (tenantId) {
-      const wsAdminAssign = await prisma.userRoleAssignment.findFirst({
-        where: {
-          tenantId,
-          role: { name: { in: ["Workspace Admin", "Tenant Admin", "Admin"] } },
-          user: { email: { not: "admin@masterhrms.com" } },
-        },
-        include: {
-          user: {
-            select: {
-              email: true,
-              profile: { select: { fullName: true } },
-            },
-          },
-          role: { select: { name: true } },
-        },
-      });
-      if (wsAdminAssign?.user?.email) {
-        tenantAdmin = {
-          email: wsAdminAssign.user.email,
-          name: wsAdminAssign.user.profile?.fullName || "Tenant Administrator",
-          role: wsAdminAssign.role?.name || "Tenant Admin",
-        };
-      } else {
-        const tenantUserProfile = await prisma.profile.findFirst({
-          where: {
-            tenantId,
-            user: { email: { not: "admin@masterhrms.com" } },
-          },
-          include: {
-            user: { select: { email: true } },
-          },
-        });
-        if (tenantUserProfile?.user?.email) {
-          tenantAdmin = {
-            email: tenantUserProfile.user.email,
-            name: tenantUserProfile.fullName || "Tenant Administrator",
-            role: "Tenant Admin",
-          };
-        }
-      }
-    }
-
-    // 2. Fetch HR Admin
-    let hrAdmin: { email: string; name: string; role: string } | null = null;
-
-    if (tenantId) {
-      const hrRole = await prisma.userRole.findFirst({
-        where: {
-          tenantId,
-          role: "hr_admin",
-          user: {
-            email: { notIn: ["admin@masterhrms.com", ...(tenantAdmin ? [tenantAdmin.email] : [])] },
-          },
-        },
-        include: {
-          user: {
-            select: {
-              email: true,
-              profile: { select: { fullName: true } },
-            },
-          },
-        },
-      });
-
-      if (hrRole?.user?.email) {
-        hrAdmin = {
-          email: hrRole.user.email,
-          name: hrRole.user.profile?.fullName || "HR Director",
-          role: "HR Admin",
-        };
-      }
-    }
-
-    // 3. Fetch Employee
-    let employee: { email: string; name: string; role: string } | null = null;
-
-    if (tenantId) {
-      const empRole = await prisma.userRole.findFirst({
-        where: {
-          tenantId,
-          role: "employee",
-        },
-        include: {
-          user: {
-            select: {
-              email: true,
-              profile: { select: { fullName: true } },
-            },
-          },
-        },
-      });
-
-      if (empRole?.user?.email) {
-        employee = {
-          email: empRole.user.email,
-          name: empRole.user.profile?.fullName || "Staff",
-          role: "Employee",
-        };
-      }
-    }
-
     return res.json({
-      tenant: {
-        id: tenant?.id,
-        name: tenant?.name,
-        slug: tenant?.slug,
-      },
+      tenant: tenant
+        ? {
+            id: tenant.id,
+            name: tenant.name,
+            slug: tenant.slug,
+          }
+        : null,
       credentials: {
-        tenantAdmin,
-        hrAdmin,
-        employee,
+        tenantAdmin: null,
+        hrAdmin: null,
+        employee: null,
       },
     });
   } catch (error: any) {
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: "Failed to resolve tenant metadata." });
   }
 });
 
@@ -357,7 +238,6 @@ authRouter.post("/register", requireTurnstile("signup"), async (req, res) => {
       country,
       workspaceSlug,
       termsAccepted,
-      autoVerify,
     } = registerSchema.parse(req.body);
 
     if (termsAccepted === false) {
@@ -476,9 +356,10 @@ authRouter.post("/register", requireTurnstile("signup"), async (req, res) => {
       console.warn("[Register] verification email dispatch:", emailErr.message);
     });
 
-    // Check if immediate auto-verification is enabled (e.g. testing or explicit autoVerify)
+    // SEC-003: Never allow client-controlled autoVerify bypass.
+    // Only trusted server-side configuration in non-production environments may skip email verification.
     const shouldAutoVerify =
-      autoVerify === true ||
+      process.env.NODE_ENV !== "production" &&
       process.env.REQUIRE_EMAIL_VERIFICATION === "false";
 
     if (shouldAutoVerify) {
@@ -610,12 +491,12 @@ authRouter.post("/unlock", async (req, res) => {
     });
 
     if (!user) {
-      return res.status(401).json({ error: "User account not found." });
+      return res.status(401).json({ error: "Invalid email or password." });
     }
 
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
-      return res.status(400).json({ error: "Incorrect password. Please try again." });
+      return res.status(401).json({ error: "Invalid email or password." });
     }
 
     const roles = await resolveEffectiveUserRoles(user, user.profile?.tenantId);
@@ -736,16 +617,10 @@ const loginHandler = async (req: any, res: Response) => {
       }
     }
 
-    let isValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isValid && (
-      (user.email === "admin@masterhrms.com" && (password === "admin123" || password === "Admin@123456" || password === "Password123!")) ||
-      ((user.email === "tenantadmin@masterhrms.com" || user.email === "tenentadmin@masterhrms.com") && (password === "admin123" || password === "Admin@123456" || password === "Password123!" || password === "admin" || password === "password" || password === "TenantAdmin@123" || password === "123456")) ||
-      (user.email === "hr@masterhrms.com" && (password === "admin123" || password === "Password123!"))
-    )) {
-      isValid = true;
-    }
+    // SEC-001: Strictly verify password against stored bcrypt hash. No hardcoded bypasses allowed.
+    const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
-      return res.status(400).json({ error: "Invalid email or password." });
+      return res.status(401).json({ error: "Invalid email or password." });
     }
 
     // ── Mobile App Persona Restriction ────────────────────────────

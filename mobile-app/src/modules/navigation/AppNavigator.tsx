@@ -4,6 +4,7 @@ import { EmployeeNavigator } from './EmployeeNavigator';
 import { ManagerNavigator } from './ManagerNavigator';
 import { HrAdminNavigator } from './HrAdminNavigator';
 import { TenantAdminNavigator } from './TenantAdminNavigator';
+import { SuperAdminNavigator } from './SuperAdminNavigator';
 import { AccessDeniedView } from '../../components/guards/AccessDeniedView';
 
 export const AppNavigator: React.FC = () => {
@@ -13,6 +14,10 @@ export const AppNavigator: React.FC = () => {
   // Strict: If user has no valid canonical role, fail closed and render AccessDeniedView
   if (!activeRole || canonicalRoles.length === 0) {
     return <AccessDeniedView reason="NO_VALID_ROLE" />;
+  }
+
+  if ((activeRole as string) === 'super_admin') {
+    return <SuperAdminNavigator />;
   }
 
   switch (activeRole) {

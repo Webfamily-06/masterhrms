@@ -348,7 +348,7 @@ export default function HrAttendanceRecordsPage() {
   const selectedEmployeeName = useMemo(() => {
     if (selectedEmployeeId === "all") return "All Employees";
     const found = employees.find((e: any) => e.id === selectedEmployeeId);
-    return found ? `${found.firstName} ${found.lastName} (${found.employeeCode})` : "Select Employee";
+    return found ? `${found.firstName} ${found.lastName}` : "Select Employee";
   }, [selectedEmployeeId, employees]);
 
   // Status Icon Renderer
@@ -786,9 +786,6 @@ export default function HrAttendanceRecordsPage() {
                       >
                         <span className="truncate">
                           {emp.firstName} {emp.lastName}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground ml-2 font-mono shrink-0">
-                          {emp.employeeCode}
                         </span>
                       </button>
                     ))}
@@ -1287,7 +1284,7 @@ export default function HrAttendanceRecordsPage() {
                 <option value="">Select Employee</option>
                 {employees.map((emp: any) => (
                   <option key={emp.id} value={emp.id}>
-                    {emp.firstName} {emp.lastName} ({emp.employeeCode})
+                    {emp.firstName} {emp.lastName}
                   </option>
                 ))}
               </select>
@@ -1577,8 +1574,7 @@ export default function HrAttendanceRecordsPage() {
                           )}
                           <div>
                             <p className="font-medium text-foreground">
-                              {emp.firstName} {emp.lastName}{" "}
-                              <span className="text-muted-foreground font-normal">({emp.employeeCode})</span>
+                              {emp.firstName} {emp.lastName}
                             </p>
                             <p className="text-[10px] text-muted-foreground">{emp.department?.name || "General"}</p>
                           </div>

@@ -1,19 +1,14 @@
 'use client';
+
 import { useState, useMemo } from "react";
-import { createFileRoute } from "@/src/lib/router-compat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useMasterList } from "@/hooks/use-master-list";
 import { useMasterForm } from "@/hooks/use-master-form";
-import { PageHeader } from "@/components/ui/page-header";
-import { StandardPagination } from "@/components/ui/standard-pagination";
-import { GlobalListActionToolbar } from "@/components/ui/global-list-action-toolbar";
-import { exportToExcel, exportToPdf, ExportColumn } from "@/lib/export-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -38,20 +33,25 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Building2,
   Plus,
-  Edit2,
+  Eye,
+  Edit,
+  Lock,
+  Unlock,
   Trash2,
-  PowerOff,
-  CheckCircle2,
-  AlertCircle,
   ArrowUpDown,
   Search,
-  RotateCcw,
-  AlertTriangle,
+  Calendar,
+  Filter,
+  Loader2,
+  Building2,
+  LayoutGrid,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 interface DepartmentRecord {
   id?: string;
@@ -59,7 +59,7 @@ interface DepartmentRecord {
   description?: string;
   branchId?: string | null;
   status: "active" | "inactive";
-  allowedActions?: string[];
+  createdAt?: string;
   branch?: { id: string; name: string; code?: string };
 }
 
@@ -70,21 +70,35 @@ const initialDept: DepartmentRecord = {
   status: "active",
 };
 
+function formatDateYmd(dateStr?: string | null) {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "—";
+    return format(d, "yyyy-MM-dd");
+  } catch {
+    return "—";
+  }
+}
+
 export default function DepartmentsPage() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [viewTarget, setViewTarget] = useState<DepartmentRecord | null>(null);
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<DepartmentRecord | null>(null);
-  const [statusConfirmTarget, setStatusConfirmTarget] = useState<{ id: string; name: string; targetStatus: "active" | "inactive" } | null>(null);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [statusConfirmTarget, setStatusConfirmTarget] = useState<{
+    id: string;
+    name: string;
+    targetStatus: "active" | "inactive";
+  } | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [branchFilter, setBranchFilter] = useState<string>("all");
 
-  // Fetch branches for branch dropdown & filter
   const { data: branches = [] } = useQuery({
     queryKey: ["branches-dropdown"],
     queryFn: async () => {
       const res = await api.get("/hr/organization/branches", { params: { limit: 100 } });
-      return res.data || res || [];
+      return Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
     },
   });
 
@@ -116,630 +130,594 @@ export default function DepartmentsPage() {
     endpoint: "/hr/organization/departments",
     queryKey: "departments-list",
     defaultLimit: 10,
-    defaultSortBy: "name",
-    defaultSortOrder: "asc",
+    defaultSortBy: "createdAt",
+    defaultSortOrder: "desc",
     extraParams,
   });
 
   const {
     values,
     setValues,
-    handleChange,
-    submit,
     isSubmitting,
-    isEditMode,
+    errors: formErrors,
+    setErrors,
+    handleChange,
+    submit: handleSubmit,
     reset,
+    isEditMode: isEdit,
   } = useMasterForm<DepartmentRecord>({
     endpoint: "/hr/organization/departments",
-    queryKeyToInvalidate: "departments-list",
     initialValues: initialDept,
     onSuccess: () => {
       setIsDialogOpen(false);
-      reset();
+      queryClient.invalidateQueries({ queryKey: ["departments-list"] });
+      queryClient.invalidateQueries({ queryKey: ["departments-dropdown"] });
+      queryClient.invalidateQueries({ queryKey: ["wizard-departments"] });
       refetch();
     },
   });
+  const error = formErrors._form || Object.values(formErrors)[0] || null;
 
-  // Single delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return await api.delete(`/hr/organization/departments/${id}`);
+  const toggleStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: "active" | "inactive" }) => {
+      await api.patch(`/hr/organization/departments/${id}/status`, { status });
     },
     onSuccess: () => {
-      toast.success("Department deleted successfully");
+      toast.success("Department status updated.");
+      setStatusConfirmTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["departments-list"] });
+      refetch();
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || err?.message || "Failed to update status.");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/hr/organization/departments/${id}`);
+    },
+    onSuccess: () => {
+      toast.success("Department deleted successfully.");
       setDeleteConfirmTarget(null);
-      setSelectedIds((prev) => prev.filter((id) => id !== deleteConfirmTarget?.id));
       queryClient.invalidateQueries({ queryKey: ["departments-list"] });
+      queryClient.invalidateQueries({ queryKey: ["departments-dropdown"] });
       refetch();
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.error || err.message || "Failed to delete department";
-      toast.error(msg);
+      toast.error(err?.response?.data?.error || err?.message || "Cannot delete department.");
     },
   });
 
-  // Archive / Status toggle mutation
-  const toggleStatusMutation = useMutation({
-    mutationFn: async ({ id, newStatus }: { id: string; newStatus: "active" | "inactive" }) => {
-      return await api.put(`/hr/organization/departments/${id}`, { status: newStatus });
-    },
-    onSuccess: (_data, variables) => {
-      toast.success(
-        variables.newStatus === "inactive"
-          ? "Department de-activated"
-          : "Department activated"
-      );
-      queryClient.invalidateQueries({ queryKey: ["departments-list"] });
-      refetch();
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to update department status");
-    },
-  });
-
-
-  const deptExportColumns: ExportColumn<DepartmentRecord>[] = [
-    { header: "Department Name", key: "name" },
-    { header: "Branch", key: "branch.name", format: (_v, r) => r.branch?.name || "All Branches" },
-    { header: "Description", key: "description" },
-    { header: "Status", key: "status", format: (v) => (v === "active" ? "Active" : "Inactive") },
-  ];
-
-  const handleExportExcel = async () => {
-    const dataToExport = selectedIds.length > 0
-      ? departments.filter((d: any) => selectedIds.includes(d.id!))
-      : departments;
-    await exportToExcel({
-      filename: `departments_${new Date().toISOString().split("T")[0]}`,
-      title: "Departments Directory",
-      columns: deptExportColumns,
-      data: dataToExport,
-    });
-    toast.success(`Exported ${dataToExport.length} department(s) to Excel`);
-  };
-
-  const handleExportPdf = async () => {
-    const dataToExport = selectedIds.length > 0
-      ? departments.filter((d: any) => selectedIds.includes(d.id!))
-      : departments;
-    await exportToPdf({
-      filename: `departments_${new Date().toISOString().split("T")[0]}`,
-      title: "Departments Directory",
-      columns: deptExportColumns,
-      data: dataToExport,
-    });
-    toast.success(`Exported ${dataToExport.length} department(s) to PDF`);
-  };
-
-  const bulkStatusMutation = useMutation({
-    mutationFn: async ({ ids, status }: { ids: string[]; status: "active" | "inactive" }) => {
-      return await api.post("/hr/organization/departments/bulk-archive", { ids, status });
-    },
-    onSuccess: (res: any, vars) => {
-      toast.success(`${vars.status === "active" ? "Activated" : "De-activated"} ${res.data?.count || selectedIds.length} department(s)`);
-      setSelectedIds([]);
-      queryClient.invalidateQueries({ queryKey: ["departments-list"] });
-      refetch();
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Bulk status update failed");
-    },
-  });
-
-  const bulkDeleteMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
-      return await api.post("/hr/organization/departments/bulk-delete", { ids });
-    },
-    onSuccess: (res: any) => {
-      const { deletedCount, failedCount } = res.data || {};
-      if (failedCount > 0) {
-        toast.warning(`Deleted ${deletedCount} department(s). ${failedCount} could not be deleted (referenced).`);
-      } else {
-        toast.success(`Deleted ${deletedCount || selectedIds.length} department(s)`);
-      }
-      setSelectedIds([]);
-      queryClient.invalidateQueries({ queryKey: ["departments-list"] });
-      refetch();
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Bulk delete failed");
-    },
-  });
-
-  // Bulk de-activate mutation
-  const bulkArchiveMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
-      return await api.post("/hr/organization/departments/bulk-archive", { ids, status: "inactive" });
-    },
-    onSuccess: (res: any) => {
-      toast.success(`De-activated ${res.data?.count || selectedIds.length} department(s)`);
-      setSelectedIds([]);
-      queryClient.invalidateQueries({ queryKey: ["departments-list"] });
-      refetch();
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Bulk archive failed");
-    },
-  });
-
-  const handleOpenAdd = () => {
+  const openCreate = () => {
     reset();
     setIsDialogOpen(true);
   };
 
-  const handleOpenEdit = (dept: DepartmentRecord) => {
+  const openEdit = (dept: DepartmentRecord) => {
     setValues({
       id: dept.id,
-      name: dept.name,
+      name: dept.name || "",
       description: dept.description || "",
-      branchId: dept.branchId || null,
+      branchId: dept.branchId || dept.branch?.id || null,
       status: dept.status || "active",
     });
+    setErrors({});
     setIsDialogOpen(true);
   };
 
-  const handleSort = (field: string) => {
-    if (sortBy === field) {
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
-      setSortBy(field);
+      setSortBy(column);
       setSortOrder("asc");
     }
+  };
+
+  const handleResetFilters = () => {
+    setSearch("");
+    setBranchFilter("all");
+    setStatusFilter("all");
     setPage(1);
   };
 
-  // Checkbox handlers
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      const pageIds = departments.map((d: any) => d.id).filter(Boolean);
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...pageIds])));
-    } else {
-      const pageIds = new Set(departments.map((d: any) => d.id));
-      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
-    }
-  };
+  const allCount = counts?.total ?? total;
+  const activeCount = counts?.active ?? 0;
+  const inactiveCount = counts?.inactive ?? 0;
 
-  const handleSelectRow = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedIds((prev) => [...prev, id]);
-    } else {
-      setSelectedIds((prev) => prev.filter((i) => i !== id));
-    }
-  };
+  const startRow = total === 0 ? 0 : (page - 1) * limit + 1;
+  const endRow = Math.min(page * limit, total);
 
-  const currentPageIds = departments.map((d: any) => d.id).filter(Boolean);
-  const isAllCurrentPageSelected =
-    currentPageIds.length > 0 && currentPageIds.every((id) => selectedIds.includes(id));
-  const isPartiallySelected =
-    currentPageIds.some((id) => selectedIds.includes(id)) && !isAllCurrentPageSelected;
+  const pageNumbers = useMemo(() => {
+    const pages: number[] = [];
+    const maxButtons = 5;
+    let start = Math.max(1, page - 2);
+    const end = Math.min(totalPages, start + maxButtons - 1);
+    start = Math.max(1, end - maxButtons + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    return pages;
+  }, [page, totalPages]);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Departments"
-        description="Functional business units and departmental hierarchy across workspace facilities."
-        
-      />
+    <div className="w-full space-y-5">
+      {/* ── Page Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Departments</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Manage your company departments and structure.
+          </p>
+        </div>
+        <Button
+          onClick={openCreate}
+          className="h-9 px-4 gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+        >
+          <Plus className="h-4 w-4" />
+          Add Department
+        </Button>
+      </div>
 
-      {/* Standard Global List Action Toolbar */}
-      <GlobalListActionToolbar
-        searchPlaceholder="Search by name, branch, description..."
-        searchTerm={search}
-        onSearchChange={(val) => {
-          setSearch(val);
-          setPage(1);
-        }}
-        filterSlot={
-          <div className="flex items-center gap-2">
+      {/* ── Filter Toolbar & Status Tabs Card ── */}
+      <div className="rounded-xl border border-border/80 bg-card shadow-xs overflow-hidden">
+        <div className="p-3.5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2.5 flex-1">
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search..."
+                className="pl-9 h-9 text-xs bg-background"
+              />
+            </div>
+
             <Select
-              value={statusFilter}
+              value={branchFilter}
               onValueChange={(val) => {
-                setStatusFilter(val);
+                setBranchFilter(val);
                 setPage(1);
               }}
             >
-              <SelectTrigger className="w-[140px] h-9 text-xs">
-                <SelectValue placeholder="Status" />
+              <SelectTrigger className="w-[165px] h-9 text-xs bg-background">
+                <SelectValue placeholder="All Branches" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
-                <SelectItem value="active" className="text-xs">Active Only</SelectItem>
-                <SelectItem value="inactive" className="text-xs">Inactive Only</SelectItem>
+                <SelectItem value="all">All Branches</SelectItem>
+                {branches.map((b: any) => (
+                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
+          </div>
 
-            {(search || statusFilter !== "all" || branchFilter !== "all") && (
-              <Button
-                variant="ghost"
-                size="sm"
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleResetFilters}
+            className="h-9 gap-1.5 text-xs"
+          >
+            <Filter className="h-3.5 w-3.5" />
+            Filters
+          </Button>
+        </div>
+
+        {/* Status Tabs Row */}
+        <div className="px-3.5 border-t border-border/60 flex items-center gap-5 overflow-x-auto">
+          {[
+            { id: "all", label: "All", count: allCount, icon: LayoutGrid },
+            { id: "active", label: "Active", count: activeCount, icon: CheckCircle2 },
+            { id: "inactive", label: "Inactive", count: inactiveCount, icon: XCircle },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isSelected = statusFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
                 onClick={() => {
-                  setSearch("");
-                  setStatusFilter("all");
-                  setBranchFilter("all");
+                  setStatusFilter(tab.id);
                   setPage(1);
                 }}
-                className="h-9 gap-1 text-xs text-muted-foreground"
+                className={cn(
+                  "inline-flex items-center gap-1.5 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap cursor-pointer",
+                  isSelected
+                    ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 font-semibold"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
               >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Reset
-              </Button>
-            )}
-          </div>
-        }
-        selectedCount={selectedIds.length}
-        totalFilteredCount={total}
-        onClearSelection={() => setSelectedIds([])}
-        onBulkActivate={() => bulkStatusMutation.mutate({ ids: selectedIds, status: "active" })}
-        onBulkDeactivate={() => bulkStatusMutation.mutate({ ids: selectedIds, status: "inactive" })}
-        onBulkDelete={() => bulkDeleteMutation.mutate(selectedIds)}
-        isActionLoading={bulkStatusMutation.isPending || bulkDeleteMutation.isPending}
-        onExportExcel={handleExportExcel}
-        onExportPdf={handleExportPdf}
-        primaryActionLabel="Add Department"
-        onPrimaryAction={handleOpenAdd}
-      />
-
-      {/* Table Section */}
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-12 text-center">
-                <Checkbox
-                  checked={isAllCurrentPageSelected ? true : isPartiallySelected ? "indeterminate" : false}
-                  onCheckedChange={(checked) => handleSelectAll(Boolean(checked))}
-                  aria-label="Select all departments on this page"
-                />
-              </TableHead>
-              <TableHead>
-                <button
-                  type="button"
-                  onClick={() => handleSort("name")}
-                  className="flex items-center gap-1 font-semibold hover:text-foreground"
+                <Icon className="h-3.5 w-3.5" />
+                <span>{tab.label}</span>
+                <span
+                  className={cn(
+                    "px-1.5 py-0.5 rounded-full text-[10px] font-semibold",
+                    isSelected
+                      ? "bg-emerald-500 text-white"
+                      : "bg-muted text-muted-foreground"
+                  )}
                 >
-                  Department Name
-                  <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
-                </button>
-              </TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>
-                <button
-                  type="button"
-                  onClick={() => handleSort("branchId")}
-                  className="flex items-center gap-1 font-semibold hover:text-foreground"
-                >
-                  Facility / Branch
-                  <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
-                </button>
-              </TableHead>
-              <TableHead>
-                <button
-                  type="button"
-                  onClick={() => handleSort("status")}
-                  className="flex items-center gap-1 font-semibold hover:text-foreground"
-                >
-                  Status
-                  <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
-                </button>
-              </TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                  Loading departments...
-                </TableCell>
-              </TableRow>
-            ) : departments.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                  No departments found matching your criteria.
-                </TableCell>
-              </TableRow>
-            ) : (
-              departments.map((dept: any) => {
-                const isSelected = selectedIds.includes(dept.id);
-                const isInactive = dept.status === "inactive";
-                return (
-                  <TableRow key={dept.id || dept.name} className={isSelected ? "bg-muted/40" : undefined}>
-                    <TableCell className="text-center">
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={(checked) => handleSelectRow(dept.id, Boolean(checked))}
-                        aria-label={`Select ${dept.name}`}
-                      />
-                    </TableCell>
-                    <TableCell className="font-semibold text-foreground">
-                      {dept.name}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {dept.description || "—"}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {dept.branch?.name || (dept.branchId ? "Assigned Branch" : "Global / All Facilities")}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={isInactive ? "secondary" : "default"}>
-                        {dept.status || "active"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenEdit(dept)}
-                          className="h-8 gap-1.5 text-xs font-medium"
-                          title="Edit department details"
-                        >
-                          <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
-                          Edit
-                        </Button>
-
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={toggleStatusMutation.isPending}
-                          onClick={() =>
-                            setStatusConfirmTarget({
-                              id: dept.id,
-                              name: dept.name,
-                              targetStatus: isInactive ? "active" : "inactive",
-                            })
-                          }
-                          className={cn(
-                            "h-8 gap-1.5 text-xs font-medium",
-                            isInactive
-                              ? "text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                              : "text-amber-600 dark:text-amber-400 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-                          )}
-                          title={isInactive ? "Activate department" : "De-activate department"}
-                        >
-                          {isInactive ? (
-                            <>
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Activate
-                            </>
-                          ) : (
-                            <>
-                              <PowerOff className="h-3.5 w-3.5" />
-                              De-activate
-                            </>
-                          )}
-                        </Button>
-
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleteConfirmTarget(dept)}
-                          className="h-8 gap-1.5 text-xs font-medium text-destructive hover:bg-destructive/10"
-                          title="Delete department permanently"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Delete
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-
-        {/* Standard Table Pagination */}
-        <StandardPagination
-          page={page}
-          pageSize={limit}
-          total={total}
-          onPageChange={setPage}
-          onPageSizeChange={setLimit}
-        />
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Add / Edit Department Modal Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {isEditMode ? "Edit Department" : "Add New Department"}
-            </DialogTitle>
-          </DialogHeader>
+      {/* ── Data Table Card ── */}
+      <div className="rounded-xl border border-border/80 bg-card shadow-xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50 hover:bg-muted/50 border-b border-border/80">
+                <TableHead className="w-12 text-xs font-semibold text-muted-foreground">#</TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={() => handleSort("name")}
+                    className="inline-flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
+                  >
+                    Name
+                    <ArrowUpDown className="h-3.5 w-3.5 opacity-60" />
+                  </button>
+                </TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground">Branch</TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground">Status</TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={() => handleSort("createdAt")}
+                    className="inline-flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
+                  >
+                    Created At
+                    <ArrowUpDown className="h-3.5 w-3.5 opacity-60" />
+                  </button>
+                </TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground text-right pr-6">
+                  Actions
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-32 text-center text-sm text-muted-foreground">
+                    Loading departments...
+                  </TableCell>
+                </TableRow>
+              ) : departments.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-32 text-center">
+                    <div className="flex flex-col items-center justify-center gap-1.5 text-muted-foreground">
+                      <Building2 className="h-7 w-7 opacity-50" />
+                      <p className="text-sm font-medium text-foreground">No departments found</p>
+                      <p className="text-xs">Try adjusting filters or add a new department.</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                departments.map((dept, idx) => {
+                  const rowNum = (page - 1) * limit + idx + 1;
+                  const isActive = (dept.status || "active") === "active";
+                  return (
+                    <TableRow
+                      key={dept.id || idx}
+                      className="hover:bg-muted/40 transition-colors border-b border-border/50 last:border-0"
+                    >
+                      <TableCell className="text-xs font-semibold text-foreground">{rowNum}</TableCell>
+                      <TableCell className="text-sm font-semibold text-foreground">{dept.name}</TableCell>
+                      <TableCell className="text-xs font-medium text-foreground">
+                        {dept.branch?.name || "—"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[11px] font-medium px-2.5 py-0.5 rounded-md",
+                            isActive
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                              : "bg-muted text-muted-foreground border-border"
+                          )}
+                        >
+                          {isActive ? "Active" : "Inactive"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Calendar className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                          <span>{formatDateYmd(dept.createdAt)}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right pr-4">
+                        <div className="inline-flex items-center justify-end gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                            title="View Department"
+                            onClick={() => setViewTarget(dept)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                            title="Edit Department"
+                            onClick={() => openEdit(dept)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className={cn(
+                              "h-8 w-8 transition-colors",
+                              isActive
+                                ? "text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10"
+                                : "text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10"
+                            )}
+                            title={isActive ? "Deactivate Department" : "Activate Department"}
+                            onClick={() =>
+                              dept.id &&
+                              setStatusConfirmTarget({
+                                id: dept.id,
+                                name: dept.name,
+                                targetStatus: isActive ? "inactive" : "active",
+                              })
+                            }
+                          >
+                            {isActive ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10"
+                            title="Delete Department"
+                            onClick={() => setDeleteConfirmTarget(dept)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
 
-          <form onSubmit={submit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="dept-name">Department Name *</Label>
-              <Input
-                id="dept-name"
-                value={values.name}
-                onChange={(e) => handleChange("name", e.target.value)}
-                placeholder="e.g. Engineering & Technology"
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="dept-branch">Assigned Branch (Optional)</Label>
+        {/* ── Pagination Footer ── */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-border/70 text-xs text-muted-foreground">
+          <div>
+            Showing <span className="font-semibold text-foreground">{startRow}</span> to{" "}
+            <span className="font-semibold text-foreground">{endRow}</span> of{" "}
+            <span className="font-semibold text-foreground">{total}</span> results
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span>Rows per page:</span>
               <Select
-                value={values.branchId || "none"}
-                onValueChange={(val) =>
-                  handleChange("branchId", val === "none" ? null : val)
-                }
+                value={String(limit)}
+                onValueChange={(val) => {
+                  setLimit(Number(val));
+                  setPage(1);
+                }}
               >
-                <SelectTrigger id="dept-branch">
-                  <SelectValue placeholder="Select facility" />
+                <SelectTrigger className="h-8 w-16 text-xs">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Global / All Facilities</SelectItem>
-                  {branches.map((b: any) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name} {b.code ? `(${b.code})` : ""}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="dept-status">Status</Label>
-              <Select
-                value={values.status || "active"}
-                onValueChange={(val) => handleChange("status", val)}
-              >
-                <SelectTrigger id="dept-status">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="dept-desc">Description</Label>
-              <Input
-                id="dept-desc"
-                value={values.description || ""}
-                onChange={(e) => handleChange("description", e.target.value)}
-                placeholder="Brief summary of department responsibilities"
-              />
-            </div>
-
-            <DialogFooter>
+            <div className="flex items-center gap-1">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setIsDialogOpen(false)}
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                disabled={page <= 1}
+                onClick={() => setPage(page - 1)}
               >
+                &laquo; Previous
+              </Button>
+              {pageNumbers.map((num) => (
+                <Button
+                  key={num}
+                  type="button"
+                  variant={num === page ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "h-8 w-8 p-0 text-xs",
+                    num === page && "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600"
+                  )}
+                  onClick={() => setPage(num)}
+                >
+                  {num}
+                </Button>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                disabled={page >= totalPages}
+                onClick={() => setPage(page + 1)}
+              >
+                Next &raquo;
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── View Department Dialog ── */}
+      <Dialog open={Boolean(viewTarget)} onOpenChange={(o) => !o && setViewTarget(null)}>
+        <DialogContent className="sm:max-w-md p-6">
+          <DialogHeader>
+            <DialogTitle>{viewTarget?.name}</DialogTitle>
+            <DialogDescription>Department details and branch assignment</DialogDescription>
+          </DialogHeader>
+          {viewTarget && (
+            <div className="grid grid-cols-2 gap-3 text-xs pt-2">
+              <div>
+                <span className="text-muted-foreground">Branch</span>
+                <p className="font-semibold text-foreground mt-0.5">{viewTarget.branch?.name || "—"}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Status</span>
+                <p className="font-semibold capitalize text-foreground mt-0.5">{viewTarget.status}</p>
+              </div>
+              <div className="col-span-2">
+                <span className="text-muted-foreground">Description</span>
+                <p className="font-medium text-foreground mt-0.5">{viewTarget.description || "—"}</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="pt-2">
+            <Button variant="outline" size="sm" onClick={() => setViewTarget(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Create / Edit Department Dialog ── */}
+      <Dialog open={isDialogOpen} onOpenChange={(o) => !o && setIsDialogOpen(false)}>
+        <DialogContent className="sm:max-w-lg p-6">
+          <DialogHeader>
+            <DialogTitle>{isEdit ? "Edit Department" : "Add Department"}</DialogTitle>
+            <DialogDescription>
+              {isEdit ? "Update department details and branch mapping." : "Create a new department mapped to a branch."}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+            {error && (
+              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-600">
+                {error}
+              </div>
+            )}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Department Name *</Label>
+                <Input
+                  value={values.name}
+                  onChange={(e) => handleChange("name", e.target.value)}
+                  placeholder="e.g. Human Resources"
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Branch *</Label>
+                <Select
+                  value={values.branchId || "none"}
+                  onValueChange={(val) => handleChange("branchId", val === "none" ? null : val)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Unassigned</SelectItem>
+                    {branches.map((b: any) => (
+                      <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Description</Label>
+                <Input
+                  value={values.description || ""}
+                  onChange={(e) => handleChange("description", e.target.value)}
+                  placeholder="Brief department summary"
+                />
+              </div>
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting
-                  ? "Saving..."
-                  : isEditMode
-                    ? "Save Changes"
-                    : "Create Department"}
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isSubmitting}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+              >
+                {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {isEdit ? "Save Changes" : "Create Department"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* De-activate / Activate Confirmation Dialog */}
-      <Dialog
-        open={Boolean(statusConfirmTarget)}
-        onOpenChange={(open) => !open && setStatusConfirmTarget(null)}
-      >
-        <DialogContent className="sm:max-w-md">
+      {/* ── Toggle Status Dialog ── */}
+      <Dialog open={Boolean(statusConfirmTarget)} onOpenChange={(o) => !o && setStatusConfirmTarget(null)}>
+        <DialogContent className="sm:max-w-md p-6">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {statusConfirmTarget?.targetStatus === "inactive" ? (
-                <>
-                  <PowerOff className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                  De-activate Department
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                  Activate Department
-                </>
-              )}
+            <DialogTitle>
+              {statusConfirmTarget?.targetStatus === "inactive" ? "Deactivate Department" : "Activate Department"}
             </DialogTitle>
-            <DialogDescription className="pt-2 text-sm">
-              {statusConfirmTarget?.targetStatus === "inactive" ? (
-                <span>
-                  Are you sure you want to de-activate{" "}
-                  <strong className="text-foreground">{statusConfirmTarget?.name}</strong>?
-                  This record will be marked as inactive and will not appear in selection dropdowns
-                  for new assignments. Existing associations will be preserved.
-                </span>
-              ) : (
-                <span>
-                  Are you sure you want to activate{" "}
-                  <strong className="text-foreground">{statusConfirmTarget?.name}</strong>?
-                  This record will become active and available for assignments across the workspace.
-                </span>
-              )}
+            <DialogDescription>
+              Are you sure you want to mark <strong>{statusConfirmTarget?.name}</strong> as{" "}
+              <strong>{statusConfirmTarget?.targetStatus}</strong>?
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={toggleStatusMutation.isPending}
-              onClick={() => setStatusConfirmTarget(null)}
-            >
+          <DialogFooter className="pt-2">
+            <Button variant="outline" size="sm" onClick={() => setStatusConfirmTarget(null)}>
               Cancel
             </Button>
             <Button
-              type="button"
-              className={
-                statusConfirmTarget?.targetStatus === "inactive"
-                  ? "bg-amber-600 hover:bg-amber-700 text-white"
-                  : "bg-emerald-600 hover:bg-emerald-700 text-white"
-              }
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
               disabled={toggleStatusMutation.isPending}
-              onClick={() => {
-                if (statusConfirmTarget) {
-                  toggleStatusMutation.mutate({
-                    id: statusConfirmTarget.id,
-                    newStatus: statusConfirmTarget.targetStatus,
-                  });
-                  setStatusConfirmTarget(null);
-                }
-              }}
+              onClick={() =>
+                statusConfirmTarget &&
+                toggleStatusMutation.mutate({
+                  id: statusConfirmTarget.id,
+                  status: statusConfirmTarget.targetStatus,
+                })
+              }
             >
-              {toggleStatusMutation.isPending
-                ? "Updating..."
-                : statusConfirmTarget?.targetStatus === "inactive"
-                ? "De-activate"
-                : "Activate"}
+              Confirm
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete / Dependency Guard Confirmation Dialog */}
-      <Dialog
-        open={Boolean(deleteConfirmTarget)}
-        onOpenChange={(open) => !open && setDeleteConfirmTarget(null)}
-      >
-        <DialogContent className="max-w-md">
+      {/* ── Delete Department Dialog ── */}
+      <Dialog open={Boolean(deleteConfirmTarget)} onOpenChange={(o) => !o && setDeleteConfirmTarget(null)}>
+        <DialogContent className="sm:max-w-md p-6">
           <DialogHeader>
-            <div className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              <DialogTitle>Delete Department</DialogTitle>
-            </div>
-            <DialogDescription className="pt-2">
-              Are you sure you want to delete{" "}
-              <strong className="text-foreground">{deleteConfirmTarget?.name}</strong>?
-              If this department is assigned to active employees or designations, deletion will be
-              blocked to prevent corrupting organizational records.
+            <DialogTitle>Delete Department</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{deleteConfirmTarget?.name}</strong>? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDeleteConfirmTarget(null)}
-            >
+          <DialogFooter className="pt-2">
+            <Button variant="outline" size="sm" onClick={() => setDeleteConfirmTarget(null)}>
               Cancel
             </Button>
             <Button
-              type="button"
               variant="destructive"
+              size="sm"
               disabled={deleteMutation.isPending}
-              onClick={() => {
-                if (deleteConfirmTarget?.id) {
-                  deleteMutation.mutate(deleteConfirmTarget.id);
-                }
-              }}
+              onClick={() => deleteConfirmTarget?.id && deleteMutation.mutate(deleteConfirmTarget.id)}
             >
-              {deleteMutation.isPending ? "Checking..." : "Confirm Delete"}
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

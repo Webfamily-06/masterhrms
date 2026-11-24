@@ -300,7 +300,7 @@ export default function HrLeaveBalancesPage() {
                 <SelectItem value="all">All Employees</SelectItem>
                 {allEmployees.map((emp: any) => (
                   <SelectItem key={emp.id} value={emp.id}>
-                    {emp.firstName} {emp.lastName} ({emp.employeeCode})
+                    {emp.firstName} {emp.lastName}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -437,10 +437,10 @@ export default function HrLeaveBalancesPage() {
                     </div>
                   </div>
 
-                  {/* Leave Breakdown Table: Leave Type | Total | Used | Available */}
-                  <div className="overflow-x-auto">
+                  {/* Leave Breakdown Table: Scrollable Leave Type | Total | Used | Available */}
+                  <div className="overflow-x-auto max-h-[265px] overflow-y-auto">
                     <Table>
-                      <TableHeader>
+                      <TableHeader className="sticky top-0 z-10">
                         <TableRow className="bg-white dark:bg-slate-900 hover:bg-white dark:hover:bg-slate-900 dark:bg-slate-900 border-t border-b border-slate-100 dark:border-slate-800">
                           <TableHead className="py-2.5 px-3.5 text-xs font-medium text-slate-600 dark:text-slate-400 text-left h-auto">
                             Leave Type

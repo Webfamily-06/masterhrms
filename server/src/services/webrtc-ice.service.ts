@@ -1,12 +1,14 @@
+import crypto from "crypto";
+
 /**
- * MASTERHRMS — WebRTC ICE Service (100% free, zero third-party relay)
+ * MASTERHRMS — WebRTC ICE Service
  *
- * Pure peer-to-peer WebRTC (1:1 calls & mesh group meetings) using only free public
- * Google STUN servers. No TURN relay, no paid provider, no credentials, no env configuration.
- *
- * STUN lets each browser discover its public address so peers can connect directly. This works
- * on the same Wi-Fi and on most home/office/mobile networks. Networks with strict symmetric NAT
- * or enterprise firewalls that block peer-to-peer UDP cannot be traversed without a relay.
+ * Supports:
+ * 1. Default free public STUN servers for direct peer-to-peer WebRTC (1:1 calls & mesh meetings).
+ * 2. Optional enterprise TURN/TURNS relay servers for symmetric NAT / corporate firewall traversal:
+ *    - Configure `TURN_SERVER_URLS` (comma-separated, e.g. `turn:turn.example.com:3478,turns:turn.example.com:5349`)
+ *    - Either `TURN_SHARED_SECRET` (RFC 5766 / coturn ephemeral HMAC-SHA1 time-limited credentials)
+ *      OR static `TURN_USERNAME` + `TURN_CREDENTIAL`.
  */
 
 export interface IceServerConfig {
@@ -18,8 +20,8 @@ export interface IceServerConfig {
 export interface IceDiagnostics {
   mode: "webrtc_mesh";
   configured: boolean;
-  relay: "none";
-  stunOnly: true;
+  relay: "none" | "turn";
+  stunOnly: boolean;
   iceServersCount: number;
 }
 
@@ -35,25 +37,67 @@ const FREE_PUBLIC_STUN_SERVERS: IceServerConfig[] = [
   },
 ];
 
+function buildTurnIceServer(userId?: string, ttlSeconds = 3600): IceServerConfig | null {
+  const rawUrls = (process.env.TURN_SERVER_URLS || "").trim();
+  if (!rawUrls) return null;
+
+  const urls = rawUrls
+    .split(",")
+    .map((u) => u.trim())
+    .filter((u) => u.startsWith("turn:") || u.startsWith("turns:"));
+
+  if (urls.length === 0) return null;
+
+  const sharedSecret = process.env.TURN_SHARED_SECRET?.trim();
+  if (sharedSecret) {
+    const expiry = Math.floor(Date.now() / 1000) + Math.max(60, ttlSeconds);
+    const username = `${expiry}:${userId || "anon"}`;
+    const credential = crypto
+      .createHmac("sha1", sharedSecret)
+      .update(username)
+      .digest("base64");
+    return { urls, username, credential };
+  }
+
+  const staticUser = process.env.TURN_USERNAME?.trim();
+  const staticCred = process.env.TURN_CREDENTIAL?.trim();
+  if (staticUser && staticCred) {
+    return { urls, username: staticUser, credential: staticCred };
+  }
+
+  return null;
+}
+
 export class WebRtcIceService {
   /**
-   * Free public STUN servers for WebRTC 1:1 and mesh calls.
-   * (`userId` / `ttlSeconds` are accepted for call-site compatibility and intentionally unused.)
+   * Returns ICE servers for WebRTC 1:1 and mesh calls.
+   * Always includes STUN servers; appends TURN/TURNS relay when configured via env vars.
    */
-  public static getIceServers(_userId?: string, _ttlSeconds?: number): IceServerConfig[] {
-    return FREE_PUBLIC_STUN_SERVERS.map((s) => ({ urls: Array.isArray(s.urls) ? [...s.urls] : s.urls }));
+  public static getIceServers(userId?: string, ttlSeconds = 3600): IceServerConfig[] {
+    const servers: IceServerConfig[] = FREE_PUBLIC_STUN_SERVERS.map((s) => ({
+      urls: Array.isArray(s.urls) ? [...s.urls] : s.urls,
+    }));
+
+    const turnServer = buildTurnIceServer(userId, ttlSeconds);
+    if (turnServer) {
+      servers.push(turnServer);
+    }
+
+    return servers;
   }
 
   /**
-   * Pure WebRTC mesh diagnostics (always ready, STUN-only, no relay).
+   * WebRTC mesh ICE diagnostics (indicates STUN-only vs TURN-enabled relay readiness).
    */
-  public static getDiagnostics(_userId?: string): IceDiagnostics {
+  public static getDiagnostics(userId?: string): IceDiagnostics {
+    const turnServer = buildTurnIceServer(userId);
+    const hasTurn = Boolean(turnServer);
     return {
       mode: "webrtc_mesh",
       configured: true,
-      relay: "none",
-      stunOnly: true,
-      iceServersCount: this.getIceServers().length,
+      relay: hasTurn ? "turn" : "none",
+      stunOnly: !hasTurn,
+      iceServersCount: this.getIceServers(userId).length,
     };
   }
 }

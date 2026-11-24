@@ -41,12 +41,16 @@ const HR_SUBMENU_KEY_MAP: Record<string, string> = {
   Approval: "hrApprovals",
   Approvals: "hrApprovals",
   Organization: "hrOrg",
+  "Organization Structure": "hrOrg",
   Attendance: "hrAttendance",
   "Leave Management": "hrLeave",
+  Undefined: "hrUndefined",
   Recruitment: "hrRecruitment",
   "Employee Lifecycle": "hrLifecycle",
   Performance: "hrPerformance",
+  "Performance Management": "hrPerformance",
   Training: "hrTraining",
+  "Training & Development": "hrTraining",
   Payroll: "hrPayroll",
   Assets: "hrAssets",
   Meetings: "hrMeetings",
@@ -58,20 +62,9 @@ const HR_SUBMENU_KEY_MAP: Record<string, string> = {
   "Todo & Tasks": "hrAppsTodo",
   Settings: "hrSettings",
   "Settings & Administration": "hrSettingsAdmin",
-  "Base UI": "hrBaseUI",
-  "Advanced UI": "hrAdvancedUI",
-  Forms: "hrForms",
-  Tables: "hrTables",
-  Charts: "hrCharts",
 };
 
 const HR_ICON_MAP: Record<string, string> = {
-  // UI & Design System
-  "Base UI": "ph-squares-four",
-  "Advanced UI": "ph-shooting-star",
-  Forms: "ph-note-pencil",
-  Tables: "ph-table",
-  Charts: "ph-chart-pie-slice",
   // Applications
   Applications: "ph-grid-four",
   Chat: "ph-chat-circle-dots",
@@ -96,15 +89,20 @@ const HR_ICON_MAP: Record<string, string> = {
 
   // 02. Workspace Management
   Employees: "ph-users",
+  "Organization Tree": "ph-git-fork",
   Organization: "ph-tree-structure",
+  "Organization Structure": "ph-tree-structure",
   Attendance: "ph-clock",
   "Leave Management": "ph-calendar-blank",
+  Undefined: "ph-dots-three-circle",
 
   // 03. Talent & Growth
   Recruitment: "ph-user-plus",
   "Employee Lifecycle": "ph-arrows-clockwise",
   Performance: "ph-trend-up",
+  "Performance Management": "ph-trend-up",
   Training: "ph-graduation-cap",
+  "Training & Development": "ph-graduation-cap",
 
   // 04. Finance & Assets
   Payroll: "ph-receipt",
@@ -237,6 +235,7 @@ export function DreamsSidebar({
     hrOrg: false,
     hrAttendance: false,
     hrLeave: false,
+    hrUndefined: false,
     hrRecruitment: false,
     hrLifecycle: false,
     hrPerformance: false,

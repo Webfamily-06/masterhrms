@@ -79,6 +79,7 @@ import {
   RotateCcw,
   Search,
   ArrowUpDown,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -218,6 +219,9 @@ export default function EmployeesDirectoryPage() {
   const [statusTargetEmployee, setStatusTargetEmployee] = useState<EmployeeItem | null>(null);
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
 
+  const [deleteTargetEmployee, setDeleteTargetEmployee] = useState<EmployeeItem | null>(null);
+  const [isDeletingEmployee, setIsDeletingEmployee] = useState(false);
+
   const handleOpenPasswordModal = (emp: EmployeeItem) => {
     setPasswordTargetEmployee(emp);
     setNewPassword("");
@@ -292,6 +296,26 @@ export default function EmployeesDirectoryPage() {
       toast.error(msg);
     } finally {
       setIsTogglingStatus(false);
+    }
+  };
+
+  const handleDeleteEmployee = async () => {
+    if (!deleteTargetEmployee) return;
+
+    try {
+      setIsDeletingEmployee(true);
+      const res = await api.delete(`/employees/${deleteTargetEmployee.id}`);
+      toast.success(
+        res?.message ||
+          `Employee ${deleteTargetEmployee.firstName} ${deleteTargetEmployee.lastName} deleted successfully.`
+      );
+      setDeleteTargetEmployee(null);
+      queryClient.invalidateQueries({ queryKey: ["hr-employees-list"] });
+    } catch (err: any) {
+      const msg = err.response?.data?.error || err.message || "Failed to delete employee.";
+      toast.error(msg);
+    } finally {
+      setIsDeletingEmployee(false);
     }
   };
 
@@ -476,12 +500,6 @@ export default function EmployeesDirectoryPage() {
             onExportPdf={handleExportPdf}
             disabled={employees.length === 0}
           />
-          <Link to="/hr/employees/import">
-            <Button variant="outline" className="gap-2 h-9 text-xs">
-              <UploadCloud className="h-4 w-4" />
-              Import CSV / Excel
-            </Button>
-          </Link>
           <Link to="/hr/employees/new">
             <Button className="gap-2 h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs">
               <UserPlus className="h-4 w-4" />
@@ -515,6 +533,8 @@ export default function EmployeesDirectoryPage() {
               value={selectedBranch}
               onValueChange={(val) => {
                 setSelectedBranch(val);
+                setSelectedDept("all");
+                setSelectedDesignation("all");
                 setPage(1);
               }}
             >
@@ -531,11 +551,12 @@ export default function EmployeesDirectoryPage() {
               </SelectContent>
             </Select>
 
-            {/* Department Filter */}
+            {/* Department Filter (Cascaded by Branch) */}
             <Select
               value={selectedDept}
               onValueChange={(val) => {
                 setSelectedDept(val);
+                setSelectedDesignation("all");
                 setPage(1);
               }}
             >
@@ -544,7 +565,12 @@ export default function EmployeesDirectoryPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Departments</SelectItem>
-                {departments.map((d: any) => (
+                {(selectedBranch === "all"
+                  ? departments
+                  : departments.filter(
+                      (d: any) => d.branchId === selectedBranch || d.branch?.id === selectedBranch
+                    )
+                ).map((d: any) => (
                   <SelectItem key={d.id} value={d.id}>
                     {d.name}
                   </SelectItem>
@@ -552,7 +578,7 @@ export default function EmployeesDirectoryPage() {
               </SelectContent>
             </Select>
 
-            {/* Designation Filter */}
+            {/* Designation Filter (Cascaded by Department / Branch) */}
             <Select
               value={selectedDesignation}
               onValueChange={(val) => {
@@ -565,11 +591,24 @@ export default function EmployeesDirectoryPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Designations</SelectItem>
-                {designations.map((d: any) => (
-                  <SelectItem key={d.id} value={d.id}>
-                    {d.name}
-                  </SelectItem>
-                ))}
+                {designations
+                  .filter((dg: any) => {
+                    if (selectedDept !== "all") {
+                      return dg.departmentId === selectedDept || dg.department?.id === selectedDept;
+                    }
+                    if (selectedBranch !== "all") {
+                      return (
+                        dg.department?.branchId === selectedBranch ||
+                        dg.department?.branch?.id === selectedBranch
+                      );
+                    }
+                    return true;
+                  })
+                  .map((d: any) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
 
@@ -903,7 +942,7 @@ export default function EmployeesDirectoryPage() {
                           )}
                         </TableCell>
                         <TableCell>{getLoginStatusBadge(emp.loginStatus, emp.userId)}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1">
                             <Link to="/hr/employees/$id" params={{ id: emp.id }}>
                               <Button
@@ -960,6 +999,16 @@ export default function EmployeesDirectoryPage() {
                                 <Unlock className="h-4 w-4" />
                               )}
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                              aria-label={`Delete ${emp.firstName} ${emp.lastName}`}
+                              title="Delete Employee"
+                              onClick={() => setDeleteTargetEmployee(emp)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -971,7 +1020,7 @@ export default function EmployeesDirectoryPage() {
           </div>
         </div>
       ) : (
-        /* ── Grid View: Responsive Card Grid ── */
+        /* ── Grid View: Exact Screenshot Card Grid Layout ── */
         <div>
           {isLoading ? (
             <div className="py-24 text-center text-sm text-muted-foreground">
@@ -991,121 +1040,129 @@ export default function EmployeesDirectoryPage() {
               {employees.map((emp) => (
                 <Card
                   key={emp.id}
-                  className="relative overflow-hidden hover:shadow-md transition-shadow border-border/80 flex flex-col justify-between bg-card"
+                  data-testid="employee-grid-card"
+                  className="relative overflow-hidden rounded-xl border border-border/80 bg-card shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
                 >
-                  <CardContent className="p-5 flex flex-col items-center text-center">
-                    {/* Top status badges */}
-                    <div className="w-full flex items-center justify-between mb-3">
-                      {getStatusBadge(emp.status)}
-                      {getLoginStatusBadge(emp.loginStatus, emp.userId)}
+                  {/* Card Header: Avatar + Name/Email + Status Pill */}
+                  <div className="p-4 pb-3 flex items-start justify-between gap-2.5">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar className="h-11 w-11 shrink-0 ring-1 ring-border/60">
+                        {emp.avatarUrl ? (
+                          <AvatarImage src={emp.avatarUrl} alt={`${emp.firstName} ${emp.lastName}`} />
+                        ) : null}
+                        <AvatarFallback className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-sm font-bold">
+                          {emp.firstName?.slice(0, 1)?.toUpperCase()}
+                          {emp.lastName?.slice(0, 1)?.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-sm text-foreground leading-snug truncate">
+                          {emp.firstName} {emp.lastName}
+                        </h3>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">
+                          {emp.email}
+                        </p>
+                      </div>
                     </div>
+                    <div className="shrink-0">{getStatusBadge(emp.status)}</div>
+                  </div>
 
-                    {/* Avatar & Name */}
-                    <Avatar className="h-16 w-16 mb-2.5 ring-2 ring-emerald-500/20">
-                      {emp.avatarUrl ? (
-                        <AvatarImage src={emp.avatarUrl} alt={`${emp.firstName} ${emp.lastName}`} />
-                      ) : null}
-                      <AvatarFallback className="bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 text-lg font-bold">
-                        {emp.firstName?.slice(0, 1)?.toUpperCase()}
-                        {emp.lastName?.slice(0, 1)?.toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-
-                    <h3 className="font-bold text-base text-foreground leading-tight">
-                      {emp.firstName} {emp.lastName}
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5 max-w-full truncate">
-                      {emp.email}
-                    </p>
-
-                    <div className="my-2.5">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-                        {emp.employeeCode}
+                  {/* Card Middle: Key-Value Metadata Block */}
+                  <div className="px-4 py-3 border-t border-border/50 space-y-1.5 text-xs">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className="font-medium text-foreground shrink-0">Employee Id:</span>
+                      <span className="text-muted-foreground truncate">{emp.employeeCode || "—"}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className="font-medium text-foreground shrink-0">Branch:</span>
+                      <span className="text-muted-foreground truncate">{emp.branch?.name || "—"}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className="font-medium text-foreground shrink-0">Department:</span>
+                      <span className="text-muted-foreground truncate">{emp.department?.name || "—"}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className="font-medium text-foreground shrink-0">Designation:</span>
+                      <span className="text-muted-foreground truncate">
+                        {emp.designation?.name || emp.position || "—"}
                       </span>
                     </div>
+                  </div>
 
-                    {/* Metadata summary */}
-                    <div className="w-full border-t border-border/60 pt-3 mt-1 space-y-1.5 text-xs text-left">
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Department:</span>
-                        <span className="font-medium text-foreground truncate max-w-[140px] text-right">
-                          {emp.department?.name || "—"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Designation:</span>
-                        <span className="font-medium text-foreground truncate max-w-[140px] text-right">
-                          {emp.designation?.name || emp.position || "—"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Branch:</span>
-                        <span className="font-medium text-foreground truncate max-w-[140px] text-right">
-                          {emp.branch?.name || "—"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Type:</span>
-                        <span className="font-medium text-foreground text-right">
-                          {formatEmploymentType(emp.employmentType)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Joined:</span>
-                        <span className="font-medium text-foreground text-right">
-                          {emp.joinedAt ? format(new Date(emp.joinedAt), "yyyy-MM-dd") : "—"}
-                        </span>
-                      </div>
+                  {/* Card Footer: Joined Date + 5 Compact Action Icons */}
+                  <div className="px-4 py-2.5 border-t border-border/50 flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground/80" />
+                      {emp.joinedAt ? format(new Date(emp.joinedAt), "yyyy-MM-dd") : "—"}
+                    </span>
+
+                    <div className="flex items-center gap-0.5">
+                      <Link to="/hr/employees/$id" params={{ id: emp.id }}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
+                          aria-label={`View 360 profile for ${emp.firstName} ${emp.lastName}`}
+                          title="View 360 Profile"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                      </Link>
+                      <Link to="/hr/employees/$id/edit" params={{ id: emp.id }}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
+                          aria-label={`Edit ${emp.firstName} ${emp.lastName}`}
+                          title="Edit Employee"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
+                        aria-label={`Change password for ${emp.firstName} ${emp.lastName}`}
+                        title="Change Password"
+                        onClick={() => handleOpenPasswordModal(emp)}
+                      >
+                        <KeyRound className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-7 w-7 transition-colors",
+                          emp.loginStatus === "active"
+                            ? "text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                            : "text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                        )}
+                        aria-label={
+                          emp.loginStatus === "active"
+                            ? `Deactivate login account for ${emp.firstName} ${emp.lastName}`
+                            : `Activate login account for ${emp.firstName} ${emp.lastName}`
+                        }
+                        title={emp.loginStatus === "active" ? "Deactivate Account" : "Activate Account"}
+                        onClick={() => setStatusTargetEmployee(emp)}
+                      >
+                        {emp.loginStatus === "active" ? (
+                          <Lock className="h-3.5 w-3.5" />
+                        ) : (
+                          <Unlock className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                        aria-label={`Delete ${emp.firstName} ${emp.lastName}`}
+                        title="Delete Employee"
+                        onClick={() => setDeleteTargetEmployee(emp)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
-                  </CardContent>
-
-                  {/* Card Actions Footer */}
-                  <div className="border-t bg-muted/20 px-3 py-2.5 flex items-center justify-between gap-1.5">
-                    <Link to="/hr/employees/$id" params={{ id: emp.id }} className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full text-xs h-8 gap-1 px-2">
-                        <Eye className="h-3.5 w-3.5" />
-                        View 360
-                      </Button>
-                    </Link>
-                    <Link to="/hr/employees/$id/edit" params={{ id: emp.id }} className="flex-1">
-                      <Button variant="ghost" size="sm" className="w-full text-xs h-8 gap-1 px-2 border border-transparent hover:border-border">
-                        <Edit className="h-3.5 w-3.5" />
-                        Edit
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
-                      aria-label={`Change password for ${emp.firstName} ${emp.lastName}`}
-                      title="Change Password"
-                      onClick={() => handleOpenPasswordModal(emp)}
-                    >
-                      <KeyRound className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className={cn(
-                        "h-8 w-8 shrink-0 transition-colors",
-                        emp.loginStatus === "active"
-                          ? "text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                          : "text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                      )}
-                      aria-label={
-                        emp.loginStatus === "active"
-                          ? `Deactivate login account for ${emp.firstName} ${emp.lastName}`
-                          : `Activate login account for ${emp.firstName} ${emp.lastName}`
-                      }
-                      title={emp.loginStatus === "active" ? "Deactivate Account" : "Activate Account"}
-                      onClick={() => setStatusTargetEmployee(emp)}
-                    >
-                      {emp.loginStatus === "active" ? (
-                        <Lock className="h-3.5 w-3.5" />
-                      ) : (
-                        <Unlock className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
                   </div>
                 </Card>
               ))}
@@ -1382,6 +1439,67 @@ export default function EmployeesDirectoryPage() {
                 <>
                   <Unlock className="h-3.5 w-3.5" />
                   Activate Account
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog: Delete Employee Confirmation ── */}
+      <Dialog
+        open={Boolean(deleteTargetEmployee)}
+        onOpenChange={(open) => {
+          if (!open && !isDeletingEmployee) setDeleteTargetEmployee(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md p-6">
+          <DialogHeader className="space-y-1">
+            <DialogTitle className="text-lg font-semibold tracking-tight text-foreground flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+              Delete Employee
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {deleteTargetEmployee && (
+                <>
+                  Are you sure you want to delete{" "}
+                  <span className="font-semibold text-foreground">
+                    {deleteTargetEmployee.firstName} {deleteTargetEmployee.lastName}
+                  </span>{" "}
+                  ({deleteTargetEmployee.employeeCode})? This action cannot be undone.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="pt-3 gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setDeleteTargetEmployee(null)}
+              disabled={isDeletingEmployee}
+              className="text-xs h-9"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={isDeletingEmployee}
+              onClick={handleDeleteEmployee}
+              className="text-xs h-9 gap-1.5"
+            >
+              {isDeletingEmployee ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Confirm Delete
                 </>
               )}
             </Button>

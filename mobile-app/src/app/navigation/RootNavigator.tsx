@@ -17,6 +17,7 @@ import { FaceIdAuthScreen } from '../../modules/authentication/screens/FaceIdAut
 import { AppNavigator } from '../../modules/navigation/AppNavigator';
 
 import { navigationRef } from './navigationRef';
+import { linking } from './linking';
 import { NotificationRealtimeBridge } from '../../components/notification/NotificationRealtimeBridge';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -24,7 +25,14 @@ const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 
 const AuthNavigator: React.FC = () => {
   return (
-    <AuthStack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
+    <AuthStack.Navigator
+      initialRouteName="Splash"
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+        gestureEnabled: true,
+      }}
+    >
       <AuthStack.Screen name="Splash" component={SplashScreen} />
       <AuthStack.Screen name="Onboarding" component={OnboardingScreen} />
       <AuthStack.Screen name="Login" component={LoginScreen} />
@@ -46,6 +54,7 @@ export const RootNavigator: React.FC = () => {
   return (
     <NavigationContainer
       ref={navigationRef}
+      linking={linking}
       theme={{
         dark: theme.isDark,
         colors: {
@@ -64,7 +73,12 @@ export const RootNavigator: React.FC = () => {
         },
       }}
     >
-      <RootStack.Navigator screenOptions={{ headerShown: false }}>
+      <RootStack.Navigator
+        screenOptions={{
+          headerShown: false,
+          animation: 'fade',
+        }}
+      >
         {isAuthenticated ? (
           <RootStack.Screen name="App" component={AppNavigator} />
         ) : (

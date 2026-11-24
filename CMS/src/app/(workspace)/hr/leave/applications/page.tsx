@@ -147,6 +147,10 @@ export default function HrLeaveApplicationsPage() {
   const [formEndDate, setFormEndDate] = useState(todayIso);
   const [formHalfDay, setFormHalfDay] = useState(false);
   const [formHalfDaySession, setFormHalfDaySession] = useState<"first_half" | "second_half">("first_half");
+  const [formDurationMode, setFormDurationMode] = useState<"full_day" | "half_day" | "permission">("full_day");
+  const [formPermissionFrom, setFormPermissionFrom] = useState("10:00");
+  const [formPermissionTo, setFormPermissionTo] = useState("12:00");
+  const [formUnpaidLeave, setFormUnpaidLeave] = useState(false);
   const [formReason, setFormReason] = useState("");
   const [formAttachmentUrl, setFormAttachmentUrl] = useState("");
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -329,6 +333,8 @@ export default function HrLeaveApplicationsPage() {
           : "Leave application rejected"
       );
       await invalidateLeaveApplications(queryClient);
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
       setDetailsModalOpen(false);
       setSelectedLeaveId(null);
       setDecisionNote("");
@@ -346,6 +352,8 @@ export default function HrLeaveApplicationsPage() {
     onSuccess: async () => {
       toast.success("Leave application cancelled and ledger balance reconciled");
       await invalidateLeaveApplications(queryClient);
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
       setDetailsModalOpen(false);
       setSelectedLeaveId(null);
       setDecisionNote("");
@@ -363,6 +371,8 @@ export default function HrLeaveApplicationsPage() {
     onSuccess: async () => {
       toast.success("Leave decision reversed and audit/ledger state updated");
       await invalidateLeaveApplications(queryClient);
+      queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
       setDetailsModalOpen(false);
       setSelectedLeaveId(null);
       setDecisionNote("");
@@ -463,14 +473,27 @@ export default function HrLeaveApplicationsPage() {
       return;
     }
 
+    const reasonPrefixes: string[] = [];
+    if (formDurationMode === "permission") {
+      reasonPrefixes.push(`[Permission: ${formPermissionFrom} - ${formPermissionTo}]`);
+    }
+    if (formUnpaidLeave) {
+      reasonPrefixes.push("[Unpaid Leave]");
+    }
+    const finalReason =
+      reasonPrefixes.length > 0
+        ? `${reasonPrefixes.join(" ")} ${formReason.trim()}`
+        : formReason.trim();
+
     saveApplicationMutation.mutate({
       employeeId: formEmployeeId,
       leaveTypeId: formLeaveTypeId,
       startDate: formStartDate,
-      endDate: effectiveEndDate,
-      halfDay: formHalfDay,
-      halfDaySession: formHalfDay ? formHalfDaySession : null,
-      reason: formReason.trim(),
+      endDate: formDurationMode === "full_day" ? effectiveEndDate : formStartDate,
+      halfDay: formDurationMode === "half_day" || formDurationMode === "permission",
+      halfDaySession: formDurationMode === "half_day" ? formHalfDaySession : null,
+      isUnpaid: formUnpaidLeave,
+      reason: finalReason,
       attachmentUrl: formAttachmentUrl || null,
     });
   };
@@ -579,7 +602,7 @@ export default function HrLeaveApplicationsPage() {
                 <SelectItem value="all">All Employees</SelectItem>
                 {allEmployees.map((emp: any) => (
                   <SelectItem key={emp.id} value={emp.id}>
-                    {emp.firstName} {emp.lastName} ({emp.employeeCode})
+                    {emp.firstName} {emp.lastName}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1058,7 +1081,7 @@ export default function HrLeaveApplicationsPage() {
                 <SelectContent className="max-h-56">
                   {filteredModalEmployees.map((emp: any) => (
                     <SelectItem key={emp.id} value={emp.id}>
-                      {emp.firstName} {emp.lastName} ({emp.employeeCode})
+                      {emp.firstName} {emp.lastName}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1123,26 +1146,40 @@ export default function HrLeaveApplicationsPage() {
               </div>
             </div>
 
-            {/* Half-Day Toggle + Session Selector */}
-            <div className="p-2.5 rounded-lg border bg-slate-50/60 dark:bg-slate-800/50 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-xs font-medium block">Half-Day Request (0.5 Day)</Label>
-                  <p className="text-[10px] text-muted-foreground">
-                    Applies to a single working date
-                  </p>
+            {/* Leave Duration Mode: Full Day / Half Day Leave / Permission + Unpaid Leave */}
+            <div className="p-3 rounded-lg border bg-slate-50/60 dark:bg-slate-800/50 space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold block">Leave Duration / Mode</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(
+                    [
+                      { value: "full_day", label: "Full Day" },
+                      { value: "half_day", label: "Half Day Leave" },
+                      { value: "permission", label: "Permission" },
+                    ] as const
+                  ).map((mode) => (
+                    <button
+                      key={mode.value}
+                      type="button"
+                      onClick={() => {
+                        setFormDurationMode(mode.value);
+                        const isPartial = mode.value !== "full_day";
+                        setFormHalfDay(isPartial);
+                        if (isPartial) setFormEndDate(formStartDate);
+                      }}
+                      className={`h-8 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                        formDurationMode === mode.value
+                          ? "bg-[#00a76f] text-white border-[#00a76f]"
+                          : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                      }`}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
                 </div>
-                <Switch
-                  checked={formHalfDay}
-                  onCheckedChange={(checked) => {
-                    setFormHalfDay(checked);
-                    if (checked) setFormEndDate(formStartDate);
-                  }}
-                  className="data-[state=checked]:bg-[#00a76f]"
-                />
               </div>
 
-              {formHalfDay && (
+              {formDurationMode === "half_day" && (
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   {(
                     [
@@ -1157,7 +1194,7 @@ export default function HrLeaveApplicationsPage() {
                       className={`h-8 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
                         formHalfDaySession === opt.value
                           ? "bg-[#00a76f] text-white border-[#00a76f]"
-                          : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60 dark:bg-slate-800/60"
+                          : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60"
                       }`}
                     >
                       {opt.label}
@@ -1165,6 +1202,44 @@ export default function HrLeaveApplicationsPage() {
                   ))}
                 </div>
               )}
+
+              {formDurationMode === "permission" && (
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-medium">Permission From</Label>
+                    <Input
+                      type="time"
+                      value={formPermissionFrom}
+                      onChange={(e) => setFormPermissionFrom(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-medium">Permission To</Label>
+                    <Input
+                      type="time"
+                      value={formPermissionTo}
+                      onChange={(e) => setFormPermissionTo(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Unpaid Leave (LOP) Switch */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200/70 dark:border-slate-700/70">
+                <div>
+                  <Label className="text-xs font-medium block">Unpaid Leave (Loss of Pay)</Label>
+                  <p className="text-[10px] text-muted-foreground">
+                    Mark this leave application as unpaid
+                  </p>
+                </div>
+                <Switch
+                  checked={formUnpaidLeave}
+                  onCheckedChange={setFormUnpaidLeave}
+                  className="data-[state=checked]:bg-amber-500"
+                />
+              </div>
             </div>
 
             {/* Reason */}

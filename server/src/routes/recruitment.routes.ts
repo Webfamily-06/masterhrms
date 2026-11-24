@@ -1,6 +1,6 @@
 import { lockWorkspaceCapacity } from "../services/workspace-policy.service";
 import { Router, Response } from "express";
-import { prisma } from "../prisma";
+import { prisma, rawPrisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { provisionEmployeeUser } from "../lib/auth-helpers";
@@ -812,74 +812,181 @@ recruitmentRouter.post("/candidates/:id/interviews", requireAuth, async (req: Au
  * =============================================================
  */
 
-// GET /api/public/jobs/:tenantSlug (List published openings for a company)
-publicJobsRouter.get("/:tenantSlug", async (req, res) => {
-  try {
-    const { tenantSlug } = req.params;
+const PUBLIC_JOB_META_GROUP = "job_posting_meta";
+const PUBLIC_CANDIDATE_META_GROUP = "candidate_profile_meta";
 
-    const tenant = await prisma.tenant.findFirst({
-      where: {
-        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
-      },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        logoUrl: true,
-      },
+function mergePublicJobWithMeta(job: any, meta: any) {
+  const m = meta && typeof meta === "object" ? meta : {};
+  return {
+    ...job,
+    priority: m.priority ?? "Low",
+    skills: Array.isArray(m.skills) ? m.skills : [],
+    startDate: m.startDate ?? null,
+    jobApplicationType: m.jobApplicationType ?? "Existing Link",
+    applicationUrl: m.applicationUrl ?? "",
+    featuredJob: Boolean(m.featuredJob),
+    minExperience: m.minExperience ?? 0,
+    maxExperience: m.maxExperience ?? 0,
+    customQuestions: Array.isArray(m.customQuestions) ? m.customQuestions : [],
+    needToAsk: m.needToAsk ?? { gender: false, dateOfBirth: false },
+    needToShowOption: m.needToShowOption ?? { coverLetter: false, termsAndConditions: false },
+  };
+}
+
+async function resolvePublicTenant(req: any, explicitSlug?: string) {
+  const select = { id: true, name: true, slug: true, logoUrl: true };
+
+  // 1. Subdomain / custom-domain resolved by workspaceHostMiddleware
+  if (req.resolvedTenant?.id) {
+    const byHost = await rawPrisma.tenant.findUnique({
+      where: { id: req.resolvedTenant.id },
+      select,
     });
+    if (byHost) return byHost;
+  }
 
+  // 2. Explicit slug param, query ?tenant=, or x-tenant-slug header
+  const candidateSlug = String(
+    (explicitSlug && explicitSlug !== "default" && explicitSlug !== "current" ? explicitSlug : "") ||
+      req.query?.tenant ||
+      req.headers?.["x-tenant-slug"] ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (candidateSlug) {
+    const bySlug = await rawPrisma.tenant.findFirst({
+      where: { OR: [{ slug: candidateSlug }, { id: candidateSlug }] },
+      select,
+    });
+    if (bySlug) return bySlug;
+  }
+
+  // 3. Fallback to first tenant (for localhost / root /careers)
+  return rawPrisma.tenant.findFirst({
+    orderBy: { createdAt: "asc" },
+    select,
+  });
+}
+
+const PUBLISHED_STATUSES = ["published", "Published", "PUBLISHED", "open", "Open", "OPEN"];
+
+async function listPublicJobsForTenant(tenant: any) {
+  const [jobs, jobTypes, jobLocations, sources, seoSetting] = await Promise.all([
+    rawPrisma.jobPosting.findMany({
+      where: {
+        tenantId: tenant.id,
+        status: { in: PUBLISHED_STATUSES },
+      },
+      include: {
+        department: { select: { id: true, name: true } },
+        designation: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true } },
+        type: { select: { id: true, name: true } },
+        jobLocation: { select: { id: true, name: true, city: true, country: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    rawPrisma.jobType.findMany({
+      where: { tenantId: tenant.id, isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    rawPrisma.jobLocation.findMany({
+      where: { tenantId: tenant.id, isActive: true },
+      select: { id: true, name: true, city: true, country: true },
+      orderBy: { name: "asc" },
+    }),
+    rawPrisma.candidateSource.findMany({
+      where: { tenantId: tenant.id, isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    rawPrisma.setting.findFirst({
+      where: {
+        scope: "TENANT",
+        scopeId: tenant.id,
+        key: "career_page_seo",
+      },
+    }),
+  ]);
+
+  const jobIds = jobs.map((j: any) => j.id);
+  const metaRows = jobIds.length
+    ? await rawPrisma.setting.findMany({
+        where: {
+          scope: "TENANT",
+          scopeId: tenant.id,
+          group: PUBLIC_JOB_META_GROUP,
+          key: { in: jobIds },
+        },
+      })
+    : [];
+  const metaMap = new Map<string, any>(metaRows.map((r: any) => [r.key, r.valueJson]));
+  const enrichedJobs = jobs.map((j: any) => mergePublicJobWithMeta(j, metaMap.get(j.id)));
+
+  return {
+    tenant,
+    jobs: enrichedJobs,
+    jobTypes,
+    jobLocations,
+    sources,
+    seo: (seoSetting?.valueJson as any) || null,
+  };
+}
+
+// GET /api/public/jobs (Resolves tenant from Host subdomain or default)
+publicJobsRouter.get("/", async (req, res) => {
+  try {
+    const tenant = await resolvePublicTenant(req);
     if (!tenant) {
       return res.status(404).json({ error: "Company careers portal not found." });
     }
-
-    const jobs = await prisma.jobPosting.findMany({
-      where: {
-        tenantId: tenant.id,
-        status: "published",
-      },
-      include: {
-        department: {
-          select: { id: true, name: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return res.json({
-      tenant,
-      jobs,
-    });
+    const payload = await listPublicJobsForTenant(tenant);
+    return res.json(payload);
   } catch (err: any) {
     return res.status(err.status || 500).json({ error: err.message || "Failed to fetch careers." });
   }
 });
 
-// GET /api/public/jobs/:tenantSlug/:jobSlug (Single public job details)
+// GET /api/public/jobs/:tenantSlug (List published openings for a company)
+publicJobsRouter.get("/:tenantSlug", async (req, res) => {
+  try {
+    const { tenantSlug } = req.params;
+    const tenant = await resolvePublicTenant(req, tenantSlug);
+    if (!tenant) {
+      return res.status(404).json({ error: "Company careers portal not found." });
+    }
+    const payload = await listPublicJobsForTenant(tenant);
+    return res.json(payload);
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || "Failed to fetch careers." });
+  }
+});
+
+// GET /api/public/jobs/:tenantSlug/:jobSlug (Single public job details + similar jobs)
 publicJobsRouter.get("/:tenantSlug/:jobSlug", async (req, res) => {
   try {
     const { tenantSlug, jobSlug } = req.params;
-
-    const tenant = await prisma.tenant.findFirst({
-      where: {
-        OR: [{ slug: tenantSlug }, { id: tenantSlug }],
-      },
-    });
+    const tenant = await resolvePublicTenant(req, tenantSlug);
 
     if (!tenant) {
       return res.status(404).json({ error: "Company not found." });
     }
 
-    const job = await prisma.jobPosting.findFirst({
+    const job = await rawPrisma.jobPosting.findFirst({
       where: {
         tenantId: tenant.id,
         OR: [{ slug: jobSlug }, { id: jobSlug }],
-        status: "published",
+        status: { in: PUBLISHED_STATUSES },
       },
       include: {
-        department: {
-          select: { id: true, name: true },
-        },
+        department: { select: { id: true, name: true } },
+        designation: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true } },
+        type: { select: { id: true, name: true } },
+        jobLocation: { select: { id: true, name: true, city: true, country: true } },
       },
     });
 
@@ -887,9 +994,49 @@ publicJobsRouter.get("/:tenantSlug/:jobSlug", async (req, res) => {
       return res.status(404).json({ error: "Job opening not found or no longer active." });
     }
 
+    const [metaRow, similarRaw, sources, seoSetting] = await Promise.all([
+      rawPrisma.setting.findFirst({
+        where: {
+          scope: "TENANT",
+          scopeId: tenant.id,
+          group: PUBLIC_JOB_META_GROUP,
+          key: job.id,
+        },
+      }),
+      rawPrisma.jobPosting.findMany({
+        where: {
+          tenantId: tenant.id,
+          status: { in: PUBLISHED_STATUSES },
+          id: { not: job.id },
+        },
+        include: {
+          branch: { select: { id: true, name: true } },
+          jobLocation: { select: { id: true, name: true, city: true, country: true } },
+          type: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 4,
+      }),
+      rawPrisma.candidateSource.findMany({
+        where: { tenantId: tenant.id, isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+      rawPrisma.setting.findFirst({
+        where: {
+          scope: "TENANT",
+          scopeId: tenant.id,
+          key: "career_page_seo",
+        },
+      }),
+    ]);
+
     return res.json({
-      tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug, logoUrl: tenant.logoUrl },
-      job,
+      tenant,
+      job: mergePublicJobWithMeta(job, metaRow?.valueJson),
+      similarJobs: similarRaw,
+      sources,
+      seo: (seoSetting?.valueJson as any) || null,
     });
   } catch (err: any) {
     return res.status(err.status || 500).json({ error: err.message || "Failed to fetch job details." });
@@ -901,34 +1048,56 @@ publicJobsRouter.post("/:jobId/apply", requireTurnstile("job_apply"), async (req
   try {
     const { jobId } = req.params;
     const {
+      firstName,
+      lastName,
       fullName,
       email,
       phone,
+      gender,
+      dateOfBirth,
+      address,
+      city,
+      state,
+      zipCode,
+      country,
+      currentPosition,
+      currentCompany,
+      yearsOfExperience,
+      currentSalary,
+      expectedSalary,
       resumeUrl,
+      resumeFileName,
+      coverLetterUrl,
+      coverLetterFileName,
       portfolioUrl,
       coverLetter,
-      yearsOfExperience,
-      currentCompany,
-      expectedSalary,
+      sourceId,
+      sourceName,
+      screeningAnswers,
+      acceptedTerms,
     } = req.body;
 
-    if (!fullName || !email) {
-      return res.status(400).json({ error: "Your full name and email are required to apply." });
+    const resolvedName = String(
+      fullName || [firstName, lastName].filter(Boolean).join(" ")
+    ).trim();
+
+    if (!resolvedName || !email) {
+      return res.status(400).json({ error: "Your name and email address are required to apply." });
     }
 
-    const job = await prisma.jobPosting.findUnique({
-      where: { id: jobId },
+    const job = await rawPrisma.jobPosting.findFirst({
+      where: { OR: [{ id: jobId }, { slug: jobId }] },
     });
 
-    if (!job || job.status !== "published") {
+    if (!job || !["published", "open"].includes(String(job.status || "").toLowerCase())) {
       return res.status(400).json({ error: "This job opening is no longer accepting applications." });
     }
 
     // Check if duplicate application
-    const existing = await prisma.jobCandidate.findFirst({
+    const existing = await rawPrisma.jobCandidate.findFirst({
       where: {
         jobPostingId: job.id,
-        email: email.trim().toLowerCase(),
+        email: String(email).trim().toLowerCase(),
       },
     });
 
@@ -936,22 +1105,75 @@ publicJobsRouter.post("/:jobId/apply", requireTurnstile("job_apply"), async (req
       return res.status(400).json({ error: "You have already submitted an application for this position." });
     }
 
-    const candidate = await prisma.jobCandidate.create({
+    // Resolve sourceId by ID or name if provided
+    let resolvedSourceId: string | null = sourceId ? String(sourceId) : null;
+    if (!resolvedSourceId && sourceName) {
+      const matchedSource = await rawPrisma.candidateSource.findFirst({
+        where: {
+          tenantId: job.tenantId,
+          name: { equals: String(sourceName).trim(), mode: "insensitive" },
+        },
+        select: { id: true },
+      });
+      if (matchedSource) resolvedSourceId = matchedSource.id;
+    }
+
+    const locationStr = [city, state, country].filter(Boolean).join(", ") || null;
+
+    const candidate = await rawPrisma.jobCandidate.create({
       data: {
         tenantId: job.tenantId,
         jobPostingId: job.id,
-        fullName: fullName.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phone ? phone.trim() : null,
-        resumeUrl: resumeUrl ? resumeUrl.trim() : null,
-        portfolioUrl: portfolioUrl ? portfolioUrl.trim() : null,
-        coverLetter: coverLetter ? coverLetter.trim() : null,
-        yearsOfExperience: yearsOfExperience ? Number(yearsOfExperience) : 0,
-        currentCompany: currentCompany ? currentCompany.trim() : null,
-        expectedSalary: expectedSalary ? Number(expectedSalary) : null,
-        stage: "applied",
+        sourceId: resolvedSourceId,
+        fullName: resolvedName,
+        email: String(email).trim().toLowerCase(),
+        phone: phone ? String(phone).trim() : null,
+        resumeUrl: resumeUrl ? String(resumeUrl).trim() : null,
+        portfolioUrl: portfolioUrl ? String(portfolioUrl).trim() : null,
+        coverLetter: coverLetter ? String(coverLetter).trim() : null,
+        yearsOfExperience: yearsOfExperience !== undefined && yearsOfExperience !== "" ? Number(yearsOfExperience) : 0,
+        currentCompany: currentCompany ? String(currentCompany).trim() : null,
+        currentCtc: currentSalary !== undefined && currentSalary !== "" ? Number(currentSalary) : null,
+        expectedSalary: expectedSalary !== undefined && expectedSalary !== "" ? Number(expectedSalary) : null,
+        location: locationStr,
+        stage: "new",
       },
     });
+
+    // Save extended profile & screening metadata so HR sees full profile on /hr/recruitment/candidates/[id]
+    const profileMeta = {
+      firstName: firstName || null,
+      lastName: lastName || null,
+      gender: gender || null,
+      dateOfBirth: dateOfBirth || null,
+      address: address || null,
+      city: city || null,
+      state: state || null,
+      zipCode: zipCode || null,
+      country: country || null,
+      location: locationStr,
+      currentPosition: currentPosition || null,
+      currentSalary: currentSalary !== undefined && currentSalary !== "" ? Number(currentSalary) : null,
+      resumeFileName: resumeFileName || null,
+      coverLetterUrl: coverLetterUrl || null,
+      coverLetterFileName: coverLetterFileName || null,
+      sourceName: sourceName || null,
+      screeningAnswers: Array.isArray(screeningAnswers) ? screeningAnswers : [],
+      acceptedTerms: Boolean(acceptedTerms),
+      appliedVia: "public_career_portal",
+    };
+
+    await rawPrisma.setting.create({
+      data: {
+        scope: "TENANT",
+        scopeId: job.tenantId,
+        group: PUBLIC_CANDIDATE_META_GROUP,
+        key: candidate.id,
+        valueJson: profileMeta,
+        valueType: "json",
+        updatedBy: "public_applicant",
+      },
+    }).catch(() => {});
 
     return res.status(201).json({
       success: true,

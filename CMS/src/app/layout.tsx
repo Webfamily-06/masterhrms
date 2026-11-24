@@ -100,7 +100,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
+      <head suppressHydrationWarning>
         <script
           dangerouslySetInnerHTML={{
             __html: "(function(){try{var t=localStorage.getItem('theme');if(t==='light'){document.documentElement.classList.remove('dark');document.documentElement.setAttribute('data-theme','light');document.documentElement.setAttribute('data-theme-mode','light');}else{document.documentElement.classList.add('dark');document.documentElement.setAttribute('data-theme','dark');document.documentElement.setAttribute('data-theme-mode','dark');}}catch(e){}})();"
@@ -109,6 +109,7 @@ export default function RootLayout({
 
         <script
           type="application/ld+json"
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -122,7 +123,7 @@ export default function RootLayout({
         <link rel="stylesheet" href="/ui-assets/libs/@fortawesome/fontawesome-free/css/all.min.css" />
         <link rel="stylesheet" href="/ui-assets/libs/@tabler/icons-webfont/tabler-icons.min.css" />
       </head>
-      <body className={`${fontVariables} antialiased font-sans`}>
+      <body className={`${fontVariables} antialiased font-sans`} suppressHydrationWarning>
         <Suspense>
           <AppProviders>
             <MobileMenuProvider>

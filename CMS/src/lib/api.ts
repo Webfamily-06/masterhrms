@@ -1,5 +1,5 @@
 /**
- * Backend API Client for Master HRMS (Node.js + Express + MySQL)
+ * Backend API Client for Master HRMS (Node.js + Express + PostgreSQL)
  */
 
 /**
@@ -86,7 +86,8 @@ export function setToken(token: string) {
     localStorage.setItem("hrms_auth_token", token);
     localStorage.setItem("auth_token", token);
     try {
-      document.cookie = `hrms_auth_token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
+      const secureFlag = window.location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = `hrms_auth_token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax${secureFlag}`;
     } catch {}
   }
   try {
@@ -138,9 +139,11 @@ export function clearToken() {
     } catch {}
     localStorage.removeItem("hrms_auth_token");
     localStorage.removeItem("auth_token");
+    localStorage.removeItem("token");
     localStorage.removeItem("hrms_user");
     try {
-      document.cookie = "hrms_auth_token=; path=/; max-age=0;";
+      const secureFlag = window.location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = `hrms_auth_token=; path=/; max-age=0; SameSite=Lax${secureFlag}`;
     } catch {}
     window.dispatchEvent(new Event("auth-token-changed"));
   }

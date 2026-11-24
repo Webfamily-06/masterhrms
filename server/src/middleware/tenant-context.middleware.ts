@@ -68,9 +68,11 @@ export async function resolveTenantContext(
         if (cachedBanned && cachedBanned.expiresAt > Date.now()) {
           bannedRules = cachedBanned.rules;
         } else {
-          bannedRules = await client.bannedIp.findMany({
-            where: { tenantId, isActive: true },
-            select: { ipAddress: true, reason: true },
+          bannedRules = await tenantStorage.run(context, async () => {
+            return await client.bannedIp.findMany({
+              where: { tenantId, isActive: true },
+              select: { ipAddress: true, reason: true },
+            });
           });
           bannedIpCache.set(tenantId, { rules: bannedRules, expiresAt: Date.now() + 60000 });
         }

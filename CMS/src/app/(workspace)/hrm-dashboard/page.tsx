@@ -3,6 +3,7 @@
 import { useState, useEffect, lazy, Suspense, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { OrganizationAnnouncementsWidget } from "@/components/dashboard/organization-announcements-widget";
 import { toast } from "sonner";
 import { Link } from "@/src/lib/router-compat";
 
@@ -108,6 +109,7 @@ export default function HrmDashboardPage() {
 
   return (
     <div className="dashboard-scope w-full">
+      <OrganizationAnnouncementsWidget />
       {/*  Breadcrumb  */}
 				<div className="d-flex align-items-center justify-content-between flex-wrap mb-3">
 					<div className="my-auto mb-2">

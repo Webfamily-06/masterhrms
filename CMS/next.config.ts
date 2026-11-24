@@ -39,6 +39,14 @@ const nextConfig: NextConfig = {
 
     return [
       {
+        source: '/carriers',
+        destination: '/careers',
+      },
+      {
+        source: '/carriers/:path*',
+        destination: '/careers/:path*',
+      },
+      {
         source: '/api/:path*',
         destination: `${backendOrigin}/api/:path*`,
       },

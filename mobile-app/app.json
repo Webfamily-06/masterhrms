@@ -4,6 +4,7 @@
   "expo": {
     "name": "MasterHRMS",
     "slug": "masterhrms",
+    "scheme": "masterhrms",
     "version": "0.0.1",
     "orientation": "portrait",
     "platforms": [

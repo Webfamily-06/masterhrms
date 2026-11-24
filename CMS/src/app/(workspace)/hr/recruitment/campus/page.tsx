@@ -478,7 +478,7 @@ export default function HrCampusHiringPage() {
                       {candidate.collegeName || "—"}
                     </TableCell>
 
-                    <TableCell className="p-3 text-muted-foreground font-mono">
+                    <TableCell className="p-3 text-muted-foreground ">
                       {candidate.branch} ({candidate.graduationYear})
                     </TableCell>
 

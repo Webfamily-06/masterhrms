@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "@/src/lib/router-compat";
+import { OrganizationAnnouncementsWidget } from "@/components/dashboard/organization-announcements-widget";
 import { CountryFlag } from "@/components/ui/country-flag";
 import {
   Dialog,
@@ -94,6 +95,7 @@ export default function EmployeeDashboardPage() {
 
   return (
     <div className="dashboard-scope w-full">
+      <OrganizationAnnouncementsWidget />
       {/*  Breadcrumb  */}
 				<div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
 					<div className="my-auto mb-2">

@@ -1,1408 +1,1377 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Modal,
   Dimensions,
   Platform,
 } from 'react-native';
+import Svg, { Circle, Path, Defs, LinearGradient, Stop, G, Line } from 'react-native-svg';
 import { Text } from '../../../components/common/Text';
 import {
   Calendar,
-  Umbrella,
-  Receipt,
-  Grid,
   Clock,
+  ArrowUp,
+  ArrowDown,
+  Check,
   CheckCircle2,
-  Megaphone,
-  CreditCard,
-  DollarSign,
-  PiggyBank,
-  Users,
-  Briefcase,
-  Folder,
-  Sliders,
-  ChevronRight,
-  ArrowRight,
-  X,
-  Bell,
-  Hourglass,
-  Moon,
-  Sun,
-  Flame,
-  Target,
+  ChevronDown,
+  MoreVertical,
+  Star,
+  CheckSquare,
+  Square,
+  Fingerprint,
+  CalendarDays,
+  Award,
   Sparkles,
-  TrendingUp,
+  Sun,
+  Moon,
+  Bell,
+  X,
 } from 'lucide-react-native';
 import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { UserAvatar } from '../../../components/common/UserAvatar';
 import { useAuthStore } from '../../../store/authStore';
-import { useTenantStore } from '../../../store/tenantStore';
 import { useTheme } from '../../../app/providers/ThemeProvider';
-import { useCallStore } from '../../../store/callStore';
 import { PersonaSwitcher } from '../../navigation/PersonaSwitcher';
-import { AttendanceService, DashboardSummaryResponse } from '../../../core/services/attendanceService';
-import { LeaveService, LeaveRequest } from '../../../core/services/leaveService';
-import { EmployeeService, Announcement } from '../../../core/services/employeeService';
+import { AttendanceService } from '../../../core/services/attendanceService';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
-import { Config } from '../../../config/environment';
 
 const { width } = Dimensions.get('window');
 
-const normalizeAvatarUrl = (url?: string | null): string | null => {
-  if (!url) return null;
-  let normalized = url.trim();
-  if (!normalized) return null;
-  if (normalized.includes('api.dicebear.com') && normalized.includes('/svg?')) {
-    normalized = normalized.replace('/svg?', '/png?');
-  }
-  if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
-    return normalized;
-  }
-  if (normalized.startsWith('/')) {
-    return `${Config.API_BASE_URL}${normalized}`;
-  }
-  return normalized;
+// ── Donut Chart Component (Matching Web Leaves Breakdown) ───────────────────
+interface DonutSlice {
+  label: string;
+  count: number;
+  color: string;
+  percent: number;
+}
+
+const LEAVES_SLICES: DonutSlice[] = [
+  { label: 'On Time', count: 1254, color: '#F26522', percent: 0.15 },
+  { label: 'Late Attendance', count: 32, color: '#FFC107', percent: 0.10 },
+  { label: 'Work From Home', count: 658, color: '#E70D0D', percent: 0.05 },
+  { label: 'Absent', count: 14, color: '#03C95A', percent: 0.10 },
+  { label: 'Sick Leave', count: 68, color: '#0C4B5E', percent: 0.60 },
+];
+
+const NativeDonutChart: React.FC<{ size?: number; isDark?: boolean }> = ({ size = 150, isDark }) => {
+  const radius = size * 0.36;
+  const strokeWidth = size * 0.18;
+  const center = size / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  let cumulativeOffset = 0;
+
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <G rotation="-90" origin={`${center}, ${center}`}>
+          {/* Base background ring */}
+          <Circle
+            cx={center}
+            cy={center}
+            r={radius}
+            stroke={isDark ? '#334155' : '#F1F5F9'}
+            strokeWidth={strokeWidth}
+            fill="none"
+          />
+          {LEAVES_SLICES.map((slice, idx) => {
+            const strokeDasharray = `${slice.percent * circumference} ${circumference}`;
+            const strokeDashoffset = -cumulativeOffset;
+            cumulativeOffset += slice.percent * circumference;
+
+            return (
+              <Circle
+                key={idx}
+                cx={center}
+                cy={center}
+                r={radius}
+                stroke={slice.color}
+                strokeWidth={strokeWidth}
+                strokeDasharray={strokeDasharray}
+                strokeDashoffset={strokeDashoffset}
+                fill="none"
+              />
+            );
+          })}
+        </G>
+      </Svg>
+    </View>
+  );
+};
+
+// ── Circular Attendance Progress Ring (Matching Web Attendance Card) ───────
+const NativeAttendanceRing: React.FC<{ progress?: number; size?: number; isDark?: boolean }> = ({
+  progress = 0.65,
+  size = 140,
+  isDark,
+}) => {
+  const strokeWidth = 10;
+  const center = size / 2;
+  const radius = center - strokeWidth / 2 - 4;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference * (1 - progress);
+
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <G rotation="-90" origin={`${center}, ${center}`}>
+          <Circle
+            cx={center}
+            cy={center}
+            r={radius}
+            stroke={isDark ? '#1E293B' : '#E2E8F0'}
+            strokeWidth={strokeWidth}
+            fill="none"
+          />
+          <Circle
+            cx={center}
+            cy={center}
+            r={radius}
+            stroke="#03C95A"
+            strokeWidth={strokeWidth}
+            strokeDasharray={`${circumference} ${circumference}`}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            fill="none"
+          />
+        </G>
+      </Svg>
+      <View style={styles.ringCenterTextWrap}>
+        <Text style={[styles.ringCenterSub, { color: isDark ? '#94A3B8' : '#64748B' }]}>Total Hours</Text>
+        <Text style={[styles.ringCenterTime, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>05:45:32</Text>
+      </View>
+    </View>
+  );
+};
+
+// ── Performance Area Trend Chart (Matching Web Area Chart) ──────────────────
+const NativePerformanceAreaChart: React.FC<{ isDark?: boolean }> = ({ isDark }) => {
+  const chartWidth = Math.min(width - 48, 360);
+  const chartHeight = 160;
+
+  // Data points: Jan(20), Feb(20), Mar(35), Apr(35), May(40), Jun(60), Jul(60)
+  // min: 10, max: 70
+  const points = [
+    { x: 20, y: 120 },
+    { x: 70, y: 120 },
+    { x: 120, y: 85 },
+    { x: 170, y: 85 },
+    { x: 220, y: 70 },
+    { x: 270, y: 25 },
+    { x: 320, y: 25 },
+  ];
+
+  const pathD = `M 20 120 L 70 120 L 120 85 L 170 85 L 220 70 L 270 25 L 320 25`;
+  const areaD = `${pathD} L 320 150 L 20 150 Z`;
+
+  return (
+    <View style={{ width: '100%', alignItems: 'center', marginTop: 12 }}>
+      <Svg width={chartWidth} height={chartHeight} viewBox="0 0 340 160">
+        <Defs>
+          <LinearGradient id="perfGrad" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0%" stopColor="#03C95A" stopOpacity="0.45" />
+            <Stop offset="100%" stopColor="#03C95A" stopOpacity="0.02" />
+          </LinearGradient>
+        </Defs>
+
+        {/* Horizontal gridlines */}
+        <Line x1="10" y1="30" x2="330" y2="30" stroke={isDark ? '#334155' : '#E2E8F0'} strokeDasharray="4 4" strokeWidth="1" />
+        <Line x1="10" y1="70" x2="330" y2="70" stroke={isDark ? '#334155' : '#E2E8F0'} strokeDasharray="4 4" strokeWidth="1" />
+        <Line x1="10" y1="110" x2="330" y2="110" stroke={isDark ? '#334155' : '#E2E8F0'} strokeDasharray="4 4" strokeWidth="1" />
+        <Line x1="10" y1="150" x2="330" y2="150" stroke={isDark ? '#334155' : '#E2E8F0'} strokeWidth="1" />
+
+        {/* Shaded Area */}
+        <Path d={areaD} fill="url(#perfGrad)" />
+
+        {/* Main Line */}
+        <Path d={pathD} fill="none" stroke="#03C95A" strokeWidth="3" />
+
+        {/* Data points */}
+        {points.map((pt, idx) => (
+          <Circle key={idx} cx={pt.x} cy={pt.y} r="4" fill="#03C95A" stroke="#FFFFFF" strokeWidth="2" />
+        ))}
+      </Svg>
+
+      {/* Month Labels */}
+      <View style={[styles.chartMonthRow, { width: chartWidth - 20 }]}>
+        {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'].map((m) => (
+          <Text key={m} style={[styles.chartMonthText, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+            {m}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
 };
 
 export const EmployeeDashboardScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'EmployeeHome'>>();
   const user = useAuthStore((state) => state.user);
-  const currentTenant = useTenantStore((state) => state.currentTenant);
   const { theme, toggleTheme } = useTheme();
 
   const [refreshing, setRefreshing] = useState(false);
-  const [summary, setSummary] = useState<DashboardSummaryResponse>({});
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [punchedIn, setPunchedIn] = useState(true);
   const [punchLoading, setPunchLoading] = useState(false);
-  const [widgetsSummary, setWidgetsSummary] = useState({
-    attendanceStreakDays: 12,
-    streakDelta: '+2 vs last wk',
-    netPayFormatted: '₹85,000',
-    financeDelta: '+4.2%',
-    okrProgress: 78,
-    okrRemainingMilestones: 2,
-  });
+  const [alertDismissed, setAlertDismissed] = useState(false);
+  const [tasks, setTasks] = useState([
+    { id: '1', title: 'Patient appointment booking', status: 'Onhold', color: '#EC4899', star: true, done: false },
+    { id: '2', title: 'Appointment booking with payment', status: 'Inprogress', color: '#8B5CF6', star: false, done: false },
+    { id: '3', title: 'Patient and Doctor video conferencing', status: 'Completed', color: '#10B981', star: false, done: true },
+    { id: '4', title: 'Private chat module', status: 'Pending', color: '#64748B', star: false, done: false },
+  ]);
 
-  // Live timer for current clock
-  const [currentTimeStr, setCurrentTimeStr] = useState<string>('');
-  const [currentDateStr, setCurrentDateStr] = useState<string>('');
-  const [workingElapsedSec, setWorkingElapsedSec] = useState<number>(0);
-
-  // Load dashboard, announcements, and recent leaves
-  const loadData = useCallback(async () => {
-    try {
-      const [sumData, annData, leaveData, widData] = await Promise.all([
-        AttendanceService.getDashboardSummary(),
-        EmployeeService.getAnnouncements(),
-        LeaveService.getMyRequests(),
-        EmployeeService.getHomeWidgetsSummary(),
-      ]);
-      setSummary(sumData || {});
-      setAnnouncements(annData || []);
-      setLeaveRequests(leaveData || []);
-      if (widData) setWidgetsSummary(widData);
-    } catch {
-      // Handled gracefully
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    loadData();
-  }, [loadData]);
-
-  // Clock tick & elapsed timer
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      // Format: "Thursday, 12 Feb"
-      const dateOptions: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'short' };
-      setCurrentDateStr(now.toLocaleDateString('en-US', dateOptions));
-
-      // Format: "08:32 AM"
-      const timeOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: true };
-      setCurrentTimeStr(now.toLocaleTimeString('en-US', timeOptions));
-    };
-
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 600);
   }, []);
 
-  // Calculate elapsed working time if checked in
-  useEffect(() => {
-    const checkInTime = summary.todayAttendance?.checkIn;
-    const checkOutTime = summary.todayAttendance?.checkOut;
-
-    if (checkInTime && !checkOutTime) {
-      const startMs = new Date(checkInTime).getTime();
-      const calcSec = () => Math.max(0, Math.floor((Date.now() - startMs) / 1000));
-      setWorkingElapsedSec(calcSec());
-
-      const timer = setInterval(() => {
-        setWorkingElapsedSec(calcSec());
-      }, 1000);
-      return () => clearInterval(timer);
-    } else {
-      setWorkingElapsedSec(0);
-      return undefined;
-    }
-  }, [summary.todayAttendance?.checkIn, summary.todayAttendance?.checkOut]);
-
-  const formatElapsed = (totalSec: number) => {
-    const hrs = Math.floor(totalSec / 3600);
-    const mins = Math.floor((totalSec % 3600) / 60);
-    const secs = totalSec % 60;
-    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  };
-
-  const employeeName = user?.profile?.fullName || user?.email?.split('@')[0] || 'Sarah';
-  const firstName = employeeName.split(' ')[0];
-
-  const avatarUri = useMemo(
-    () => normalizeAvatarUrl(user?.profile?.avatarUrl),
-    [user?.profile?.avatarUrl]
-  );
-
-  // Attendance state determination (Matches 13, 14, 15, 16)
-  const isCheckedIn = Boolean(summary.todayAttendance?.checkIn && !summary.todayAttendance?.checkOut);
-  const isCheckedOut = Boolean(summary.todayAttendance?.checkIn && summary.todayAttendance?.checkOut);
-  const isOnLeave = summary.todayAttendance?.status === 'ON_LEAVE';
-
-  // Format check-in / check-out times for display
-  const formatTimeOnly = (iso?: string | null) => {
-    if (!iso) return '-:-';
-    try {
-      return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-    } catch {
-      return '-:-';
-    }
-  };
-
-  // Greeting
-  const hour = new Date().getHours();
-  const timeGreeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
-
-  // Check In / Check Out Handler
   const handleTogglePunch = async () => {
-    if (punchLoading) return;
     setPunchLoading(true);
     try {
-      const type = isCheckedIn ? 'check_out' : 'check_in';
-      await AttendanceService.punch({
-        type,
-        latitude: 13.0827,
-        longitude: 80.2707,
-        notes: `Mobile Check-${type === 'check_in' ? 'In' : 'Out'}`,
-      });
-      await loadData();
+      if (punchedIn) {
+        await AttendanceService.punch({ type: 'check_out' });
+        setPunchedIn(false);
+      } else {
+        await AttendanceService.punch({ type: 'check_in' });
+        setPunchedIn(true);
+      }
     } catch {
-      // Handled
+      setPunchedIn(!punchedIn);
     } finally {
       setPunchLoading(false);
     }
   };
 
-  const cardBgStyle = theme.isDark
-    ? { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderWidth: 1 }
-    : undefined;
-  const textPrimaryStyle = theme.isDark ? { color: theme.colors.text } : undefined;
-  const textSecondaryStyle = theme.isDark ? { color: theme.colors.textSecondary } : undefined;
+  const employeeName = user?.profile?.fullName || 'Stephan Peralt';
+  const employeeRole = 'Senior Product Designer';
+  const employeeDept = 'UI/UX Design';
+  const employeeEmail = user?.email || 'steperde124@example.com';
+  const employeePhone = '+1 324 3453 545';
+  const reportManager = 'Douglas Martini';
+  const joinedDate = '15 Jan 2024';
+
+  const cardBgStyle = {
+    backgroundColor: theme.colors.surface,
+    borderColor: theme.colors.border,
+  };
+  const textPrimary = { color: theme.colors.text };
+  const textSecondary = { color: theme.colors.textSecondary };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+      {/* ── Top Navigation Bar ────────────────────────────────────────────── */}
+      <View
+        style={[
+          styles.topHeader,
+          {
+            backgroundColor: theme.isDark ? '#0F172A' : '#FFFFFF',
+            borderBottomColor: theme.colors.border,
+          },
+        ]}
+      >
+        <View style={styles.topHeaderLeft}>
+          <Text style={[styles.headerTitle, textPrimary]}>Employee Dashboard</Text>
+          <Text style={[styles.headerBreadcrumb, textSecondary]}>
+            Home • Dashboard • <Text style={{ color: '#0D6EFD', fontWeight: '600' }}>Employee</Text>
+          </Text>
+        </View>
+
+        <View style={styles.topHeaderRight}>
+          <PersonaSwitcher />
+          <TouchableOpacity
+            style={[styles.headerBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}
+            onPress={toggleTheme}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle Dark Mode"
+          >
+            {theme.isDark ? <Sun size={17} color="#FBBF24" /> : <Moon size={17} color="#0F172A" />}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.headerBtn, { backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}
+            onPress={() => navigation.navigate('Notifications')}
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
+          >
+            <Bell size={17} color={theme.isDark ? '#F8FAFC' : '#0F172A'} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Profile')}
+            accessibilityRole="button"
+            accessibilityLabel="Profile"
+          >
+            <UserAvatar entity={user} size={36} borderWidth={1.5} borderColor="#0D6EFD" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        contentContainerStyle={styles.scrollBody}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0D6EFD" />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Curved Deep Blue/Purple Gradient Header Banner */}
-        <View style={[styles.headerCurvedBanner, theme.isDark && { backgroundColor: '#1E1B4B' }]}>
-          <View style={styles.headerTopRow}>
-            <View>
-              <Text style={styles.headerDateText}>{currentDateStr || 'Today'}{currentTenant?.name ? ` • ${currentTenant.name}` : ''}</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                <Text style={styles.headerGreeting}>
-                  {isOnLeave ? `Relax & Recharge,` : `${timeGreeting},`}
-                </Text>
-              </View>
-              <Text style={styles.headerName}>
-                {firstName}
-              </Text>
+        {/* ── Leave Approved Alert Banner ─────────────────────────────────── */}
+        {!alertDismissed && (
+          <View style={styles.approvedAlert}>
+            <View style={styles.alertIconCircle}>
+              <Check size={14} color="#03C95A" strokeWidth={3} />
             </View>
+            <Text style={styles.alertText}>
+              Your Leave Request on <Text style={{ fontWeight: '700' }}>“24th April 2026”</Text> has been Approved!
+            </Text>
+            <TouchableOpacity onPress={() => setAlertDismissed(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={16} color="#03C95A" />
+            </TouchableOpacity>
+          </View>
+        )}
 
-            <View style={styles.headerRightActions}>
-              <PersonaSwitcher />
-              <TouchableOpacity
-                style={styles.bellIconBtn}
-                onPress={toggleTheme}
-                accessibilityRole="button"
-                accessibilityLabel="Toggle dark mode"
-              >
-                {theme.isDark ? (
-                  <Sun size={18} color="#FBBF24" />
-                ) : (
-                  <Moon size={18} color="#FFFFFF" />
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.bellIconBtn}
-                onPress={() => navigation.navigate('Notifications')}
-                accessibilityRole="button"
-                accessibilityLabel="Notifications"
-              >
-                <Bell size={18} color="#FFFFFF" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Profile')}
-                style={styles.avatarWrap}
-                accessibilityRole="button"
-                accessibilityLabel="Profile"
-              >
-                <UserAvatar
-                  entity={user}
-                  uri={avatarUri}
-                  name={employeeName}
-                  email={user?.email}
-                  size={44}
-                  borderWidth={2}
-                  borderColor="#FFFFFF"
-                />
-                <View style={styles.avatarActiveDot} />
-              </TouchableOpacity>
+        {/* ── 1. Employee Profile Card (Matching Web lines 156-196) ──────── */}
+        <View style={[styles.webCard, cardBgStyle]}>
+          <View style={styles.profileCardHeaderDark}>
+            <View style={styles.profileAvatarContainer}>
+              <UserAvatar entity={user} size={54} borderWidth={2} borderColor="#FFFFFF" />
+              <View style={styles.verifiedBadge}>
+                <CheckCircle2 size={16} color="#03C95A" fill="#FFFFFF" />
+              </View>
+            </View>
+            <View style={styles.profileHeaderTextWrap}>
+              <Text style={styles.profileHeaderName}>{employeeName}</Text>
+              <View style={styles.profileRoleRow}>
+                <Text style={styles.profileHeaderRole}>{employeeRole}</Text>
+                <View style={styles.profileDot} />
+                <View style={styles.deptBadge}>
+                  <Text style={styles.deptBadgeText}>{employeeDept}</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.profileCardBody}>
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, textSecondary]}>Phone Number</Text>
+              <Text style={[styles.infoValue, textPrimary]}>🇺🇸 {employeePhone}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, textSecondary]}>Email Address</Text>
+              <Text style={[styles.infoValue, textPrimary]}>{employeeEmail}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, textSecondary]}>Report Office</Text>
+              <Text style={[styles.infoValue, textPrimary]}>{reportManager}</Text>
+            </View>
+            <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+              <Text style={[styles.infoLabel, textSecondary]}>Joined on</Text>
+              <Text style={[styles.infoValue, textPrimary]}>{joinedDate}</Text>
             </View>
           </View>
         </View>
 
-        {/* Floating Attendance Card (Matches 13, 14, 15, 16) */}
-        <View style={[styles.attendanceCard, cardBgStyle]}>
-          <View style={styles.cardTopRow}>
-            <View>
-              <Text style={[styles.currentTimeLabel, textSecondaryStyle]}>CURRENT TIME</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                <Text style={[styles.currentTimeVal, textPrimaryStyle]}>{currentTimeStr.split(' ')[0] || '08:32'}</Text>
-                <Text style={[styles.currentTimeAmPm, textSecondaryStyle]}> {currentTimeStr.split(' ')[1] || 'AM'}</Text>
-              </View>
+        {/* ── 2. Leave Details Breakdown & Donut Chart (Web lines 198-286) ─ */}
+        <View style={[styles.webCard, cardBgStyle]}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={[styles.cardTitle, textPrimary]}>Leave Details</Text>
+            <View style={[styles.yearDropdownPill, { backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}>
+              <Calendar size={13} color="#0D6EFD" />
+              <Text style={styles.yearDropdownText}>2026</Text>
+              <ChevronDown size={13} color={theme.colors.textSecondary} />
             </View>
-
-            {/* Status Pill */}
-            {isOnLeave ? (
-              <View style={[styles.statusPill, styles.statusPillGray]}>
-                <View style={[styles.statusPillDot, styles.dotGray]} />
-                <Text style={styles.statusPillTextGray}>Checked Out</Text>
-              </View>
-            ) : isCheckedOut ? (
-              <View style={[styles.statusPill, styles.statusPillGray]}>
-                <View style={[styles.statusPillDot, styles.dotGray]} />
-                <Text style={styles.statusPillTextGray}>Checked Out</Text>
-              </View>
-            ) : (
-              <View style={[styles.statusPill, styles.statusPillGreen]}>
-                <View style={[styles.statusPillDot, styles.dotGreen]} />
-                <Text style={styles.statusPillTextGreen}>On Time</Text>
-              </View>
-            )}
           </View>
 
-          {/* Schedule or Timer Row */}
-          {isOnLeave ? (
-            /* 16. Home – Leave/Off State */
-            <View style={styles.leaveBox}>
-              <Text style={styles.leaveBoxTitle}>You're off today</Text>
-              <Text style={styles.leaveBoxSub}>Enjoy your time away</Text>
-              <View style={styles.leaveBoxDivider} />
-              <View style={styles.leaveBoxRow}>
-                <Text style={styles.leaveBoxLabel}>Status</Text>
-                <View style={styles.leaveBoxBadge}>
-                  <Text style={styles.leaveBoxBadgeText}>Annual Leave</Text>
+          <View style={styles.donutSectionRow}>
+            <View style={styles.donutMetricsCol}>
+              {LEAVES_SLICES.map((item, idx) => (
+                <View key={idx} style={styles.donutMetricItem}>
+                  <View style={[styles.dotIndicator, { backgroundColor: item.color }]} />
+                  <Text style={[styles.donutMetricCount, textPrimary]}>{item.count}</Text>
+                  <Text style={[styles.donutMetricLabel, textSecondary]}>{item.label}</Text>
                 </View>
-              </View>
-              <View style={styles.leaveBoxRow}>
-                <Text style={styles.leaveBoxLabel}>Back on</Text>
-                <Text style={styles.leaveBoxValue}>Mon, 28 Feb</Text>
-              </View>
+              ))}
             </View>
-          ) : isCheckedOut ? (
-            /* 15. Home – Checked Out State */
-            <View style={styles.checkedOutBox}>
-              <View style={styles.checkedOutBoxHeader}>
-                <Text style={styles.checkedOutBoxLabel}>TOTAL HOURS</Text>
-                <Hourglass size={18} color="#4F46E5" />
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 4 }}>
-                <Text style={styles.checkedOutBigHrs}>08</Text>
-                <Text style={styles.checkedOutUnit}>h </Text>
-                <Text style={styles.checkedOutBigHrs}>15</Text>
-                <Text style={styles.checkedOutUnit}>m</Text>
-              </View>
-              <Text style={styles.checkedOutSubText}>Great job today! You've met your daily goal.</Text>
+            <View style={styles.donutChartContainer}>
+              <NativeDonutChart size={145} isDark={theme.isDark} />
             </View>
-          ) : isCheckedIn ? (
-            /* 14. Home – Checked In (Working) State */
-            <View style={styles.timerRow}>
-              <Clock size={16} color="#16A34A" />
-              <Text style={styles.workingTimerText}> {formatElapsed(workingElapsedSec)} </Text>
-              <Text style={styles.scheduleText}>Working Time</Text>
+          </View>
+
+          <View style={[styles.betterThanBadge, { backgroundColor: theme.isDark ? '#1E293B' : '#F0FDF4' }]}>
+            <View style={styles.betterCheckSquare}>
+              <Check size={11} color="#FFFFFF" strokeWidth={3} />
             </View>
-          ) : (
-            /* 13. Home – Default (Not Checked In) State */
-            <View style={styles.timerRow}>
-              <Clock size={16} color="#2563EB" />
-              <Text style={styles.scheduleText}>
-                {summary.shift ? ` ${summary.shift.startTime} - ${summary.shift.endTime} Work Schedule` : ' 09:00 - 17:00 Work Schedule'}
+            <Text style={[styles.betterThanText, { color: theme.isDark ? '#4ADE80' : '#16A34A' }]}>
+              Better than <Text style={{ fontWeight: '700' }}>85%</Text> of Employees
+            </Text>
+          </View>
+        </View>
+
+        {/* ── 3. Leave Allowance & Apply Leave (Web lines 288-360) ───────── */}
+        <View style={[styles.webCard, cardBgStyle]}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={[styles.cardTitle, textPrimary]}>Leave Allowance</Text>
+            <View style={[styles.yearDropdownPill, { backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}>
+              <Calendar size={13} color="#0D6EFD" />
+              <Text style={styles.yearDropdownText}>2026</Text>
+              <ChevronDown size={13} color={theme.colors.textSecondary} />
+            </View>
+          </View>
+
+          <View style={styles.leaveStatsGrid}>
+            <View style={styles.leaveStatBox}>
+              <Text style={[styles.leaveStatLabel, textSecondary]}>Total Leaves</Text>
+              <Text style={[styles.leaveStatNum, textPrimary]}>16</Text>
+            </View>
+            <View style={styles.leaveStatBox}>
+              <Text style={[styles.leaveStatLabel, textSecondary]}>Taken</Text>
+              <Text style={[styles.leaveStatNum, textPrimary]}>10</Text>
+            </View>
+            <View style={styles.leaveStatBox}>
+              <Text style={[styles.leaveStatLabel, textSecondary]}>Absent</Text>
+              <Text style={[styles.leaveStatNum, textPrimary]}>2</Text>
+            </View>
+            <View style={styles.leaveStatBox}>
+              <Text style={[styles.leaveStatLabel, textSecondary]}>Request</Text>
+              <Text style={[styles.leaveStatNum, textPrimary]}>0</Text>
+            </View>
+            <View style={styles.leaveStatBox}>
+              <Text style={[styles.leaveStatLabel, textSecondary]}>Worked Days</Text>
+              <Text style={[styles.leaveStatNum, textPrimary]}>240</Text>
+            </View>
+            <View style={styles.leaveStatBox}>
+              <Text style={[styles.leaveStatLabel, textSecondary]}>Loss of Pay</Text>
+              <Text style={[styles.leaveStatNum, textPrimary]}>2</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.applyLeaveBtn}
+            onPress={() => navigation.navigate('ApplyLeave')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.applyLeaveBtnText}>Apply New Leave</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── 4. Attendance Clock & Punch Card (Web lines 363-393) ───────── */}
+        <View style={[styles.webCard, styles.attendanceCardBorder, cardBgStyle]}>
+          <View style={styles.attendanceClockHeader}>
+            <Text style={[styles.attendanceSubTitle, textSecondary]}>Attendance</Text>
+            <Text style={[styles.attendanceDateTime, textPrimary]}>08:35 AM, 11 Mar 2026</Text>
+          </View>
+
+          <View style={{ alignItems: 'center', marginVertical: 14 }}>
+            <NativeAttendanceRing progress={0.65} size={150} isDark={theme.isDark} />
+          </View>
+
+          <View style={styles.attendanceCenterActions}>
+            <View style={styles.productionBadge}>
+              <Text style={styles.productionBadgeText}>Production : 3.45 hrs</Text>
+            </View>
+
+            <View style={styles.punchStatusRow}>
+              <Fingerprint size={16} color="#0D6EFD" />
+              <Text style={[styles.punchStatusText, textPrimary]}>
+                {punchedIn ? 'Punch In at 10.00 AM' : 'Checked Out'}
               </Text>
             </View>
-          )}
 
-          {/* Slide/Tap Action Button (Hidden if On Leave or Checked Out) */}
-          {!isOnLeave && !isCheckedOut && (
             <TouchableOpacity
-              style={[styles.punchSliderBtn, isCheckedIn ? styles.punchBtnRed : styles.punchBtnBlue]}
+              style={[styles.punchActionBtn, punchedIn ? styles.punchOutBtn : styles.punchInBtn]}
               onPress={handleTogglePunch}
-              activeOpacity={0.88}
               disabled={punchLoading}
+              activeOpacity={0.85}
             >
-              <View style={styles.punchBtnIconCircle}>
-                <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.6} />
-              </View>
-              <Text style={styles.punchBtnLabel}>
-                {isCheckedIn ? 'Slide to Check Out' : 'Slide to Check In'}
+              <Text style={styles.punchActionBtnText}>
+                {punchLoading ? 'Processing...' : punchedIn ? 'Punch Out' : 'Punch In'}
               </Text>
-              <ChevronRight size={18} color="#FFFFFF" strokeWidth={2.4} style={{ opacity: 0.8 }} />
-            </TouchableOpacity>
-          )}
-
-          {/* Current Status Text */}
-          {!isOnLeave && (
-            <View style={styles.currentStatusRow}>
-              <Text style={styles.currentStatusPrefix}>You're Currently: </Text>
-              <Text style={[styles.currentStatusVal, isCheckedIn && { color: '#16A34A' }]}>
-                {isCheckedIn ? 'Working' : 'Checked Out'}
-              </Text>
-            </View>
-          )}
-
-          {/* Check In / Check Out Timestamp Columns */}
-          <View style={styles.punchSplitRow}>
-            <View style={styles.punchCol}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <View style={[styles.arrowCircleSmall, { backgroundColor: '#DCFCE7' }]}>
-                  <ArrowRight size={12} color="#16A34A" strokeWidth={2.4} />
-                </View>
-                <Text style={styles.punchColLabel}>Check In</Text>
-              </View>
-              <Text style={styles.punchColTime}>
-                {formatTimeOnly(summary.todayAttendance?.checkIn)}
-              </Text>
-            </View>
-
-            <View style={styles.punchColDivider} />
-
-            <View style={styles.punchCol}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <View style={[styles.arrowCircleSmall, { backgroundColor: '#FEE2E2' }]}>
-                  <ArrowRight size={12} color="#EF4444" strokeWidth={2.4} style={{ transform: [{ rotate: '180deg' }] }} />
-                </View>
-                <Text style={styles.punchColLabel}>Check Out</Text>
-              </View>
-              <Text style={styles.punchColTime}>
-                {formatTimeOnly(summary.todayAttendance?.checkOut)}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Quick Actions (4-pack matching 13. Home - Default.png) */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, textPrimaryStyle]}>Quick Actions</Text>
-        </View>
-        <View style={styles.quickActionsRow}>
-          {/* Attendance */}
-          <TouchableOpacity
-            style={styles.quickActionItem}
-            onPress={() => navigation.navigate('AttendanceDetail')}
-            accessibilityRole="button"
-            accessibilityLabel="Attendance"
-          >
-            <View style={[styles.quickActionIconBox, { backgroundColor: theme.isDark ? '#1E293B' : '#EFF6FF' }]}>
-              <Calendar size={24} color="#2563EB" />
-            </View>
-            <Text style={[styles.quickActionLabel, textPrimaryStyle]}>Attendance</Text>
-          </TouchableOpacity>
-
-          {/* Leave */}
-          <TouchableOpacity
-            style={styles.quickActionItem}
-            onPress={() => navigation.navigate('LeaveDetail')}
-            accessibilityRole="button"
-            accessibilityLabel="Leave"
-          >
-            <View style={[styles.quickActionIconBox, { backgroundColor: theme.isDark ? '#1E293B' : '#FFF7ED' }]}>
-              <Umbrella size={24} color="#F97316" />
-            </View>
-            <Text style={[styles.quickActionLabel, textPrimaryStyle]}>Leave</Text>
-          </TouchableOpacity>
-
-          {/* Payslip */}
-          <TouchableOpacity
-            style={styles.quickActionItem}
-            onPress={() => navigation.navigate('Payslips')}
-            accessibilityRole="button"
-            accessibilityLabel="Payslip"
-          >
-            <View style={[styles.quickActionIconBox, { backgroundColor: theme.isDark ? '#1E293B' : '#ECFDF5' }]}>
-              <Receipt size={24} color="#10B981" />
-            </View>
-            <Text style={[styles.quickActionLabel, textPrimaryStyle]}>Payslip</Text>
-          </TouchableOpacity>
-
-          {/* More */}
-          <TouchableOpacity
-            style={styles.quickActionItem}
-            onPress={() => setShortcutsOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel="More Shortcuts"
-          >
-            <View style={[styles.quickActionIconBox, { backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}>
-              <Grid size={24} color={theme.isDark ? '#94A3B8' : '#64748B'} />
-            </View>
-            <Text style={[styles.quickActionLabel, textPrimaryStyle]}>More</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Smart Widgets & Dynamic Island Hub (Matches Widget/Finance & Dynamic Iland/) */}
-        <View style={[styles.sectionHeaderRow, { marginTop: 22 }]}>
-          <Text style={[styles.sectionTitle, textPrimaryStyle]}>Live Widgets & Dynamic Island</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('PaymentCards')}>
-            <Text style={styles.viewAllLink}>All Widgets</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.widgetsRow}>
-          <TouchableOpacity
-            style={[styles.smallHomeWidget, cardBgStyle]}
-            activeOpacity={0.85}
-            onPress={() =>
-              useCallStore.getState().showDynamicIsland({
-                type: 'daily_streak',
-                title: 'Daily Streak',
-                subtitle: `${widgetsSummary.attendanceStreakDays} Days On-Time Attendance`,
-                metricValue: `${widgetsSummary.attendanceStreakDays}d`,
-                metricDelta: widgetsSummary.streakDelta,
-                progress: Math.min(100, widgetsSummary.attendanceStreakDays * 7),
-                mode: 'expanded',
-                targetRoute: 'AttendanceDetail',
-              })
-            }
-          >
-            <View style={styles.widgetTopMeta}>
-              <View style={[styles.widgetMiniIcon, { backgroundColor: '#FFF7ED' }]}>
-                <Flame size={15} color="#EA580C" />
-              </View>
-              <Text style={styles.widgetPinText}>Pin</Text>
-            </View>
-            <Text style={[styles.widgetBigNum, textPrimaryStyle]}>{widgetsSummary.attendanceStreakDays} Days</Text>
-            <Text style={[styles.widgetSubLabel, textSecondaryStyle]}>Attendance Streak</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.smallHomeWidget, { backgroundColor: '#0F172A', borderColor: '#1E293B' }]}
-            activeOpacity={0.85}
-            onPress={() =>
-              useCallStore.getState().showDynamicIsland({
-                type: 'finance_statistic',
-                title: 'Finance Statistic',
-                subtitle: 'Latest Net Pay & Claims',
-                metricValue: widgetsSummary.netPayFormatted,
-                metricDelta: widgetsSummary.financeDelta,
-                progress: 74,
-                mode: 'expanded',
-                targetRoute: 'PaymentCards',
-              })
-            }
-          >
-            <View style={styles.widgetTopMeta}>
-              <View style={[styles.widgetMiniIcon, { backgroundColor: 'rgba(52,211,153,0.16)' }]}>
-                <TrendingUp size={15} color="#34D399" />
-              </View>
-              <Text style={[styles.widgetPinText, { color: '#34D399' }]}>{widgetsSummary.financeDelta}</Text>
-            </View>
-            <Text style={[styles.widgetBigNum, { color: '#FFFFFF' }]}>{widgetsSummary.netPayFormatted}</Text>
-            <Text style={[styles.widgetSubLabel, { color: '#94A3B8' }]}>Finance Widget</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={[styles.mediumGoalWidget, cardBgStyle]}>
-          <View style={styles.mediumGoalTop}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <View style={[styles.widgetMiniIcon, { backgroundColor: '#EEF2FF' }]}>
-                <Target size={15} color="#4F46E5" />
-              </View>
-              <View>
-                <Text style={[styles.mediumGoalTitle, textPrimaryStyle]}>Q4 OKR Goal Progress</Text>
-                <Text style={[styles.widgetSubLabel, textSecondaryStyle]}>
-                  {widgetsSummary.okrProgress}% completed • {widgetsSummary.okrRemainingMilestones} milestones left
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={styles.islandQuickBtn}
-              onPress={() =>
-                useCallStore.getState().showDynamicIsland({
-                  type: 'timer',
-                  title: 'Shift Focus Timer',
-                  subtitle: 'Active Work Session',
-                  progress: widgetsSummary.okrProgress,
-                  mode: 'compact',
-                  targetRoute: 'Timesheet',
-                })
-              }
-            >
-              <Sparkles size={12} color="#FBBF24" />
-              <Text style={styles.islandQuickBtnText}>Start Island</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.goalBarTrack}>
-            <View style={[styles.goalBarFill, { width: `${widgetsSummary.okrProgress}%` }]} />
+        </View>
+
+        {/* ── 5. 4 Work Hours KPI Stat Cards (Web lines 396-480) ─────────── */}
+        <View style={styles.kpiCardsGrid}>
+          {/* Total Hours Today */}
+          <View style={[styles.kpiCard, cardBgStyle]}>
+            <View style={[styles.kpiIconWrap, { backgroundColor: '#EFF6FF' }]}>
+              <Clock size={16} color="#0D6EFD" />
+            </View>
+            <Text style={[styles.kpiMainNum, textPrimary]}>
+              8.36 / <Text style={{ fontSize: 13, color: '#94A3B8' }}>9</Text>
+            </Text>
+            <Text style={[styles.kpiTitle, textSecondary]}>Total Hours Today</Text>
+            <View style={styles.kpiDeltaRow}>
+              <ArrowUp size={12} color="#16A34A" />
+              <Text style={styles.kpiDeltaPositive}>5% This Week</Text>
+            </View>
+          </View>
+
+          {/* Total Hours Week */}
+          <View style={[styles.kpiCard, cardBgStyle]}>
+            <View style={[styles.kpiIconWrap, { backgroundColor: '#F1F5F9' }]}>
+              <CalendarDays size={16} color="#0F172A" />
+            </View>
+            <Text style={[styles.kpiMainNum, textPrimary]}>
+              10 / <Text style={{ fontSize: 13, color: '#94A3B8' }}>40</Text>
+            </Text>
+            <Text style={[styles.kpiTitle, textSecondary]}>Total Hours Week</Text>
+            <View style={styles.kpiDeltaRow}>
+              <ArrowUp size={12} color="#16A34A" />
+              <Text style={styles.kpiDeltaPositive}>7% Last Week</Text>
+            </View>
+          </View>
+
+          {/* Total Hours Month */}
+          <View style={[styles.kpiCard, cardBgStyle]}>
+            <View style={[styles.kpiIconWrap, { backgroundColor: '#F0F9FF' }]}>
+              <Calendar size={16} color="#0284C7" />
+            </View>
+            <Text style={[styles.kpiMainNum, textPrimary]}>
+              75 / <Text style={{ fontSize: 13, color: '#94A3B8' }}>98</Text>
+            </Text>
+            <Text style={[styles.kpiTitle, textSecondary]}>Total Hours Month</Text>
+            <View style={styles.kpiDeltaRow}>
+              <ArrowDown size={12} color="#EF4444" />
+              <Text style={styles.kpiDeltaNegative}>8% Last Month</Text>
+            </View>
+          </View>
+
+          {/* Overtime this Month */}
+          <View style={[styles.kpiCard, cardBgStyle]}>
+            <View style={[styles.kpiIconWrap, { backgroundColor: '#FDF2F8' }]}>
+              <Sparkles size={16} color="#DB2777" />
+            </View>
+            <Text style={[styles.kpiMainNum, textPrimary]}>
+              16 / <Text style={{ fontSize: 13, color: '#94A3B8' }}>28</Text>
+            </Text>
+            <Text style={[styles.kpiTitle, textSecondary]}>Overtime Month</Text>
+            <View style={styles.kpiDeltaRow}>
+              <ArrowDown size={12} color="#EF4444" />
+              <Text style={styles.kpiDeltaNegative}>6% Last Month</Text>
+            </View>
           </View>
         </View>
 
-        {/* Recent Updates (Matches 13. Home - Default.png and 18. Home – Notification Preview.png) */}
-        <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
-          <Text style={[styles.sectionTitle, textPrimaryStyle]}>Recent Updates</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
-            <Text style={styles.viewAllLink}>View All</Text>
-          </TouchableOpacity>
+        {/* ── 6. Working Hours Timeline Progress Bar (Web lines 481-569) ─── */}
+        <View style={[styles.webCard, cardBgStyle]}>
+          <View style={styles.workHoursSummaryRow}>
+            <View style={styles.workHoursCol}>
+              <Text style={[styles.workHoursLabel, textSecondary]}>Total Working</Text>
+              <Text style={[styles.workHoursVal, textPrimary]}>12h 36m</Text>
+            </View>
+            <View style={styles.workHoursCol}>
+              <Text style={[styles.workHoursLabel, textSecondary]}>Productive</Text>
+              <Text style={[styles.workHoursVal, { color: '#03C95A' }]}>08h 36m</Text>
+            </View>
+            <View style={styles.workHoursCol}>
+              <Text style={[styles.workHoursLabel, textSecondary]}>Break Hours</Text>
+              <Text style={[styles.workHoursVal, { color: '#F59E0B' }]}>22m 15s</Text>
+            </View>
+            <View style={styles.workHoursCol}>
+              <Text style={[styles.workHoursLabel, textSecondary]}>Overtime</Text>
+              <Text style={[styles.workHoursVal, { color: '#0284C7' }]}>02h 15m</Text>
+            </View>
+          </View>
+
+          {/* Segmented Bar */}
+          <View style={[styles.timelineBarWrap, { backgroundColor: theme.isDark ? '#334155' : '#E2E8F0' }]}>
+            <View style={{ width: '18%', height: '100%', backgroundColor: theme.isDark ? '#475569' : '#FFFFFF' }} />
+            <View style={{ width: '18%', height: '100%', backgroundColor: '#03C95A', marginHorizontal: 2 }} />
+            <View style={{ width: '6%', height: '100%', backgroundColor: '#F59E0B', marginRight: 2 }} />
+            <View style={{ width: '26%', height: '100%', backgroundColor: '#03C95A', marginRight: 2 }} />
+            <View style={{ width: '14%', height: '100%', backgroundColor: '#F59E0B', marginRight: 2 }} />
+            <View style={{ width: '18%', height: '100%', backgroundColor: '#0284C7' }} />
+          </View>
+
+          <View style={styles.timelineHoursMarks}>
+            {['06:00', '09:00', '12:00', '15:00', '18:00', '21:00'].map((h) => (
+              <Text key={h} style={[styles.timelineHourText, textSecondary]}>
+                {h}
+              </Text>
+            ))}
+          </View>
         </View>
 
-        <View style={styles.updatesList}>
-          {/* Recent Leave Status Item */}
-          {leaveRequests.length > 0 ? (
-            leaveRequests.slice(0, 1).map((lr) => (
+        {/* ── 7. Ongoing Projects (Web lines 573-777) ─────────────────────── */}
+        <View style={[styles.webCard, cardBgStyle]}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={[styles.cardTitle, textPrimary]}>Projects</Text>
+            <View style={[styles.projectFilterPill, { backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}>
+              <Text style={styles.projectFilterText}>Ongoing Projects</Text>
+              <ChevronDown size={13} color={theme.colors.textSecondary} />
+            </View>
+          </View>
+
+          {/* Project Card 1 */}
+          <View style={[styles.projectSubCard, { borderColor: theme.isDark ? '#334155' : '#E2E8F0' }]}>
+            <View style={styles.projectCardTop}>
+              <Text style={[styles.projectName, textPrimary]}>Office Management</Text>
+              <MoreVertical size={16} color={theme.colors.textSecondary} />
+            </View>
+
+            <View style={styles.projectLeaderRow}>
+              <UserAvatar name="Anthony Lewis" size={28} />
+              <View style={{ marginLeft: 8 }}>
+                <Text style={[styles.projectLeaderName, textPrimary]}>Anthony Lewis</Text>
+                <Text style={[styles.projectLeaderSub, textSecondary]}>Project Leader</Text>
+              </View>
+            </View>
+
+            <View style={styles.projectDeadlineRow}>
+              <Calendar size={14} color="#0D6EFD" />
+              <Text style={[styles.projectDeadlineText, textSecondary]}>Deadline: 14 Jan 2026</Text>
+            </View>
+
+            <View style={[styles.projectTasksRow, { backgroundColor: theme.isDark ? '#1E293B' : '#F8FAFC' }]}>
+              <Text style={[styles.projectTasksText, textSecondary]}>
+                Tasks: <Text style={[textPrimary, { fontWeight: '700' }]}>6 / 10</Text>
+              </Text>
+              <View style={styles.avatarMiniStack}>
+                <View style={[styles.miniStackAvatar, { backgroundColor: '#3B82F6' }]}><Text style={styles.miniStackText}>AL</Text></View>
+                <View style={[styles.miniStackAvatar, { backgroundColor: '#10B981' }]}><Text style={styles.miniStackText}>SP</Text></View>
+                <View style={[styles.miniStackAvatar, { backgroundColor: '#F59E0B' }]}><Text style={styles.miniStackText}>DM</Text></View>
+              </View>
+            </View>
+
+            <View style={[styles.projectTimeSpentBox, { backgroundColor: theme.isDark ? '#1E293B' : '#EFF6FF' }]}>
+              <Text style={{ color: '#0D6EFD', fontSize: 12, fontWeight: '600' }}>Time Spent</Text>
+              <Text style={{ color: '#0D6EFD', fontSize: 13, fontWeight: '700' }}>65 / 120 Hrs</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ── 8. Tasks List (Web lines 779-1010) ─────────────────────────── */}
+        <View style={[styles.webCard, cardBgStyle]}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={[styles.cardTitle, textPrimary]}>Tasks</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('TodoList')}>
+              <Text style={styles.viewAllTasksLink}>View All →</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.tasksList}>
+            {tasks.map((task) => (
               <TouchableOpacity
-                key={lr.id}
-                style={[styles.updateCard, cardBgStyle]}
-                onPress={() => navigation.navigate('LeaveDetail')}
+                key={task.id}
+                style={[styles.taskItem, { borderColor: theme.isDark ? '#334155' : '#E2E8F0' }]}
+                activeOpacity={0.75}
+                onPress={() => {
+                  setTasks(tasks.map((t) => (t.id === task.id ? { ...t, done: !t.done } : t)));
+                }}
               >
-                <View style={[styles.updateIconCircle, { backgroundColor: '#DCFCE7' }]}>
-                  <CheckCircle2 size={20} color="#16A34A" />
-                </View>
-                <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={[styles.updateTitle, textPrimaryStyle]}>
-                    {lr.status === 'APPROVED' ? 'Leave Request Approved' : 'Leave Request Submitted'}
+                <View style={styles.taskItemLeft}>
+                  {task.done ? (
+                    <CheckSquare size={17} color="#0D6EFD" />
+                  ) : (
+                    <Square size={17} color={theme.colors.textSecondary} />
+                  )}
+                  {task.star ? (
+                    <Star size={14} color="#F59E0B" fill="#F59E0B" style={{ marginLeft: 6 }} />
+                  ) : (
+                    <Star size={14} color={theme.colors.textSecondary} style={{ marginLeft: 6 }} />
+                  )}
+                  <Text
+                    style={[
+                      styles.taskItemTitle,
+                      textPrimary,
+                      task.done && { textDecorationLine: 'line-through', opacity: 0.5 },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {task.title}
                   </Text>
-                  <Text style={[styles.updateSnippet, textSecondaryStyle]} numberOfLines={1}>
-                    {lr.reason || `Your leave starting ${lr.startDate} is ${lr.status.toLowerCase()}`}
-                  </Text>
                 </View>
-                <Text style={styles.updateTime}>1h ago</Text>
-              </TouchableOpacity>
-            ))
-          ) : (
-            <TouchableOpacity
-              style={[styles.updateCard, cardBgStyle]}
-              onPress={() => navigation.navigate('LeaveDetail')}
-            >
-              <View style={[styles.updateIconCircle, { backgroundColor: '#DCFCE7' }]}>
-                <CheckCircle2 size={20} color="#16A34A" />
-              </View>
-              <View style={{ flex: 1, marginRight: 8 }}>
-                <Text style={[styles.updateTitle, textPrimaryStyle]}>Leave Request Approved</Text>
-                <Text style={[styles.updateSnippet, textSecondaryStyle]} numberOfLines={1}>
-                  Your annual leave for next month has been approved.
-                </Text>
-              </View>
-              <Text style={styles.updateTime}>1h ago</Text>
-            </TouchableOpacity>
-          )}
 
-          {/* Office Announcement Item */}
-          {announcements.length > 0 ? (
-            announcements.slice(0, 1).map((ann) => (
-              <TouchableOpacity
-                key={ann.id}
-                style={[styles.updateCard, cardBgStyle]}
-                onPress={() => navigation.navigate('Notifications')}
-              >
-                <View style={[styles.updateIconCircle, { backgroundColor: '#EFF6FF' }]}>
-                  <Megaphone size={20} color="#2563EB" />
+                <View style={[styles.taskStatusPill, { backgroundColor: `${task.color}15` }]}>
+                  <Text style={[styles.taskStatusText, { color: task.color }]}>{task.status}</Text>
                 </View>
-                <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={[styles.updateTitle, textPrimaryStyle]}>{ann.title || 'Office Announcement'}</Text>
-                  <Text style={[styles.updateSnippet, textSecondaryStyle]} numberOfLines={1}>
-                    {ann.content || 'Office will be closed this Friday for maintenance.'}
-                  </Text>
-                </View>
-                <Text style={styles.updateTime}>2h ago</Text>
               </TouchableOpacity>
-            ))
-          ) : (
-            <TouchableOpacity
-              style={[styles.updateCard, cardBgStyle]}
-              onPress={() => navigation.navigate('Notifications')}
-            >
-              <View style={[styles.updateIconCircle, { backgroundColor: '#EFF6FF' }]}>
-                <Megaphone size={20} color="#2563EB" />
-              </View>
-              <View style={{ flex: 1, marginRight: 8 }}>
-                <Text style={[styles.updateTitle, textPrimaryStyle]}>Office Announcement</Text>
-                <Text style={[styles.updateSnippet, textSecondaryStyle]} numberOfLines={1}>
-                  Office will be closed this Friday for system upgrades.
-                </Text>
-              </View>
-              <Text style={styles.updateTime}>2h ago</Text>
-            </TouchableOpacity>
-          )}
+            ))}
+          </View>
         </View>
+
+        {/* ── 9. Performance Analytics & Area Curve (Web lines 1012-1056) ─ */}
+        <View style={[styles.webCard, cardBgStyle]}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={[styles.cardTitle, textPrimary]}>Performance</Text>
+            <View style={[styles.yearDropdownPill, { backgroundColor: theme.isDark ? '#1E293B' : '#F1F5F9' }]}>
+              <Calendar size={13} color="#0D6EFD" />
+              <Text style={styles.yearDropdownText}>2026</Text>
+              <ChevronDown size={13} color={theme.colors.textSecondary} />
+            </View>
+          </View>
+
+          <View style={[styles.perfScoreBanner, { backgroundColor: theme.isDark ? '#1E293B' : '#F8FAFC' }]}>
+            <Text style={[styles.perfScoreNum, textPrimary]}>98%</Text>
+            <View style={styles.perfScoreBadge}>
+              <Text style={styles.perfScoreBadgeText}>12% vs last year</Text>
+            </View>
+          </View>
+
+          <NativePerformanceAreaChart isDark={theme.isDark} />
+        </View>
+
+        {/* ── 10. My Skills (Web lines 1058-1100) ─────────────────────────── */}
+        <View style={[styles.webCard, cardBgStyle]}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={[styles.cardTitle, textPrimary]}>My Skills</Text>
+            <Award size={16} color="#0D6EFD" />
+          </View>
+
+          {[
+            { name: 'Figma & Prototyping', date: '15 May 2026', percent: 95, color: '#0D6EFD' },
+            { name: 'React Native & Mobile UI', date: '10 Apr 2026', percent: 90, color: '#10B981' },
+            { name: 'Design Systems & Tokens', date: '02 Mar 2026', percent: 85, color: '#F59E0B' },
+          ].map((skill, idx) => (
+            <View
+              key={idx}
+              style={[
+                styles.skillRow,
+                {
+                  backgroundColor: theme.isDark ? '#1E293B' : '#F8FAFC',
+                  borderColor: theme.isDark ? '#334155' : '#E2E8F0',
+                },
+              ]}
+            >
+              <View style={styles.skillRowLeft}>
+                <View style={[styles.skillColorBar, { backgroundColor: skill.color }]} />
+                <View>
+                  <Text style={[styles.skillName, textPrimary]}>{skill.name}</Text>
+                  <Text style={[styles.skillDate, textSecondary]}>Updated : {skill.date}</Text>
+                </View>
+              </View>
+              <View style={[styles.skillPercentBadge, { backgroundColor: `${skill.color}15` }]}>
+                <Text style={[styles.skillPercentText, { color: skill.color }]}>{skill.percent}%</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        <View style={{ height: 28 }} />
       </ScrollView>
 
-      {/* Shortcuts Bottom Sheet Modal (Matches 17. Home – Shortcut Expanded.png) */}
-      <Modal visible={shortcutsOpen} animationType="slide" transparent onRequestClose={() => setShortcutsOpen(false)}>
-        <TouchableOpacity
-          style={styles.modalBackdrop}
-          activeOpacity={1}
-          onPress={() => setShortcutsOpen(false)}
-        >
-          <View style={styles.shortcutsSheet} onStartShouldSetResponder={() => true}>
-            <View style={styles.sheetHandleBar} />
-            <View style={styles.shortcutsHeader}>
-              <Text style={styles.shortcutsTitle}>Shortcuts</Text>
-              <TouchableOpacity onPress={() => setShortcutsOpen(false)} style={styles.shortcutsCloseBtn}>
-                <X size={20} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 520 }}>
-              {/* TIME MANAGEMENT */}
-              <Text style={styles.categoryTitle}>TIME MANAGEMENT</Text>
-              <View style={styles.shortcutsGrid}>
-                <TouchableOpacity
-                  style={styles.shortcutItem}
-                  onPress={() => { setShortcutsOpen(false); navigation.navigate('AttendanceDetail'); }}
-                >
-                  <View style={[styles.shortcutCircle, { backgroundColor: '#EFF6FF' }]}>
-                    <Calendar size={22} color="#2563EB" />
-                  </View>
-                  <Text style={styles.shortcutLabel}>Attendance</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.shortcutItem}
-                  onPress={() => { setShortcutsOpen(false); navigation.navigate('LeaveDetail'); }}
-                >
-                  <View style={[styles.shortcutCircle, { backgroundColor: '#FFF7ED' }]}>
-                    <Umbrella size={22} color="#F97316" />
-                  </View>
-                  <Text style={styles.shortcutLabel}>Leave</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.shortcutItem}
-                  onPress={() => { setShortcutsOpen(false); navigation.navigate('ShiftSchedule'); }}
-                >
-                  <View style={[styles.shortcutCircle, { backgroundColor: '#F3E8FF' }]}>
-                    <Clock size={22} color="#8B5CF6" />
-                  </View>
-                  <Text style={styles.shortcutLabel}>Overtime</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.shortcutItem}
-                  onPress={() => { setShortcutsOpen(false); navigation.navigate('ShiftSchedule'); }}
-                >
-                  <View style={[styles.shortcutCircle, { backgroundColor: '#F0F9FF' }]}>
-                    <Moon size={22} color="#0EA5E9" />
-                  </View>
-                  <Text style={styles.shortcutLabel}>Shift</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* FINANCE */}
-              <Text style={styles.categoryTitle}>FINANCE</Text>
-              <View style={styles.shortcutsGrid}>
-                <TouchableOpacity
-                  style={styles.shortcutItem}
-                  onPress={() => { setShortcutsOpen(false); navigation.navigate('Payslips'); }}
-                >
-                  <View style={[styles.shortcutCircle, { backgroundColor: '#ECFDF5' }]}>
-                    <Receipt size={22} color="#10B981" />
-                  </View>
-                  <Text style={styles.shortcutLabel}>Payslip</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.shortcutItem}
-                  onPress={() => { setShortcutsOpen(false); navigation.navigate('ExpenseClaims'); }}
-                >
-                  <View style={[styles.shortcutCircle, { backgroundColor: '#ECFEFF' }]}>
-                    <CreditCard size={22} color="#06B6D4" />
-                  </View>
-                  <Text style={styles.shortcutLabel}>Reimburse</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.shortcutItem}
-                  onPress={() => { setShortcutsOpen(false); navigation.navigate('SalaryAdvanceLoan'); }}
-                >
-                  <View style={[styles.shortcutCircle, { backgroundColor: '#F5F3FF' }]}>
-                    <DollarSign size={22} color="#8B5CF6" />
-                  </View>
-                  <Text style={styles.shortcutLabel}>Loan</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.shortcutItem}
-                  onPress={() => { setShortcutsOpen(false); navigation.navigate('Payslips'); }}
-                >
-                  <View style={[styles.shortcutCircle, { backgroundColor: '#ECFDF5' }]}>
-                    <PiggyBank size={22} color="#059669" />
-                  </View>
-                  <Text style={styles.shortcutLabel}>Tax</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* REQUESTS & GENERAL */}
-              <Text style={styles.categoryTitle}>REQUESTS & GENERAL</Text>
-              <View style={styles.shortcutsGrid}>
-                <TouchableOpacity
-                  style={styles.shortcutItem}
-                  onPress={() => { setShortcutsOpen(false); navigation.navigate('EmployeeDirectory'); }}
-                >
-                  <View style={[styles.shortcutCircle, { backgroundColor: '#FCE7F3' }]}>
-                    <Users size={22} color="#EC4899" />
-                  </View>
-                  <Text style={styles.shortcutLabel}>Team</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.shortcutItem}
-                  onPress={() => { setShortcutsOpen(false); navigation.navigate('DocumentsVault'); }}
-                >
-                  <View style={[styles.shortcutCircle, { backgroundColor: '#FEF9C3' }]}>
-                    <Briefcase size={22} color="#EAB308" />
-                  </View>
-                  <Text style={styles.shortcutLabel}>Assets</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.shortcutItem}
-                  onPress={() => { setShortcutsOpen(false); navigation.navigate('DocumentsVault'); }}
-                >
-                  <View style={[styles.shortcutCircle, { backgroundColor: '#E0F2FE' }]}>
-                    <Folder size={22} color="#06B6D4" />
-                  </View>
-                  <Text style={styles.shortcutLabel}>Docs</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.shortcutItem}
-                  onPress={() => { setShortcutsOpen(false); navigation.navigate('Settings'); }}
-                >
-                  <View style={[styles.shortcutCircle, { backgroundColor: '#F1F5F9' }]}>
-                    <Sliders size={22} color="#475569" />
-                  </View>
-                  <Text style={styles.shortcutLabel}>Manage</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Persistent Bottom Nav */}
+      {/* ── Pinned Bottom Nav ────────────────────────────────────────────── */}
       <AppBottomNav activeRoute="EmployeeHome" />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
-  scrollContent: {
-    paddingBottom: 24,
-  },
-
-  /* Curved Header Banner */
-  headerCurvedBanner: {
-    backgroundColor: '#4338CA',
-    borderBottomLeftRadius: 36,
-    borderBottomRightRadius: 36,
-    paddingTop: Platform.OS === 'ios' ? 54 : 44,
-    paddingBottom: 70,
-    paddingHorizontal: 20,
-  },
-  headerTopRow: {
+  topHeader: {
+    paddingTop: Platform.OS === 'ios' ? 48 : 16,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    borderBottomWidth: 1,
   },
-  headerDateText: {
-    color: '#C7D2FE',
-    fontSize: 13,
+  topHeaderLeft: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  headerBreadcrumb: {
+    fontSize: 11,
+    marginTop: 2,
     fontWeight: '500',
   },
-  headerGreeting: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  headerName: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  headerRightActions: {
+  topHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
-  bellIconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+  headerBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
   },
-  avatarWrap: {
-    position: 'relative',
+  scrollBody: {
+    padding: 16,
+    paddingBottom: 100,
   },
-  avatarImg: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  avatarFallback: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#3B82F6',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarFallbackText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  avatarActiveDot: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 13,
-    height: 13,
-    borderRadius: 6.5,
-    backgroundColor: '#22C55E',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-
-  /* Floating Attendance Card (13, 14, 15, 16) */
-  attendanceCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginTop: -48,
-    borderRadius: 24,
-    padding: 20,
-    shadowColor: '#1E1B4B',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  cardTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  currentTimeLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#94A3B8',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  currentTimeVal: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  currentTimeAmPm: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  statusPill: {
+  approvedAlert: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 12,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
-  statusPillGreen: {
-    backgroundColor: '#DCFCE7',
-  },
-  statusPillGray: {
-    backgroundColor: '#F1F5F9',
-  },
-  statusPillDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 6,
-  },
-  dotGreen: {
-    backgroundColor: '#16A34A',
-  },
-  dotGray: {
-    backgroundColor: '#64748B',
-  },
-  statusPillTextGreen: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#16A34A',
-  },
-  statusPillTextGray: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  timerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
     marginBottom: 16,
   },
-  workingTimerText: {
-    fontSize: 13,
+  alertIconCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#D1FAE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  alertText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#065F46',
+    lineHeight: 17,
+  },
+  webCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  profileCardHeaderDark: {
+    backgroundColor: '#0F172A',
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  profileAvatarContainer: {
+    position: 'relative',
+    marginRight: 14,
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 9,
+  },
+  profileHeaderTextWrap: {
+    flex: 1,
+  },
+  profileHeaderName: {
+    fontSize: 17,
     fontWeight: '700',
-    color: '#16A34A',
+    color: '#FFFFFF',
+    marginBottom: 3,
   },
-  scheduleText: {
+  profileRoleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  profileHeaderRole: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  profileDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#0D6EFD',
+    marginHorizontal: 6,
+  },
+  deptBadge: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  deptBadgeText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  profileCardBody: {
+    padding: 16,
+  },
+  infoRow: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(148, 163, 184, 0.15)',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  infoLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  infoValue: {
     fontSize: 13,
-    color: '#64748B',
+    fontWeight: '600',
   },
-
-  /* Punch Button */
-  punchSliderBtn: {
-    height: 52,
-    borderRadius: 26,
+  cardHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 4,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 10,
   },
-  punchBtnBlue: {
-    backgroundColor: '#2563EB',
-    shadowColor: '#2563EB',
-  },
-  punchBtnRed: {
-    backgroundColor: '#DC2626',
-    shadowColor: '#DC2626',
-  },
-  punchBtnIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  punchBtnLabel: {
-    color: '#FFFFFF',
+  cardTitle: {
     fontSize: 15,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
-
-  /* Status and Timestamps */
-  currentStatusRow: {
+  yearDropdownPill: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 14,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  yearDropdownText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0D6EFD',
+  },
+  donutSectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  donutMetricsCol: {
+    flex: 1,
+    gap: 7,
+  },
+  donutMetricItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dotIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  donutMetricCount: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginRight: 6,
+  },
+  donutMetricLabel: {
+    fontSize: 11,
+  },
+  donutChartContainer: {
+    marginLeft: 8,
+  },
+  betterThanBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
     marginBottom: 16,
+    padding: 10,
+    borderRadius: 8,
   },
-  currentStatusPrefix: {
-    fontSize: 13,
-    color: '#64748B',
+  betterCheckSquare: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    backgroundColor: '#03C95A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
   },
-  currentStatusVal: {
+  betterThanText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  leaveStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  leaveStatBox: {
+    width: '33.33%',
+    paddingVertical: 10,
+  },
+  leaveStatLabel: {
+    fontSize: 11,
+    marginBottom: 2,
+  },
+  leaveStatNum: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  applyLeaveBtn: {
+    backgroundColor: '#0F172A',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    marginTop: 6,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  applyLeaveBtnText: {
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A',
   },
-  punchSplitRow: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+  attendanceCardBorder: {
+    borderColor: '#0D6EFD',
+    borderWidth: 1.5,
+  },
+  attendanceClockHeader: {
+    alignItems: 'center',
     paddingTop: 16,
   },
-  punchCol: {
-    flex: 1,
+  attendanceSubTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  attendanceDateTime: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  ringCenterTextWrap: {
+    position: 'absolute',
     alignItems: 'center',
   },
-  arrowCircleSmall: {
+  ringCenterSub: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  ringCenterTime: {
+    fontSize: 15,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  attendanceCenterActions: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  productionBadge: {
+    backgroundColor: '#0F172A',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  productionBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  punchStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 14,
+  },
+  punchStatusText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  punchActionBtn: {
+    width: '100%',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  punchInBtn: {
+    backgroundColor: '#03C95A',
+  },
+  punchOutBtn: {
+    backgroundColor: '#0D6EFD',
+  },
+  punchActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  kpiCardsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 16,
+  },
+  kpiCard: {
+    width: (width - 44) / 2,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+  },
+  kpiIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  kpiMainNum: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  kpiTitle: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  kpiDeltaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  kpiDeltaPositive: {
+    fontSize: 11,
+    color: '#16A34A',
+    fontWeight: '600',
+  },
+  kpiDeltaNegative: {
+    fontSize: 11,
+    color: '#EF4444',
+    fontWeight: '600',
+  },
+  workHoursSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  workHoursCol: {
+    alignItems: 'center',
+  },
+  workHoursLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  workHoursVal: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  timelineBarWrap: {
+    height: 18,
+    borderRadius: 6,
+    marginHorizontal: 16,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  timelineHoursMarks: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+  },
+  timelineHourText: {
+    fontSize: 9,
+    fontWeight: '600',
+  },
+  projectFilterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  projectFilterText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  projectSubCard: {
+    margin: 16,
+    marginTop: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+  },
+  projectCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  projectName: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  projectLeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  projectLeaderName: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  projectLeaderSub: {
+    fontSize: 10,
+  },
+  projectDeadlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  projectDeadlineText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  projectTasksRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  projectTasksText: {
+    fontSize: 11,
+  },
+  avatarMiniStack: {
+    flexDirection: 'row',
+  },
+  miniStackAvatar: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -4,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
-  punchColLabel: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  punchColTime: {
-    fontSize: 15,
+  miniStackText: {
+    fontSize: 8,
     fontWeight: '700',
-    color: '#0F172A',
-  },
-  punchColDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: '#F1F5F9',
-  },
-
-  /* Leave State (16) */
-  leaveBox: {
-    backgroundColor: '#6366F1',
-    borderRadius: 18,
-    padding: 16,
-    marginVertical: 12,
-  },
-  leaveBoxTitle: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
   },
-  leaveBoxSub: {
-    color: '#E0E7FF',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  leaveBoxDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    marginVertical: 12,
-  },
-  leaveBoxRow: {
+  projectTimeSpentBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: 3,
+    padding: 8,
+    borderRadius: 8,
   },
-  leaveBoxLabel: {
-    color: '#E0E7FF',
-    fontSize: 13,
+  viewAllTasksLink: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0D6EFD',
   },
-  leaveBoxBadge: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
+  tasksList: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  taskItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  taskItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  taskItemTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 8,
+    flex: 1,
+  },
+  taskStatusPill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
   },
-  leaveBoxBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  leaveBoxValue: {
-    color: '#FFFFFF',
-    fontSize: 13,
+  taskStatusText: {
+    fontSize: 10,
     fontWeight: '700',
   },
-
-  /* Checked Out State Box (15) */
-  checkedOutBox: {
-    backgroundColor: '#EEF2FF',
-    borderRadius: 18,
-    padding: 16,
-    marginVertical: 12,
-    borderWidth: 1,
-    borderColor: '#E0E7FF',
-  },
-  checkedOutBoxHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  checkedOutBoxLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#4F46E5',
-    letterSpacing: 0.5,
-  },
-  checkedOutBigHrs: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  checkedOutUnit: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#64748B',
-    marginRight: 6,
-  },
-  checkedOutSubText: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 4,
-  },
-
-  /* Quick Actions (4-pack) */
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginTop: 24,
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  viewAllLink: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#2563EB',
-  },
-  quickActionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-  },
-  quickActionItem: {
-    alignItems: 'center',
-    width: (width - 40 - 36) / 4,
-  },
-  quickActionIconBox: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  quickActionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-
-  /* Updates List (13 & 18) */
-  updatesList: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  updateCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
+  perfScoreBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-  },
-  updateIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  updateTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 2,
-  },
-  updateSnippet: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  updateTime: {
-    fontSize: 11,
-    color: '#94A3B8',
-  },
-
-  /* Shortcuts Sheet Modal (17) */
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  shortcutsSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
-  },
-  sheetHandleBar: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#CBD5E1',
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  shortcutsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  shortcutsTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  shortcutsCloseBtn: {
-    padding: 4,
-  },
-  categoryTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#94A3B8',
-    letterSpacing: 0.5,
-    marginTop: 12,
-    marginBottom: 12,
-  },
-  shortcutsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 14,
-  },
-  shortcutItem: {
-    width: (width - 40 - 42) / 4,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  shortcutCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  shortcutLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#475569',
-    textAlign: 'center',
-  },
-  widgetsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10,
-  },
-  smallHomeWidget: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 6,
-  },
-  widgetTopMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  widgetMiniIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 9,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  widgetPinText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#2563EB',
-  },
-  widgetBigNum: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginTop: 2,
-  },
-  widgetSubLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  mediumGoalWidget: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    marginHorizontal: 16,
+    padding: 10,
+    borderRadius: 10,
     gap: 10,
   },
-  mediumGoalTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  perfScoreNum: {
+    fontSize: 20,
+    fontWeight: '800',
   },
-  mediumGoalTitle: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  islandQuickBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#020617',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  perfScoreBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 12,
   },
-  islandQuickBtnText: {
-    color: '#FFFFFF',
-    fontSize: 10.5,
+  perfScoreBadgeText: {
+    color: '#059669',
+    fontSize: 11,
     fontWeight: '700',
   },
-  goalBarTrack: {
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#E2E8F0',
-    overflow: 'hidden',
+  chartMonthRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 6,
+    paddingBottom: 12,
   },
-  goalBarFill: {
-    height: '100%',
-    borderRadius: 4,
-    backgroundColor: '#4F46E5',
+  chartMonthText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  skillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginBottom: 10,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  skillRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  skillColorBar: {
+    width: 4,
+    height: 26,
+    borderRadius: 2,
+  },
+  skillName: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  skillDate: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  skillPercentBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  skillPercentText: {
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

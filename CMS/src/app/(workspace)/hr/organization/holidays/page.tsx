@@ -1,14 +1,13 @@
 'use client';
+
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
-import { createFileRoute } from "@/src/lib/router-compat";
+import { Link } from "@/lib/router-compat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useMasterList } from "@/hooks/use-master-list";
 import { useMasterForm } from "@/hooks/use-master-form";
-import { PageHeader } from "@/components/ui/page-header";
-import { StandardPagination } from "@/components/ui/standard-pagination";
-import { GlobalListActionToolbar } from "@/components/ui/global-list-action-toolbar";
+import { GlobalExportDropdown } from "@/components/ui/global-export-dropdown";
 import { exportToExcel, exportToPdf, ExportColumn } from "@/lib/export-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,20 +39,18 @@ import {
 } from "@/components/ui/table";
 import {
   CalendarDays,
-  Plus,
-  Edit2,
-  Trash2,
-  PowerOff,
-  CheckCircle2,
-  AlertCircle,
   Calendar,
-  Sun,
+  Download,
+  Plus,
+  Eye,
+  Edit,
+  Trash2,
+  ArrowUpDown,
   Search,
-  RotateCcw,
-  AlertTriangle,
-  Tags,
-  Building,
-  Check,
+  Filter,
+  Loader2,
+  ExternalLink,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -67,85 +64,161 @@ interface HolidayRecord {
   description?: string;
   branchIds?: string[];
   status: "active" | "inactive";
-  allowedActions?: string[];
-}
-
-interface HolidayTypeRecord {
-  id: string;
-  name: string;
-  description?: string;
-  color: string;
-  status: "active" | "inactive";
 }
 
 const currentYear = new Date().getFullYear();
 
+const DEFAULT_CATEGORIES = [
+  "National",
+  "Company-specific",
+  "Religious",
+  "Regional",
+  "Public Holiday",
+];
+
 const initialHoliday: HolidayRecord = {
   name: "",
   date: new Date().toISOString().split("T")[0],
-  type: "Public Holiday",
+  type: "National",
   year: currentYear,
   description: "",
   branchIds: [],
   status: "active",
 };
 
+function formatDateYmd(dateStr?: string | null) {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "—";
+    return format(d, "yyyy-MM-dd");
+  } catch {
+    return "—";
+  }
+}
+
+function getCategoryPillClass(category?: string) {
+  const c = (category || "").toLowerCase();
+  if (c.includes("national") || c.includes("public")) {
+    return "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/25";
+  }
+  if (c.includes("company")) {
+    return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25";
+  }
+  if (c.includes("religious")) {
+    return "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/25";
+  }
+  if (c.includes("regional") || c.includes("optional")) {
+    return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25";
+  }
+  return "bg-primary/10 text-primary border-primary/25";
+}
+
+function buildGoogleCalendarUrl(holiday: HolidayRecord) {
+  const ymd = formatDateYmd(holiday.date).replace(/-/g, "");
+  if (!/^\d{8}$/.test(ymd)) return "https://calendar.google.com/calendar/render?action=TEMPLATE";
+  // All-day event end date in Google Calendar is exclusive (+1 day)
+  const startObj = new Date(holiday.date);
+  const nextDay = new Date(startObj.getTime() + 24 * 60 * 60 * 1000);
+  const endYmd = format(nextDay, "yyyyMMdd");
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: holiday.name,
+    dates: `${ymd}/${endYmd}`,
+    details: holiday.description || `${holiday.type || "Company"} Holiday`,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function generateIcsContent(holidays: HolidayRecord[], yearLabel: number | string) {
+  const nowStamp = format(new Date(), "yyyyMMdd'T'HHmmss'Z'");
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Master HRMS//Holiday Calendar//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    `X-WR-CALNAME:Master HRMS Holidays ${yearLabel}`,
+  ];
+
+  for (const h of holidays) {
+    const startObj = new Date(h.date);
+    if (isNaN(startObj.getTime())) continue;
+    const endObj = new Date(startObj.getTime() + 24 * 60 * 60 * 1000);
+    const dtStart = format(startObj, "yyyyMMdd");
+    const dtEnd = format(endObj, "yyyyMMdd");
+    const uid = `holiday-${h.id || dtStart}@masterhrms.local`;
+    const summary = (h.name || "Holiday").replace(/[,;\\]/g, "\\$&");
+    const desc = (h.description || `${h.type || "Company"} Holiday`).replace(/[,;\\]/g, "\\$&");
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${uid}`,
+      `DTSTAMP:${nowStamp}`,
+      `DTSTART;VALUE=DATE:${dtStart}`,
+      `DTEND;VALUE=DATE:${dtEnd}`,
+      `SUMMARY:${summary}`,
+      `DESCRIPTION:${desc}`,
+      `CATEGORIES:${(h.type || "Holiday").toUpperCase()}`,
+      "TRANSP:TRANSPARENT",
+      "END:VEVENT"
+    );
+  }
+
+  lines.push("END:VCALENDAR");
+  return lines.join("\r\n");
+}
+
 export default function HolidaysPage() {
   const queryClient = useQueryClient();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isTypesManagerOpen, setIsTypesManagerOpen] = useState(false);
+  const [viewTarget, setViewTarget] = useState<HolidayRecord | null>(null);
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<HolidayRecord | null>(null);
-  const [statusConfirmTarget, setStatusConfirmTarget] = useState<{
-    id: string;
-    name: string;
-    targetStatus: "active" | "inactive";
-  } | null>(null);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  // Load Holiday Types
-  const { data: holidayTypesData, refetch: refetchTypes } = useQuery<{ data: HolidayTypeRecord[] }>({
+  const { data: branches = [] } = useQuery<any[]>({
+    queryKey: ["branches-dropdown"],
+    queryFn: async () => {
+      const res = await api.get("/hr/organization/branches", { params: { limit: 100 } });
+      return Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+    },
+  });
+
+  const { data: holidayTypesData } = useQuery<{ data: Array<{ id: string; name: string }> }>({
     queryKey: ["holiday-types-list"],
     queryFn: async () => {
-      const res = await api.get<{ data: HolidayTypeRecord[] }>("/hr/organization/holiday-types?limit=100");
+      const res = await api.get("/hr/organization/holiday-types?limit=100");
       return res || { data: [] };
     },
   });
-  const holidayTypes: HolidayTypeRecord[] = useMemo(() => {
-    return Array.isArray(holidayTypesData?.data) ? holidayTypesData.data : [];
+
+  const categories = useMemo(() => {
+    const dynamicNames = Array.isArray(holidayTypesData?.data)
+      ? holidayTypesData.data.map((t) => t.name).filter(Boolean)
+      : [];
+    return Array.from(new Set([...DEFAULT_CATEGORIES, ...dynamicNames]));
   }, [holidayTypesData]);
 
-  // Load Branches for applicability selector
-  const { data: branchesData } = useQuery<any>({
-    queryKey: ["branches-selector-list"],
-    queryFn: async () => {
-      try {
-        const res = await api.get<any>("/hr/organization/branches?limit=100");
-        return Array.isArray(res?.data) ? res.data : [];
-      } catch {
-        return [];
-      }
-    },
-  });
-  const branches: { id: string; name: string }[] = useMemo(() => {
-    return Array.isArray(branchesData) ? branchesData : [];
-  }, [branchesData]);
+  const branchNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const b of branches) {
+      if (b?.id) map.set(b.id, b.name);
+    }
+    return map;
+  }, [branches]);
 
-  // Extra filter parameters
   const extraParams = useMemo(() => {
     const params: Record<string, any> = { year: selectedYear };
-    if (statusFilter !== "all") params.status = statusFilter;
-    if (typeFilter !== "all") params.type = typeFilter;
+    if (categoryFilter !== "all") params.type = categoryFilter;
     return params;
-  }, [selectedYear, statusFilter, typeFilter]);
+  }, [selectedYear, categoryFilter]);
 
   const {
-    data: holidays,
+    data: rawHolidays,
     total,
     totalPages,
-    counts,
     page,
     limit,
     search,
@@ -161,270 +234,267 @@ export default function HolidaysPage() {
   } = useMasterList<HolidayRecord>({
     endpoint: "/hr/organization/holidays",
     queryKey: "holidays-list",
-    defaultLimit: 10,
+    defaultLimit: 15,
     defaultSortBy: "date",
     defaultSortOrder: "asc",
     extraParams,
   });
 
+  // Client-side date range refinement (From / To date)
+  const holidays = useMemo(() => {
+    return rawHolidays.filter((h) => {
+      const ymd = formatDateYmd(h.date);
+      if (fromDate && ymd < fromDate) return false;
+      if (toDate && ymd > toDate) return false;
+      return true;
+    });
+  }, [rawHolidays, fromDate, toDate]);
+
+  const syncApplicationCalendar = () => {
+    queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+    queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
+  };
+
   const {
     values,
     setValues,
-    handleChange,
-    submit,
     isSubmitting,
-    isEditMode,
+    errors: formErrors,
+    setErrors,
+    handleChange,
+    submit: handleSubmit,
     reset,
+    isEditMode: isEdit,
   } = useMasterForm<HolidayRecord>({
     endpoint: "/hr/organization/holidays",
-    queryKeyToInvalidate: "holidays-list",
     initialValues: initialHoliday,
     onSuccess: () => {
       setIsDialogOpen(false);
-      reset();
       queryClient.invalidateQueries({ queryKey: ["holidays-list"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
+      syncApplicationCalendar();
       refetch();
     },
   });
+  const error = formErrors._form || Object.values(formErrors)[0] || null;
 
-  // Single delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await api.delete(`/hr/organization/holidays/${id}`);
+      await api.delete(`/hr/organization/holidays/${id}`);
     },
     onSuccess: () => {
-      toast.success("Holiday deleted successfully");
+      toast.success("Holiday deleted and synced with calendar.");
       setDeleteConfirmTarget(null);
-      setSelectedIds((prev) => prev.filter((id) => id !== deleteConfirmTarget?.id));
-      queryClient.invalidateQueries({ queryKey: ["holidays-list"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
+      syncApplicationCalendar();
       refetch();
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.error || err.message || "Failed to delete holiday";
-      toast.error(msg);
+      toast.error(err?.response?.data?.error || err?.message || "Failed to delete holiday.");
     },
   });
 
-  // Archive / Status toggle mutation
-  const toggleStatusMutation = useMutation({
-    mutationFn: async ({ id, newStatus }: { id: string; newStatus: "active" | "inactive" }) => {
-      return await api.put(`/hr/organization/holidays/${id}`, { status: newStatus });
-    },
-    onSuccess: (_data, variables) => {
-      toast.success(
-        variables.newStatus === "inactive"
-          ? "Holiday de-activated"
-          : "Holiday activated"
-      );
-      queryClient.invalidateQueries({ queryKey: ["holidays-list"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
-      refetch();
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to update holiday status");
-    },
-  });
-
-
-  const holidayExportColumns: ExportColumn<HolidayRecord>[] = [
-    { header: "Holiday Name", key: "name" },
-    { header: "Date", key: "date", format: (v) => (v ? new Date(v).toISOString().split("T")[0] : "") },
-    { header: "Classification", key: "type" },
-    { header: "Description", key: "description" },
-    { header: "Status", key: "status", format: (v) => (v === "active" ? "Active" : "Inactive") },
-  ];
-
-  const handleExportExcel = async () => {
-    const dataToExport = selectedIds.length > 0
-      ? holidays.filter((h: any) => selectedIds.includes(h.id))
-      : holidays;
-    await exportToExcel({
-      filename: `holidays_${new Date().toISOString().split("T")[0]}`,
-      title: "Holidays Directory",
-      columns: holidayExportColumns,
-      data: dataToExport,
-    });
-    toast.success(`Exported ${dataToExport.length} holiday(s) to Excel`);
-  };
-
-  const handleExportPdf = async () => {
-    const dataToExport = selectedIds.length > 0
-      ? holidays.filter((h: any) => selectedIds.includes(h.id))
-      : holidays;
-    await exportToPdf({
-      filename: `holidays_${new Date().toISOString().split("T")[0]}`,
-      title: "Holidays Directory",
-      columns: holidayExportColumns,
-      data: dataToExport,
-    });
-    toast.success(`Exported ${dataToExport.length} holiday(s) to PDF`);
-  };
-
-  const bulkStatusMutation = useMutation({
-    mutationFn: async ({ ids, status }: { ids: string[]; status: "active" | "inactive" }) => {
-      return await api.post("/hr/organization/holidays/bulk-archive", { ids, status });
-    },
-    onSuccess: (res: any, vars) => {
-      toast.success(`${vars.status === "active" ? "Activated" : "De-activated"} ${res.data?.count || selectedIds.length} holiday(s)`);
-      setSelectedIds([]);
-      queryClient.invalidateQueries({ queryKey: ["holidays-list"] });
-      refetch();
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Bulk status update failed");
-    },
-  });
-
-  const bulkDeleteMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
-      return await api.post("/hr/organization/holidays/bulk-delete", { ids });
-    },
-    onSuccess: (res: any) => {
-      const { deletedCount, failedCount } = res.data || {};
-      if (failedCount > 0) {
-        toast.warning(`Deleted ${deletedCount} holiday(s). ${failedCount} could not be deleted.`);
-      } else {
-        toast.success(`Deleted ${deletedCount || selectedIds.length} holiday(s)`);
-      }
-      setSelectedIds([]);
-      queryClient.invalidateQueries({ queryKey: ["holidays-list"] });
-      refetch();
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Bulk delete failed");
-    },
-  });
-
-  // Bulk de-activate mutation
-  const bulkArchiveMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
-      return await api.post("/hr/organization/holidays/bulk-archive", { ids, status: "inactive" });
-    },
-    onSuccess: (res: any) => {
-      toast.success(`De-activated ${res.data?.count || selectedIds.length} holiday(s)`);
-      setSelectedIds([]);
-      queryClient.invalidateQueries({ queryKey: ["holidays-list"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
-      refetch();
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to bulk de-activate holidays");
-    },
-  });
-
-  // Manage Types state & mutations
-  const [newTypeName, setNewTypeName] = useState("");
-  const [newTypeDescription, setNewTypeDescription] = useState("");
-  const [newTypeColor, setNewTypeColor] = useState("#10b981");
-
-  const createTypeMutation = useMutation({
-    mutationFn: async (data: { name: string; description?: string; color: string }) => {
-      return await api.post("/hr/organization/holiday-types", data);
-    },
-    onSuccess: () => {
-      toast.success("Holiday type added successfully");
-      setNewTypeName("");
-      setNewTypeDescription("");
-      refetchTypes();
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to create holiday type");
-    },
-  });
-
-  const deleteTypeMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return await api.delete(`/hr/organization/holiday-types/${id}`);
-    },
-    onSuccess: () => {
-      toast.success("Holiday type deleted");
-      refetchTypes();
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Cannot delete holiday type");
-    },
-  });
-
-  // Open Add Dialog
-  const handleOpenAdd = () => {
+  const openCreate = () => {
     reset();
     setValues({
       ...initialHoliday,
       year: selectedYear,
       date: `${selectedYear}-01-01`,
-      type: holidayTypes[0]?.name || "Public Holiday",
     });
     setIsDialogOpen(true);
   };
 
-  // Open Edit Dialog
-  const handleOpenEdit = (h: HolidayRecord) => {
-    const dateStr = typeof h.date === "string" ? h.date.split("T")[0] : format(new Date(h.date), "yyyy-MM-dd");
+  const openEdit = (h: HolidayRecord) => {
+    const ymd = formatDateYmd(h.date);
     setValues({
-      ...h,
-      date: dateStr,
+      id: h.id,
+      name: h.name || "",
+      date: ymd !== "—" ? ymd : `${selectedYear}-01-01`,
+      type: h.type || "National",
+      year: h.year || selectedYear,
+      description: h.description || "",
       branchIds: Array.isArray(h.branchIds) ? h.branchIds : [],
+      status: h.status || "active",
     });
+    setErrors({});
     setIsDialogOpen(true);
   };
 
-  // Sort handler
-  const handleSort = (field: string) => {
-    if (sortBy === field) {
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
-      setSortBy(field);
+      setSortBy(column);
       setSortOrder("asc");
     }
+  };
+
+  const handleResetFilters = () => {
+    setSearch("");
+    setCategoryFilter("all");
+    setSelectedYear(currentYear);
+    setFromDate("");
+    setToDate("");
     setPage(1);
   };
 
-  // Checkbox handlers
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      const pageIds = holidays.map((h: any) => h.id).filter(Boolean);
-      setSelectedIds((prev) => Array.from(new Set([...prev, ...pageIds])));
-    } else {
-      const pageIds = new Set(holidays.map((h: any) => h.id));
-      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
-    }
+  // Export columns & handlers (PDF + Excel using GlobalExportDropdown public icons)
+  const exportColumns: ExportColumn[] = [
+    { header: "#", key: "index", width: 8 },
+    { header: "Holiday Name", key: "name", width: 28 },
+    { header: "Date", key: "date", width: 16 },
+    { header: "Category", key: "category", width: 20 },
+    { header: "Branches", key: "branches", width: 32 },
+  ];
+
+  const getExportRows = () =>
+    holidays.map((h, idx) => {
+      const bIds = Array.isArray(h.branchIds) ? h.branchIds : [];
+      const bNames =
+        bIds.length === 0
+          ? "All Branches"
+          : bIds.map((id) => branchNameMap.get(id) || id).join(", ");
+      return {
+        index: idx + 1,
+        name: h.name,
+        date: formatDateYmd(h.date),
+        category: h.type || "National",
+        branches: bNames,
+      };
+    });
+
+  const handleExportExcel = async () => {
+    await exportToExcel({
+      title: `Holidays (${selectedYear})`,
+      columns: exportColumns,
+      data: getExportRows(),
+      filename: `holidays-${selectedYear}`,
+      sheetName: "Holidays",
+    });
+    toast.success(`Exported ${holidays.length} holidays to Excel.`);
   };
 
-  const handleSelectRow = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedIds((prev) => [...prev, id]);
-    } else {
-      setSelectedIds((prev) => prev.filter((i) => i !== id));
-    }
+  const handleExportPdf = () => {
+    exportToPdf({
+      title: `Company Holidays — ${selectedYear}`,
+      columns: exportColumns,
+      data: getExportRows(),
+      filename: `holidays-${selectedYear}`,
+    });
+    toast.success(`Exported ${holidays.length} holidays to PDF.`);
   };
 
-  const currentPageIds = holidays.map((h: any) => h.id).filter(Boolean);
-  const isAllCurrentPageSelected =
-    currentPageIds.length > 0 && currentPageIds.every((id) => selectedIds.includes(id));
-  const isPartiallySelected =
-    currentPageIds.some((id) => selectedIds.includes(id)) && !isAllCurrentPageSelected;
+  const handleExportIcal = () => {
+    if (holidays.length === 0) {
+      toast.info("No holidays available to export.");
+      return;
+    }
+    const ics = generateIcsContent(holidays, selectedYear);
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `masterhrms-holidays-${selectedYear}.ics`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${holidays.length} holidays as iCal (.ics) — ready for Google & Apple Calendar.`);
+  };
 
-  // Duplicate date check warning in form
-  const isDuplicateDate = useMemo(() => {
-    if (!values.date) return false;
-    const targetDateStr = values.date.split("T")[0];
-    return holidays.some(
-      (h: any) =>
-        h.id !== values.id &&
-        h.status === "active" &&
-        (typeof h.date === "string" ? h.date.split("T")[0] : format(new Date(h.date), "yyyy-MM-dd")) === targetDateStr
-    );
-  }, [values.date, values.id, holidays]);
+  const toggleBranchSelection = (branchId: string) => {
+    const current = Array.isArray(values.branchIds) ? values.branchIds : [];
+    const next = current.includes(branchId)
+      ? current.filter((id) => id !== branchId)
+      : [...current, branchId];
+    handleChange("branchIds", next);
+  };
+
+  const yearOptions = [currentYear - 1, currentYear, currentYear + 1, currentYear + 2];
+  const startRow = holidays.length === 0 ? 0 : (page - 1) * limit + 1;
+  const endRow = Math.min(page * limit, total || holidays.length);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Holidays Management"
-        description="Statutory national holidays, corporate festivals, and branch-specific leave dates."
-        actions={
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+    <div className="w-full space-y-5">
+      {/* ── Page Header (Matches Screenshot 4) ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Holidays</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Manage public and company holidays.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to="/hr/calendar">
+            <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs font-medium">
+              <CalendarDays className="h-3.5 w-3.5" />
+              Calendar View
+            </Button>
+          </Link>
+
+          <GlobalExportDropdown
+            onExportExcel={handleExportExcel}
+            onExportPdf={handleExportPdf}
+            totalFilteredCount={holidays.length}
+            disabled={holidays.length === 0}
+          />
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleExportIcal}
+            disabled={holidays.length === 0}
+            className="h-9 gap-1.5 text-xs font-medium"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export iCal
+          </Button>
+
+          <Button
+            type="button"
+            onClick={openCreate}
+            className="h-9 px-4 gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+          >
+            <Plus className="h-4 w-4" />
+            Add Holiday
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Filter Toolbar Card ── */}
+      <div className="rounded-xl border border-border/80 bg-card p-3.5 shadow-xs space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5 flex-1">
+            <div className="relative w-full sm:w-52">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Search..."
+                className="pl-9 h-9 text-xs bg-background"
+              />
+            </div>
+
+            <Select
+              value={categoryFilter}
+              onValueChange={(val) => {
+                setCategoryFilter(val);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[155px] h-9 text-xs bg-background">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Select
               value={String(selectedYear)}
               onValueChange={(val) => {
@@ -432,717 +502,469 @@ export default function HolidaysPage() {
                 setPage(1);
               }}
             >
-              <SelectTrigger className="w-28 sm:w-32 h-9 text-xs">
+              <SelectTrigger className="w-[100px] h-9 text-xs bg-background">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
-                  <SelectItem key={y} value={String(y)}>
-                    Year {y}
-                  </SelectItem>
+                {yearOptions.map((y) => (
+                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsTypesManagerOpen(true)}
-              className="h-9 gap-1.5 text-xs"
-            >
-              <Tags className="h-4 w-4 text-muted-foreground" />
-              Manage Types
-            </Button>
-
-            
-          </div>
-        }
-      />
-
-      {/* Standard Global List Action Toolbar */}
-      <GlobalListActionToolbar
-        searchPlaceholder="Search holidays by name or description..."
-        searchTerm={search}
-        onSearchChange={(val) => {
-          setSearch(val);
-          setPage(1);
-        }}
-        filterSlot={
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={statusFilter}
-              onValueChange={(val) => {
-                setStatusFilter(val);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-32 h-9 text-xs">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="text-xs">All Status</SelectItem>
-                <SelectItem value="active" className="text-xs">Active</SelectItem>
-                <SelectItem value="inactive" className="text-xs">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={typeFilter}
-              onValueChange={(val) => {
-                setTypeFilter(val);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-40 h-9 text-xs">
-                <SelectValue placeholder="All Types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="text-xs">All Types</SelectItem>
-                {holidayTypes.map((t: any) => (
-                  <SelectItem key={t.id} value={t.name} className="text-xs">
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {(search || statusFilter !== "all" || typeFilter !== "all") && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSearch("");
-                  setStatusFilter("all");
-                  setTypeFilter("all");
-                  setPage(1);
-                }}
-                className="h-9 gap-1 text-xs text-muted-foreground"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Reset
-              </Button>
-            )}
-          </div>
-        }
-        selectedCount={selectedIds.length}
-        totalFilteredCount={total}
-        onClearSelection={() => setSelectedIds([])}
-        onBulkActivate={() => bulkStatusMutation.mutate({ ids: selectedIds, status: "active" })}
-        onBulkDeactivate={() => bulkStatusMutation.mutate({ ids: selectedIds, status: "inactive" })}
-        onBulkDelete={() => bulkDeleteMutation.mutate(selectedIds)}
-        isActionLoading={bulkStatusMutation.isPending || bulkDeleteMutation.isPending}
-        onExportExcel={handleExportExcel}
-        onExportPdf={handleExportPdf}
-        primaryActionLabel="Add Holiday"
-        onPrimaryAction={handleOpenAdd}
-      />
-
-      {/* Main Table Container */}
-      <div className="overflow-hidden rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="w-12 text-center">
-                <Checkbox
-                  checked={isAllCurrentPageSelected ? true : isPartiallySelected ? "indeterminate" : false}
-                  onCheckedChange={handleSelectAll}
-                  aria-label="Select all on current page"
-                />
-              </TableHead>
-              <TableHead
-                className="cursor-pointer select-none font-semibold"
-                onClick={() => handleSort("name")}
-              >
-                <div className="flex items-center gap-1.5">
-                  Holiday Name
-                  {sortBy === "name" && (
-                    <span className="text-xs text-primary">{sortOrder === "asc" ? "↑" : "↓"}</span>
-                  )}
-                </div>
-              </TableHead>
-              <TableHead
-                className="cursor-pointer select-none font-semibold"
-                onClick={() => handleSort("date")}
-              >
-                <div className="flex items-center gap-1.5">
-                  Date & Day
-                  {sortBy === "date" && (
-                    <span className="text-xs text-primary">{sortOrder === "asc" ? "↑" : "↓"}</span>
-                  )}
-                </div>
-              </TableHead>
-              <TableHead className="font-semibold">Classification</TableHead>
-              <TableHead className="font-semibold">Applicability</TableHead>
-              <TableHead className="font-semibold">Description</TableHead>
-              <TableHead className="font-semibold">Status</TableHead>
-              <TableHead className="text-right font-semibold">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    <span>Loading holidays schedule...</span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : holidays.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
-                  <div className="mx-auto max-w-sm space-y-2">
-                    <CalendarDays className="mx-auto h-8 w-8 text-muted-foreground/60" />
-                    <p className="font-medium text-foreground">No holidays found</p>
-                    <p className="text-xs">
-                      {search || statusFilter !== "all" || typeFilter !== "all"
-                        ? "Try clearing your filters or search terms."
-                        : `No holidays registered for year ${selectedYear}. Use 'Add Holiday' to schedule dates.`}
-                    </p>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              holidays.map((h: any) => {
-                const dateObj = new Date(h.date);
-                const isValidDate = !isNaN(dateObj.getTime());
-                const formattedDate = isValidDate ? format(dateObj, "dd MMM yyyy") : h.date;
-                const dayOfWeek = isValidDate ? format(dateObj, "EEEE") : "—";
-                const isSelected = selectedIds.includes(h.id);
-                const isInactive = h.status === "inactive";
-
-                return (
-                  <TableRow
-                    key={h.id || h.name}
-                    className={cn(
-                      "transition-colors hover:bg-muted/40",
-                      isSelected && "bg-muted/60",
-                      isInactive && "opacity-75"
-                    )}
-                  >
-                    <TableCell className="text-center">
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={(checked) => handleSelectRow(h.id, Boolean(checked))}
-                        aria-label={`Select ${h.name}`}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium text-foreground">
-                      <span className={cn(isInactive && "line-through text-muted-foreground")}>
-                        {h.name}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5 text-xs font-medium">
-                        <Calendar className="h-3.5 w-3.5 text-primary" />
-                        <span>{formattedDate}</span>
-                      </div>
-                      <div className="text-[11px] text-muted-foreground">{dayOfWeek}</div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className="text-[11px] font-normal"
-                        style={{
-                          borderColor:
-                            h.type?.toLowerCase().includes("public") || h.type?.toLowerCase().includes("national")
-                              ? "rgba(16, 185, 129, 0.4)"
-                              : h.type?.toLowerCase().includes("optional")
-                              ? "rgba(245, 158, 11, 0.4)"
-                              : "rgba(59, 130, 246, 0.4)",
-                          backgroundColor:
-                            h.type?.toLowerCase().includes("public") || h.type?.toLowerCase().includes("national")
-                              ? "rgba(16, 185, 129, 0.1)"
-                              : h.type?.toLowerCase().includes("optional")
-                              ? "rgba(245, 158, 11, 0.1)"
-                              : "rgba(59, 130, 246, 0.1)",
-                        }}
-                      >
-                        {h.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {Array.isArray(h.branchIds) && h.branchIds.length > 0 ? (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Building className="h-3.5 w-3.5" />
-                          <span>{h.branchIds.length} branch facility(ies)</span>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">All Facilities</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate text-xs text-muted-foreground">
-                      {h.description || "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={isInactive ? "outline" : "default"}
-                        className={cn(
-                          "capitalize text-[11px]",
-                          !isInactive && "bg-emerald-600/15 text-emerald-700 hover:bg-emerald-600/20 border-emerald-500/30 dark:text-emerald-400"
-                        )}
-                      >
-                        {h.status || "active"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenEdit(h)}
-                          className="h-8 gap-1.5 text-xs font-medium"
-                          title="Edit holiday details"
-                        >
-                          <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
-                          Edit
-                        </Button>
-
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={toggleStatusMutation.isPending}
-                          onClick={() =>
-                            setStatusConfirmTarget({
-                              id: h.id,
-                              name: h.name,
-                              targetStatus: isInactive ? "active" : "inactive",
-                            })
-                          }
-                          className={cn(
-                            "h-8 gap-1.5 text-xs font-medium",
-                            isInactive
-                              ? "text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                              : "text-amber-600 dark:text-amber-400 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-                          )}
-                          title={isInactive ? "Activate holiday" : "De-activate holiday"}
-                        >
-                          {isInactive ? (
-                            <>
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Activate
-                            </>
-                          ) : (
-                            <>
-                              <PowerOff className="h-3.5 w-3.5" />
-                              De-activate
-                            </>
-                          )}
-                        </Button>
-
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleteConfirmTarget(h)}
-                          className="h-8 gap-1.5 text-xs font-medium text-destructive hover:bg-destructive/10"
-                          title="Delete holiday permanently"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Delete
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-
-        {/* Pagination & Page Size Selector Controls */}
-        <StandardPagination
-          page={page}
-          pageSize={limit}
-          total={total}
-          onPageChange={setPage}
-          onPageSizeChange={(newSize) => {
-            setLimit(newSize);
-            setPage(1);
-          }}
-        />
-      </div>
-
-      {/* Add / Edit Holiday Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{isEditMode ? "Edit Holiday" : "Add Holiday"}</DialogTitle>
-            <DialogDescription className="text-xs">
-              Configure statutory closures, regional festivals, or corporate non-working dates.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={submit} className="space-y-4 pt-1">
-            <div className="space-y-1.5">
-              <Label htmlFor="holiday-name" className="text-xs font-semibold">
-                Holiday Title *
-              </Label>
-              <Input
-                id="holiday-name"
-                value={values.name}
-                onChange={(e) => handleChange("name", e.target.value)}
-                placeholder="e.g. Independence Day, Annual Founder's Day"
-                required
-                className="text-xs"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="holiday-date" className="text-xs font-semibold">
-                  Date *
-                </Label>
-                <Input
-                  id="holiday-date"
-                  type="date"
-                  value={values.date}
-                  onChange={(e) => {
-                    const newDate = e.target.value;
-                    handleChange("date", newDate);
-                    if (newDate) {
-                      handleChange("year", new Date(newDate).getFullYear());
-                    }
-                  }}
-                  required
-                  className="text-xs"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="holiday-type" className="text-xs font-semibold">
-                  Classification *
-                </Label>
-                <Select
-                  value={values.type}
-                  onValueChange={(val: any) => handleChange("type", val)}
-                >
-                  <SelectTrigger id="holiday-type" className="text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {holidayTypes.map((t) => (
-                      <SelectItem key={t.id} value={t.name}>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: t.color || "#10b981" }}
-                          />
-                          <span>{t.name}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Duplicate Date Warning Alert */}
-            {isDuplicateDate && (
-              <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-300">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-                <span>
-                  Notice: Another active holiday is already scheduled on this date.
-                </span>
-              </div>
-            )}
-
-            {/* Branch Applicability Restriction */}
-            {branches.length > 0 && (
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Branch Applicability</Label>
-                <div className="rounded-md border p-2 text-xs space-y-1.5 max-h-28 overflow-y-auto">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="branch-all"
-                      checked={!values.branchIds || values.branchIds.length === 0}
-                      onCheckedChange={(checked) => {
-                        if (checked) handleChange("branchIds", []);
-                      }}
-                    />
-                    <label htmlFor="branch-all" className="cursor-pointer text-muted-foreground">
-                      All Facilities (Organization-wide)
-                    </label>
-                  </div>
-                  {branches.map((b) => {
-                    const isSelected = Array.isArray(values.branchIds) && values.branchIds.includes(b.id);
-                    return (
-                      <div key={b.id} className="flex items-center gap-2">
-                        <Checkbox
-                          id={`branch-${b.id}`}
-                          checked={isSelected}
-                          onCheckedChange={(checked) => {
-                            const current = Array.isArray(values.branchIds) ? values.branchIds : [];
-                            if (checked) {
-                              handleChange("branchIds", [...current, b.id]);
-                            } else {
-                              handleChange("branchIds", current.filter((id: string) => id !== b.id));
-                            }
-                          }}
-                        />
-                        <label htmlFor={`branch-${b.id}`} className="cursor-pointer">
-                          {b.name}
-                        </label>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <Label htmlFor="holiday-desc" className="text-xs font-semibold">
-                Description / Guidelines
-              </Label>
-              <Input
-                id="holiday-desc"
-                value={values.description || ""}
-                onChange={(e) => handleChange("description", e.target.value)}
-                placeholder="Optional notes or operational observance guidelines"
-                className="text-xs"
-              />
-            </div>
-
-            <DialogFooter className="gap-2 sm:gap-0 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting
-                  ? "Saving..."
-                  : isEditMode
-                    ? "Save Changes"
-                    : "Create Holiday"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Holiday Types Manager Dialog */}
-      <Dialog open={isTypesManagerOpen} onOpenChange={setIsTypesManagerOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Tags className="h-5 w-5 text-primary" />
-              Manage Holiday Types
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Define standard or custom holiday categories observed across your organization.
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Quick Create Section */}
-          <div className="space-y-3 rounded-lg border bg-muted/30 p-3 text-xs">
-            <span className="font-semibold text-foreground">Add Custom Holiday Type</span>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div className="sm:col-span-2 space-y-1">
-                <Input
-                  placeholder="Type Name (e.g. Founders Day)"
-                  value={newTypeName}
-                  onChange={(e) => setNewTypeName(e.target.value)}
-                  className="h-8 text-xs"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={newTypeColor}
-                  onChange={(e) => setNewTypeColor(e.target.value)}
-                  className="h-8 w-12 cursor-pointer rounded border p-0.5"
-                  title="Choose badge color"
-                />
-                <Button
-                  size="sm"
-                  disabled={!newTypeName.trim() || createTypeMutation.isPending}
-                  onClick={() => {
-                    createTypeMutation.mutate({
-                      name: newTypeName.trim(),
-                      description: newTypeDescription.trim() || undefined,
-                      color: newTypeColor,
-                    });
-                  }}
-                  className="h-8 text-xs flex-1"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add
-                </Button>
-              </div>
-            </div>
             <Input
-              placeholder="Optional description"
-              value={newTypeDescription}
-              onChange={(e) => setNewTypeDescription(e.target.value)}
-              className="h-8 text-xs"
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              aria-label="From date"
+              className="w-[155px] h-9 text-xs bg-background"
+            />
+
+            <Input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              aria-label="To date"
+              className="w-[155px] h-9 text-xs bg-background"
             />
           </div>
 
-          {/* Existing Types List */}
-          <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-            <span className="text-xs font-semibold text-muted-foreground">Active Classifications</span>
-            {holidayTypes.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic py-2">No custom types defined.</p>
-            ) : (
-              holidayTypes.map((t) => (
-                <div
-                  key={t.id}
-                  className="flex items-center justify-between rounded-md border p-2 text-xs"
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="h-3 w-3 rounded-full shrink-0"
-                      style={{ backgroundColor: t.color || "#10b981" }}
-                    />
-                    <div>
-                      <span className="font-medium text-foreground">{t.name}</span>
-                      {t.description && (
-                        <p className="text-[11px] text-muted-foreground truncate max-w-xs">
-                          {t.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={deleteTypeMutation.isPending}
-                    onClick={() => deleteTypeMutation.mutate(t.id)}
-                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                    title="Delete type (only allowed if unassigned)"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ))
-            )}
-          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleResetFilters}
+            className="h-9 gap-1.5 text-xs"
+          >
+            <Filter className="h-3.5 w-3.5" />
+            Filters
+          </Button>
+        </div>
 
-          <DialogFooter>
-            <Button
+        {/* Active Filter Chips */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border/80 bg-muted/40 text-[11px] font-medium text-foreground">
+            Year: {selectedYear}
+          </span>
+          {categoryFilter !== "all" && (
+            <button
               type="button"
-              variant="outline"
-              onClick={() => setIsTypesManagerOpen(false)}
+              onClick={() => setCategoryFilter("all")}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-border/80 bg-muted/40 text-[11px] font-medium text-foreground hover:bg-muted cursor-pointer"
             >
+              Category: {categoryFilter}
+              <X className="h-3 w-3" />
+            </button>
+          )}
+          {(fromDate || toDate) && (
+            <button
+              type="button"
+              onClick={() => {
+                setFromDate("");
+                setToDate("");
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-border/80 bg-muted/40 text-[11px] font-medium text-foreground hover:bg-muted cursor-pointer"
+            >
+              Range: {fromDate || "…"} to {toDate || "…"}
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Holidays Data Table Card ── */}
+      <div className="rounded-xl border border-border/80 bg-card shadow-xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50 hover:bg-muted/50 border-b border-border/80">
+                <TableHead className="w-12 text-xs font-semibold text-muted-foreground">#</TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={() => handleSort("name")}
+                    className="inline-flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
+                  >
+                    Holiday Name
+                    <ArrowUpDown className="h-3.5 w-3.5 opacity-60" />
+                  </button>
+                </TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={() => handleSort("date")}
+                    className="inline-flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
+                  >
+                    Date
+                    <ArrowUpDown className="h-3.5 w-3.5 opacity-60" />
+                  </button>
+                </TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground">Category</TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground">Branches</TableHead>
+                <TableHead className="text-xs font-semibold text-muted-foreground text-right pr-6">
+                  Actions
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-32 text-center text-sm text-muted-foreground">
+                    Loading holidays...
+                  </TableCell>
+                </TableRow>
+              ) : holidays.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-32 text-center">
+                    <div className="flex flex-col items-center justify-center gap-1.5 text-muted-foreground">
+                      <CalendarDays className="h-7 w-7 opacity-50" />
+                      <p className="text-sm font-medium text-foreground">No holidays found for {selectedYear}</p>
+                      <p className="text-xs">Click Add Holiday to publish a holiday — it auto-syncs with Company Calendar.</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                holidays.map((holiday, idx) => {
+                  const rowNum = (page - 1) * limit + idx + 1;
+                  const bIds = Array.isArray(holiday.branchIds) ? holiday.branchIds : [];
+                  const firstBranchName =
+                    bIds.length > 0
+                      ? branchNameMap.get(bIds[0]) || "Branch"
+                      : branches[0]?.name || "All Branches";
+                  const extraBranchCount =
+                    bIds.length > 1
+                      ? bIds.length - 1
+                      : bIds.length === 0 && branches.length > 1
+                        ? branches.length - 1
+                        : 0;
+
+                  return (
+                    <TableRow
+                      key={holiday.id || idx}
+                      className="hover:bg-muted/40 transition-colors border-b border-border/50 last:border-0"
+                    >
+                      <TableCell className="text-xs font-semibold text-foreground">{rowNum}</TableCell>
+                      <TableCell className="text-sm font-semibold text-foreground">{holiday.name}</TableCell>
+                      <TableCell>
+                        <div className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Calendar className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                          <span>{formatDateYmd(holiday.date)}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[11px] font-medium px-2.5 py-0.5 rounded-md",
+                            getCategoryPillClass(holiday.type)
+                          )}
+                        >
+                          {holiday.type || "National"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-border/80 bg-muted/40 text-[11px] font-medium text-foreground">
+                            {firstBranchName}
+                          </span>
+                          {extraBranchCount > 0 && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-border/80 bg-muted/40 text-[11px] font-medium text-muted-foreground">
+                              +{extraBranchCount} more
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right pr-4">
+                        <div className="inline-flex items-center justify-end gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                            title="View Holiday & Google Calendar Sync"
+                            onClick={() => setViewTarget(holiday)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                            title="Edit Holiday"
+                            onClick={() => openEdit(holiday)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10"
+                            title="Delete Holiday"
+                            onClick={() => setDeleteConfirmTarget(holiday)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* ── Pagination Footer ── */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-border/70 text-xs text-muted-foreground">
+          <div>
+            Showing <span className="font-semibold text-foreground">{startRow}</span> to{" "}
+            <span className="font-semibold text-foreground">{endRow}</span> of{" "}
+            <span className="font-semibold text-foreground">{total || holidays.length}</span> results
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span>Rows per page:</span>
+              <Select
+                value={String(limit)}
+                onValueChange={(val) => {
+                  setLimit(Number(val));
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="h-8 w-16 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="15">15</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                disabled={page <= 1}
+                onClick={() => setPage(page - 1)}
+              >
+                &laquo; Previous
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                disabled={page >= totalPages}
+                onClick={() => setPage(page + 1)}
+              >
+                Next &raquo;
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── View Holiday & Google Calendar Quick Add Dialog ── */}
+      <Dialog open={Boolean(viewTarget)} onOpenChange={(o) => !o && setViewTarget(null)}>
+        <DialogContent className="sm:max-w-md p-6">
+          <DialogHeader>
+            <DialogTitle>{viewTarget?.name}</DialogTitle>
+            <DialogDescription>Holiday details &amp; calendar sync</DialogDescription>
+          </DialogHeader>
+          {viewTarget && (
+            <div className="space-y-4 pt-2 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-muted-foreground">Date</span>
+                  <p className="font-semibold text-foreground mt-0.5">{formatDateYmd(viewTarget.date)}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Category</span>
+                  <p className="font-semibold text-foreground mt-0.5">{viewTarget.type || "National"}</p>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-muted-foreground">Description</span>
+                  <p className="font-medium text-foreground mt-0.5">{viewTarget.description || "—"}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/70">
+                <a
+                  href={buildGoogleCalendarUrl(viewTarget)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Button type="button" variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Add to Google Calendar
+                  </Button>
+                </a>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => {
+                    const ics = generateIcsContent([viewTarget], viewTarget.year || selectedYear);
+                    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${viewTarget.name.toLowerCase().replace(/\s+/g, "-")}.ics`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download .ics
+                </Button>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="pt-2">
+            <Button variant="outline" size="sm" onClick={() => setViewTarget(null)}>
               Close
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* De-activate / Activate Confirmation Dialog */}
-      <Dialog
-        open={Boolean(statusConfirmTarget)}
-        onOpenChange={(open) => !open && setStatusConfirmTarget(null)}
-      >
-        <DialogContent className="sm:max-w-md">
+      {/* ── Create / Edit Holiday Dialog ── */}
+      <Dialog open={isDialogOpen} onOpenChange={(o) => !o && setIsDialogOpen(false)}>
+        <DialogContent className="sm:max-w-lg p-6">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {statusConfirmTarget?.targetStatus === "inactive" ? (
-                <>
-                  <PowerOff className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                  De-activate Holiday
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                  Activate Holiday
-                </>
-              )}
-            </DialogTitle>
-            <DialogDescription className="pt-2 text-sm">
-              {statusConfirmTarget?.targetStatus === "inactive" ? (
-                <span>
-                  Are you sure you want to de-activate{" "}
-                  <strong className="text-foreground">{statusConfirmTarget?.name}</strong>?
-                  This date will be marked as inactive and will be excluded from the authoritative
-                  organization calendar projection. Historical records will remain preserved.
-                </span>
-              ) : (
-                <span>
-                  Are you sure you want to activate{" "}
-                  <strong className="text-foreground">{statusConfirmTarget?.name}</strong>?
-                  This holiday will become active and will be restored to company and employee calendars.
-                </span>
-              )}
+            <DialogTitle>{isEdit ? "Edit Holiday" : "Add Holiday"}</DialogTitle>
+            <DialogDescription>
+              Saved holidays automatically sync with the application Company Calendar.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={toggleStatusMutation.isPending}
-              onClick={() => setStatusConfirmTarget(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              className={
-                statusConfirmTarget?.targetStatus === "inactive"
-                  ? "bg-amber-600 hover:bg-amber-700 text-white"
-                  : "bg-emerald-600 hover:bg-emerald-700 text-white"
-              }
-              disabled={toggleStatusMutation.isPending}
-              onClick={() => {
-                if (statusConfirmTarget) {
-                  toggleStatusMutation.mutate({
-                    id: statusConfirmTarget.id,
-                    newStatus: statusConfirmTarget.targetStatus,
-                  });
-                  setStatusConfirmTarget(null);
-                }
-              }}
-            >
-              {toggleStatusMutation.isPending
-                ? "Updating..."
-                : statusConfirmTarget?.targetStatus === "inactive"
-                ? "De-activate"
-                : "Activate"}
-            </Button>
-          </DialogFooter>
+          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+            {error && (
+              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-600">
+                {error}
+              </div>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2 space-y-1.5">
+                <Label className="text-xs font-semibold">Holiday Name *</Label>
+                <Input
+                  value={values.name}
+                  onChange={(e) => handleChange("name", e.target.value)}
+                  placeholder="e.g. Independence Day"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Date *</Label>
+                <Input
+                  type="date"
+                  value={values.date}
+                  onChange={(e) => {
+                    handleChange("date", e.target.value);
+                    const yr = Number(e.target.value.slice(0, 4));
+                    if (!isNaN(yr) && yr > 2000) handleChange("year", yr);
+                  }}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Category *</Label>
+                <Select
+                  value={values.type || "National"}
+                  onValueChange={(val) => handleChange("type", val)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="sm:col-span-2 space-y-1.5">
+                <Label className="text-xs font-semibold">Description</Label>
+                <Input
+                  value={values.description || ""}
+                  onChange={(e) => handleChange("description", e.target.value)}
+                  placeholder="Optional note about this holiday"
+                />
+              </div>
+
+              {branches.length > 0 && (
+                <div className="sm:col-span-2 space-y-2">
+                  <Label className="text-xs font-semibold">
+                    Applicable Branches <span className="font-normal text-muted-foreground">(leave unchecked for all branches)</span>
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto rounded-lg border border-border/70 p-2.5">
+                    {branches.map((b: any) => {
+                      const checked = Array.isArray(values.branchIds) && values.branchIds.includes(b.id);
+                      return (
+                        <label
+                          key={b.id}
+                          className="flex items-center gap-2 text-xs cursor-pointer select-none"
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={() => toggleBranchSelection(b.id)}
+                          />
+                          <span className="truncate">{b.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isSubmitting}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+              >
+                {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {isEdit ? "Save Changes" : "Create Holiday"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
-      {/* Delete / Dependency Guard Confirmation Dialog */}
-      <Dialog
-        open={Boolean(deleteConfirmTarget)}
-        onOpenChange={(open) => !open && setDeleteConfirmTarget(null)}
-      >
-        <DialogContent className="max-w-md">
+      {/* ── Delete Holiday Dialog ── */}
+      <Dialog open={Boolean(deleteConfirmTarget)} onOpenChange={(o) => !o && setDeleteConfirmTarget(null)}>
+        <DialogContent className="sm:max-w-md p-6">
           <DialogHeader>
-            <div className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              <DialogTitle>Delete Holiday</DialogTitle>
-            </div>
-            <DialogDescription className="pt-2">
-              Are you sure you want to delete{" "}
-              <strong className="text-foreground">{deleteConfirmTarget?.name}</strong>?
-              This action will permanently remove this holiday from the schedule and the organization calendar.
+            <DialogTitle>Delete Holiday</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{deleteConfirmTarget?.name}</strong>? It will also be removed from the Company Calendar.
             </DialogDescription>
           </DialogHeader>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDeleteConfirmTarget(null)}
-            >
+          <DialogFooter className="pt-2">
+            <Button variant="outline" size="sm" onClick={() => setDeleteConfirmTarget(null)}>
               Cancel
             </Button>
             <Button
-              type="button"
               variant="destructive"
+              size="sm"
               disabled={deleteMutation.isPending}
-              onClick={() => {
-                if (deleteConfirmTarget?.id) {
-                  deleteMutation.mutate(deleteConfirmTarget.id);
-                }
-              }}
+              onClick={() => deleteConfirmTarget?.id && deleteMutation.mutate(deleteConfirmTarget.id)}
             >
-              {deleteMutation.isPending ? "Deleting..." : "Confirm Delete"}
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -197,6 +197,9 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const userId = identity.userId || (identity as any).id;
       if (!userId) throw new Error("Invalid token identity");
 
+      if (process.env.NODE_ENV === "production" && !(identity as any).sessionId) {
+        throw new Error("Active device session required");
+      }
       if ((identity as any).sessionId) {
         const sessionOk = await verifyActiveDeviceSession(String((identity as any).sessionId), userId);
         if (!sessionOk) throw new Error("Session revoked or expired");

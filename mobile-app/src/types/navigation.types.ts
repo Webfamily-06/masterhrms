@@ -1,5 +1,5 @@
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RouteProp } from '@react-navigation/native';
+import type { RouteProp, NavigatorScreenParams } from '@react-navigation/native';
 
 export type AuthStackParamList = {
   Splash: undefined;
@@ -63,8 +63,7 @@ export type SharedCollaborationModuleParamList = {
     | undefined;
 };
 
-export type EmployeeStackParamList = SharedCollaborationModuleParamList & {
-  EmployeeHome: undefined;
+export type SharedEssParamList = {
   AttendanceDetail: undefined;
   LeaveDetail: undefined;
   ApplyLeave: undefined;
@@ -89,61 +88,61 @@ export type EmployeeStackParamList = SharedCollaborationModuleParamList & {
   Settings: undefined;
 };
 
-export type ManagerStackParamList = SharedCollaborationModuleParamList & {
-  ManagerHome: undefined;
-  TeamAttendance: undefined;
-  TeamApprovals: undefined;
-  TeamProjects: undefined;
-  Notifications: undefined;
-  FingerprintAuth: undefined;
-  FaceIdAuth: undefined;
-  Profile: undefined;
-  EditProfile: undefined;
-  EmployeeDirectory: undefined;
-  Performance: undefined;
-  DocumentsVault: undefined;
-  Settings: undefined;
-};
-
-export type HrAdminStackParamList = SharedCollaborationModuleParamList & {
-  HrAdminHome: undefined;
-  EmployeeDirectory: undefined;
+export type SharedHrParamList = {
   OrgAttendance: undefined;
   PendingApprovals: undefined;
   PayrollOverview: undefined;
-  Notifications: undefined;
-  FingerprintAuth: undefined;
-  FaceIdAuth: undefined;
-  Profile: undefined;
-  EditProfile: undefined;
-  Performance: undefined;
-  DocumentsVault: undefined;
-  Settings: undefined;
 };
 
-export type TenantAdminStackParamList = SharedCollaborationModuleParamList & {
-  TenantAdminHome: undefined;
-  UserAccess: undefined;
+export type SharedManagerParamList = {
+  TeamAttendance: undefined;
+  TeamApprovals: undefined;
+  TeamProjects: undefined;
+};
+
+export type SharedTenantAdminParamList = {
   WorkspaceSettings: undefined;
+  UserAccess: undefined;
   SecurityOverview: undefined;
   ModulesOverview: undefined;
-  Notifications: undefined;
-  FingerprintAuth: undefined;
-  FaceIdAuth: undefined;
-  Profile: undefined;
-  EditProfile: undefined;
-  EmployeeDirectory: undefined;
-  Performance: undefined;
-  DocumentsVault: undefined;
-  Settings: undefined;
 };
 
-export type SuperAdminStackParamList = {
-  SuperAdminHome: undefined;
+export type SharedSuperAdminParamList = {
   PlatformTenants: undefined;
   SystemDiagnostics: undefined;
-  Profile: undefined;
 };
+
+export type EmployeeStackParamList = SharedCollaborationModuleParamList &
+  SharedEssParamList & {
+    EmployeeHome: undefined;
+  };
+
+export type ManagerStackParamList = SharedCollaborationModuleParamList &
+  SharedEssParamList &
+  SharedManagerParamList & {
+    ManagerHome: undefined;
+  };
+
+export type HrAdminStackParamList = SharedCollaborationModuleParamList &
+  SharedEssParamList &
+  SharedHrParamList &
+  SharedManagerParamList & {
+    HrAdminHome: undefined;
+  };
+
+export type TenantAdminStackParamList = SharedCollaborationModuleParamList &
+  SharedEssParamList &
+  SharedHrParamList &
+  SharedManagerParamList &
+  SharedTenantAdminParamList & {
+    TenantAdminHome: undefined;
+  };
+
+export type SuperAdminStackParamList = SharedCollaborationModuleParamList &
+  SharedEssParamList &
+  SharedSuperAdminParamList & {
+    SuperAdminHome: undefined;
+  };
 
 export type AppStackParamList = {
   EmployeeDashboard: undefined;
@@ -157,8 +156,8 @@ export type AppStackParamList = {
 };
 
 export type RootStackParamList = {
-  Auth: undefined;
-  App: undefined;
+  Auth: NavigatorScreenParams<AuthStackParamList> | undefined;
+  App: NavigatorScreenParams<CombinedParamList> | undefined;
   AccessDenied: { reason?: string };
 };
 

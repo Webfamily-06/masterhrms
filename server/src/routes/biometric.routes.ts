@@ -40,6 +40,33 @@ export const deviceCommandQueue = new Map<string, string>();
 //   • punchType = "check_in"  → always set / update checkIn
 //   • punchType = "check_out" → always set / update checkOut
 //   • punchType = "auto"      → first-in / last-out based on timestamps
+/**
+ * Resolves the calendar date (YYYY-MM-DD at 00:00:00.000Z) for a punch timestamp
+ * in the tenant's explicit configured timezone (default: Asia/Kolkata).
+ */
+export function getTenantAttendanceDateUtc(punchTime: Date, timezone?: string | null): Date {
+  const tz = (timezone && timezone.trim()) || "Asia/Kolkata";
+  try {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const dateStr = formatter.format(punchTime); // "YYYY-MM-DD"
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return new Date(`${dateStr}T00:00:00.000Z`);
+    }
+  } catch {
+    // Invalid IANA timezone string — fall back to UTC date
+  }
+  return new Date(Date.UTC(
+    punchTime.getUTCFullYear(),
+    punchTime.getUTCMonth(),
+    punchTime.getUTCDate(),
+  ));
+}
+
 export async function processBiometricPunch({
   tenantId,
   deviceId,
@@ -58,50 +85,75 @@ export async function processBiometricPunch({
   rawPayload?: string;
 }) {
   // Use rawPrisma throughout: this function is called from both authenticated
-  // routes and public device webhook endpoints. It already enforces multi-tenant
-  // isolation by filtering every query on tenantId.
+  // routes and public device webhook endpoints. It strictly enforces multi-tenant
+  // isolation by filtering EVERY query on tenantId.
   const db = rawPrisma;
 
-  // ── 1. Resolve Employee ───────────────────────────────────────────────────
+  if (!tenantId || typeof tenantId !== "string") {
+    const err: any = new Error("Valid tenantId is required for biometric punch processing.");
+    err.status = 400;
+    throw err;
+  }
+
+  if (!(punchTime instanceof Date) || Number.isNaN(punchTime.getTime())) {
+    const err: any = new Error("Invalid punchTime timestamp.");
+    err.status = 400;
+    throw err;
+  }
+
+  // ── 1. Resolve Employee & Tenant Timezone ─────────────────────────────────
   const strippedCode = employeeCode.replace(/^0+/, "") || employeeCode;
-  const employee = await db.employee.findFirst({
-    where: {
-      tenantId,
-      OR: [
-        { employeeCode },
-        { employeeCode: strippedCode },
-        { employeeCode: `0${strippedCode}` },
-        { employeeCode: `00${strippedCode}` },
-        { employeeCode: `EMP-${employeeCode}` },
-        { employeeCode: `EMP-${strippedCode}` },
-        { employeeCode: `EMP-0${strippedCode}` },
-        { employeeCode: `EMP-00${strippedCode}` },
-        { employeeCode: `EMP-10${strippedCode}` },
-        { employeeCode: `EMP-100${strippedCode}` },
-      ],
-    },
-  });
+  const [employee, tenantRecord] = await Promise.all([
+    db.employee.findFirst({
+      where: {
+        tenantId,
+        OR: [
+          { employeeCode },
+          { employeeCode: strippedCode },
+          { employeeCode: `0${strippedCode}` },
+          { employeeCode: `00${strippedCode}` },
+          { employeeCode: `EMP-${employeeCode}` },
+          { employeeCode: `EMP-${strippedCode}` },
+          { employeeCode: `EMP-0${strippedCode}` },
+          { employeeCode: `EMP-00${strippedCode}` },
+          { employeeCode: `EMP-10${strippedCode}` },
+          { employeeCode: `EMP-100${strippedCode}` },
+        ],
+      },
+    }),
+    db.tenant.findUnique({
+      where: { id: tenantId },
+      select: { timezone: true },
+    }),
+  ]);
 
   const employeeId = employee ? employee.id : null;
   const syncStatus = employee ? "processed" : "unmatched_employee";
 
-  // ── 2. Resolve Device (with purpose field) ────────────────────────────────
-  let deviceRecord: { id: string; deviceName: string; purpose: string } | null = null;
+  // ── 2. Resolve Device (Strictly tenant-scoped — prevents cross-tenant device access) ──
+  let deviceRecord: { id: string; deviceName: string; purpose: string; tenantId: string } | null = null;
   if (deviceId) {
-    deviceRecord = await db.biometricDevice.findUnique({
-      where: { id: deviceId },
-      select: { id: true, deviceName: true, purpose: true, location: true },
+    deviceRecord = await db.biometricDevice.findFirst({
+      where: { id: deviceId, tenantId },
+      select: { id: true, deviceName: true, purpose: true, location: true, tenantId: true },
     }) as any;
-  }
-  if (!deviceRecord) {
+    if (!deviceRecord) {
+      const err: any = new Error("Biometric device not found or does not belong to this organization.");
+      err.status = 403;
+      err.code = "CROSS_TENANT_DEVICE_FORBIDDEN";
+      throw err;
+    }
+  } else {
     deviceRecord = await db.biometricDevice.findFirst({
       where: { tenantId },
-      select: { id: true, deviceName: true, purpose: true, location: true },
+      select: { id: true, deviceName: true, purpose: true, location: true, tenantId: true },
     }) as any;
   }
 
   if (!deviceRecord) {
-    throw new Error("No registered biometric device found for this organization.");
+    const err: any = new Error("No registered biometric device found for this organization.");
+    err.status = 404;
+    throw err;
   }
 
   // ── 3. Deduplicate — skip exact same timestamp already recorded ───────────
@@ -121,8 +173,6 @@ export async function processBiometricPunch({
   }
 
   // ── 4. Apply device purpose → override punchType if device is dedicated ──
-  //   Device purpose takes priority over the incoming punchType when the
-  //   device is dedicated to check-in or check-out only.
   let resolvedPunchType = punchType;
   if (deviceRecord.purpose === "check_in_only") {
     resolvedPunchType = "check_in";
@@ -130,24 +180,37 @@ export async function processBiometricPunch({
     resolvedPunchType = "check_out";
   }
 
-  // ── 5. Save Raw BiometricPunchLog ─────────────────────────────────────────
-  const punchLog = await db.biometricPunchLog.create({
-    data: {
-      tenantId,
-      deviceId: deviceRecord.id,
-      employeeCode,
-      employeeId,
-      punchTime,
-      punchType: resolvedPunchType,
-      verificationMode,
-      syncStatus,
-      rawPayload: rawPayload || JSON.stringify({ employeeCode, punchTime, verificationMode }),
-    },
-    include: {
-      device: true,
-      employee: { include: { department: true } },
-    },
-  });
+  // ── 5. Save Raw BiometricPunchLog (idempotent under concurrent submissions) ──
+  let punchLog: any;
+  try {
+    punchLog = await db.biometricPunchLog.create({
+      data: {
+        tenantId,
+        deviceId: deviceRecord.id,
+        employeeCode,
+        employeeId,
+        punchTime,
+        punchType: resolvedPunchType,
+        verificationMode,
+        syncStatus,
+        rawPayload: rawPayload || JSON.stringify({ employeeCode, punchTime, verificationMode }),
+      },
+      include: {
+        device: true,
+        employee: { include: { department: true } },
+      },
+    });
+  } catch (createErr: any) {
+    if (createErr?.code === "P2002") {
+      const racedLog = await db.biometricPunchLog.findFirst({
+        where: { tenantId, employeeCode, punchTime },
+      });
+      if (racedLog) {
+        return Object.assign(racedLog, { isDuplicate: true });
+      }
+    }
+    throw createErr;
+  }
 
   // Update device heartbeat counter
   await db.biometricDevice.update({
@@ -159,16 +222,12 @@ export async function processBiometricPunch({
     },
   });
 
-  // ── 6. Sync Attendance — First-In / Last-Out logic ────────────────────────
+  // ── 6. Sync Attendance — First-In / Last-Out logic in Tenant Timezone ────
   if (employee) {
-    // Normalize punch date to midnight UTC so it matches the @@unique key
-    const punchDateOnly = new Date(Date.UTC(
-      punchTime.getFullYear(),
-      punchTime.getMonth(),
-      punchTime.getDate(),
-    ));
+    // Calculate attendance calendar date using explicit tenant timezone
+    const punchDateOnly = getTenantAttendanceDateUtc(punchTime, tenantRecord?.timezone);
 
-    const existing = await db.attendance.findUnique({
+    let existing = await db.attendance.findUnique({
       where: {
         tenantId_employeeId_date: {
           tenantId,
@@ -179,20 +238,36 @@ export async function processBiometricPunch({
     });
 
     if (!existing) {
-      // ── No record yet: this is the very first punch of the day ──────────
-      // Always becomes checkIn regardless of punchType — you can't check out
-      // before checking in on the same day.
-      await db.attendance.create({
-        data: {
-          tenantId,
-          employeeId: employee.id,
-          date: punchDateOnly,
-          checkIn: punchTime,
-          status: "present",
-          notes: `Biometric check-in via [${deviceRecord.deviceName}] (${verificationMode})`,
-        },
-      });
-    } else {
+      try {
+        await db.attendance.create({
+          data: {
+            tenantId,
+            employeeId: employee.id,
+            date: punchDateOnly,
+            checkIn: punchTime,
+            status: "present",
+            notes: `Biometric check-in via [${deviceRecord.deviceName}] (${verificationMode})`,
+          },
+        });
+      } catch (attCreateErr: any) {
+        if (attCreateErr?.code === "P2002") {
+          // Concurrent punch created the attendance row first — re-fetch and fall through to update
+          existing = await db.attendance.findUnique({
+            where: {
+              tenantId_employeeId_date: {
+                tenantId,
+                employeeId: employee.id,
+                date: punchDateOnly,
+              },
+            },
+          });
+        } else {
+          throw attCreateErr;
+        }
+      }
+    }
+
+    if (existing) {
       // ── Existing record: apply first-in / last-out rules ─────────────────
       const currentCheckIn  = existing.checkIn  ? new Date(existing.checkIn)  : null;
       const currentCheckOut = existing.checkOut ? new Date(existing.checkOut) : null;
@@ -1359,7 +1434,7 @@ async function handleAdmsPush(req: Request, res: Response) {
 
     // If device handshake / heartbeat ping
     if (req.method === "GET") {
-      await prisma.biometricDevice.update({
+      await rawPrisma.biometricDevice.update({
         where: { id: device.id },
         data: { status: "online", lastSyncAt: new Date(), ipAddress: req.ip || device.ipAddress },
       });
@@ -1539,10 +1614,10 @@ publicBiometricRouter.post("/push", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Payload missing employeeCode." });
     }
 
-    // Auto-discover device if serialNumber provided and not registered
+    // Auto-discover device if serialNumber provided and not registered (strictly tenant-scoped)
     if (!device && serialNumber) {
       device = await rawPrisma.biometricDevice.findFirst({
-        where: { serialNumber: String(serialNumber) },
+        where: { serialNumber: String(serialNumber), tenantId: String(tenantId) },
       });
 
       if (!device) {
