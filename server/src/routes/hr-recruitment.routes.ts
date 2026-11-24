@@ -1164,7 +1164,11 @@ hrRecruitmentRouter.put("/job-postings/:id", requireAuth, async (req: AuthReques
     const existingMetaRow = await db.setting.findFirst({
       where: { scope: "TENANT", scopeId: tenantId, group: JOB_META_GROUP, key: existing.id },
     });
-    const mergedInput = { ...(existingMetaRow?.valueJson || {}), ...b };
+    const existingMetaObj =
+      existingMetaRow?.valueJson && typeof existingMetaRow.valueJson === "object"
+        ? (existingMetaRow.valueJson as Record<string, any>)
+        : {};
+    const mergedInput = { ...existingMetaObj, ...b };
     const meta = extractJobMeta(mergedInput);
 
     if (b.minExperience !== undefined || b.maxExperience !== undefined) {
