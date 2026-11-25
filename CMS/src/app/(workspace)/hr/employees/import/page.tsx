@@ -151,7 +151,7 @@ Kunal,Verma,kunal.verma@company.com,EMP-8003,Backend Engineer,full_time`;
             1. Paste CSV Workforce Data
           </CardTitle>
           <CardDescription>
-            Columns required: <span className="font-mono">firstName, lastName, email, employeeCode, position, employmentType</span>
+            Columns required: <span className="font-medium">firstName, lastName, email, employeeCode, position, employmentType</span>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -162,7 +162,7 @@ Kunal,Verma,kunal.verma@company.com,EMP-8003,Backend Engineer,full_time`;
               setDryRunReport(null);
             }}
             rows={6}
-            className="w-full rounded-md border border-input bg-background p-3 text-xs font-mono shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full rounded-md border border-input bg-background p-3 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
             placeholder="firstName,lastName,email,employeeCode,position,employmentType&#10;John,Doe,john.doe@company.com,EMP-1001,Analyst,full_time"
           />
 
@@ -252,7 +252,7 @@ Kunal,Verma,kunal.verma@company.com,EMP-8003,Backend Engineer,full_time`;
                   <TableBody>
                     {dryRunReport.preview.map((p, idx) => (
                       <TableRow key={idx}>
-                        <TableCell className="font-mono text-xs font-medium">
+                        <TableCell className="text-xs font-medium">
                           {p.employeeCode}
                         </TableCell>
                         <TableCell className="text-xs">
@@ -272,7 +272,7 @@ Kunal,Verma,kunal.verma@company.com,EMP-8003,Backend Engineer,full_time`;
               <Button
                 onClick={() => commitMutation.mutate(dryRunReport.validatedRows)}
                 disabled={!dryRunReport.canCommit || commitMutation.isPending}
-                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 {commitMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 Confirm & Commit {dryRunReport.validCount} Employees

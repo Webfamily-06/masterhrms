@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -125,7 +126,7 @@ function DetailField({ label, value, icon, mono, highlight, badge }: DetailField
       </div>
       <div className="flex items-center justify-between gap-2 mt-0.5">
         <span
-          className={`text-sm truncate ${mono ? "font-mono" : ""} ${
+          className={`text-sm truncate ${
             highlight ? "font-semibold text-foreground" : "text-foreground/90 font-medium"
           }`}
           title={displayVal}
@@ -401,35 +402,34 @@ function Employee360Page() {
   return (
     <div className="w-full min-w-0 space-y-6 pb-12">
       {/* 2.A Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1 border-b">
-        <div className="space-y-1">
-          <BreadcrumbNav
-            items={[
-              { label: "Dashboard", href: "/dashboard" },
-              { label: "Employees", href: "/hr/employees" },
-              { label: fullName },
-            ]}
-          />
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">{fullName}</h1>
-          <p className="text-xs text-muted-foreground">
-            View detailed information and activity for employee.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <Link to="/hr/employees">
-            <Button variant="outline" size="sm" className="gap-1.5 h-9">
-              <ArrowLeft className="size-4" />
-              Back to Employees
-            </Button>
-          </Link>
-          <Link to="/hr/employees/$id/edit" params={{ id: emp.id }}>
-            <Button size="sm" className="gap-1.5 h-9 bg-emerald-600 hover:bg-emerald-700 text-white">
-              <Edit className="size-4" />
-              Edit Employee
-            </Button>
-          </Link>
-        </div>
+      <div className="space-y-2">
+        <BreadcrumbNav
+          items={[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Employees", href: "/hr/employees" },
+            { label: fullName },
+          ]}
+        />
+        <PageHeader
+          title={fullName}
+          description="View detailed information and activity for employee."
+          actions={
+            <div className="flex items-center gap-2 shrink-0">
+              <Link to="/hr/employees">
+                <Button variant="outline" size="sm" className="gap-1.5 h-9">
+                  <ArrowLeft className="size-4" />
+                  Back to Employees
+                </Button>
+              </Link>
+              <Link to="/hr/employees/$id/edit" params={{ id: emp.id }}>
+                <Button size="sm" className="gap-1.5 h-9 bg-primary hover:bg-primary/90 text-primary-foreground">
+                  <Edit className="size-4" />
+                  Edit Employee
+                </Button>
+              </Link>
+            </div>
+          }
+        />
       </div>
 
       {/* 2.B Two-Column Layout */}
@@ -469,7 +469,7 @@ function Employee360Page() {
                   >
                     {employeeStatus.replace("_", " ")}
                   </Badge>
-                  <Badge variant="outline" className="font-mono text-[11px] px-2 py-0.5">
+                  <Badge variant="outline" className="text-[11px] px-2 py-0.5">
                     {emp.employeeCode || emp.id?.slice(0, 8)}
                   </Badge>
                 </div>
@@ -482,7 +482,7 @@ function Employee360Page() {
                     <User className="size-3.5" />
                     Employee ID
                   </span>
-                  <span className="font-mono font-medium text-foreground">{emp.employeeCode || "—"}</span>
+                  <span className="font-medium text-foreground">{emp.employeeCode || "—"}</span>
                 </div>
 
                 {/* Email */}
@@ -1148,7 +1148,7 @@ function Employee360Page() {
                         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           Corporate Awards & Recognitions
                         </h3>
-                        <Badge variant="secondary" className="text-[10px] font-mono">
+                        <Badge variant="secondary" className="text-[10px]">
                           {awards.length}
                         </Badge>
                       </div>
@@ -1210,7 +1210,7 @@ function Employee360Page() {
                                     {award.awardType?.name || award.giftItem || "Recognition Award"}
                                   </span>
                                   {award.certificateNo && (
-                                    <Badge variant="outline" className="text-[9px] font-mono px-1.5 py-0 h-4">
+                                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
                                       {award.certificateNo}
                                     </Badge>
                                   )}
@@ -1325,7 +1325,7 @@ function Employee360Page() {
                         Uploaded identification records, employment agreements, and compliance records.
                       </CardDescription>
                     </div>
-                    <Badge variant="secondary" className="w-fit text-xs font-mono">
+                    <Badge variant="secondary" className="w-fit text-xs">
                       {companyDocs.length} Documents Stored
                     </Badge>
                   </div>
@@ -1345,7 +1345,7 @@ function Employee360Page() {
                       </div>
                       <Badge
                         variant={complianceRate === 100 ? "default" : "secondary"}
-                        className={`text-xs font-mono w-fit ${complianceRate === 100 ? "bg-emerald-600" : ""}`}
+                        className={`text-xs w-fit ${complianceRate === 100 ? "bg-emerald-600" : ""}`}
                       >
                         {verifiedMandatoryCount} / {mandatoryDocTypes.length} Mandatory Verified ({complianceRate}%)
                       </Badge>
@@ -1438,7 +1438,7 @@ function Employee360Page() {
                             <div className="space-y-1.5">
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="font-semibold text-sm text-foreground">{doc.title}</span>
-                                <Badge variant="outline" className="font-mono text-[11px]">
+                                <Badge variant="outline" className="text-[11px]">
                                   {doc.documentCode}
                                 </Badge>
                                 <Badge
@@ -1602,7 +1602,7 @@ function Employee360Page() {
                             </div>
                             {p.notes && <p className="text-muted-foreground text-[11px]">{p.notes}</p>}
                           </div>
-                          <Badge variant="outline" className="font-mono text-[11px] shrink-0 w-fit">
+                          <Badge variant="outline" className="text-[11px] shrink-0 w-fit">
                             {p.promotionDate ? format(new Date(p.promotionDate), "dd MMM yyyy") : "—"}
                           </Badge>
                         </div>
@@ -1639,7 +1639,7 @@ function Employee360Page() {
                             </div>
                             {t.notes && <p className="text-muted-foreground text-[11px]">{t.notes}</p>}
                           </div>
-                          <Badge variant="outline" className="font-mono text-[11px] shrink-0 w-fit">
+                          <Badge variant="outline" className="text-[11px] shrink-0 w-fit">
                             {t.effectiveDate ? format(new Date(t.effectiveDate), "dd MMM yyyy") : "—"}
                           </Badge>
                         </div>
@@ -1745,7 +1745,7 @@ function Employee360Page() {
                         Daily check-in / check-out records and total hours logged.
                       </CardDescription>
                     </div>
-                    <Badge variant="outline" className="w-fit text-xs font-mono">
+                    <Badge variant="outline" className="w-fit text-xs">
                       Last 30 Records
                     </Badge>
                   </div>
@@ -1775,7 +1775,7 @@ function Employee360Page() {
                         <tbody className="divide-y">
                           {attendanceRecords.map((att: any) => (
                             <tr key={att.id} className="hover:bg-muted/30">
-                              <td className="p-3 font-medium font-mono">
+                              <td className="p-3 font-medium">
                                 {att.date ? format(new Date(att.date), "dd MMM yyyy") : "—"}
                               </td>
                               <td className="p-3 text-muted-foreground">{att.checkIn || "—"}</td>
@@ -1861,14 +1861,14 @@ function Employee360Page() {
                               >
                                 {lr.status || "pending"}
                               </Badge>
-                              <span className="text-[11px] font-mono font-medium text-muted-foreground">
+                              <span className="text-[11px] font-medium text-muted-foreground">
                                 ({lr.totalDays || 1} {Number(lr.totalDays) === 1 ? "day" : "days"})
                               </span>
                             </div>
                             <p className="text-muted-foreground text-[11px]">{lr.reason || "No reason specified."}</p>
                           </div>
                           <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-muted-foreground text-[11px] shrink-0">
-                            <span className="font-mono">
+                            <span className="">
                               {lr.startDate ? format(new Date(lr.startDate), "dd MMM yyyy") : "—"} →{" "}
                               {lr.endDate ? format(new Date(lr.endDate), "dd MMM yyyy") : "—"}
                             </span>
@@ -1947,7 +1947,7 @@ function Employee360Page() {
                         Downloadable monthly salary slips and tax withholding breakdowns.
                       </CardDescription>
                     </div>
-                    <Badge variant="outline" className="w-fit text-xs font-mono">
+                    <Badge variant="outline" className="w-fit text-xs">
                       {payslips.length} Payslips Available
                     </Badge>
                   </div>
@@ -2015,7 +2015,7 @@ function Employee360Page() {
                         Hardware, peripherals, security tokens, and corporate inventory assigned to this employee.
                       </CardDescription>
                     </div>
-                    <Badge variant="secondary" className="w-fit text-xs font-mono">
+                    <Badge variant="secondary" className="w-fit text-xs">
                       {assignedAssets.length} Assets Custody
                     </Badge>
                   </div>
@@ -2036,7 +2036,7 @@ function Employee360Page() {
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-foreground text-sm">{asset.name}</span>
-                              <Badge variant="outline" className="font-mono text-[11px]">
+                              <Badge variant="outline" className="text-[11px]">
                                 {asset.assetCode}
                               </Badge>
                               <Badge variant="secondary" className="capitalize text-[10px]">
@@ -2048,14 +2048,14 @@ function Employee360Page() {
                               {asset.serialNumber && (
                                 <>
                                   <span>•</span>
-                                  <span className="font-mono">SN: {asset.serialNumber}</span>
+                                  <span className="">SN: {asset.serialNumber}</span>
                                 </>
                               )}
                               <span>•</span>
                               <span>Condition: {asset.condition || "Operational"}</span>
                             </div>
                           </div>
-                          <div className="text-[11px] text-muted-foreground shrink-0 font-mono">
+                          <div className="text-[11px] text-muted-foreground shrink-0">
                             Assigned: {asset.assignedAt ? format(new Date(asset.assignedAt), "dd MMM yyyy") : "—"}
                           </div>
                         </div>
@@ -2098,7 +2098,7 @@ function Employee360Page() {
                             </div>
                             {tt.score && <p className="text-[11px] text-emerald-600 font-medium">Evaluation Score: {tt.score}%</p>}
                           </div>
-                          <div className="text-[11px] text-muted-foreground shrink-0 font-mono">
+                          <div className="text-[11px] text-muted-foreground shrink-0">
                             Due: {tt.dueDate ? format(new Date(tt.dueDate), "dd MMM yyyy") : "Ongoing"}
                           </div>
                         </div>
@@ -2135,7 +2135,7 @@ function Employee360Page() {
                           <div className="space-y-1">
                             <div className="flex justify-between text-[11px] text-muted-foreground">
                               <span>Progress</span>
-                              <span className="font-mono">{ce.progress || 0}%</span>
+                              <span className="">{ce.progress || 0}%</span>
                             </div>
                             <Progress value={Number(ce.progress) || 0} className="h-1.5" />
                           </div>
@@ -2183,7 +2183,7 @@ function Employee360Page() {
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             {q.grade && <Badge variant="outline" className="text-[10px]">Grade: {q.grade}</Badge>}
-                            <Badge variant="secondary" className="font-mono text-[10px]">{q.year || q.passingYear || "Completed"}</Badge>
+                            <Badge variant="secondary" className="text-[10px]">{q.year || q.passingYear || "Completed"}</Badge>
                           </div>
                         </div>
                       ))}
@@ -2220,7 +2220,7 @@ function Employee360Page() {
                             <span className="font-semibold text-foreground text-sm">
                               {exp.title || exp.designation || "Role"} @ {exp.company || exp.employer || "Company"}
                             </span>
-                            <span className="font-mono text-[11px] text-muted-foreground shrink-0">
+                            <span className="text-[11px] text-muted-foreground shrink-0">
                               {exp.fromDate || exp.startDate || "—"} to {exp.toDate || exp.endDate || "Present"}
                             </span>
                           </div>
@@ -2270,7 +2270,7 @@ function Employee360Page() {
                         Family profiles for corporate health insurance benefits and emergency assistance.
                       </CardDescription>
                     </div>
-                    <Badge variant="outline" className="w-fit text-xs font-mono">
+                    <Badge variant="outline" className="w-fit text-xs">
                       {familyMembers.length} Members Registered
                     </Badge>
                   </div>
@@ -2332,7 +2332,7 @@ function Employee360Page() {
                         Immutable system audit logs detailing profile revisions, document operations, and lifecycle updates.
                       </CardDescription>
                     </div>
-                    <Badge variant="outline" className="w-fit text-xs font-mono">
+                    <Badge variant="outline" className="w-fit text-xs">
                       {auditLogs.length} Events Logged
                     </Badge>
                   </div>
@@ -2352,17 +2352,17 @@ function Employee360Page() {
                         <div key={log.id} className="p-3.5 space-y-1.5 text-xs hover:bg-muted/30">
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="font-mono text-[10px] uppercase">
+                              <Badge variant="outline" className="text-[10px] uppercase">
                                 {log.action}
                               </Badge>
                               <span className="text-muted-foreground text-[11px]">by {log.actorId || "System"}</span>
                             </div>
-                            <span className="font-mono text-[11px] text-muted-foreground">
+                            <span className="text-[11px] text-muted-foreground">
                               {log.createdAt ? format(new Date(log.createdAt), "dd MMM yyyy HH:mm:ss") : "—"}
                             </span>
                           </div>
                           {log.metadata && (
-                            <div className="bg-muted/40 p-2 rounded text-[11px] font-mono text-muted-foreground truncate">
+                            <div className="bg-muted/40 p-2 rounded text-[11px] text-muted-foreground truncate">
                               {typeof log.metadata === "string" ? log.metadata : JSON.stringify(log.metadata)}
                             </div>
                           )}
@@ -2432,7 +2432,7 @@ function Employee360Page() {
             <div className="p-3 bg-muted/40 rounded-lg space-y-2 border">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">File Name:</span>
-                <span className="font-medium font-mono">{selectedDoc?.fileName}</span>
+                <span className="font-medium">{selectedDoc?.fileName}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">File Size:</span>

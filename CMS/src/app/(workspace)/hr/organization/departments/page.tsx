@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useMasterList } from "@/hooks/use-master-list";
 import { useMasterForm } from "@/hooks/use-master-form";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -241,22 +242,19 @@ export default function DepartmentsPage() {
 
   return (
     <div className="w-full space-y-5">
-      {/* ── Page Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Departments</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Manage your company departments and structure.
-          </p>
-        </div>
-        <Button
-          onClick={openCreate}
-          className="h-9 px-4 gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-        >
-          <Plus className="h-4 w-4" />
-          Add Department
-        </Button>
-      </div>
+      <PageHeader
+        title="Departments"
+        description="Manage your company departments and structure."
+        actions={
+          <Button
+            onClick={openCreate}
+            className="h-9 px-4 gap-1.5 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+          >
+            <Plus className="h-4 w-4" />
+            Add Department
+          </Button>
+        }
+      />
 
       {/* ── Filter Toolbar & Status Tabs Card ── */}
       <div className="rounded-xl border border-border/80 bg-card shadow-xs overflow-hidden">
@@ -542,7 +540,7 @@ export default function DepartmentsPage() {
                   size="sm"
                   className={cn(
                     "h-8 w-8 p-0 text-xs",
-                    num === page && "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600"
+                    num === page && "bg-primary hover:bg-primary/90 text-primary-foreground border-primary"
                   )}
                   onClick={() => setPage(num)}
                 >
@@ -654,7 +652,7 @@ export default function DepartmentsPage() {
                 type="submit"
                 size="sm"
                 disabled={isSubmitting}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5"
               >
                 {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {isEdit ? "Save Changes" : "Create Department"}
@@ -682,7 +680,7 @@ export default function DepartmentsPage() {
             </Button>
             <Button
               size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
               disabled={toggleStatusMutation.isPending}
               onClick={() =>
                 statusConfirmTarget &&

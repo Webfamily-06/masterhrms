@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -93,22 +94,7 @@ export default function CareerPageSeoPage() {
     setMetaKeywords(seoResponse.metaKeywords || "");
     setMetaDescription(seoResponse.metaDescription || "");
     setMetaSocialImage(seoResponse.metaSocialImage || "");
-    if (seoResponse.metaTitle || seoResponse.metaDescription) {
-      applySeoToDocumentHead(seoResponse);
-    }
   }, [seoResponse]);
-
-  // Apply live meta tags dynamically as the user edits
-  useEffect(() => {
-    if (metaTitle || metaDescription || metaKeywords || metaSocialImage) {
-      applySeoToDocumentHead({
-        metaTitle,
-        metaKeywords,
-        metaDescription,
-        metaSocialImage,
-      });
-    }
-  }, [metaTitle, metaKeywords, metaDescription, metaSocialImage]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -120,12 +106,6 @@ export default function CareerPageSeoPage() {
       });
     },
     onSuccess: (res: any) => {
-      applySeoToDocumentHead({
-        metaTitle,
-        metaKeywords,
-        metaDescription,
-        metaSocialImage,
-      });
       toast.success(res?.message || "Career Page SEO saved and applied live!");
       queryClient.invalidateQueries({ queryKey: ["career-page-seo"] });
       queryClient.invalidateQueries({ queryKey: ["public-careers"] });
@@ -182,21 +162,18 @@ export default function CareerPageSeoPage() {
 
   return (
     <div className="w-full space-y-5">
-      {/* ── Page Header (Matches Screenshot) ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Career Page SEO</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Configure SEO settings and meta tags for your public career portal.
-          </p>
-        </div>
-        <a href={publicCareerPath} target="_blank" rel="noopener noreferrer">
-          <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs font-medium">
-            <ExternalLink className="h-3.5 w-3.5" />
-            Open Public Career Page
-          </Button>
-        </a>
-      </div>
+      <PageHeader
+        title="Career Page SEO"
+        description="Configure SEO settings and meta tags for your public career portal."
+        actions={
+          <a href={publicCareerPath} target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs font-medium">
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open Public Career Page
+            </Button>
+          </a>
+        }
+      />
 
       {/* ── 2-Column Split Container ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
@@ -337,7 +314,7 @@ export default function CareerPageSeoPage() {
                   <Button
                     type="submit"
                     disabled={saveMutation.isPending}
-                    className="h-10 px-5 gap-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                    className="h-10 px-5 gap-2 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
                   >
                     {saveMutation.isPending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

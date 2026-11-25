@@ -10,6 +10,7 @@ import { useMasterForm } from "@/hooks/use-master-form";
 import { GlobalExportDropdown } from "@/components/ui/global-export-dropdown";
 import { exportToExcel, exportToPdf, ExportColumn } from "@/lib/export-utils";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -414,51 +415,48 @@ export default function HolidaysPage() {
 
   return (
     <div className="w-full space-y-5">
-      {/* ── Page Header (Matches Screenshot 4) ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Holidays</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Manage public and company holidays.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link to="/hr/calendar">
-            <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs font-medium">
-              <CalendarDays className="h-3.5 w-3.5" />
-              Calendar View
+      <PageHeader
+        title="Holidays"
+        description="Manage public and company holidays."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/hr/calendar">
+              <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs font-medium">
+                <CalendarDays className="h-3.5 w-3.5" />
+                Calendar View
+              </Button>
+            </Link>
+
+            <GlobalExportDropdown
+              onExportExcel={handleExportExcel}
+              onExportPdf={handleExportPdf}
+              totalFilteredCount={holidays.length}
+              disabled={holidays.length === 0}
+            />
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleExportIcal}
+              disabled={holidays.length === 0}
+              className="h-9 gap-1.5 text-xs font-medium"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export iCal
             </Button>
-          </Link>
 
-          <GlobalExportDropdown
-            onExportExcel={handleExportExcel}
-            onExportPdf={handleExportPdf}
-            totalFilteredCount={holidays.length}
-            disabled={holidays.length === 0}
-          />
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleExportIcal}
-            disabled={holidays.length === 0}
-            className="h-9 gap-1.5 text-xs font-medium"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Export iCal
-          </Button>
-
-          <Button
-            type="button"
-            onClick={openCreate}
-            className="h-9 px-4 gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-          >
-            <Plus className="h-4 w-4" />
-            Add Holiday
-          </Button>
-        </div>
-      </div>
+            <Button
+              type="button"
+              onClick={openCreate}
+              className="h-9 px-4 gap-1.5 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+            >
+              <Plus className="h-4 w-4" />
+              Add Holiday
+            </Button>
+          </div>
+        }
+      />
 
       {/* ── Filter Toolbar Card ── */}
       <div className="rounded-xl border border-border/80 bg-card p-3.5 shadow-xs space-y-3">
@@ -935,7 +933,7 @@ export default function HolidaysPage() {
                 type="submit"
                 size="sm"
                 disabled={isSubmitting}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5"
               >
                 {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {isEdit ? "Save Changes" : "Create Holiday"}

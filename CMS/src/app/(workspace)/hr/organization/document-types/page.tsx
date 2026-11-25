@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -160,13 +161,10 @@ export default function DocumentTypesPage() {
 
   return (
     <div className="w-full space-y-5">
-      {/* ── Page Header (Matches Screenshot 3) ── */}
-      <div>
-        <h1 className="text-xl font-bold tracking-tight text-foreground">Document Types</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Manage document types used for employee records.
-        </p>
-      </div>
+      <PageHeader
+        title="Document Types"
+        description="Manage document types used for employee records."
+      />
 
       {/* ── 2-Column Split Layout ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
@@ -244,7 +242,7 @@ export default function DocumentTypesPage() {
               <Button
                 type="submit"
                 disabled={saveMutation.isPending}
-                className="w-full h-10 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs gap-1.5"
+                className="w-full h-10 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs gap-1.5"
               >
                 {saveMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {editingItem ? "Save Changes" : "Add Document Type"}
@@ -276,7 +274,7 @@ export default function DocumentTypesPage() {
               </div>
               <Button
                 type="submit"
-                className="h-9 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="h-9 px-4 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 Search
               </Button>

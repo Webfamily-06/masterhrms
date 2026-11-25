@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -669,24 +670,19 @@ function EmployeeEditWizardPage() {
   const fullNameDisplay = `${formData.firstName} ${formData.lastName}`.trim() || "Employee";
 
   return (
-    <div className="space-y-6 pb-16 max-w-5xl mx-auto">
-      {/* 1. Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-5">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Edit Employee</h1>
-          <p className="text-sm text-muted-foreground">
-            Update employee details and information for {fullNameDisplay}.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
+    <div className="w-full space-y-6 pb-16">
+      <PageHeader
+        title="Edit Employee"
+        description={`Update employee details and information for ${fullNameDisplay}.`}
+        actions={
           <Link to="/hr/employees/$id" params={{ id }}>
             <Button variant="outline" size="sm" className="gap-1.5 h-9">
               <ArrowLeft className="size-4" />
               Back
             </Button>
           </Link>
-        </div>
-      </div>
+        }
+      />
 
       {/* 2. Five-Step Horizontal Progress Indicator */}
       <Card className="border shadow-xs bg-card">
@@ -719,9 +715,9 @@ function EmployeeEditWizardPage() {
                       <span
                         className={`size-9 rounded-full flex items-center justify-center font-semibold text-xs transition-colors shrink-0 ${
                           isCurrent
-                            ? "bg-emerald-600 text-white ring-4 ring-emerald-100"
+                            ? "bg-primary text-primary-foreground ring-4 ring-primary/20"
                             : isCompleted
-                              ? "bg-emerald-600 text-white"
+                              ? "bg-primary text-primary-foreground"
                               : "border-2 border-muted-foreground/30 text-muted-foreground bg-muted/40"
                         }`}
                       >
@@ -756,7 +752,7 @@ function EmployeeEditWizardPage() {
                       <div
                         className={`flex-1 mx-3 sm:mx-4 h-0.5 transition-colors ${
                           completedSteps.has(step.id) && (completedSteps.has(WIZARD_STEPS[idx + 1].id) || currentStep > step.id)
-                            ? "bg-emerald-600"
+                            ? "bg-primary"
                             : "bg-border"
                         }`}
                         aria-hidden="true"
@@ -868,7 +864,7 @@ function EmployeeEditWizardPage() {
                     id="emp-id"
                     value={formData.id}
                     readOnly
-                    className="bg-muted/50 cursor-not-allowed font-mono text-xs"
+                    className="bg-muted/50 cursor-not-allowed text-xs"
                   />
                 </div>
 
@@ -1565,7 +1561,7 @@ function EmployeeEditWizardPage() {
                     <p className="text-xs">
                       You are viewing financial attributes in read-only / masked mode. Modifying
                       bank coordinates and base salary requires explicit sensitive data permissions
-                      (<code className="font-mono bg-amber-100 dark:bg-amber-900 px-1 py-0.5 rounded">hr:employee:sensitive:write</code>).
+                      (<code className="bg-amber-100 dark:bg-amber-900 px-1 py-0.5 rounded">hr:employee:sensitive:write</code>).
                     </p>
                   </div>
                 </div>
@@ -1714,7 +1710,7 @@ function EmployeeEditWizardPage() {
                   type="button"
                   size="sm"
                   onClick={() => setIsAddDocOpen(true)}
-                  className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs shrink-0"
+                  className="gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground h-8 text-xs shrink-0"
                 >
                   <Plus className="size-3.5" />
                   Add Document
@@ -1760,7 +1756,7 @@ function EmployeeEditWizardPage() {
                                 {doc.category || "General"}
                               </Badge>
                               {doc.status === "verified" || doc.status === "approved" ? (
-                                <Badge className="text-[10px] px-1.5 py-0 bg-emerald-600 text-white">
+                                <Badge className="text-[10px] px-1.5 py-0 bg-primary text-primary-foreground">
                                   Verified
                                 </Badge>
                               ) : isExpired ? (
@@ -1862,7 +1858,7 @@ function EmployeeEditWizardPage() {
               type="button"
               size="sm"
               onClick={handleNext}
-              className="gap-1.5 h-9 bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="gap-1.5 h-9 bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               Next
               <ChevronRight className="size-4" />
@@ -1873,7 +1869,7 @@ function EmployeeEditWizardPage() {
               size="sm"
               onClick={handleFinalSubmit}
               disabled={updateMutation.isPending}
-              className="gap-1.5 h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5"
+              className="gap-1.5 h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-5"
             >
               {updateMutation.isPending ? (
                 <>
@@ -2002,7 +1998,7 @@ function EmployeeEditWizardPage() {
             <Button
               type="button"
               size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
               disabled={
                 !newDocData.title.trim() ||
                 !newDocData.fileUrl ||

@@ -561,7 +561,7 @@ export default function HrManagerChangesPage() {
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Reason & Audit Trail</Label>
-              <div className="mt-1 p-3 bg-muted rounded-md text-xs whitespace-pre-wrap font-mono max-h-48 overflow-y-auto">
+              <div className="mt-1 p-3 bg-muted rounded-md text-xs whitespace-pre-wrap max-h-48 overflow-y-auto">
                 {viewRecord?.reason || "No comments provided."}
               </div>
             </div>

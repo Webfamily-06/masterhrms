@@ -6,6 +6,7 @@ import { Link } from "@/lib/router-compat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -308,24 +309,19 @@ export default function AnnouncementsPage() {
 
   return (
     <div className="w-full space-y-5">
-      {/* ── Page Header (Matches Screenshot 1) ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Announcements</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Create and manage announcements for your organization.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title="Announcements"
+        description="Create and manage announcements for your organization."
+        actions={
           <Button
             onClick={openCreate}
-            className="h-9 px-4 gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+            className="h-9 px-4 gap-1.5 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
           >
             <Plus className="h-4 w-4" />
             Add Announcement
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* ── Filter Toolbar Card ── */}
       <div className="rounded-xl border border-border/80 bg-card p-3.5 shadow-xs flex flex-wrap items-center justify-between gap-2.5">
@@ -730,7 +726,7 @@ export default function AnnouncementsPage() {
                 type="submit"
                 size="sm"
                 disabled={saveMutation.isPending}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5"
               >
                 {saveMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {editingId ? "Save Changes" : "Publish Announcement"}
@@ -771,7 +767,7 @@ export default function AnnouncementsPage() {
                       comments: quickResponse || "Read and acknowledged.",
                     })
                   }
-                  className="h-9 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="h-9 gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
                   <Send className="h-3.5 w-3.5" />
                   Respond

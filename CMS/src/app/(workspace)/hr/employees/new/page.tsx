@@ -7,6 +7,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -637,43 +638,40 @@ function NewEmployeeWizardPage() {
 
   return (
     <div className="w-full space-y-5">
-      {/* ── Page Header ── */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Create Employee</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Add a new employee to your organization.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {hasRestoredDraft && (
+      <PageHeader
+        title="Create Employee"
+        description="Add a new employee to your organization."
+        actions={
+          <div className="flex items-center gap-2">
+            {hasRestoredDraft && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  clearFormDraft(true);
+                  clearWizardMetaDraft(true);
+                  toast.info("Saved employee draft cleared.");
+                }}
+                className="h-9 gap-1.5 text-xs font-medium text-rose-600 border-rose-500/30 hover:bg-rose-500/10"
+              >
+                <i className="ph ph-trash" />
+                Clear Draft
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => {
-                clearFormDraft(true);
-                clearWizardMetaDraft(true);
-                toast.info("Saved employee draft cleared.");
-              }}
-              className="h-9 gap-1.5 text-xs font-medium text-rose-600 border-rose-500/30 hover:bg-rose-500/10"
+              onClick={() => navigate({ to: "/hr/employees" as any })}
+              className="h-9 gap-1.5 text-xs font-medium"
             >
-              <i className="ph ph-trash" />
-              Clear Draft
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back
             </Button>
-          )}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => navigate({ to: "/hr/employees" as any })}
-            className="h-9 gap-1.5 text-xs font-medium"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back
-          </Button>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       {/* ── Outer Wizard Container ── */}
       <div
@@ -767,7 +765,7 @@ function NewEmployeeWizardPage() {
                     value={systemIdPreview?.preview || "EMP000001"}
                     readOnly
                     disabled
-                    className="h-10 text-sm bg-muted/60 text-muted-foreground font-mono cursor-not-allowed"
+                    className="h-10 text-sm bg-muted/60 text-muted-foreground cursor-not-allowed"
                   />
                   <p className="text-[11px] text-muted-foreground">Employee ID will be auto-generated</p>
                 </div>
@@ -1468,7 +1466,7 @@ function NewEmployeeWizardPage() {
                         updateField("bankIfsc", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11))
                       }
                       placeholder="e.g. HDFC0001234"
-                      className={cn("h-10 text-sm font-mono", errors.bankIfsc && "border-rose-500")}
+                      className={cn("h-10 text-sm", errors.bankIfsc && "border-rose-500")}
                     />
                     {errors.bankIfsc && <p className="text-xs text-rose-600">{errors.bankIfsc}</p>}
                   </div>
@@ -1522,7 +1520,7 @@ function NewEmployeeWizardPage() {
                         updateField("pan", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10))
                       }
                       placeholder="e.g. ABCDE1234F"
-                      className={cn("h-10 text-sm font-mono", errors.pan && "border-rose-500")}
+                      className={cn("h-10 text-sm", errors.pan && "border-rose-500")}
                     />
                     {errors.pan && <p className="text-xs text-rose-600">{errors.pan}</p>}
                   </div>
@@ -1538,7 +1536,7 @@ function NewEmployeeWizardPage() {
                       value={formData.aadhaar}
                       onChange={(e) => updateField("aadhaar", e.target.value.replace(/\D/g, "").slice(0, 12))}
                       placeholder="12-digit Aadhaar number"
-                      className={cn("h-10 text-sm font-mono", errors.aadhaar && "border-rose-500")}
+                      className={cn("h-10 text-sm", errors.aadhaar && "border-rose-500")}
                     />
                     {errors.aadhaar && <p className="text-xs text-rose-600">{errors.aadhaar}</p>}
                   </div>
@@ -1552,7 +1550,7 @@ function NewEmployeeWizardPage() {
                       value={formData.uan}
                       onChange={(e) => updateField("uan", e.target.value.replace(/\D/g, "").slice(0, 12))}
                       placeholder="12-digit UAN"
-                      className={cn("h-10 text-sm font-mono", errors.uan && "border-rose-500")}
+                      className={cn("h-10 text-sm", errors.uan && "border-rose-500")}
                     />
                     {errors.uan && <p className="text-xs text-rose-600">{errors.uan}</p>}
                   </div>
@@ -1566,7 +1564,7 @@ function NewEmployeeWizardPage() {
                       value={formData.esiNumber}
                       onChange={(e) => updateField("esiNumber", e.target.value.replace(/\D/g, "").slice(0, 17))}
                       placeholder="ESI number"
-                      className={cn("h-10 text-sm font-mono", errors.esiNumber && "border-rose-500")}
+                      className={cn("h-10 text-sm", errors.esiNumber && "border-rose-500")}
                     />
                     {errors.esiNumber && <p className="text-xs text-rose-600">{errors.esiNumber}</p>}
                   </div>
@@ -1809,7 +1807,7 @@ function NewEmployeeWizardPage() {
           <Button
             type="button"
             onClick={handleNext}
-            className="h-10 px-5 gap-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+            className="h-10 px-5 gap-2 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
           >
             Next
             <ArrowRight className="h-3.5 w-3.5" />
@@ -1819,7 +1817,7 @@ function NewEmployeeWizardPage() {
             type="button"
             onClick={handleSubmit}
             disabled={createMutation.isPending}
-            className="h-10 px-5 gap-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+            className="h-10 px-5 gap-2 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
           >
             {createMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Create Employee

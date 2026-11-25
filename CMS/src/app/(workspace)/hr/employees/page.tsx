@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { useMasterList } from "@/hooks/use-master-list";
 import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -486,28 +487,25 @@ export default function EmployeesDirectoryPage() {
       {/* ── Breadcrumb Navigation ── */}
       <BreadcrumbNav />
 
-      {/* ── Header Title & Actions ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Employees</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Manage employees and their information.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <GlobalExportDropdown
-            onExportExcel={handleExportExcel}
-            onExportPdf={handleExportPdf}
-            disabled={employees.length === 0}
-          />
-          <Link to="/hr/employees/new">
-            <Button className="gap-2 h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs">
-              <UserPlus className="h-4 w-4" />
-              Add Employee
-            </Button>
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Employees"
+        description="Manage employees and their information."
+        actions={
+          <div className="flex items-center gap-2">
+            <GlobalExportDropdown
+              onExportExcel={handleExportExcel}
+              onExportPdf={handleExportPdf}
+              disabled={employees.length === 0}
+            />
+            <Link to="/hr/employees/new">
+              <Button className="gap-2 h-9 text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs">
+                <UserPlus className="h-4 w-4" />
+                Add Employee
+              </Button>
+            </Link>
+          </div>
+        }
+      />
 
       {/* ── Filter & Search Toolbar Container ── */}
       <div className="rounded-xl border bg-card p-4 shadow-xs space-y-4">
@@ -672,7 +670,7 @@ export default function EmployeesDirectoryPage() {
                 className={cn(
                   "flex items-center justify-center h-9 w-9 rounded-md transition-colors",
                   viewMode === "list"
-                    ? "bg-emerald-600 text-white shadow-xs"
+                    ? "bg-primary text-primary-foreground shadow-xs"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
@@ -686,7 +684,7 @@ export default function EmployeesDirectoryPage() {
                 className={cn(
                   "flex items-center justify-center h-9 w-9 rounded-md transition-colors",
                   viewMode === "grid"
-                    ? "bg-emerald-600 text-white shadow-xs"
+                    ? "bg-primary text-primary-foreground shadow-xs"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
@@ -728,7 +726,7 @@ export default function EmployeesDirectoryPage() {
                   className={cn(
                     "px-2 py-0.5 rounded-full text-[11px] font-semibold transition-colors",
                     isSelected
-                      ? "bg-emerald-600 text-white"
+                      ? "bg-primary text-primary-foreground"
                       : "bg-muted text-muted-foreground"
                   )}
                 >
@@ -914,7 +912,7 @@ export default function EmployeesDirectoryPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
                             {emp.employeeCode}
                           </span>
                         </TableCell>
@@ -1291,7 +1289,7 @@ export default function EmployeesDirectoryPage() {
                 type="submit"
                 size="sm"
                 disabled={isChangingPassword || !newPassword || !confirmPassword}
-                className="text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
+                className="text-xs h-9 bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5"
               >
                 {isChangingPassword ? (
                   <>
@@ -1365,7 +1363,7 @@ export default function EmployeesDirectoryPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Login Email:</span>
-                  <span className="font-mono text-muted-foreground">{statusTargetEmployee.email}</span>
+                  <span className="text-muted-foreground">{statusTargetEmployee.email}</span>
                 </div>
                 <div className="flex items-center justify-between pt-1 border-t border-border/60">
                   <span className="text-muted-foreground">Current Account Status:</span>
@@ -1422,7 +1420,7 @@ export default function EmployeesDirectoryPage() {
               onClick={handleToggleStatus}
               className={cn(
                 "text-xs h-9 gap-1.5",
-                statusTargetEmployee?.loginStatus !== "active" && "bg-emerald-600 hover:bg-emerald-700 text-white"
+                statusTargetEmployee?.loginStatus !== "active" && "bg-primary hover:bg-primary/90 text-primary-foreground"
               )}
             >
               {isTogglingStatus ? (
