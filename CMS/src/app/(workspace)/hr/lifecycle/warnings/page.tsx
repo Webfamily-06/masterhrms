@@ -447,7 +447,7 @@ export default function HrWarningsPage() {
   };
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full px-3 sm:px-4 lg:px-5 py-4 lg:py-5 space-y-5">
       <PageHeader
         title="Warnings"
         description="Manage formal warnings issued to employees."
@@ -470,7 +470,7 @@ export default function HrWarningsPage() {
       {/* Filter Card + Status Tabs */}
       <div className="rounded-xl border border-border/80 bg-card shadow-xs">
         <div className="p-4 flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <div className="relative w-full sm:flex-1 sm:min-w-[200px] max-w-xs">
             <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
               placeholder="Search..."
@@ -490,7 +490,7 @@ export default function HrWarningsPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-[160px] h-9">
+            <SelectTrigger className="w-full sm:w-[160px] h-9">
               <SelectValue placeholder="All Types" />
             </SelectTrigger>
             <SelectContent>
@@ -510,7 +510,7 @@ export default function HrWarningsPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-[160px] h-9">
+            <SelectTrigger className="w-full sm:w-[160px] h-9">
               <SelectValue placeholder="All Severities" />
             </SelectTrigger>
             <SelectContent>
@@ -523,7 +523,7 @@ export default function HrWarningsPage() {
             </SelectContent>
           </Select>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center justify-end gap-2">
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 gap-1 text-muted-foreground">
                 <X className="h-3.5 w-3.5" />

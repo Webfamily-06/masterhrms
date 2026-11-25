@@ -6,6 +6,8 @@ import { Toaster } from "sonner";
 import { IncomingCallProvider } from "@/context/incoming-call-context";
 import { FullScreenIncomingCall } from "@/components/calling/full-screen-incoming-call";
 import { FloatingMiniCallWidget } from "@/components/calling/floating-mini-call-widget";
+import { FormDraftAutosaveProvider } from "@/src/components/providers/FormDraftAutosaveProvider";
+import { WorkspaceSettingsProvider } from "@/src/context/workspace-settings-context";
 
 export function AppProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -23,12 +25,15 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <IncomingCallProvider>
-        {children}
-        <FullScreenIncomingCall />
-        <FloatingMiniCallWidget />
-        <Toaster richColors position="top-right" />
-      </IncomingCallProvider>
+      <WorkspaceSettingsProvider>
+        <IncomingCallProvider>
+          {children}
+          <FullScreenIncomingCall />
+          <FloatingMiniCallWidget />
+          <FormDraftAutosaveProvider />
+          <Toaster richColors position="top-right" />
+        </IncomingCallProvider>
+      </WorkspaceSettingsProvider>
     </QueryClientProvider>
   );
 }

@@ -3,6 +3,7 @@ import React, { useState, useEffect, Fragment, useMemo } from "react";
 import type { ProfileWithRoles } from "@/lib/session";
 import { isModuleAllowed, isWorkspaceAdminUser } from "@/lib/permissions";
 import { useTenantBranding } from "@/lib/useTenantBranding";
+import { useWorkspaceSettings } from "@/src/context/workspace-settings-context";
 import { useNavigationResolver } from "@/lib/navigation-resolver";
 import {
   resolveStandaloneModules,
@@ -190,11 +191,25 @@ export function DreamsSidebar({
   onToggleFullView,
 }: DreamsSidebarProps) {
   const { branding, isDark } = useTenantBranding();
+  const { brand: wsBrand } = useWorkspaceSettings();
   const { isEntitled } = useNavigationResolver();
   const currentPath = useRouterState({ select: (r) => r.location.pathname });
   const [isHovered, setIsHovered] = useState(false);
   const [ignoreHover, setIgnoreHover] = useState(false);
-  const isMini = collapsed && !isHovered;
+  const isMiniLayout = wsBrand?.layoutMode === "mini";
+  const isHoverLayout = wsBrand?.layoutMode === "hoverview";
+  const domLayout =
+    typeof document !== "undefined"
+      ? document.documentElement.getAttribute("data-layout")
+      : null;
+  const effectiveMini =
+    domLayout === "mini"
+      ? true
+      : domLayout === "full-width"
+      ? false
+      : isMiniLayout;
+  const isMini =
+    ((effectiveMini || isHoverLayout || collapsed) && !isHovered);
 
   const handleToggleCollapse = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -407,32 +422,36 @@ export function DreamsSidebar({
       id="sidebar"
       data-lenis-prevent="true"
       onMouseEnter={() => {
-        if (collapsed && !ignoreHover) {
+        if ((collapsed || isHoverLayout || effectiveMini) && !ignoreHover) {
           setIsHovered(true);
           document.body.classList.add("expand-menu");
+          document.documentElement.classList.add("sidebar-hovered");
+          document.querySelector(".main-wrapper")?.classList.add("expand-menu");
         }
       }}
       onMouseLeave={() => {
         setIgnoreHover(false);
-        if (collapsed) {
+        if (collapsed || isHoverLayout || effectiveMini) {
           setIsHovered(false);
           document.body.classList.remove("expand-menu");
+          document.documentElement.classList.remove("sidebar-hovered");
+          document.querySelector(".main-wrapper")?.classList.remove("expand-menu");
         }
       }}
     >
       {/* Sidebar Logo Header */}
-      <div className={cn("sidebar-logo flex items-center h-14 border-b border-border/70 gap-2 bg-card/40", isMini ? "justify-center px-2" : "px-3 sm:px-4")}>
+      <div className={cn("sidebar-logo flex items-center h-16 border-b border-border/70 gap-2 bg-card/40", isMini ? "justify-center px-2" : "px-3")}>
         {isMini ? (
           /* Mini Mode Centered Favicon */
           <Link
             to={homeRoute}
-            className="flex items-center justify-center size-9 rounded-xl hover:bg-muted/70 transition-colors"
+            className="flex items-center justify-center size-10 rounded-xl hover:bg-muted/70 transition-colors"
             title={branding.name || "Master HRMS & ERP"}
           >
             <img
               src={branding.faviconUrl || "/favicon.webp"}
               alt={branding.name || "Master HRMS"}
-              className="size-7 object-contain"
+              className="size-9 object-contain"
               onError={(e) => {
                 (e.target as HTMLImageElement).src = "/favicon.webp";
               }}
@@ -444,36 +463,19 @@ export function DreamsSidebar({
             {/* Full Brand Logo */}
             <Link
               to={homeRoute}
-              className="brand-logo logo flex items-center gap-2 flex-1 min-w-0 overflow-hidden"
+              className="brand-logo logo flex items-center gap-2 flex-1 min-w-0 overflow-hidden py-1"
               onClick={onCloseMobile}
             >
               <img
                 src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
                 alt={branding.name || "Master HRMS & ERP"}
-                className="h-8 max-h-8 w-auto object-contain"
+                className="h-12 max-h-12 w-full max-w-[220px] object-contain object-left"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = isDark ? "/white-logo.webp" : "/logo.webp";
                 }}
                 loading="lazy"
               />
             </Link>
-
-            {/* Desktop Collapse / Expand Button */}
-            <button
-              type="button"
-              id="toggle_btn"
-              onClick={handleToggleCollapse}
-              className={cn(
-                "hidden lg:flex items-center justify-center size-7.5 rounded-xl border transition-all cursor-pointer shadow-2xs",
-                collapsed
-                  ? "bg-card border-border/70 text-muted-foreground hover:text-primary"
-                  : "bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
-              )}
-              title={collapsed ? "Expand Sidebar (250px)" : "Collapse Sidebar (72px)"}
-              aria-label="Toggle Sidebar"
-            >
-              <i className={cn("text-base ph-duotone", collapsed ? "ph-arrow-line-right" : "ph-arrow-line-left")}></i>
-            </button>
 
             {/* Mobile Close X Button */}
             <button

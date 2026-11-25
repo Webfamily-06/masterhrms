@@ -1938,7 +1938,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
   { id: "addon-store", portal: "tenant", heading: "13. Membership & Add-ons", label: "Add-on Store", path: "/tenant/addon", icon: "Puzzle", order: 1300 },
   { id: "addon-subscription", portal: "tenant", heading: "13. Membership & Add-ons", label: "Plan & Subscriptions", path: ROUTES.tenant.subscription, icon: "CreditCard", order: 1310 },
   { id: "addon-billing", portal: "tenant", heading: "13. Membership & Add-ons", label: "Invoices & Billing", path: ROUTES.tenant.billing, icon: "Receipt", order: 1320 },
-  { id: "addon-installed", portal: "tenant", heading: "13. Membership & Add-ons", label: "Installed Add-ons", path: "/tenant/installed-addons", icon: "PackageCheck", order: 1330 },
+  { id: "addon-installed", portal: "tenant", heading: "13. Membership & Add-ons", label: "Installed Add-ons", path: "/tenant/addons", icon: "PackageCheck", order: 1330 },
   {
     id: "addon-biometric",
     portal: "tenant",
@@ -1952,7 +1952,6 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
   },
 
   // ===================== 14. TENANT ADMINISTRATION & SYSTEM =====================
-  { id: "tenant-company-profile", portal: "tenant", heading: "14. Administration & System", label: "Company Profile", path: ROUTES.tenant.companyProfile, icon: "Building2", order: 1400 },
   { id: "tenant-users", portal: "tenant", heading: "14. Administration & System", label: "Users & Access", path: ROUTES.tenant.users, icon: "Users", order: 1410 },
   { id: "tenant-roles", portal: "tenant", heading: "14. Administration & System", label: "Roles & Permissions", path: ROUTES.tenant.roles, icon: "ShieldCheck", order: 1420 },
   { id: "tenant-modules", portal: "tenant", heading: "14. Administration & System", label: "Modules & Features", path: ROUTES.tenant.modules, icon: "Boxes", order: 1430 },
@@ -1962,10 +1961,10 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
   { id: "tenant-data", portal: "tenant", heading: "14. Administration & System", label: "Data Management", path: ROUTES.tenant.data, icon: "Database", order: 1470 },
   { id: "tenant-audit-logs", portal: "tenant", heading: "14. Administration & System", label: "Audit Trail", path: ROUTES.tenant.auditLogs, icon: "FileSearch", order: 1480 },
   { id: "tenant-settings", portal: "tenant", heading: "14. Administration & System", label: "General Settings", path: ROUTES.tenant.settings, icon: "Settings", order: 1490 },
-  { id: "tenant-2fa", portal: "tenant", heading: "14. Administration & System", label: "Two-Factor Auth (2FA)", path: "/tenant/2fa", icon: "Lock", order: 1500 },
-  { id: "tenant-security", portal: "tenant", heading: "14. Administration & System", label: "Security Settings", path: "/tenant/security", icon: "Shield", order: 1510 },
-  { id: "tenant-activity", portal: "tenant", heading: "14. Administration & System", label: "Activity Logs", path: "/tenant/activity-logs", icon: "Clock", order: 1520 },
-  { id: "tenant-backup", portal: "tenant", heading: "14. Administration & System", label: "Backup & Restore", path: "/tenant/backup", icon: "HardDrive", order: 1530 },
+  { id: "tenant-2fa", portal: "tenant", heading: "14. Administration & System", label: "Two-Factor Auth (2FA)", path: "/profile", icon: "Lock", order: 1500 },
+  { id: "tenant-security", portal: "tenant", heading: "14. Administration & System", label: "Security Settings", path: ROUTES.tenant.settings, icon: "Shield", order: 1510 },
+  { id: "tenant-activity", portal: "tenant", heading: "14. Administration & System", label: "Activity Logs", path: ROUTES.tenant.auditLogs, icon: "Clock", order: 1520 },
+  { id: "tenant-backup", portal: "tenant", heading: "14. Administration & System", label: "Backup & Restore", path: ROUTES.tenant.data, icon: "HardDrive", order: 1530 },
 ];
 
 /**

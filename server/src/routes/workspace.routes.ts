@@ -1,5 +1,8 @@
 import { Router, Response } from "express";
+import fs from "fs";
+import path from "path";
 import bcrypt from "bcryptjs";
+import nodemailer from "nodemailer";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest, invalidateAuthCache } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
@@ -8,6 +11,7 @@ import { getWorkspacePolicy } from "../services/workspace-policy.service";
 import { SettingsService } from "../services/settings/settings.service";
 import { CompanyProfileService } from "../services/company-profile/company-profile.service";
 import { requireEntitlement } from "../middleware/entitlements";
+import { getUploadsRoot } from "../services/media/media.service";
 
 export const workspaceRouter = Router();
 
@@ -1833,6 +1837,782 @@ workspaceRouter.put("/settings/company", async (req: AuthRequest, res: Response)
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to update company settings." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TENANT CONTROL PLANE — Live Summary, Audit Logs, Billing Invoices & Integrations
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/workspace/dashboard-summary
+workspaceRouter.get("/dashboard-summary", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const [
+      tenant,
+      profiles,
+      employees,
+      departmentsCount,
+      branchesCount,
+      rolesCount,
+      modules,
+      addons,
+      pendingLeavesCount,
+      openJobsCount,
+      subscription,
+      recentAuditLogs,
+    ] = await Promise.all([
+      prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { id: true, name: true, slug: true, logoUrl: true, timezone: true, createdAt: true },
+      }),
+      prisma.profile.findMany({
+        where: { tenantId },
+        select: { userId: true, user: { select: { twoFactorEnabled: true } } },
+      }),
+      prisma.employee.findMany({
+        where: { tenantId },
+        select: { id: true, status: true },
+      }),
+      prisma.department.count({ where: { tenantId } }).catch(() => 0),
+      prisma.branch.count({ where: { tenantId } }).catch(() => 0),
+      prisma.workspaceRole.count({ where: { tenantId } }).catch(() => 0),
+      prisma.tenantModule.findMany({ where: { tenantId }, orderBy: { moduleKey: "asc" } }).catch(() => []),
+      prisma.tenantAddon.findMany({ where: { tenantId, status: "active" } }).catch(() => []),
+      prisma.leaveRequest.count({ where: { tenantId, status: "pending" } }).catch(() => 0),
+      prisma.jobPosting.count({ where: { tenantId, status: "open" } }).catch(() => 0),
+      prisma.tenantSubscription
+        .findFirst({
+          where: { tenantId },
+          include: { plan: true },
+          orderBy: { createdAt: "desc" },
+        })
+        .catch(() => null),
+      prisma.auditLog
+        .findMany({
+          where: { tenantId },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+        })
+        .catch(() => []),
+    ]);
+
+    const totalUsers = profiles.length;
+    const twoFactorEnabledUsers = profiles.filter((p) => p.user?.twoFactorEnabled).length;
+    const twoFactorAdoptionPct = totalUsers > 0 ? Math.round((twoFactorEnabledUsers / totalUsers) * 100) : 0;
+    const totalEmployees = employees.length;
+    const activeEmployees = employees.filter((e) => (e.status || "").toLowerCase() === "active").length;
+
+    return res.json({
+      success: true,
+      data: {
+        tenant,
+        counts: {
+          totalUsers,
+          twoFactorEnabledUsers,
+          twoFactorAdoptionPct,
+          totalEmployees,
+          activeEmployees,
+          departments: departmentsCount,
+          branches: branchesCount,
+          roles: rolesCount,
+          enabledModules: modules.filter((m) => m.isEnabled).length,
+          installedAddons: addons.length,
+          pendingLeaveRequests: pendingLeavesCount,
+          openJobs: openJobsCount,
+        },
+        subscription: subscription
+          ? {
+              id: subscription.id,
+              status: subscription.status,
+              billingCycle: subscription.billingCycle,
+              currentPeriodEnd: subscription.currentPeriodEnd,
+              planName: subscription.plan?.name || "Enterprise",
+              priceMonthly: Number(subscription.plan?.priceMonthly || 0),
+              maxEmployees: subscription.plan?.maxEmployees ?? null,
+              maxUsers: subscription.plan?.maxUsers ?? null,
+            }
+          : null,
+        modules,
+        recentAuditLogs,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to load tenant dashboard summary." });
+  }
+});
+
+// GET /api/workspace/audit-logs
+workspaceRouter.get("/audit-logs", requireWorkspaceAdminGuard, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const search = String(req.query.search || "").trim();
+    const action = String(req.query.action || "").trim();
+    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+
+    const where: any = { tenantId };
+    if (action && action !== "all") {
+      where.action = { contains: action, mode: "insensitive" };
+    }
+    if (search) {
+      where.OR = [
+        { actorEmail: { contains: search, mode: "insensitive" } },
+        { action: { contains: search, mode: "insensitive" } },
+        { entityType: { contains: search, mode: "insensitive" } },
+        { entityId: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      }),
+      prisma.auditLog.count({ where }),
+    ]);
+
+    return res.json({ success: true, data: { logs, total } });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch tenant audit logs." });
+  }
+});
+
+// GET /api/workspace/billing/invoices
+workspaceRouter.get("/billing/invoices", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const [invoices, subscription] = await Promise.all([
+      prisma.billingInvoice.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      prisma.tenantSubscription
+        .findFirst({
+          where: { tenantId },
+          include: { plan: true },
+          orderBy: { createdAt: "desc" },
+        })
+        .catch(() => null),
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        invoices: invoices.map((inv) => ({
+          ...inv,
+          amount: Number(inv.amount || 0),
+        })),
+        subscription: subscription
+          ? {
+              id: subscription.id,
+              status: subscription.status,
+              billingCycle: subscription.billingCycle,
+              currentPeriodStart: subscription.currentPeriodStart,
+              currentPeriodEnd: subscription.currentPeriodEnd,
+              planName: subscription.plan?.name || "Enterprise",
+              priceMonthly: Number(subscription.plan?.priceMonthly || 0),
+              priceAnnual: Number(subscription.plan?.priceAnnual || 0),
+            }
+          : null,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch billing invoices." });
+  }
+});
+
+// GET /api/workspace/integrations/status
+workspaceRouter.get("/integrations/status", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const [emailGroup, storageGroup, addons, biometricCount, domainCount] = await Promise.all([
+      SettingsService.getGroup("TENANT", tenantId, "email").catch(() => ({ values: {} as Record<string, any> })),
+      SettingsService.getGroup("TENANT", tenantId, "storage").catch(() => ({ values: {} as Record<string, any> })),
+      prisma.tenantAddon.findMany({ where: { tenantId, status: "active" } }).catch(() => []),
+      (prisma as any).biometricDevice?.count({ where: { tenantId } }).catch(() => 0) ?? 0,
+      (prisma as any).tenantCustomDomain?.count({ where: { tenantId } }).catch(() => 0) ?? 0,
+    ]);
+
+    const smtpConfigured = Boolean(emailGroup?.values?.["email.smtp_host"] || process.env.SMTP_HOST);
+    const storageDriver = storageGroup?.values?.["storage.driver"] || "LOCAL";
+
+    return res.json({
+      success: true,
+      data: {
+        integrations: [
+          {
+            key: "smtp_email",
+            name: "SMTP & Transactional Email",
+            category: "Communication",
+            status: smtpConfigured ? "connected" : "pending",
+            summary: smtpConfigured ? "Configured for OTP, Payslips & Alerts" : "Using system default email fallback",
+            managePath: "/tenant/settings",
+          },
+          {
+            key: "file_storage",
+            name: "Document & Media Storage",
+            category: "Storage",
+            status: "connected",
+            summary: `Active storage driver: ${String(storageDriver).toUpperCase()}`,
+            managePath: "/tenant/files/storage",
+          },
+          {
+            key: "biometric_sync",
+            name: "Biometric & Attendance Devices",
+            category: "HR Operations",
+            status: biometricCount > 0 ? "connected" : "available",
+            summary: `${biometricCount} registered device${biometricCount === 1 ? "" : "s"}`,
+            managePath: "/hr/attendance/records",
+          },
+          {
+            key: "custom_domain",
+            name: "Custom Workspace Domain & SSL",
+            category: "Branding",
+            status: domainCount > 0 ? "connected" : "available",
+            summary: `${domainCount} custom domain${domainCount === 1 ? "" : "s"} configured`,
+            managePath: "/tenant/domain",
+          },
+          {
+            key: "tenant_addons",
+            name: "Installed Workspace Add-ons",
+            category: "Extensions",
+            status: addons.length > 0 ? "connected" : "available",
+            summary: `${addons.length} active add-on${addons.length === 1 ? "" : "s"}`,
+            managePath: "/tenant/addons",
+          },
+        ],
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch integrations status." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTHORITATIVE TENANT SYSTEM SETTINGS (14 Sections — Single Source of Truth)
+// Locked to Tenant Admin / Workspace Admin / Super Admin on write.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_HR_EMAIL_NOTIFICATIONS: Record<string, boolean> = {
+  assignDocumentToEmployee: true,
+  awardCreate: true,
+  candidateStatusUpdate: true,
+  complaintCreate: false,
+  employeeContractCreate: true,
+  employeeContractStatusUpdate: true,
+  employeeCreate: true,
+  employeeTransfer: true,
+  employeeTransferStatusUpdate: true,
+  interviewCreate: true,
+  interviewStatusUpdate: true,
+  jobApplied: true,
+  leaveStatusUpdate: true,
+  offerCreate: true,
+  payrollRunStatusUpdate: true,
+  promotionCreate: true,
+  promotionStatusUpdate: true,
+  resignationStatusUpdate: true,
+  terminationCreate: true,
+  terminationStatusUpdate: true,
+  tripCreate: false,
+  tripStatusUpdate: false,
+  userCreate: true,
+  warningCreate: true,
+};
+
+function buildDefaultSystemSettings(tenant: { name?: string | null; logoUrl?: string | null; timezone?: string | null } | null) {
+  const companyName = tenant?.name || "MasterHRMS";
+  const logo = tenant?.logoUrl || "";
+  return {
+    system: {
+      defaultLanguage: "en",
+      dateFormat: "Y-m-d",
+      timeFormat: "h:i a",
+      defaultTimezone: tenant?.timezone || "Asia/Kolkata",
+      ipRestrictionEnabled: false,
+    },
+    brand: {
+      logoDark: logo,
+      logoLight: logo,
+      favicon: logo,
+      titleText: companyName,
+      companyName,
+      footerText: `© ${new Date().getFullYear()} ${companyName}. All rights reserved.`,
+      companyMobile: "",
+      companyEmail: "",
+      companyAddress: "",
+      taxNumber: "",
+      themeColor: "#10b981",
+      themeMode: "light",
+      layoutMode: "full-width",
+      sidebarVariant: "inset",
+      sidebarStyle: "plain",
+      layoutDirection: "ltr",
+      sidebarPosition: "left",
+    },
+    currency: {
+      defaultCurrency: "INR",
+      symbol: "₹",
+      currencyName: "Indian Rupee",
+      decimalPlaces: 2,
+      symbolPosition: "prefix", // "prefix" | "suffix"
+      decimalSeparator: ".", // "." | ","
+      thousandsSeparator: ",", // "," | "." | " " | ""
+      showDecimals: true,
+      addSpace: false,
+    },
+    email: {
+      provider: "SMTP",
+      driver: "smtp",
+      host: process.env.SMTP_HOST || "",
+      port: process.env.SMTP_PORT || "587",
+      username: process.env.SMTP_USER || "",
+      password: "",
+      encryption: "TLS",
+      fromAddress: process.env.SMTP_FROM || "noreply@masterhrms.com",
+      fromName: companyName,
+    },
+    email_notifications: { ...DEFAULT_HR_EMAIL_NOTIFICATIONS },
+    slack: {
+      enabled: false,
+      webhookUrl: "",
+      botToken: "",
+      defaultChannel: "#hr-updates",
+    },
+    telegram: {
+      enabled: false,
+      botToken: "",
+      chatId: "",
+    },
+    twilio: {
+      enabled: false,
+      accountSid: "",
+      authToken: "",
+      fromNumber: "",
+    },
+    zoom: {
+      enabled: false,
+      accountId: "",
+      clientId: "",
+      clientSecret: "",
+    },
+    working_days: {
+      monday: true,
+      tuesday: true,
+      wednesday: true,
+      thursday: true,
+      friday: true,
+      saturday: false,
+      sunday: false,
+    },
+    ip_restriction: {
+      enabled: false,
+      allowedIps: [] as Array<{ id: string; ip: string; label?: string; createdAt: string }>,
+    },
+    noc: {
+      language: "en",
+      content:
+        "No Objection Certificate\nDate: {date}\n\nTo Whom It May Concern,\nThis is to certify that {employee_name} is currently employed with {company_name} as {designation}.\nWe have no objection to the above mentioned employee for any official purposes.\n\nSincerely,\nHR Department\n{company_name}",
+    },
+    experience_certificate: {
+      language: "en",
+      content:
+        "Experience Certificate\nDate: {date}\n\nTo Whom It May Concern,\nThis is to certify that {employee_name} worked with {company_name} as {designation} from {joining_date} to {relieving_date}.\nDuring their tenure, their conduct and performance were found to be professional and commendable.\n\nBest wishes,\nHR Department\n{company_name}",
+    },
+    joining_letter: {
+      language: "en",
+      content:
+        "Joining Letter\nDate: {date}\n\nDear {employee_name},\nWe are pleased to welcome you to {company_name} as {designation}.\nJoining Date: {joining_date}\nSalary: {salary}\nDepartment: {department}\nWe look forward to your valuable contribution to our company's success.\n\nBest regards,\nHR Department\n{company_name}",
+    },
+  };
+}
+
+async function loadTenantSystemSettings(tenantId: string) {
+  const [tenant, rows] = await Promise.all([
+    prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, name: true, slug: true, logoUrl: true, timezone: true },
+    }),
+    prisma.setting.findMany({
+      where: { scope: "TENANT", scopeId: tenantId, group: "tenant_system_settings" },
+    }),
+  ]);
+
+  const merged: Record<string, any> = buildDefaultSystemSettings(tenant);
+  for (const row of rows) {
+    if (row.key && merged[row.key] && row.valueJson && typeof row.valueJson === "object") {
+      merged[row.key] = { ...merged[row.key], ...(row.valueJson as Record<string, any>) };
+    }
+  }
+  return { tenant, settings: merged };
+}
+
+// GET /api/workspace/system-settings/public (Readable by EVERY user in the workspace — real-time global config)
+workspaceRouter.get("/system-settings/public", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const { tenant, settings } = await loadTenantSystemSettings(tenantId);
+    return res.json({
+      success: true,
+      data: {
+        tenant,
+        system: settings.system,
+        brand: settings.brand,
+        currency: settings.currency,
+        working_days: settings.working_days,
+        noc: settings.noc,
+        experience_certificate: settings.experience_certificate,
+        joining_letter: settings.joining_letter,
+        email_notifications: settings.email_notifications,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to load public workspace settings." });
+  }
+});
+
+// GET /api/workspace/system-settings (Full 14-section Tenant Admin settings)
+workspaceRouter.get("/system-settings", requireWorkspaceAdminGuard, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const { tenant, settings } = await loadTenantSystemSettings(tenantId);
+    return res.json({ success: true, data: { tenant, settings } });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to load tenant system settings." });
+  }
+});
+
+const ALLOWED_SETTING_SECTIONS = new Set([
+  "system",
+  "brand",
+  "currency",
+  "email",
+  "email_notifications",
+  "slack",
+  "telegram",
+  "twilio",
+  "zoom",
+  "working_days",
+  "ip_restriction",
+  "noc",
+  "experience_certificate",
+  "joining_letter",
+]);
+
+// PUT /api/workspace/system-settings/:section (Tenant Admin ONLY — authoritative DB write)
+workspaceRouter.put("/system-settings/:section", requireWorkspaceAdminGuard, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const section = String(req.params.section || "").trim();
+    if (!ALLOWED_SETTING_SECTIONS.has(section)) {
+      return res.status(400).json({ error: `Unknown settings section: ${section}` });
+    }
+
+    const payload = req.body && typeof req.body === "object" ? req.body : {};
+
+    // Upsert into Setting table (PostgreSQL)
+    const existing = await prisma.setting.findFirst({
+      where: { scope: "TENANT", scopeId: tenantId, group: "tenant_system_settings", key: section },
+    });
+
+    const mergedVal = {
+      ...((existing?.valueJson as Record<string, any>) || {}),
+      ...payload,
+    };
+
+    if (existing) {
+      await prisma.setting.update({
+        where: { id: existing.id },
+        data: { valueJson: mergedVal, valueType: "json", updatedBy: req.user?.userId || null },
+      });
+    } else {
+      await prisma.setting.create({
+        data: {
+          scope: "TENANT",
+          scopeId: tenantId,
+          group: "tenant_system_settings",
+          key: section,
+          valueJson: mergedVal,
+          valueType: "json",
+          updatedBy: req.user?.userId || null,
+        },
+      });
+    }
+
+    // Propagate authoritative fields to Tenant table & SettingsService
+    if (section === "system" && payload.defaultTimezone) {
+      await prisma.tenant.update({
+        where: { id: tenantId },
+        data: { timezone: String(payload.defaultTimezone) },
+      });
+    }
+    if (section === "brand") {
+      const nextName = payload.companyName || payload.titleText;
+      const nextLogo = payload.logoDark || payload.logoLight;
+      await prisma.tenant.update({
+        where: { id: tenantId },
+        data: {
+          ...(nextName ? { name: String(nextName).trim() } : {}),
+          ...(nextLogo !== undefined ? { logoUrl: nextLogo || null } : {}),
+        },
+      });
+      await SettingsService.setGroup(
+        "TENANT",
+        tenantId,
+        "branding",
+        {
+          ...(payload.themeColor ? { "branding.primary_color": payload.themeColor } : {}),
+          ...(nextName ? { "branding.app_name": nextName } : {}),
+          ...(payload.footerText !== undefined ? { "branding.footer_text": payload.footerText } : {}),
+        },
+        { userId: req.user?.userId }
+      ).catch(() => {});
+
+      // Sync Company Profile fields directly from Brand Settings -> Text tab
+      await CompanyProfileService.upsertProfile(
+        tenantId,
+        {
+          legalName: nextName || "Company Legal Name",
+          tradeName: nextName || null,
+          email: payload.companyEmail || `contact@${tenantId}.masterhrms.com`,
+          phone: payload.companyMobile || null,
+          registeredAddress: payload.companyAddress || null,
+          billingAddress: payload.companyAddress || null,
+          sameAsRegistered: true,
+        },
+        {
+          userId: req.user?.userId,
+          ipAddress: req.ip,
+          userAgent: req.get("user-agent"),
+        }
+      ).catch(() => {});
+    }
+
+    // Audit log
+    await prisma.auditLog
+      .create({
+        data: {
+          tenantId,
+          actorId: req.user?.userId || null,
+          actorEmail: req.user?.email || null,
+          action: `SETTINGS_UPDATE_${section.toUpperCase()}`,
+          entityType: "TenantSystemSettings",
+          entityId: section,
+          afterJson: section === "email" ? { ...mergedVal, password: "***" } : mergedVal,
+          ipAddress: req.ip || null,
+          userAgent: req.get("user-agent") || null,
+        },
+      })
+      .catch(() => {});
+
+    return res.json({
+      success: true,
+      section,
+      data: mergedVal,
+      message: "Settings saved and applied across workspace.",
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to save settings section." });
+  }
+});
+
+// POST /api/workspace/system-settings/brand/upload (Upload Logo Dark, Logo Light, or Favicon)
+workspaceRouter.post("/system-settings/brand/upload", requireWorkspaceAdminGuard, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const { assetType, imageDataUrl } = req.body || {};
+    if (!["logoDark", "logoLight", "favicon"].includes(String(assetType))) {
+      return res.status(400).json({ error: "assetType must be logoDark, logoLight, or favicon." });
+    }
+    if (!imageDataUrl || typeof imageDataUrl !== "string") {
+      return res.status(400).json({ error: "Image data URL is required." });
+    }
+
+    const match = imageDataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif|svg\+xml|x-icon|vnd\.microsoft\.icon));base64,(.+)$/i);
+    if (!match) {
+      return res.status(400).json({ error: "Unsupported format. Use PNG, JPG, WEBP, SVG, or ICO." });
+    }
+    const mime = match[1].toLowerCase();
+    const ext =
+      mime.includes("png") ? "png" :
+      mime.includes("webp") ? "webp" :
+      mime.includes("svg") ? "svg" :
+      mime.includes("icon") ? "ico" :
+      mime.includes("gif") ? "gif" : "jpg";
+    const buffer = Buffer.from(match[2], "base64");
+    if (buffer.length > 2 * 1024 * 1024) {
+      return res.status(400).json({ error: "Image must be 2 MB or smaller." });
+    }
+
+    const brandDir = path.join(getUploadsRoot(), "branding");
+    if (!fs.existsSync(brandDir)) {
+      fs.mkdirSync(brandDir, { recursive: true });
+    }
+    const safeTenant = tenantId.replace(/[^a-zA-Z0-9_-]/g, "");
+    const fileName = `${safeTenant}-${assetType}-${Date.now()}.${ext}`;
+    fs.writeFileSync(path.join(brandDir, fileName), buffer);
+    const url = `/uploads/branding/${fileName}`;
+
+    // Persist immediately into brand setting + Tenant.logoUrl
+    const existing = await prisma.setting.findFirst({
+      where: { scope: "TENANT", scopeId: tenantId, group: "tenant_system_settings", key: "brand" },
+    });
+    const nextBrand = {
+      ...((existing?.valueJson as Record<string, any>) || {}),
+      [assetType]: url,
+    };
+    if (existing) {
+      await prisma.setting.update({ where: { id: existing.id }, data: { valueJson: nextBrand } });
+    } else {
+      await prisma.setting.create({
+        data: {
+          scope: "TENANT",
+          scopeId: tenantId,
+          group: "tenant_system_settings",
+          key: "brand",
+          valueJson: nextBrand,
+          valueType: "json",
+          updatedBy: req.user?.userId || null,
+        },
+      });
+    }
+    if (assetType === "logoDark") {
+      await prisma.tenant.update({ where: { id: tenantId }, data: { logoUrl: url } }).catch(() => {});
+    }
+
+    return res.json({ success: true, assetType, url, message: "Brand asset uploaded." });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to upload brand asset." });
+  }
+});
+
+// POST /api/workspace/system-settings/test-email (Send Live SMTP Test Email)
+workspaceRouter.post("/system-settings/test-email", requireWorkspaceAdminGuard, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const { toEmail, smtp } = req.body || {};
+    if (!toEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(toEmail))) {
+      return res.status(400).json({ error: "Please enter a valid recipient email address." });
+    }
+
+    const { settings } = await loadTenantSystemSettings(tenantId);
+    const cfg = { ...settings.email, ...(smtp || {}) };
+
+    if (!cfg.host) {
+      return res.status(400).json({ error: "SMTP Host is required before sending a test email." });
+    }
+
+    const port = Number(cfg.port) || 587;
+    const transporter = nodemailer.createTransport({
+      host: cfg.host,
+      port,
+      secure: String(cfg.encryption || "").toUpperCase() === "SSL" || port === 465,
+      auth: cfg.username ? { user: cfg.username, pass: cfg.password || "" } : undefined,
+      connectionTimeout: 8000,
+    });
+
+    await transporter.sendMail({
+      from: `"${cfg.fromName || "MasterHRMS"}" <${cfg.fromAddress || cfg.username}>`,
+      to: String(toEmail).trim(),
+      subject: `[Test] ${cfg.fromName || "MasterHRMS"} SMTP Configuration Verified`,
+      text: "Your Tenant SMTP email configuration is working properly in real time.",
+    });
+
+    return res.json({ success: true, message: `Test email sent successfully to ${toEmail}.` });
+  } catch (err: any) {
+    return res.status(400).json({ error: err?.message || "SMTP connection failed. Please verify host, port, and credentials." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REAL-TIME WORKSPACE TRANSLATION ENGINE (Cached batch translator)
+// ═══════════════════════════════════════════════════════════════════════════
+const translationMemoryCache = new Map<string, string>();
+const MAX_TRANSLATION_CACHE = 8000;
+
+async function translateSingleText(text: string, targetLang: string): Promise<string> {
+  const cacheKey = `${targetLang}::${text}`;
+  const cached = translationMemoryCache.get(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${encodeURIComponent(
+      targetLang
+    )}&dt=t&q=${encodeURIComponent(text)}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const resp = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!resp.ok) return text;
+    const json: any = await resp.json();
+    const translated = Array.isArray(json?.[0])
+      ? json[0].map((seg: any) => (Array.isArray(seg) ? seg[0] : "")).join("")
+      : text;
+    const clean = translated && translated.trim() ? translated : text;
+    if (translationMemoryCache.size > MAX_TRANSLATION_CACHE) {
+      const firstKey = translationMemoryCache.keys().next().value;
+      if (firstKey) translationMemoryCache.delete(firstKey);
+    }
+    translationMemoryCache.set(cacheKey, clean);
+    return clean;
+  } catch {
+    return text;
+  }
+}
+
+// POST /api/workspace/translate
+workspaceRouter.post("/translate", async (req: AuthRequest, res: Response) => {
+  try {
+    const targetLang = String(req.body?.targetLang || "en").trim().toLowerCase();
+    const rawTexts: unknown[] = Array.isArray(req.body?.texts) ? req.body.texts : [];
+    const texts = Array.from(
+      new Set(
+        rawTexts
+          .map((t) => String(t ?? "").trim())
+          .filter((t) => t.length > 0 && t.length <= 400)
+      )
+    ).slice(0, 80);
+
+    if (!targetLang || targetLang === "en" || texts.length === 0) {
+      const passthrough: Record<string, string> = {};
+      texts.forEach((t) => { passthrough[t] = t; });
+      return res.json({ success: true, targetLang, translations: passthrough });
+    }
+
+    const translations: Record<string, string> = {};
+    // Translate in small parallel chunks of 10 for fast response
+    const chunkSize = 10;
+    for (let i = 0; i < texts.length; i += chunkSize) {
+      const slice = texts.slice(i, i + chunkSize);
+      const results = await Promise.all(slice.map((t) => translateSingleText(t, targetLang)));
+      slice.forEach((orig, idx) => {
+        translations[orig] = results[idx];
+      });
+    }
+
+    return res.json({ success: true, targetLang, translations });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Translation failed." });
   }
 });
 

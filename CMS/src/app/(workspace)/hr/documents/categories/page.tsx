@@ -194,7 +194,7 @@ export default function HrDocumentCategoriesPage() {
   };
 
   return (
-    <div className="p-4 lg:p-6 space-y-5 max-w-7xl mx-auto">
+    <div className="w-full px-3 sm:px-4 lg:px-5 py-4 lg:py-5 space-y-5">
       <PageHeader
         title="Document Categories"
         description="Organize HR documents into categories."

@@ -202,7 +202,7 @@ export default function HrContractTypesPage() {
   };
 
   return (
-    <div className="p-4 lg:p-6 space-y-5 max-w-7xl mx-auto">
+    <div className="w-full px-3 sm:px-4 lg:px-5 py-4 lg:py-5 space-y-5">
       <PageHeader
         title="Contract Types"
         description="Manage employment contract types, probation periods, and notice terms."
@@ -220,7 +220,7 @@ export default function HrContractTypesPage() {
       {/* Filter & Tabs Card */}
       <div className="bg-card border border-border/80 rounded-xl shadow-xs overflow-hidden">
         <div className="p-4 flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px] max-w-[260px]">
+          <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-[280px]">
             <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <Input
               value={search}
@@ -233,7 +233,7 @@ export default function HrContractTypesPage() {
             />
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center justify-end gap-2">
             {search && (
               <Button variant="ghost" size="sm" onClick={() => setSearch("")} className="h-9 text-xs">
                 <X className="h-3.5 w-3.5 mr-1" /> Reset

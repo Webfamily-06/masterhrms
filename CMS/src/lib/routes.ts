@@ -154,7 +154,7 @@ export const ROUTES = {
     },
     assets: {
       root: "/hr/assets",
-      dashboard: "/hr/assets/dashboard",
+      dashboard: "/asset-dashboard",
       list: "/hr/assets",
       depreciation: "/hr/assets/depreciation",
       types: "/hr/assets/types",

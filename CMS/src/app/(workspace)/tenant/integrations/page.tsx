@@ -1,161 +1,112 @@
 'use client';
 
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Cpu, Mail, Key, Webhook, CheckCircle2, Copy, Save, Zap } from 'lucide-react';
-import { toast } from 'sonner';
-import { IntegrationsHubStudio } from '@/components/integrations/integrations-hub-studio';
+import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
+import { api } from "@/lib/api";
+import { PageHeader } from "@/components/ui/page-header";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { AccessDenied } from "@/components/access-denied";
+import { usePermissions } from "@/lib/permissions";
 
-function TenantIntegrationsPage() {
-  const [apiKey, setApiKey] = useState('mstr_live_948f21bb8d462574f4364');
-  const [smtp, setSmtp] = useState({
-    host: 'smtp.sendgrid.net',
-    port: '587',
-    user: 'apikey',
-    sender: 'notifications@masterhrms.com',
-    enabled: true,
+type IntegrationItem = {
+  key: string;
+  name: string;
+  category: string;
+  status: "connected" | "pending" | "available";
+  summary: string;
+  managePath: string;
+};
+
+const ICON_MAP: Record<string, string> = {
+  smtp_email: "ph-envelope-simple",
+  file_storage: "ph-cloud-arrow-up",
+  biometric_sync: "ph-fingerprint",
+  custom_domain: "ph-globe",
+  tenant_addons: "ph-puzzle-piece",
+};
+
+export default function TenantIntegrationsPage() {
+  const { isWorkspaceAdmin, isSuperAdmin, loading } = usePermissions();
+  const isAuthorized = isWorkspaceAdmin || isSuperAdmin;
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["tenant-integrations-status"],
+    queryFn: async () => {
+      const res: any = await api.get("/workspace/integrations/status");
+      return res?.data || res || { integrations: [] };
+    },
+    enabled: isAuthorized,
   });
 
-  const copyKey = () => {
-    navigator.clipboard.writeText(apiKey);
-    toast.success('API Key copied to clipboard!');
-  };
+  const integrations: IntegrationItem[] = Array.isArray(data?.integrations) ? data.integrations : [];
 
-  const handleSave = () => {
-    toast.success('Integration settings saved.');
-  };
+  if (!loading && !isAuthorized) {
+    return <AccessDenied moduleName="Tenant Integrations" requiredPermission="workspace.integrations.view" />;
+  }
 
   return (
-    <div className="space-y-6 max-w-7xl">
-      <Tabs defaultValue="apps" className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Integrations, Apps & API Gateways
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Connect external SaaS services, transactional email servers, and custom REST API keys.
-            </p>
-          </div>
+    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+      <PageHeader
+        title="Tenant Integrations & Connectors"
+        description="Live status of email gateways, storage drivers, biometric attendance devices, custom domains, and installed add-ons."
+        actions={
+          <Button size="sm" variant="outline" onClick={() => refetch()} className="gap-1.5">
+            <i className="ph ph-arrows-clockwise" />
+            Refresh Status
+          </Button>
+        }
+      />
 
-          <TabsList className="h-9">
-            <TabsTrigger value="apps" className="text-xs gap-1.5">
-              <Zap className="size-3.5" /> App Integrations
-            </TabsTrigger>
-            <TabsTrigger value="smtp" className="text-xs gap-1.5">
-              <Mail className="size-3.5" /> Custom SMTP
-            </TabsTrigger>
-            <TabsTrigger value="api" className="text-xs gap-1.5">
-              <Key className="size-3.5" /> REST API Key
-            </TabsTrigger>
-          </TabsList>
+      {isLoading ? (
+        <div className="p-12 text-center text-muted-foreground text-xs">
+          <i className="ph ph-spinner-gap animate-spin text-2xl text-primary block mx-auto mb-2" />
+          Checking live integration connectors...
         </div>
-
-        {/* Tab 1: Reference B & C App Cards & Modal */}
-        <TabsContent value="apps" className="space-y-6">
-          <IntegrationsHubStudio />
-        </TabsContent>
-
-        {/* Tab 2: Custom SMTP */}
-        <TabsContent value="smtp" className="max-w-4xl space-y-4">
-          <Card className="border-border/80">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <Mail className="h-5 w-5 text-primary" />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {integrations.map((item) => (
+            <Card key={item.key} className="border border-border/80 rounded-xl bg-card shadow-xs">
+              <CardContent className="p-5 flex flex-col justify-between h-full gap-4">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-lg shrink-0">
+                      <i className={`ph ${ICON_MAP[item.key] || "ph-plugs-connected"}`} />
+                    </div>
+                    <Badge
+                      variant={
+                        item.status === "connected"
+                          ? "success"
+                          : item.status === "pending"
+                          ? "warning"
+                          : "soft"
+                      }
+                      className="text-[10px] uppercase"
+                    >
+                      {item.status}
+                    </Badge>
+                  </div>
                   <div>
-                    <CardTitle className="text-base font-semibold">Custom SMTP Server</CardTitle>
-                    <CardDescription className="text-xs">
-                      Deliver employee invitations, payslip PDFs, and password resets via your own email domain.
-                    </CardDescription>
+                    <p className="text-[11px] font-medium text-muted-foreground">{item.category}</p>
+                    <h3 className="text-sm font-semibold text-foreground mt-0.5">{item.name}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">{item.summary}</p>
                   </div>
                 </div>
-                <Switch
-                  checked={smtp.enabled}
-                  onCheckedChange={(val) => setSmtp({ ...smtp, enabled: val })}
-                />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">SMTP Server Host</Label>
-                  <Input
-                    value={smtp.host}
-                    onChange={(e) => setSmtp({ ...smtp, host: e.target.value })}
-                    placeholder="smtp.mailgun.org"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">SMTP Port</Label>
-                  <Input
-                    value={smtp.port}
-                    onChange={(e) => setSmtp({ ...smtp, port: e.target.value })}
-                    placeholder="587"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Username / API Key</Label>
-                  <Input
-                    value={smtp.user}
-                    onChange={(e) => setSmtp({ ...smtp, user: e.target.value })}
-                    placeholder="user@domain.com"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Sender Email Address</Label>
-                  <Input
-                    value={smtp.sender}
-                    onChange={(e) => setSmtp({ ...smtp, sender: e.target.value })}
-                    placeholder="hr@yourcompany.com"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end pt-2">
-                <Button size="sm" onClick={handleSave} className="gap-2">
-                  <Save className="h-4 w-4" /> Save SMTP
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-        {/* Tab 3: REST API Key */}
-        <TabsContent value="api" className="max-w-4xl space-y-4">
-          <Card className="border-border/80">
-            <CardHeader>
-              <div className="flex items-center gap-2.5">
-                <Key className="h-5 w-5 text-primary" />
-                <div>
-                  <CardTitle className="text-base font-semibold">REST API Key</CardTitle>
-                  <CardDescription className="text-xs">
-                    Authorize external HRMS webhooks, Zapier integrations, and biometric clock-in devices.
-                  </CardDescription>
+                <div className="pt-3 border-t border-border/60 flex justify-end">
+                  <Link href={item.managePath}>
+                    <Button size="xs" variant="outline" className="gap-1">
+                      Configure
+                      <i className="ph ph-arrow-right" />
+                    </Button>
+                  </Link>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Input value={apiKey} readOnly className="font-mono text-xs bg-muted/40" />
-                <Button variant="outline" size="sm" onClick={copyKey} className="gap-1.5">
-                  <Copy className="h-3.5 w-3.5" /> Copy
-                </Button>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Include as <code className="bg-muted px-1 py-0.5 rounded">Authorization: Bearer {'<API_KEY>'}</code> in your HTTP requests.
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
-
-export default TenantIntegrationsPage;

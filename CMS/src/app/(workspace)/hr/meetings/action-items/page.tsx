@@ -423,7 +423,7 @@ export default function HrMeetingActionItemsPage() {
   ];
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full px-3 sm:px-4 lg:px-5 py-4 lg:py-5 space-y-5">
       <PageHeader
         title="Action Items"
         description="Manage tasks and follow-ups assigned from meetings."
@@ -441,7 +441,7 @@ export default function HrMeetingActionItemsPage() {
       {/* Filter Bar + Tabs */}
       <div className="rounded-xl border border-border/80 bg-card shadow-xs overflow-hidden">
         <div className="p-4 flex flex-wrap items-center gap-3 border-b border-border/60">
-          <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <div className="relative w-full sm:flex-1 sm:min-w-[200px] max-w-xs">
             <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
               value={search}
@@ -461,7 +461,7 @@ export default function HrMeetingActionItemsPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-[155px] h-9">
+            <SelectTrigger className="w-full sm:w-[155px] h-9">
               <SelectValue placeholder="All Priorities" />
             </SelectTrigger>
             <SelectContent>
@@ -480,7 +480,7 @@ export default function HrMeetingActionItemsPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-[175px] h-9">
+            <SelectTrigger className="w-full sm:w-[175px] h-9">
               <SelectValue placeholder="All Assignees" />
             </SelectTrigger>
             <SelectContent>
@@ -500,7 +500,7 @@ export default function HrMeetingActionItemsPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-[180px] h-9">
+            <SelectTrigger className="w-full sm:w-[180px] h-9">
               <SelectValue placeholder="All Meetings" />
             </SelectTrigger>
             <SelectContent>

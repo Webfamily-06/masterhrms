@@ -20,13 +20,21 @@ select,
 textarea,
 [data-radix-portal],
 [data-radix-popper-content-wrapper],
+[data-radix-popper-content-wrapper] *:not(.ph):not(.ph-duotone):not(.ph-fill):not(.ti):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.icon):not(code):not(kbd),
 [role="dialog"],
 dialog,
 [role="menu"],
+[role="menu"] *:not(.ph):not(.ph-duotone):not(.ph-fill):not(.ti):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.icon):not(code):not(kbd),
+[role="menuitem"],
+[data-radix-collection-item],
 [role="tooltip"],
 [role="listbox"],
-[data-radix-select-viewport] {
-  font-family: var(--font-sans);
+[data-radix-select-viewport],
+.dropdown-menu,
+.dropdown-menu *:not(.ph):not(.ph-duotone):not(.ph-fill):not(.ti):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.icon):not(code):not(kbd),
+.profile-dropdown,
+.profile-dropdown *:not(.ph):not(.ph-duotone):not(.ph-fill):not(.ti):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.icon):not(code):not(kbd) {
+  font-family: var(--font-sans) !important;
 }
 
 @theme inline {
@@ -361,41 +369,41 @@ dialog,
 }
 
 .dark {
-  --background: oklch(0.155 0.025 265);
-  --foreground: oklch(0.97 0.004 260);
-  --card: oklch(0.195 0.028 265);
-  --card-foreground: oklch(0.97 0.004 260);
-  --popover: oklch(0.195 0.028 265);
-  --popover-foreground: oklch(0.97 0.004 260);
+  --background: #0b0f19;
+  --foreground: #f1f5f9;
+  --card: #111827;
+  --card-foreground: #f1f5f9;
+  --popover: #111827;
+  --popover-foreground: #f1f5f9;
   --primary: oklch(0.68 0.19 280);
-  --primary-foreground: oklch(0.155 0.025 265);
-  --secondary: oklch(0.265 0.03 265);
-  --secondary-foreground: oklch(0.97 0.004 260);
-  --muted: oklch(0.265 0.03 265);
-  --muted-foreground: oklch(0.68 0.025 260);
-  --accent: oklch(0.265 0.03 265);
-  --accent-foreground: oklch(0.97 0.004 260);
+  --primary-foreground: #0b0f19;
+  --secondary: #1e293b;
+  --secondary-foreground: #f1f5f9;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #1e293b;
+  --accent-foreground: #f1f5f9;
   --destructive: oklch(0.65 0.21 25);
   --destructive-foreground: oklch(0.99 0 0);
   --success: oklch(0.68 0.16 155);
-  --success-foreground: oklch(0.155 0.025 265);
+  --success-foreground: #0b0f19;
   --warning: oklch(0.80 0.16 75);
-  --warning-foreground: oklch(0.155 0.025 265);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 14%);
+  --warning-foreground: #0b0f19;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.12);
   --ring: oklch(0.68 0.19 280);
   --chart-1: oklch(0.68 0.19 280);
   --chart-2: oklch(0.68 0.16 155);
   --chart-3: oklch(0.80 0.16 75);
   --chart-4: oklch(0.65 0.21 25);
   --chart-5: oklch(0.68 0.18 200);
-  --sidebar: oklch(0.18 0.028 265);
-  --sidebar-foreground: oklch(0.97 0.004 260);
+  --sidebar: #111827;
+  --sidebar-foreground: #f1f5f9;
   --sidebar-primary: oklch(0.68 0.19 280);
-  --sidebar-primary-foreground: oklch(0.155 0.025 265);
-  --sidebar-accent: oklch(0.265 0.03 265);
-  --sidebar-accent-foreground: oklch(0.97 0.004 260);
-  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-primary-foreground: #0b0f19;
+  --sidebar-accent: #1e293b;
+  --sidebar-accent-foreground: #f1f5f9;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: oklch(0.68 0.19 280);
 }
 
@@ -447,7 +455,7 @@ dialog,
 
 [data-theme="dark"],
 .dark {
-  --sidebar-bg: #0b1329;
+  --sidebar-bg: #111827;
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-menu-item: #94a3b8;
   --sidebar-menu-item-hover: #f8fafc;
@@ -1865,3 +1873,12 @@ dialog:modal::backdrop {
   }
 }
 
+
+/* Unified Dark Mode Topbar & Sidebar Surface (#111827 — cohesive with Cards & Popovers) */
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .navbar-header,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .sidebar,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .sidebar .sidebar-logo,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .sidebar .sidebar-inner {
+  background-color: #111827 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}

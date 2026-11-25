@@ -112,7 +112,7 @@ export function PageHeader({
 
       {/* Action button group */}
       {actions && (
-        <div className="flex items-center gap-2 flex-wrap sm:shrink-0 sm:justify-end">
+        <div className="flex w-full sm:w-auto items-center gap-2 flex-wrap sm:shrink-0 sm:justify-end">
           {actions}
         </div>
       )}

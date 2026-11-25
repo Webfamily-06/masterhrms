@@ -181,6 +181,7 @@ export function applyThemeVariables(
   options?: { respectPersonalOverride?: boolean; isWorkspaceColor?: boolean }
 ) {
   if (typeof document === "undefined" || !primaryHex) return;
+  if (document.documentElement.getAttribute("data-tenant-brand-locked") === "true") return;
   try {
     if (options?.isWorkspaceColor) {
       localStorage.setItem("master_hrms_workspace_primary_color", primaryHex);

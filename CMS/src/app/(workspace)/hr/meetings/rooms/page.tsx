@@ -252,7 +252,7 @@ export default function HrMeetingRoomsPage() {
   const endIdx = Math.min(safePage * pageSize, filteredAndSorted.length);
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full px-3 sm:px-4 lg:px-5 py-4 lg:py-5 space-y-5">
       <PageHeader
         title="Meeting Rooms"
         description="Manage rooms and spaces available for meetings."
@@ -317,7 +317,7 @@ export default function HrMeetingRoomsPage() {
       {/* Filter Bar + Tabs */}
       <div className="rounded-xl border border-border/80 bg-card shadow-xs overflow-hidden">
         <div className="p-4 flex flex-wrap items-center gap-3 border-b border-border/60">
-          <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <div className="relative w-full sm:flex-1 sm:min-w-[200px] max-w-xs">
             <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
               value={search}
@@ -337,7 +337,7 @@ export default function HrMeetingRoomsPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-[160px] h-9">
+            <SelectTrigger className="w-full sm:w-[160px] h-9">
               <SelectValue placeholder="All Types" />
             </SelectTrigger>
             <SelectContent>

@@ -278,7 +278,7 @@ export default function HrAwardsPage() {
   };
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full px-3 sm:px-4 lg:px-5 py-4 lg:py-5 space-y-5">
       <PageHeader
         title="Awards"
         description="Manage awards and recognitions given to employees."
@@ -301,7 +301,7 @@ export default function HrAwardsPage() {
       {/* Filter Bar Card */}
       <div className="rounded-xl border border-border/80 bg-card shadow-xs p-4">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[180px] max-w-[230px]">
+          <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-[280px]">
             <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
               placeholder="Search..."
@@ -321,7 +321,7 @@ export default function HrAwardsPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-[175px] h-9">
+            <SelectTrigger className="w-full sm:w-[175px] h-9">
               <SelectValue placeholder="All Award Types" />
             </SelectTrigger>
             <SelectContent>
@@ -341,7 +341,7 @@ export default function HrAwardsPage() {
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-[175px] h-9">
+            <SelectTrigger className="w-full sm:w-[175px] h-9">
               <SelectValue placeholder="All Employees" />
             </SelectTrigger>
             <SelectContent className="max-h-60">
@@ -361,7 +361,7 @@ export default function HrAwardsPage() {
               setDateFrom(e.target.value);
               setPage(1);
             }}
-            className="w-[155px] h-9"
+            className="w-full sm:w-[155px] h-9"
             aria-label="Date From"
           />
 
@@ -372,11 +372,11 @@ export default function HrAwardsPage() {
               setDateTo(e.target.value);
               setPage(1);
             }}
-            className="w-[155px] h-9"
+            className="w-full sm:w-[155px] h-9"
             aria-label="Date To"
           />
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center justify-end gap-2">
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 gap-1 text-muted-foreground">
                 <X className="h-3.5 w-3.5" />

@@ -103,6 +103,19 @@ function isPathMatchingPrefixes(pathname: string, prefixes: string[]) {
   return prefixes.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
+const EMPLOYEE_SELF_SERVICE_SEARCH_ITEMS = [
+  { title: "My Dashboard", url: "/me/dashboard", group: "Employee Self-Service", icon: Home },
+  { title: "My Profile, Password & 2FA", url: "/profile", group: "Employee Self-Service", icon: User },
+  { title: "My Payslips", url: "/employee-payslips", group: "Employee Self-Service", icon: Receipt },
+  { title: "My Attendance & Clock", url: "/attendance-employee", group: "Employee Self-Service", icon: Clock },
+  { title: "My Leave Requests", url: "/me/leave", group: "Employee Self-Service", icon: CalendarCheck },
+  { title: "My Helpdesk & Tickets", url: "/me/helpdesk", group: "Employee Self-Service", icon: HelpCircle },
+  { title: "My Tasks", url: "/tasks", group: "Employee Self-Service", icon: Kanban },
+  { title: "Personal Settings & Theme", url: "/me/settings", group: "Employee Self-Service", icon: Settings },
+  { title: "Team Chat", url: "/me/chat", group: "Collaboration", icon: MessageSquare },
+  { title: "Company Notice Board", url: "/notice-board", group: "Collaboration", icon: Megaphone },
+];
+
 const ALL_SEARCH_ITEMS = [
   { title: "HRM Dashboard", url: "/hrm-dashboard", group: "ERP Core", icon: Home },
   { title: "Deals Dashboard", url: "/deals-dashboard", group: "ERP Core", icon: Compass },
@@ -155,7 +168,6 @@ const ALL_SEARCH_ITEMS = [
   { title: "Workspace Settings", url: "/tenant/settings", group: "Platform", icon: Settings },
   { title: "Roles & Permissions", url: "/tenant/roles", group: "Platform", icon: ShieldAlert },
   { title: "Enabled Modules", url: "/tenant/modules", group: "Platform", icon: Layers },
-  { title: "Company Profile & Tax", url: "/tenant/company-profile", group: "Platform", icon: Building2 },
   { title: "HR Administration Settings", url: "/hr/settings", group: "HRM Suite", icon: Settings },
   { title: "Personal Settings & Theme", url: "/me/settings", group: "Platform", icon: Settings },
   { title: "Employee Directory", url: "/hr/employees", group: "HRM Suite", icon: Users },
@@ -223,7 +235,6 @@ const ALL_SEARCH_ITEMS = [
   { title: "Users & Roles", url: "/users", group: "Platform", icon: Users },
   { title: "Subscription & Plan", url: "/subscription", group: "Platform", icon: CreditCard },
   { title: "Tenant Administration", url: "/tenant/dashboard", group: "Platform", icon: Building2 },
-  { title: "Tenant Company Profile", url: "/tenant/company-profile", group: "Platform", icon: Building2 },
   { title: "Tenant Users & Access", url: "/tenant/users", group: "Platform", icon: Users },
   { title: "Tenant Roles & Permissions", url: "/tenant/roles", group: "Platform", icon: ShieldCheck },
   { title: "Tenant Modules & Subscriptions", url: "/tenant/modules", group: "Platform", icon: Layers },
@@ -502,6 +513,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [leavingImpersonation, setLeavingImpersonation] = useState(false);
 
   // Synchronize full-view, mini-sidebar classes on document.body and document.documentElement
@@ -790,7 +802,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       />
 
       {/* Topbar Header */}
-      <header className="navbar-header flex items-center max-lg:w-full border-b border-border/60 bg-background/80 backdrop-blur-md transition-colors">
+      <header className="navbar-header flex items-center max-lg:w-full h-16 border-b border-border/50 bg-card/95 backdrop-blur-md transition-colors">
         <div className="topbar-menu flex items-center justify-between w-full gap-2 px-1 sm:px-2 flex-nowrap">
           {/* Left section: mobile hamburger + mobile brand logo + desktop collapse toggle + workspace */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -818,16 +830,33 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
               />
             </Link>
 
-            {/* Desktop Full Sidebar / Mini Sidebar Toggle Button */}
+            {/* Single Desktop Full Sidebar / Mini Sidebar Toggle Button */}
             <button
               type="button"
               id="toggle_btn2"
               onClick={() => {
-                if (fullView) {
+                const currentLayout =
+                  typeof document !== "undefined"
+                    ? document.documentElement.getAttribute("data-layout")
+                    : null;
+                const isCurrentlyCollapsed =
+                  fullView || collapsed || currentLayout === "mini" || currentLayout === "hidden";
+
+                if (isCurrentlyCollapsed) {
                   setFullView(false);
                   setCollapsed(false);
+                  if (typeof document !== "undefined") {
+                    document.documentElement.setAttribute("data-layout", "full-width");
+                    document.body.classList.remove("mini-sidebar", "expand-menu");
+                  }
                 } else {
-                  setCollapsed((c) => !c);
+                  setFullView(false);
+                  setCollapsed(true);
+                  if (typeof document !== "undefined") {
+                    document.documentElement.setAttribute("data-layout", "mini");
+                    document.body.classList.add("mini-sidebar");
+                    document.body.classList.remove("expand-menu");
+                  }
                 }
               }}
               className={cn(
@@ -837,7 +866,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                   : "bg-card border-border/70 hover:bg-muted/70 text-foreground"
               )}
               aria-label="Toggle Sidebar Mini Rail"
-              title={collapsed ? "Expand Sidebar to Full Width (250px)" : "Collapse Sidebar to Mini Rail (72px)"}
+              title={collapsed ? "Expand Sidebar to Full Width (252px)" : "Collapse Sidebar to Mini Rail (76px)"}
             >
               <i className={cn("ph-duotone", collapsed ? "ph-arrow-line-right" : "ph-arrow-line-left")}></i>
             </button>
@@ -909,7 +938,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             {canAccessPos && (
               <Link
                 to="/pos"
-                className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors shrink-0"
+                className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-2xs transition-colors shrink-0"
                 title="Open POS Terminal"
               >
                 <i className="ph-duotone ph-shopping-cart text-sm"></i>
@@ -1257,41 +1286,219 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         onClick={() => setMobileOpen(false)}
       />
 
-      {/* ⌘K Global Search Dialog */}
-      <CommandDialog open={searchOpen} onOpenChange={setSearchOpen}>
-        <CommandInput placeholder="Search ERP, HRM, Inventory, Sales, Finance modules..." />
+      {/* ⌘K Global Search Dialog (Strictly RBAC-Scoped + Exact-Match-First Ranking) */}
+      <CommandDialog
+        open={searchOpen}
+        onOpenChange={(open) => {
+          setSearchOpen(open);
+          if (!open) setSearchQuery("");
+        }}
+        commandProps={{ shouldFilter: false }}
+      >
+        <CommandInput
+          value={searchQuery}
+          onValueChange={setSearchQuery}
+          placeholder={
+            isEmployeeOnly
+              ? "Search your dashboard, payslips, attendance, leaves, profile..."
+              : "Search allowed workspace modules and pages..."
+          }
+        />
         <CommandList className="max-h-[380px]">
-          <CommandEmpty>No matching modules found.</CommandEmpty>
-          {["ERP Core", "Sales & Finance", "HRM Suite", "Collaboration", "Extensions", "Platform"].map((group) => {
-            const items = filterSearchItems(ALL_SEARCH_ITEMS).filter((i) => {
-              if (i.group !== group) return false;
-              if (!isSuperAdmin && ["/super", "/ban-ip-address", "/clear-cache", "/cronjob"].includes(i.url)) {
+          {(() => {
+            const SUPER_ONLY_URLS = ["/super", "/ban-ip-address", "/clear-cache", "/cronjob"];
+            const sourceList = isEmployeeOnly
+              ? EMPLOYEE_SELF_SERVICE_SEARCH_ITEMS
+              : isClientOnly
+              ? [
+                  { title: "Client Dashboard", url: "/client-dashboard", group: "Employee Self-Service", icon: Home },
+                  { title: "My Profile & 2FA", url: "/profile", group: "Employee Self-Service", icon: User },
+                ]
+              : [...EMPLOYEE_SELF_SERVICE_SEARCH_ITEMS, ...filterSearchItems(ALL_SEARCH_ITEMS)];
+
+            const seenUrls = new Set<string>();
+            const roleScopedItems = sourceList.filter((i) => {
+              if (seenUrls.has(i.url)) return false;
+
+              // Never expose Super Admin pages to non-Super-Admin users
+              if (!isSuperAdmin && (i.url.startsWith("/super") || SUPER_ONLY_URLS.includes(i.url))) {
                 return false;
               }
+
+              // HR-only admins (without Tenant/Super Admin) should not see Tenant infrastructure/billing routes
+              if (
+                isHrAdmin &&
+                !isTenantAdmin &&
+                !isSuperAdmin &&
+                (i.url.startsWith("/tenant/") || ["/users", "/subscription", "/backup-restore", "/settings/custom-domain"].includes(i.url))
+              ) {
+                return false;
+              }
+
+              seenUrls.add(i.url);
               return true;
             });
-            if (!items.length) return null;
-            return (
-              <CommandGroup key={group} heading={group}>
-                {items.map((item) => (
+
+            const q = searchQuery.trim().toLowerCase();
+
+            // When user types a query: rank Exact Match first, then Starts-With, Word Match, Substring, and Relevant Matches
+            if (q) {
+              const tokens = q.split(/\s+/).filter(Boolean);
+
+              const scoreItem = (item: (typeof roleScopedItems)[number]): number => {
+                const title = item.title.toLowerCase();
+                const url = item.url.toLowerCase();
+                const urlClean = url.replace(/^\/+/, "");
+                const group = item.group.toLowerCase();
+                const titleWords = title.split(/[\s/&_-]+/).filter(Boolean);
+                const urlSegments = urlClean.split(/[/_-]+/).filter(Boolean);
+
+                // Tier 1: Exact match on title or URL slug
+                if (title === q || url === q || urlClean === q) {
+                  return 1000;
+                }
+                // Tier 2: Title starts with exact query (shorter/closer title wins)
+                if (title.startsWith(q)) {
+                  return 850 + Math.max(0, 50 - (title.length - q.length));
+                }
+                // Tier 3: Exact word match in title or URL segment
+                if (titleWords.includes(q) || urlSegments.includes(q)) {
+                  return 700 + Math.max(0, 40 - title.length);
+                }
+                // Tier 4: Any word in title or URL starts with query
+                if (titleWords.some((w) => w.startsWith(q)) || urlSegments.some((s) => s.startsWith(q))) {
+                  return 550 + Math.max(0, 30 - title.length);
+                }
+                // Tier 5: Contiguous substring in title
+                if (title.includes(q)) {
+                  return 400 + Math.max(0, 20 - title.indexOf(q));
+                }
+                // Tier 6: Contiguous substring in URL
+                if (url.includes(q)) {
+                  return 300;
+                }
+                // Tier 7: Multi-word query where every token appears in title, URL, or group
+                if (tokens.length > 1) {
+                  const haystack = `${title} ${url} ${group}`;
+                  if (tokens.every((t) => haystack.includes(t))) {
+                    return 220;
+                  }
+                }
+                // Tier 8: Group name match
+                if (group.includes(q)) {
+                  return 150;
+                }
+                // Tier 9: Ordered subsequence fallback (only for queries >= 2 chars)
+                if (q.length >= 2) {
+                  let qi = 0;
+                  for (let i = 0; i < title.length && qi < q.length; i++) {
+                    if (title[i] === q[qi]) qi++;
+                  }
+                  if (qi === q.length) return 60;
+                }
+                return 0;
+              };
+
+              const ranked = roleScopedItems
+                .map((item) => ({ item, score: scoreItem(item) }))
+                .filter((entry) => entry.score > 0)
+                .sort((a, b) => {
+                  if (b.score !== a.score) return b.score - a.score;
+                  if (a.item.title.length !== b.item.title.length) {
+                    return a.item.title.length - b.item.title.length;
+                  }
+                  return a.item.title.localeCompare(b.item.title);
+                });
+
+              if (ranked.length === 0) {
+                return <CommandEmpty>No matching pages found for your role.</CommandEmpty>;
+              }
+
+              const exactMatches = ranked.filter((r) => r.score >= 850);
+              const relevantMatches = ranked.filter((r) => r.score < 850);
+
+              const renderSearchRow = (entry: (typeof ranked)[number], isExact: boolean) => {
+                const { item } = entry;
+                return (
                   <CommandItem
                     key={item.url}
+                    value={`${item.title} ${item.url} ${item.group}`}
                     onSelect={() => {
                       setSearchOpen(false);
+                      setSearchQuery("");
                       navigate({ to: item.url });
                     }}
                     className="flex items-center justify-between gap-2 cursor-pointer py-2 px-3"
                   >
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <item.icon className="size-4 text-muted-foreground shrink-0" />
-                      <span className="font-medium text-sm">{item.title}</span>
+                      <span className="font-medium text-sm truncate">{item.title}</span>
+                      {isExact && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-primary/10 text-primary shrink-0">
+                          {entry.score >= 1000 ? "Exact" : "Top Match"}
+                        </span>
+                      )}
                     </div>
-                    <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">{item.url}</span>
+                    <span className="text-[10px] text-muted-foreground/70 shrink-0">{item.url}</span>
                   </CommandItem>
-                ))}
-              </CommandGroup>
-            );
-          })}
+                );
+              };
+
+              return (
+                <>
+                  {exactMatches.length > 0 && (
+                    <CommandGroup heading="Exact & Top Matches">
+                      {exactMatches.map((entry) => renderSearchRow(entry, true))}
+                    </CommandGroup>
+                  )}
+                  {relevantMatches.length > 0 && (
+                    <CommandGroup heading={exactMatches.length > 0 ? "Next Relevant Matches" : "Relevant Matches"}>
+                      {relevantMatches.map((entry) => renderSearchRow(entry, false))}
+                    </CommandGroup>
+                  )}
+                </>
+              );
+            }
+
+            const groups = isEmployeeOnly
+              ? ["Employee Self-Service", "Collaboration"]
+              : [
+                  "Employee Self-Service",
+                  "HRM Suite",
+                  "ERP Core",
+                  "Sales & Finance",
+                  "Collaboration",
+                  "Extensions",
+                  "Platform",
+                ];
+
+            return groups.map((group) => {
+              const items = roleScopedItems.filter((i) => i.group === group);
+              if (!items.length) return null;
+              return (
+                <CommandGroup key={group} heading={group}>
+                  {items.map((item) => (
+                    <CommandItem
+                      key={item.url}
+                      value={`${item.title} ${item.url} ${item.group}`}
+                      onSelect={() => {
+                        setSearchOpen(false);
+                        setSearchQuery("");
+                        navigate({ to: item.url });
+                      }}
+                      className="flex items-center justify-between gap-2 cursor-pointer py-2 px-3"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <item.icon className="size-4 text-muted-foreground shrink-0" />
+                        <span className="font-medium text-sm">{item.title}</span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground/70 shrink-0">{item.url}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              );
+            });
+          })()}
         </CommandList>
       </CommandDialog>
 

@@ -1,452 +1,663 @@
-'use client';
-import {  createFileRoute  } from "@/src/lib/router-compat";
+"use client";
+
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { PageHeader } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "sonner";
-import {
-  CreditCard,
-  Plus,
-  RefreshCw,
-  Search,
-  CheckCircle2,
-  DollarSign,
-  Users,
-  Clock,
-  Layers,
-  FileCheck,
-} from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-  DialogDescription,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
+interface EmployeeOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+  employeeCode?: string | null;
+  email?: string | null;
+  avatarUrl?: string | null;
+}
 
+const formatINR = (val: number) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(val) || 0);
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const currentYM = () => new Date().toISOString().slice(0, 7);
 
 export default function HrReimbursementsLoansPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("loans");
-  const [loanModalOpen, setLoanModalOpen] = useState(false);
-  const [selectedLoan, setSelectedLoan] = useState<any | null>(null);
+  const [activeTab, setActiveTab] = useState<"loans" | "reimbursements">("loans");
+  const [search, setSearch] = useState("");
 
-  // New Loan Form
+  const [loanModalOpen, setLoanModalOpen] = useState(false);
   const [loanForm, setLoanForm] = useState({
     employeeId: "",
     loanType: "personal",
-    principal: 50000,
-    interestRate: 0,
-    tenureMonths: 10,
-    deductionStartMonth: "2026-10",
-    reason: "Salary advance / personal emergency",
+    principal: "",
+    interestRate: "0",
+    tenureMonths: "12",
+    deductionStartMonth: currentYM(),
+    reason: "",
   });
 
-  // 1. Fetch Loans
-  const { data: loansData, isLoading: loansLoading, refetch: refetchLoans } = useQuery({
+  const [claimModalOpen, setClaimModalOpen] = useState(false);
+  const [claimForm, setClaimForm] = useState({
+    employeeId: "",
+    title: "",
+    amount: "",
+    expenseDate: todayISO(),
+    description: "",
+  });
+
+  const { data: employees = [] } = useQuery<EmployeeOption[]>({
+    queryKey: ["hr-employees-dropdown"],
+    queryFn: async () => {
+      const res = await api.get("/employees", { params: { limit: 200 } });
+      const raw = res?.employees ?? res?.data?.employees ?? res?.data ?? res;
+      return Array.isArray(raw) ? raw : [];
+    },
+  });
+
+  const { data: loans = [], isLoading: loansLoading } = useQuery<any[]>({
     queryKey: ["hr-payroll-loans"],
     queryFn: async () => {
       const res = await api.get("/api/v1/hr/payroll/loans");
-      return res.data;
+      const payload = res?.data ?? res ?? {};
+      return Array.isArray(payload.loans) ? payload.loans : [];
     },
   });
 
-  // 2. Fetch Reimbursements
-  const { data: claimsData, isLoading: claimsLoading, refetch: refetchClaims } = useQuery({
+  const { data: claims = [], isLoading: claimsLoading } = useQuery<any[]>({
     queryKey: ["hr-payroll-reimbursements"],
     queryFn: async () => {
       const res = await api.get("/api/v1/hr/payroll/reimbursements");
-      return res.data;
+      const payload = res?.data ?? res ?? {};
+      return Array.isArray(payload.reimbursements) ? payload.reimbursements : [];
     },
   });
 
-  // 3. Fetch Employees for dropdown
-  const { data: employeesData } = useQuery({
-    queryKey: ["hr-employees-list-payroll"],
-    queryFn: async () => {
-      const res = await api.get("/api/v1/hr/employees");
-      return res.data;
-    },
-  });
-
-  const loans = loansData?.loans || [];
-  const claims = claimsData?.reimbursements || [];
-  const employees = employeesData?.employees || [];
-
-  // Create Loan Mutation
   const createLoanMutation = useMutation({
-    mutationFn: async (payload: any) => {
-      return api.post("/api/v1/hr/payroll/loans", payload);
-    },
+    mutationFn: () =>
+      api.post("/api/v1/hr/payroll/loans", {
+        ...loanForm,
+        principal: Number(loanForm.principal) || 0,
+        interestRate: Number(loanForm.interestRate) || 0,
+        tenureMonths: Number(loanForm.tenureMonths) || 12,
+      }),
     onSuccess: () => {
-      toast.success("Employee loan created with repayment schedule");
+      toast.success("Employee loan created with EMI schedule");
       setLoanModalOpen(false);
       queryClient.invalidateQueries({ queryKey: ["hr-payroll-loans"] });
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to create loan");
-    },
+    onError: (err: any) => toast.error(err?.message || "Failed to create loan"),
   });
 
-  const totalOutstanding = loans.reduce((acc: number, l: any) => acc + Number(l.outstandingBalance || 0), 0);
-  const activeLoansCount = loans.filter((l: any) => l.status === "active").length;
-  const pendingClaimsTotal = claims.reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
+  const toggleLoanStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      api.patch(`/api/v1/hr/payroll/loans/${id}`, { status }),
+    onSuccess: () => {
+      toast.success("Loan status updated");
+      queryClient.invalidateQueries({ queryKey: ["hr-payroll-loans"] });
+    },
+    onError: (err: any) => toast.error(err?.message || "Failed to update loan"),
+  });
+
+  const deleteLoanMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/api/v1/hr/payroll/loans/${id}`),
+    onSuccess: () => {
+      toast.success("Loan deleted");
+      queryClient.invalidateQueries({ queryKey: ["hr-payroll-loans"] });
+    },
+    onError: (err: any) => toast.error(err?.message || "Failed to delete loan"),
+  });
+
+  const createClaimMutation = useMutation({
+    mutationFn: () =>
+      api.post("/api/v1/hr/payroll/reimbursements", {
+        ...claimForm,
+        amount: Number(claimForm.amount) || 0,
+      }),
+    onSuccess: () => {
+      toast.success("Payroll reimbursement added");
+      setClaimModalOpen(false);
+      setClaimForm({ employeeId: "", title: "", amount: "", expenseDate: todayISO(), description: "" });
+      queryClient.invalidateQueries({ queryKey: ["hr-payroll-reimbursements"] });
+    },
+    onError: (err: any) => toast.error(err?.message || "Failed to create reimbursement"),
+  });
+
+  const updateClaimMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      api.patch(`/api/v1/hr/payroll/reimbursements/${id}`, { status }),
+    onSuccess: () => {
+      toast.success("Reimbursement updated");
+      queryClient.invalidateQueries({ queryKey: ["hr-payroll-reimbursements"] });
+    },
+    onError: (err: any) => toast.error(err?.message || "Failed to update reimbursement"),
+  });
+
+  const deleteClaimMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/api/v1/hr/payroll/reimbursements/${id}`),
+    onSuccess: () => {
+      toast.success("Reimbursement deleted");
+      queryClient.invalidateQueries({ queryKey: ["hr-payroll-reimbursements"] });
+    },
+    onError: (err: any) => toast.error(err?.message || "Failed to delete reimbursement"),
+  });
+
+  const q = search.trim().toLowerCase();
+  const filteredLoans = loans.filter((l: any) => {
+    if (!q) return true;
+    const emp = `${l.employee?.firstName || ""} ${l.employee?.lastName || ""}`.toLowerCase();
+    return emp.includes(q) || String(l.loanType || "").toLowerCase().includes(q);
+  });
+  const filteredClaims = claims.filter((c: any) => {
+    if (!q) return true;
+    const emp = `${c.employee?.firstName || ""} ${c.employee?.lastName || ""}`.toLowerCase();
+    return emp.includes(q) || String(c.title || "").toLowerCase().includes(q);
+  });
+
+  const totalOutstanding = loans.reduce((s, l) => s + Number(l.outstandingBalance || 0), 0);
+  const monthlyEmiTotal = loans
+    .filter((l) => l.status === "active" || l.status === "approved")
+    .reduce((s, l) => s + Number(l.emiAmount || 0), 0);
+  const totalClaimsAmount = claims.reduce((s, c) => s + Number(c.amount || 0), 0);
 
   return (
-    <div className="space-y-6 p-6">
-      <PageHeader
-        title="Reimbursements & Employee Loans"
-        description="Manage expense claim payroll credits and employee loan repayment EMI schedules with automated payroll recovery."
-      >
-        <div className="flex items-center gap-2">
+    <div className="w-full px-3 sm:px-4 lg:px-5 py-4 lg:py-5 space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
+            Reimbursements &amp; Loans
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Manage employee salary advances, EMI deductions, and payroll reimbursements synced to Payroll Runs.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <Button
-            variant="outline"
             size="sm"
-            onClick={() => {
-              refetchLoans();
-              refetchClaims();
-            }}
-            className="gap-1.5"
+            variant="outline"
+            onClick={() => setClaimModalOpen(true)}
+            className="h-9 gap-1.5"
           >
-            <RefreshCw className="h-4 w-4" /> Refresh
+            <i className="ph ph-receipt text-base" />
+            <span>Add Reimbursement</span>
           </Button>
-          <Button onClick={() => setLoanModalOpen(true)} className="gap-1.5">
-            <Plus className="h-4 w-4" /> Issue New Loan / Advance
+          <Button
+            size="sm"
+            onClick={() => setLoanModalOpen(true)}
+            className="h-9 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            <i className="ph ph-plus text-base" />
+            <span>Issue Loan / Advance</span>
           </Button>
         </div>
-      </PageHeader>
-
-      {/* KPI Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          title="Active Loans"
-          value={activeLoansCount}
-          description="In monthly repayment"
-          icon={CreditCard}
-        />
-        <StatCard
-          title="Outstanding Portfolio"
-          value={`₹${totalOutstanding.toLocaleString("en-IN")}`}
-          description="Principal awaiting recovery"
-          icon={DollarSign}
-        />
-        <StatCard
-          title="Pending Reimbursements"
-          value={`₹${pendingClaimsTotal.toLocaleString("en-IN")}`}
-          description="Approved for payroll addition"
-          icon={FileCheck}
-        />
-        <StatCard
-          title="Recovery Method"
-          value="Automated EMI"
-          description="Deducted at monthly batch run"
-          icon={CheckCircle2}
-        />
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="loans" className="gap-2">
-            <CreditCard className="h-4 w-4" /> Employee Loans & Advances ({loans.length})
-          </TabsTrigger>
-          <TabsTrigger value="reimbursements" className="gap-2">
-            <FileCheck className="h-4 w-4" /> Expense Reimbursements ({claims.length})
-          </TabsTrigger>
-        </TabsList>
+      {/* 3 KPI Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs text-muted-foreground">Total Loan Outstanding</div>
+            <div className="text-2xl font-bold text-foreground mt-1">
+              {formatINR(totalOutstanding)}
+            </div>
+            <div className="text-xs text-primary mt-1">{loans.length} loan record(s)</div>
+          </div>
+          <div className="h-11 w-11 rounded-xl bg-sky-500/10 text-sky-600 border border-sky-500/20 flex items-center justify-center">
+            <i className="ph ph-credit-card text-xl" />
+          </div>
+        </div>
 
-        {/* Tab 1: Loans */}
-        <TabsContent value="loans" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Active Loan Portfolio</CardTitle>
-              <CardDescription>
-                Loans with structured monthly EMI recovery integrated directly into monthly payroll batch runs.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50 border-b">
-                    <tr>
-                      <th className="p-3 text-left font-medium">Employee</th>
-                      <th className="p-3 text-left font-medium">Type</th>
-                      <th className="p-3 text-right font-medium">Principal</th>
-                      <th className="p-3 text-right font-medium">Monthly EMI</th>
-                      <th className="p-3 text-center font-medium">Tenure</th>
-                      <th className="p-3 text-right font-medium">Outstanding Balance</th>
-                      <th className="p-3 text-center font-medium">Status</th>
-                      <th className="p-3 text-right font-medium">Action</th>
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs text-muted-foreground">Monthly EMI Deductions</div>
+            <div className="text-2xl font-bold text-rose-600 mt-1">
+              {formatINR(monthlyEmiTotal)}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">Auto-deducted in Payroll Runs</div>
+          </div>
+          <div className="h-11 w-11 rounded-xl bg-rose-500/10 text-rose-600 border border-rose-500/20 flex items-center justify-center">
+            <i className="ph ph-trend-down text-xl" />
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs text-muted-foreground">Payroll Reimbursements</div>
+            <div className="text-2xl font-bold text-emerald-600 mt-1">
+              {formatINR(totalClaimsAmount)}
+            </div>
+            <div className="text-xs text-emerald-600 mt-1">{claims.length} claim(s) queued</div>
+          </div>
+          <div className="h-11 w-11 rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center justify-center">
+            <i className="ph ph-currency-inr text-xl" />
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs + Search Card */}
+      <div className="rounded-xl border border-border/80 bg-card shadow-xs overflow-hidden">
+        <div className="p-3 sm:p-4 border-b border-border/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("loans")}
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
+                activeTab === "loans"
+                  ? "bg-emerald-600 text-white"
+                  : "text-muted-foreground hover:bg-muted/50"
+              }`}
+            >
+              <i className="ph ph-bank text-base" />
+              <span>Employee Loans ({loans.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("reimbursements")}
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
+                activeTab === "reimbursements"
+                  ? "bg-emerald-600 text-white"
+                  : "text-muted-foreground hover:bg-muted/50"
+              }`}
+            >
+              <i className="ph ph-receipt text-base" />
+              <span>Payroll Reimbursements ({claims.length})</span>
+            </button>
+          </div>
+
+          <div className="relative w-full sm:w-64">
+            <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search employee or type..."
+              className="pl-9 h-9 w-full"
+            />
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          {activeTab === "loans" ? (
+            <table className="w-full text-sm text-left">
+              <thead>
+                <tr className="bg-muted/50 border-b border-border/80 text-xs font-semibold text-muted-foreground">
+                  <th className="py-3 px-4">Employee</th>
+                  <th className="py-3 px-3">Type</th>
+                  <th className="py-3 px-3 text-right">Principal</th>
+                  <th className="py-3 px-3 text-right">Monthly EMI</th>
+                  <th className="py-3 px-3 text-right">Outstanding</th>
+                  <th className="py-3 px-3">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/70">
+                {loansLoading ? (
+                  <tr>
+                    <td colSpan={7} className="py-10 text-center text-muted-foreground">
+                      Loading loans...
+                    </td>
+                  </tr>
+                ) : filteredLoans.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-10 text-center text-muted-foreground">
+                      No employee loans recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredLoans.map((loan: any) => (
+                    <tr key={loan.id} className="hover:bg-muted/30">
+                      <td className="py-3.5 px-4 font-semibold text-foreground">
+                        {loan.employee
+                          ? `${loan.employee.firstName} ${loan.employee.lastName}`
+                          : "Employee"}
+                      </td>
+                      <td className="py-3.5 px-3 capitalize text-muted-foreground">
+                        {loan.loanType || "Personal"}
+                      </td>
+                      <td className="py-3.5 px-3 text-right font-medium">
+                        {formatINR(Number(loan.principal || 0))}
+                      </td>
+                      <td className="py-3.5 px-3 text-right font-semibold text-rose-600">
+                        {formatINR(Number(loan.emiAmount || 0))}
+                      </td>
+                      <td className="py-3.5 px-3 text-right font-semibold">
+                        {formatINR(Number(loan.outstandingBalance || 0))}
+                      </td>
+                      <td className="py-3.5 px-3">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border capitalize ${
+                            loan.status === "closed"
+                              ? "bg-muted text-muted-foreground border-border"
+                              : "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
+                          }`}
+                        >
+                          {loan.status || "active"}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            title={loan.status === "closed" ? "Reopen Loan" : "Mark Closed"}
+                            onClick={() =>
+                              toggleLoanStatusMutation.mutate({
+                                id: loan.id,
+                                status: loan.status === "closed" ? "active" : "closed",
+                              })
+                            }
+                            className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10"
+                          >
+                            <i className="ph ph-check-circle text-base" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Delete Loan"
+                            onClick={() => deleteLoanMutation.mutate(loan.id)}
+                            className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10"
+                          >
+                            <i className="ph ph-trash text-base" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {loansLoading ? (
-                      <tr>
-                        <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                          Loading loans...
-                        </td>
-                      </tr>
-                    ) : loans.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                          No employee loans recorded. Click "Issue New Loan / Advance" to create.
-                        </td>
-                      </tr>
-                    ) : (
-                      loans.map((l: any) => (
-                        <tr key={l.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="p-3 font-semibold">
-                            <div>{l.employee?.firstName} {l.employee?.lastName}</div>
-                            <span className="text-xs text-muted-foreground font-mono">{l.employee?.employeeCode}</span>
-                          </td>
-                          <td className="p-3 capitalize">{l.loanType.replace(/_/g, " ")}</td>
-                          <td className="p-3 text-right font-medium">
-                            ₹{Number(l.principal).toLocaleString("en-IN")}
-                          </td>
-                          <td className="p-3 text-right font-bold text-destructive">
-                            ₹{Number(l.monthlyEmi).toLocaleString("en-IN")}
-                          </td>
-                          <td className="p-3 text-center">{l.tenureMonths} mo</td>
-                          <td className="p-3 text-right font-bold">
-                            ₹{Number(l.outstandingBalance).toLocaleString("en-IN")}
-                          </td>
-                          <td className="p-3 text-center">
-                            <Badge
-                              variant={
-                                l.status === "active"
-                                  ? "default"
-                                  : l.status === "completed"
-                                  ? "secondary"
-                                  : "outline"
-                              }
-                              className="capitalize"
-                            >
-                              {l.status}
-                            </Badge>
-                          </td>
-                          <td className="p-3 text-right">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setSelectedLoan(l)}
-                              className="gap-1"
-                            >
-                              <Layers className="h-3.5 w-3.5" /> Schedule
-                            </Button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Tab 2: Reimbursements */}
-        <TabsContent value="reimbursements" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Approved Expense Reimbursements</CardTitle>
-              <CardDescription>
-                Claims approved for payout via payroll addition. Will be added to employee earnings in the matching period.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50 border-b">
-                    <tr>
-                      <th className="p-3 text-left font-medium">Employee</th>
-                      <th className="p-3 text-left font-medium">Title & Merchant</th>
-                      <th className="p-3 text-left font-medium">Category</th>
-                      <th className="p-3 text-right font-medium">Amount</th>
-                      <th className="p-3 text-center font-medium">Status</th>
-                      <th className="p-3 text-center font-medium">Payout Method</th>
+                  ))
+                )}
+              </tbody>
+            </table>
+          ) : (
+            <table className="w-full text-sm text-left">
+              <thead>
+                <tr className="bg-muted/50 border-b border-border/80 text-xs font-semibold text-muted-foreground">
+                  <th className="py-3 px-4">Employee</th>
+                  <th className="py-3 px-3">Claim Title</th>
+                  <th className="py-3 px-3">Date</th>
+                  <th className="py-3 px-3 text-right">Amount</th>
+                  <th className="py-3 px-3">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/70">
+                {claimsLoading ? (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center text-muted-foreground">
+                      Loading reimbursements...
+                    </td>
+                  </tr>
+                ) : filteredClaims.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center text-muted-foreground">
+                      No payroll reimbursements queued yet.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredClaims.map((claim: any) => (
+                    <tr key={claim.id} className="hover:bg-muted/30">
+                      <td className="py-3.5 px-4 font-semibold text-foreground">
+                        {claim.employee
+                          ? `${claim.employee.firstName} ${claim.employee.lastName}`
+                          : "Employee"}
+                      </td>
+                      <td className="py-3.5 px-3 text-foreground">{claim.title}</td>
+                      <td className="py-3.5 px-3 text-xs text-muted-foreground">
+                        {claim.expenseDate ? new Date(claim.expenseDate).toISOString().slice(0, 10) : "—"}
+                      </td>
+                      <td className="py-3.5 px-3 text-right font-semibold text-emerald-600">
+                        {formatINR(Number(claim.amount || 0))}
+                      </td>
+                      <td className="py-3.5 px-3">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border bg-emerald-500/10 text-emerald-700 border-emerald-500/20 capitalize">
+                          {String(claim.status || "approved").replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            title="Mark Paid"
+                            onClick={() =>
+                              updateClaimMutation.mutate({ id: claim.id, status: "paid" })
+                            }
+                            className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10"
+                          >
+                            <i className="ph ph-check-circle text-base" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Delete Claim"
+                            onClick={() => deleteClaimMutation.mutate(claim.id)}
+                            className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10"
+                          >
+                            <i className="ph ph-trash text-base" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {claimsLoading ? (
-                      <tr>
-                        <td colSpan={6} className="p-8 text-center text-muted-foreground">
-                          Loading claims...
-                        </td>
-                      </tr>
-                    ) : claims.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-8 text-center text-muted-foreground">
-                          No expense claims queued for payroll addition.
-                        </td>
-                      </tr>
-                    ) : (
-                      claims.map((c: any) => (
-                        <tr key={c.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="p-3 font-semibold">
-                            {c.employee?.firstName} {c.employee?.lastName}
-                          </td>
-                          <td className="p-3">
-                            <div>{c.title}</div>
-                            <span className="text-xs text-muted-foreground">{c.merchant}</span>
-                          </td>
-                          <td className="p-3">{c.category?.name || "General"}</td>
-                          <td className="p-3 text-right font-bold text-emerald-600">
-                            ₹{Number(c.amount).toLocaleString("en-IN")}
-                          </td>
-                          <td className="p-3 text-center">
-                            <Badge variant="outline" className="capitalize">{c.status.replace(/_/g, " ")}</Badge>
-                          </td>
-                          <td className="p-3 text-center">
-                            <Badge variant="secondary">Payroll Addition</Badge>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
 
-      {/* New Loan Dialog */}
+      {/* Add Loan Modal */}
       <Dialog open={loanModalOpen} onOpenChange={setLoanModalOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Issue Employee Loan or Salary Advance</DialogTitle>
+            <DialogTitle>Issue Employee Loan / Advance</DialogTitle>
             <DialogDescription>
-              Sets up a structured repayment schedule automatically deducted during monthly payroll.
+              EMI deductions will automatically sync into monthly Payroll Runs.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-3">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Employee</label>
+          <form
+            id="loan-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              createLoanMutation.mutate();
+            }}
+            className="space-y-3.5 py-1"
+          >
+            <div className="space-y-1.5">
+              <Label>Employee *</Label>
               <select
                 value={loanForm.employeeId}
                 onChange={(e) => setLoanForm({ ...loanForm, employeeId: e.target.value })}
-                className="w-full border rounded-md p-2 bg-background text-sm"
+                required
+                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
               >
-                <option value="">-- Select Employee --</option>
-                {employees.map((e: any) => (
+                <option value="">Select Employee</option>
+                {employees.map((e) => (
                   <option key={e.id} value={e.id}>
-                    {e.firstName} {e.lastName} ({e.employeeCode})
+                    {`${e.firstName || ""} ${e.lastName || ""}`.trim() || e.email}
                   </option>
                 ))}
               </select>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Principal Amount (₹)</label>
-                <Input
-                  type="number"
-                  value={loanForm.principal}
-                  onChange={(e) => setLoanForm({ ...loanForm, principal: Number(e.target.value) })}
-                />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Loan Type *</Label>
+                <select
+                  value={loanForm.loanType}
+                  onChange={(e) => setLoanForm({ ...loanForm, loanType: e.target.value })}
+                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                >
+                  <option value="personal">Personal Loan</option>
+                  <option value="salary_advance">Salary Advance</option>
+                  <option value="medical">Medical Emergency</option>
+                  <option value="housing">Housing / Relocation</option>
+                </select>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Tenure (Months)</label>
+              <div className="space-y-1.5">
+                <Label>Principal (INR) *</Label>
                 <Input
                   type="number"
-                  value={loanForm.tenureMonths}
-                  onChange={(e) => setLoanForm({ ...loanForm, tenureMonths: Number(e.target.value) })}
+                  min="1"
+                  value={loanForm.principal}
+                  onChange={(e) => setLoanForm({ ...loanForm, principal: e.target.value })}
+                  placeholder="50000"
+                  required
                 />
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Monthly EMI Deduction</label>
-                <div className="p-2 border rounded-md bg-muted/20 font-bold text-destructive">
-                  ₹{Math.round(loanForm.principal / loanForm.tenureMonths).toLocaleString("en-IN")}/mo
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Deduction Start Period</label>
+            <div className="grid grid-cols-3 gap-2.5">
+              <div className="space-y-1.5">
+                <Label>Interest (%)</Label>
                 <Input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={loanForm.interestRate}
+                  onChange={(e) => setLoanForm({ ...loanForm, interestRate: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tenure (Mos) *</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={loanForm.tenureMonths}
+                  onChange={(e) => setLoanForm({ ...loanForm, tenureMonths: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Start Month *</Label>
+                <Input
+                  type="month"
                   value={loanForm.deductionStartMonth}
                   onChange={(e) => setLoanForm({ ...loanForm, deductionStartMonth: e.target.value })}
-                  placeholder="YYYY-MM (e.g. 2026-10)"
+                  required
                 />
               </div>
             </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Disbursement Purpose</label>
-              <Input
+            <div className="space-y-1.5">
+              <Label>Reason</Label>
+              <Textarea
+                rows={2}
                 value={loanForm.reason}
                 onChange={(e) => setLoanForm({ ...loanForm, reason: e.target.value })}
-                placeholder="Reason for advance or loan"
+                placeholder="Reason for advance or loan..."
               />
             </div>
-          </div>
-          <DialogFooter>
+          </form>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setLoanModalOpen(false)}>
               Cancel
             </Button>
             <Button
-              onClick={() => createLoanMutation.mutate(loanForm)}
-              disabled={createLoanMutation.isPending || !loanForm.employeeId}
+              type="submit"
+              form="loan-form"
+              disabled={createLoanMutation.isPending}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              Authorize & Create Schedule
+              {createLoanMutation.isPending ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Loan Schedule Dialog */}
-      <Dialog open={!!selectedLoan} onOpenChange={() => setSelectedLoan(null)}>
-        <DialogContent className="max-w-2xl">
+      {/* Add Reimbursement Modal */}
+      <Dialog open={claimModalOpen} onOpenChange={setClaimModalOpen}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Repayment Schedule — {selectedLoan?.employee?.firstName} {selectedLoan?.employee?.lastName}</DialogTitle>
+            <DialogTitle>Add Payroll Reimbursement</DialogTitle>
             <DialogDescription>
-              Principal: ₹{Number(selectedLoan?.principal).toLocaleString("en-IN")} • Outstanding: ₹{Number(selectedLoan?.outstandingBalance).toLocaleString("en-IN")}
+              Approved reimbursements are added automatically during Payroll Runs.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="border rounded-md overflow-hidden text-sm">
-              <table className="w-full">
-                <thead className="bg-muted/50 border-b">
-                  <tr>
-                    <th className="p-2.5 text-left font-medium">#</th>
-                    <th className="p-2.5 text-left font-medium">Period</th>
-                    <th className="p-2.5 text-right font-medium">EMI Amount</th>
-                    <th className="p-2.5 text-center font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {selectedLoan?.installments?.map((inst: any) => (
-                    <tr key={inst.id} className="hover:bg-muted/20">
-                      <td className="p-2.5 font-mono">{inst.installmentNumber}</td>
-                      <td className="p-2.5 font-semibold">{inst.periodMonth}/{inst.periodYear}</td>
-                      <td className="p-2.5 text-right font-bold text-destructive">
-                        ₹{Number(inst.emiAmount).toLocaleString("en-IN")}
-                      </td>
-                      <td className="p-2.5 text-center">
-                        <Badge
-                          variant={inst.status === "deducted" ? "default" : "outline"}
-                          className={inst.status === "deducted" ? "bg-emerald-600" : ""}
-                        >
-                          {inst.status}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <form
+            id="claim-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              createClaimMutation.mutate();
+            }}
+            className="space-y-3.5 py-1"
+          >
+            <div className="space-y-1.5">
+              <Label>Employee *</Label>
+              <select
+                value={claimForm.employeeId}
+                onChange={(e) => setClaimForm({ ...claimForm, employeeId: e.target.value })}
+                required
+                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Select Employee</option>
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {`${e.firstName || ""} ${e.lastName || ""}`.trim() || e.email}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setSelectedLoan(null)}>Close</Button>
+            <div className="space-y-1.5">
+              <Label>Claim Title *</Label>
+              <Input
+                value={claimForm.title}
+                onChange={(e) => setClaimForm({ ...claimForm, title: e.target.value })}
+                placeholder="e.g., Internet & Mobile Allowance"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Amount (INR) *</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="1"
+                  value={claimForm.amount}
+                  onChange={(e) => setClaimForm({ ...claimForm, amount: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Expense Date *</Label>
+                <Input
+                  type="date"
+                  value={claimForm.expenseDate}
+                  onChange={(e) => setClaimForm({ ...claimForm, expenseDate: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notes</Label>
+              <Textarea
+                rows={2}
+                value={claimForm.description}
+                onChange={(e) => setClaimForm({ ...claimForm, description: e.target.value })}
+              />
+            </div>
+          </form>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setClaimModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="claim-form"
+              disabled={createClaimMutation.isPending}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {createClaimMutation.isPending ? "Saving..." : "Save"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

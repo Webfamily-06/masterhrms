@@ -173,7 +173,7 @@ export default function HrMeetingTypesPage() {
   }, [types, appliedSearch, searchInput, statusFilter, sortAsc]);
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full px-3 sm:px-4 lg:px-5 py-4 lg:py-5 space-y-5">
       <PageHeader
         title="Meeting Types"
         description="Define categories for organizing meetings."
@@ -317,7 +317,7 @@ export default function HrMeetingTypesPage() {
 
             <div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px] h-9">
+                <SelectTrigger className="w-full sm:w-[180px] h-9">
                   <SelectValue placeholder="All Statuses" />
                 </SelectTrigger>
                 <SelectContent>

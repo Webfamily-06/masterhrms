@@ -5,6 +5,7 @@ import { Link } from "@/src/lib/router-compat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { GLOBAL_TIMEZONES } from "@/src/lib/constants/system-locale";
 import { toast } from "sonner";
 import { useCurrentProfile } from "@/lib/session";
 import { useAppConfig, setPersonalPrimaryColor, applyThemeVariables } from "@/lib/useAppConfig";
@@ -497,14 +498,11 @@ export default function EmployeeSettingsPage() {
                       <SelectItem value="__WORKSPACE_DEFAULT__">
                         Follow Workspace Timezone ({workspaceTimezone})
                       </SelectItem>
-                      <SelectItem value="UTC">UTC (Coordinated Universal Time)</SelectItem>
-                      <SelectItem value="Asia/Kolkata">Asia/Kolkata (IST +05:30)</SelectItem>
-                      <SelectItem value="Asia/Dubai">Asia/Dubai (GST +04:00)</SelectItem>
-                      <SelectItem value="America/New_York">America/New York (EST/EDT)</SelectItem>
-                      <SelectItem value="America/Los_Angeles">America/Los Angeles (PST/PDT)</SelectItem>
-                      <SelectItem value="Europe/London">Europe/London (GMT/BST)</SelectItem>
-                      <SelectItem value="Asia/Singapore">Asia/Singapore (SGT +08:00)</SelectItem>
-                      <SelectItem value="Asia/Tokyo">Asia/Tokyo (JST +09:00)</SelectItem>
+                      {GLOBAL_TIMEZONES.map((tz, idx) => (
+                        <SelectItem key={`${tz.iana}-${idx}`} value={tz.iana}>
+                          {tz.text}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <p className="text-[11px] text-muted-foreground">

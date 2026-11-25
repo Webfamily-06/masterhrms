@@ -51,9 +51,11 @@ export const DEFAULT_BRANDING: TenantBranding = {
 
 import { resolveBrandingContext } from "./branding-context";
 import { applyThemeVariables } from "./useAppConfig";
+import { useWorkspaceSettings } from "@/src/context/workspace-settings-context";
 
 export function useTenantBranding() {
   const { isDark } = useThemeMode();
+  const ws = useWorkspaceSettings();
   const hasAuthToken = typeof window !== "undefined" && !!localStorage.getItem("hrms_auth_token");
   const currentPath = typeof window !== "undefined" ? window.location.pathname : "/";
   const currentHost = typeof window !== "undefined" ? window.location.host : "";
@@ -172,17 +174,27 @@ export function useTenantBranding() {
     staleTime: 60 * 1000,
   });
 
+  const wsBrand = ws?.brand;
+  const resolvedLightLogo = wsBrand?.logoDark || rawBranding.logoUrl || DEFAULT_BRANDING.logoUrl;
+  const resolvedDarkLogo = wsBrand?.logoLight || wsBrand?.logoDark || rawBranding.logoDark || DEFAULT_BRANDING.logoDark;
+  const resolvedFavicon = wsBrand?.favicon || rawBranding.faviconUrl || DEFAULT_BRANDING.faviconUrl;
+  const resolvedTitle = wsBrand?.titleText || wsBrand?.companyName || rawBranding.name || DEFAULT_BRANDING.name;
+  const resolvedFooter = wsBrand?.footerText || rawBranding.footerText || DEFAULT_BRANDING.footerText;
+  const resolvedPrimary = wsBrand?.themeColor || rawBranding.primaryColor || DEFAULT_BRANDING.primaryColor;
+
   const branding: TenantBranding = {
     ...rawBranding,
-    logoUrl: rawBranding.logoUrl || DEFAULT_BRANDING.logoUrl,
-    logoDark: rawBranding.logoDark || DEFAULT_BRANDING.logoDark,
-    faviconUrl: rawBranding.faviconUrl || DEFAULT_BRANDING.faviconUrl,
-    activeLogo: isDark
-      ? rawBranding.logoDark || DEFAULT_BRANDING.logoDark
-      : rawBranding.logoUrl || DEFAULT_BRANDING.logoUrl,
+    name: resolvedTitle,
+    logoUrl: resolvedLightLogo,
+    logoDark: resolvedDarkLogo,
+    faviconUrl: resolvedFavicon,
+    footerText: resolvedFooter,
+    primaryColor: resolvedPrimary,
+    activeLogo: isDark ? resolvedDarkLogo : resolvedLightLogo,
+    isWhiteLabeled: Boolean(wsBrand?.titleText || wsBrand?.logoDark || rawBranding.isWhiteLabeled),
   };
 
-  // Dynamically apply Favicon and Brand Colors
+  // Dynamically apply Favicon, Title, and Brand Colors
   useEffect(() => {
     if (typeof document === "undefined") return;
 
@@ -192,28 +204,30 @@ export function useTenantBranding() {
     }
 
     if (branding.name) {
-      document.title = branding.isWhiteLabeled
-        ? `${branding.name} — Workspace Portal`
-        : "Master HRMS Platform";
+      document.title = branding.name;
     }
 
     if (branding.faviconUrl) {
-      let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
-      if (!link) {
-        link = document.createElement("link");
+      const links = document.querySelectorAll<HTMLLinkElement>("link[rel*='icon']");
+      if (links.length > 0) {
+        links.forEach((l) => {
+          l.href = branding.faviconUrl;
+        });
+      } else {
+        const link = document.createElement("link");
         link.rel = "shortcut icon";
+        link.href = branding.faviconUrl;
         document.head.appendChild(link);
       }
-      link.href = branding.faviconUrl;
     }
 
     if (branding.primaryColor) {
       applyThemeVariables(branding.primaryColor, {
-        respectPersonalOverride: true,
+        respectPersonalOverride: false,
         isWorkspaceColor: true,
       });
     }
-  }, [branding]);
+  }, [branding.notFound, branding.name, branding.faviconUrl, branding.primaryColor]);
 
   return { branding, isDark, isLoading };
 }

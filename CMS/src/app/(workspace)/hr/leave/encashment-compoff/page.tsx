@@ -125,7 +125,7 @@ function formatCurrencyDynamic(amount: number | string | null | undefined, curre
   try {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
-      currency: currencyCode || "USD",
+      currency: currencyCode || "INR",
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(num);

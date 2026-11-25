@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { resolveCareerTenantSlug } from "@/lib/career-tenant";
 import { CountrySelect } from "@/components/ui/country-select";
 import { getStatesByCountry } from "@/lib/address/india-states";
+import { useFormDraft } from "@/src/hooks/use-form-draft";
 
 const DEFAULT_SOURCES = [
   "Company Website",
@@ -64,10 +65,23 @@ function PublicCareerApplyContent() {
   const [submittedRef, setSubmittedRef] = useState<string | null>(null);
   const [resumeFile, setResumeFile] = useState<{ name: string; dataUrl: string } | null>(null);
   const [coverFile, setCoverFile] = useState<{ name: string; dataUrl: string } | null>(null);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  const [form, setForm] = useState({
+  const {
+    state: answers,
+    setState: setAnswers,
+    clearDraft: clearAnswersDraft,
+  } = useFormDraft<Record<number, string>>(
+    `career-apply-answers::${tenantSlug || "default"}::${id || "job"}`,
+    {}
+  );
+
+  const {
+    state: form,
+    setState: setForm,
+    hasRestoredDraft,
+    clearDraft: clearFormDraft,
+  } = useFormDraft(`career-apply-form::${tenantSlug || "default"}::${id || "job"}`, {
     firstName: "",
     lastName: "",
     email: "",
@@ -238,6 +252,8 @@ function PublicCareerApplyContent() {
       return res?.data || res;
     },
     onSuccess: (res: any) => {
+      clearFormDraft(false);
+      clearAnswersDraft(false);
       toast.success("Application submitted successfully!");
       setSubmittedRef(res?.candidateId || "SUBMITTED");
     },
@@ -330,14 +346,30 @@ function PublicCareerApplyContent() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 lg:px-6 py-8 space-y-5">
-        <Link
-          href={`/careers/${job.id}${tenantQuerySuffix}`}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:underline"
-        >
-          <i className="ph ph-arrow-left text-sm" />
-          Back to Job Details
-        </Link>
+      <main data-draft-managed="true" className="flex-1 max-w-4xl w-full mx-auto px-4 lg:px-6 py-8 space-y-5">
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            href={`/careers/${job.id}${tenantQuerySuffix}`}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:underline"
+          >
+            <i className="ph ph-arrow-left text-sm" />
+            Back to Job Details
+          </Link>
+          {hasRestoredDraft && (
+            <button
+              type="button"
+              onClick={() => {
+                clearFormDraft(true);
+                clearAnswersDraft(true);
+                toast.info("Saved application draft cleared.");
+              }}
+              className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-600 text-xs font-semibold hover:bg-rose-500/20 transition-colors cursor-pointer"
+            >
+              <i className="ph ph-trash" />
+              Clear Saved Draft
+            </button>
+          )}
+        </div>
 
         {/* Title Banner Card */}
         <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-xs">

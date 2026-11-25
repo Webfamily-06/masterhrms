@@ -798,7 +798,7 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
         "portal": "hr",
         "module": "assets",
         "label": "Dashboard",
-        "route": "/hr/assets/dashboard",
+        "route": "/asset-dashboard",
         "icon": "LayoutDashboard",
         "order": 311
       },

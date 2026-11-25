@@ -1,404 +1,545 @@
-'use client';
-import {  createFileRoute  } from "@/src/lib/router-compat";
+"use client";
+
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { PageHeader } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
-import {
-  Sliders,
-  Plus,
-  RefreshCw,
-  Search,
-  Calculator,
-  Layers,
-  CheckCircle2,
-  AlertCircle,
-  HelpCircle,
-} from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-  DialogDescription,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
+interface SalaryComponentItem {
+  id: string;
+  name: string;
+  code: string;
+  description?: string | null;
+  type: "earning" | "deduction" | string;
+  calculationType: "fixed" | "percentage" | string;
+  defaultValue: number;
+  isActive: boolean;
+  status?: string;
+}
 
+const formatINR = (val: number) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(val) || 0);
+
+const emptyForm = {
+  name: "",
+  description: "",
+  type: "earning",
+  calculationType: "fixed",
+  defaultValue: "",
+  status: "active",
+};
 
 export default function HrPayrollComponentsPage() {
   const queryClient = useQueryClient();
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [formulaTesterOpen, setFormulaTesterOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
 
-  // Formula Tester state
-  const [formulaToTest, setFormulaToTest] = useState("BASIC * 0.4");
-  const [formulaResult, setFormulaResult] = useState<any | null>(null);
+  const [editingItem, setEditingItem] = useState<SalaryComponentItem | null>(null);
+  const [form, setForm] = useState(emptyForm);
 
-  // New Component state
-  const [formData, setFormData] = useState({
-    name: "",
-    code: "",
-    type: "earning",
-    calculationType: "flat",
-    defaultValue: 0,
-    isTaxable: true,
-    isStatutory: false,
-    includeInPf: true,
-    includeInEsi: true,
-    description: "",
-  });
+  // Filters
+  const [searchInput, setSearchInput] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [calcFilter, setCalcFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
-  // 1. Fetch Components & Structures
-  const { data: compData, isLoading, refetch } = useQuery({
-    queryKey: ["hr-payroll-components"],
+  const [deleteTarget, setDeleteTarget] = useState<SalaryComponentItem | null>(null);
+
+  const { data: components = [], isLoading } = useQuery<SalaryComponentItem[]>({
+    queryKey: ["hr-payroll-components", appliedSearch, typeFilter, calcFilter, statusFilter],
     queryFn: async () => {
-      const res = await api.get("/api/v1/hr/payroll/components");
-      return res.data;
-    },
-  });
-
-  const components = compData?.components || [];
-  const structures = compData?.structures || [];
-
-  const filteredComponents = components.filter((c: any) => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return c.name.toLowerCase().includes(term) || c.code.toLowerCase().includes(term);
-  });
-
-  // Create Component Mutation
-  const createMutation = useMutation({
-    mutationFn: async (payload: any) => {
-      return api.post("/api/v1/hr/payroll/components", payload);
-    },
-    onSuccess: () => {
-      toast.success("Salary component created successfully");
-      setCreateModalOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["hr-payroll-components"] });
-    },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to create component");
-    },
-  });
-
-  // Test Formula Mutation
-  const testFormulaMutation = useMutation({
-    mutationFn: async () => {
-      const res = await api.post("/api/v1/hr/payroll/components/test-formula", {
-        formula: formulaToTest,
+      const res = await api.get("/api/v1/hr/payroll/components", {
+        params: {
+          ...(appliedSearch ? { search: appliedSearch } : {}),
+          ...(typeFilter !== "all" ? { type: typeFilter } : {}),
+          ...(calcFilter !== "all" ? { calculationType: calcFilter } : {}),
+          ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+        },
       });
-      return res.data;
-    },
-    onSuccess: (data) => {
-      setFormulaResult(data);
-      toast.success("Formula evaluated successfully");
-    },
-    onError: (err: any) => {
-      setFormulaResult({ error: err.response?.data?.error || "Evaluation failed" });
-      toast.error(err.response?.data?.error || "Formula evaluation error");
+      const payload = res?.data ?? res ?? {};
+      if (Array.isArray(payload.components)) return payload.components;
+      if (Array.isArray(payload)) return payload;
+      return [];
     },
   });
+
+  const resetForm = () => {
+    setEditingItem(null);
+    setForm(emptyForm);
+  };
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["hr-payroll-components"] });
+    queryClient.invalidateQueries({ queryKey: ["hr-employee-salaries"] });
+  };
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      api.post("/api/v1/hr/payroll/components", {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        type: form.type,
+        calculationType: form.calculationType,
+        defaultValue: Number(form.defaultValue) || 0,
+        status: form.status,
+      }),
+    onSuccess: () => {
+      toast.success("Salary component added successfully");
+      invalidate();
+      resetForm();
+    },
+    onError: (err: any) => toast.error(err?.message || "Failed to add component"),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: () =>
+      api.put(`/api/v1/hr/payroll/components/${editingItem!.id}`, {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        type: form.type,
+        calculationType: form.calculationType,
+        defaultValue: Number(form.defaultValue) || 0,
+        status: form.status,
+      }),
+    onSuccess: () => {
+      toast.success("Salary component updated successfully");
+      invalidate();
+      resetForm();
+    },
+    onError: (err: any) => toast.error(err?.message || "Failed to update component"),
+  });
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: (item: SalaryComponentItem) =>
+      api.patch(`/api/v1/hr/payroll/components/${item.id}`, {
+        isActive: !item.isActive,
+      }),
+    onSuccess: (_, item) => {
+      toast.success(
+        `${item.name} marked as ${item.isActive ? "Inactive" : "Active"}`
+      );
+      invalidate();
+    },
+    onError: (err: any) => toast.error(err?.message || "Failed to update status"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/api/v1/hr/payroll/components/${id}`),
+    onSuccess: () => {
+      toast.success("Salary component deleted successfully");
+      if (editingItem?.id === deleteTarget?.id) resetForm();
+      invalidate();
+      setDeleteTarget(null);
+    },
+    onError: (err: any) => toast.error(err?.message || "Failed to delete component"),
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) {
+      toast.error("Component Name is required");
+      return;
+    }
+    if (editingItem) updateMutation.mutate();
+    else createMutation.mutate();
+  };
+
+  const handleEdit = (item: SalaryComponentItem) => {
+    setEditingItem(item);
+    setForm({
+      name: item.name || "",
+      description: item.description || "",
+      type: item.type?.toLowerCase() === "deduction" ? "deduction" : "earning",
+      calculationType:
+        item.calculationType?.toLowerCase().includes("percent") ? "percentage" : "fixed",
+      defaultValue: String(item.defaultValue ?? 0),
+      status: item.isActive ? "active" : "inactive",
+    });
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const isSaving = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <div className="space-y-6 p-6">
-      <PageHeader
-        title="Salary Components & Formula Engine"
-        description="Configure earnings, deductions, and statutory multipliers with dependency-ordered formula testing."
-      >
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5">
-            <RefreshCw className="h-4 w-4" /> Refresh
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setFormulaTesterOpen(true)}
-            className="gap-1.5 border-blue-500 text-blue-600 hover:bg-blue-50"
-          >
-            <Calculator className="h-4 w-4" /> Formula Tester
-          </Button>
-          <Button onClick={() => setCreateModalOpen(true)} className="gap-1.5">
-            <Plus className="h-4 w-4" /> New Component
-          </Button>
-        </div>
-      </PageHeader>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          title="Total Components"
-          value={components.length}
-          description="Earning & deduction components"
-          icon={Sliders}
-        />
-        <StatCard
-          title="Earnings Elements"
-          value={components.filter((c: any) => c.type === "earning").length}
-          description="Basic, HRA, Allowances"
-          icon={Layers}
-        />
-        <StatCard
-          title="Deductions"
-          value={components.filter((c: any) => c.type === "deduction").length}
-          description="Statutory & custom deductions"
-          icon={Calculator}
-        />
-        <StatCard
-          title="Formula Engine"
-          value="DAG Active"
-          description="Circular dependency protected"
-          icon={CheckCircle2}
-        />
+    <div className="w-full px-3 sm:px-4 lg:px-5 py-4 lg:py-5 space-y-5">
+      {/* Header */}
+      <div>
+        <h1 className="text-xl font-bold tracking-tight text-foreground">Salary Components</h1>
+        <p className="text-sm text-muted-foreground">
+          Define earnings and deductions used in payroll calculations.
+        </p>
       </div>
 
-      {/* Components Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <CardTitle>Active Salary Components</CardTitle>
-              <CardDescription>
-                Component parameters utilized by the monthly batch payroll calculation engine.
-              </CardDescription>
-            </div>
-            <div className="relative w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+      {/* 2-Column Split */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Left Card: Add / Edit Component */}
+        <div className="lg:col-span-4 rounded-xl border border-border/80 bg-card shadow-xs overflow-hidden">
+          <div className="p-5 border-b border-border/70">
+            <h2 className="text-base font-bold text-foreground">
+              {editingItem ? "Edit Component" : "Add New Component"}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {editingItem
+                ? "Update the details of this salary component"
+                : "Fill in the details to create a new salary component"}
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="comp-name">
+                Component Name <span className="text-rose-500">*</span>
+              </Label>
               <Input
-                placeholder="Search component code/name..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 h-8 text-sm"
+                id="comp-name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g., Basic Salary, HRA, Tax"
+                required
               />
             </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="comp-desc">Description</Label>
+              <Textarea
+                id="comp-desc"
+                rows={3}
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Brief description of the component"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="comp-type">
+                Type <span className="text-rose-500">*</span>
+              </Label>
+              <select
+                id="comp-type"
+                value={form.type}
+                onChange={(e) => setForm({ ...form, type: e.target.value })}
+                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="earning">Earning</option>
+                <option value="deduction">Deduction</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="comp-calc">
+                Calculation Type <span className="text-rose-500">*</span>
+              </Label>
+              <select
+                id="comp-calc"
+                value={form.calculationType}
+                onChange={(e) => setForm({ ...form, calculationType: e.target.value })}
+                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="fixed">Fixed Amount</option>
+                <option value="percentage">Percentage of Basic</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="comp-val">
+                {form.calculationType === "percentage" ? "Percentage (%)" : "Fixed Amount (INR)"}{" "}
+                <span className="text-rose-500">*</span>
+              </Label>
+              <Input
+                id="comp-val"
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.defaultValue}
+                onChange={(e) => setForm({ ...form, defaultValue: e.target.value })}
+                placeholder={form.calculationType === "percentage" ? "e.g., 12.00" : "0.00"}
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="comp-status">
+                Status <span className="text-rose-500">*</span>
+              </Label>
+              <select
+                id="comp-status"
+                value={form.status}
+                onChange={(e) => setForm({ ...form, status: e.target.value })}
+                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button
+                type="submit"
+                disabled={isSaving}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-10 font-medium"
+              >
+                {isSaving
+                  ? editingItem
+                    ? "Updating..."
+                    : "Adding..."
+                  : editingItem
+                  ? "Update Component"
+                  : "Add Component"}
+              </Button>
+              {editingItem && (
+                <Button type="button" variant="outline" onClick={resetForm} className="h-10">
+                  Cancel
+                </Button>
+              )}
+            </div>
+          </form>
+        </div>
+
+        {/* Right Column: Search, Filters & Table */}
+        <div className="lg:col-span-8 space-y-4">
+          {/* Search & 3 Dropdown Filters Card */}
+          <div className="rounded-xl border border-border/80 bg-card p-3 sm:p-4 shadow-xs space-y-3">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setAppliedSearch(searchInput.trim());
+              }}
+              className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5"
+            >
+              <div className="relative flex-1">
+                <i className="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-base" />
+                <Input
+                  value={searchInput}
+                  onChange={(e) => {
+                    setSearchInput(e.target.value);
+                    if (e.target.value === "") setAppliedSearch("");
+                  }}
+                  placeholder="Search components..."
+                  className="pl-9 h-10 w-full"
+                />
+              </div>
+              <Button
+                type="submit"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 px-5 shrink-0"
+              >
+                Search
+              </Button>
+            </form>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground"
+                aria-label="Filter by type"
+              >
+                <option value="all">All Types</option>
+                <option value="earning">Earning</option>
+                <option value="deduction">Deduction</option>
+              </select>
+
+              <select
+                value={calcFilter}
+                onChange={(e) => setCalcFilter(e.target.value)}
+                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground"
+                aria-label="Filter by calculation type"
+              >
+                <option value="all">All Calculations</option>
+                <option value="fixed">Fixed Amount</option>
+                <option value="percentage">Percentage of Basic</option>
+              </select>
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground"
+                aria-label="Filter by status"
+              >
+                <option value="all">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 border-b">
-                <tr>
-                  <th className="p-3 text-left font-medium">Name</th>
-                  <th className="p-3 text-left font-medium">Code</th>
-                  <th className="p-3 text-left font-medium">Classification</th>
-                  <th className="p-3 text-left font-medium">Calculation Type</th>
-                  <th className="p-3 text-center font-medium">Taxable</th>
-                  <th className="p-3 text-center font-medium">PF Wage</th>
-                  <th className="p-3 text-center font-medium">ESI Wage</th>
-                  <th className="p-3 text-center font-medium">Statutory</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                      Loading components...
-                    </td>
+
+          {/* Components Table */}
+          <div className="rounded-xl border border-border/80 bg-card shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="bg-muted/50 border-b border-border/80 text-xs font-semibold text-muted-foreground">
+                    <th className="py-3.5 px-4">Component</th>
+                    <th className="py-3.5 px-3 w-28">Type</th>
+                    <th className="py-3.5 px-3 w-40">Amount</th>
+                    <th className="py-3.5 px-3 w-28">Status</th>
+                    <th className="py-3.5 px-4 w-32 text-right">Actions</th>
                   </tr>
-                ) : filteredComponents.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                      No components found. Click "New Component" to add.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredComponents.map((c: any) => (
-                    <tr key={c.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="p-3 font-semibold">{c.name}</td>
-                      <td className="p-3 font-mono text-xs">{c.code}</td>
-                      <td className="p-3">
-                        <Badge
-                          variant={c.type === "earning" ? "default" : "secondary"}
-                          className="capitalize"
-                        >
-                          {c.type}
-                        </Badge>
-                      </td>
-                      <td className="p-3 capitalize">{c.calculationType.replace(/_/g, " ")}</td>
-                      <td className="p-3 text-center">
-                        {c.isTaxable ? (
-                          <span className="text-emerald-600 font-bold">Yes</span>
-                        ) : (
-                          <span className="text-muted-foreground">Exempt</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-center">
-                        {c.includeInPf ? (
-                          <Badge variant="outline" className="border-blue-500 text-blue-600">Included</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-center">
-                        {c.includeInEsi ? (
-                          <Badge variant="outline" className="border-purple-500 text-purple-600">Included</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-center">
-                        {c.isStatutory ? (
-                          <Badge variant="default" className="bg-amber-600 text-white">Statutory</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">Custom</span>
-                        )}
+                </thead>
+                <tbody className="divide-y divide-border/70">
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-muted-foreground">
+                        <i className="ph ph-spinner-gap animate-spin text-xl mr-2 align-middle" />
+                        Loading salary components...
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : components.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-muted-foreground">
+                        <i className="ph ph-sliders-horizontal text-3xl block mx-auto mb-2 opacity-50" />
+                        No salary components found. Add one using the form on the left.
+                      </td>
+                    </tr>
+                  ) : (
+                    components.map((item) => {
+                      const isDeduction = item.type?.toLowerCase() === "deduction";
+                      const isPct = item.calculationType?.toLowerCase().includes("percent");
+                      return (
+                        <tr
+                          key={item.id}
+                          className={`hover:bg-muted/30 transition-colors ${
+                            editingItem?.id === item.id ? "bg-emerald-500/5" : ""
+                          }`}
+                        >
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-start gap-3">
+                              <div
+                                className={`h-9 w-9 shrink-0 rounded-lg border flex items-center justify-center mt-0.5 ${
+                                  isDeduction
+                                    ? "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                                    : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                }`}
+                              >
+                                <i
+                                  className={`ph ${
+                                    isDeduction ? "ph-trend-down" : "ph-trend-up"
+                                  } text-lg`}
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-semibold text-foreground leading-snug">
+                                  {item.name}
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-0.5 break-words max-w-sm">
+                                  {item.description || "No description provided"}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-3 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                                isDeduction
+                                  ? "bg-rose-500/10 text-rose-700 border-rose-500/20"
+                                  : "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
+                              }`}
+                            >
+                              {isDeduction ? "Deduction" : "Earning"}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3 whitespace-nowrap">
+                            <div className="font-semibold text-foreground">
+                              {isPct
+                                ? `${Number(item.defaultValue || 0).toFixed(2)}%`
+                                : formatINR(item.defaultValue)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {isPct ? "Of basic salary" : "Fixed amount"}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-3 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                                item.isActive
+                                  ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
+                                  : "bg-muted text-muted-foreground border-border"
+                              }`}
+                            >
+                              {item.isActive ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap text-right">
+                            <div className="inline-flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                title="Edit Component"
+                                onClick={() => handleEdit(item)}
+                                className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                              >
+                                <i className="ph ph-note-pencil text-base" />
+                              </button>
+                              <button
+                                type="button"
+                                title={item.isActive ? "Deactivate Component" : "Activate Component"}
+                                onClick={() => toggleStatusMutation.mutate(item)}
+                                className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10 transition-colors"
+                              >
+                                <i
+                                  className={`ph ${
+                                    item.isActive ? "ph-lock-simple" : "ph-lock-simple-open"
+                                  } text-base`}
+                                />
+                              </button>
+                              <button
+                                type="button"
+                                title="Delete Component"
+                                onClick={() => setDeleteTarget(item)}
+                                className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 transition-colors"
+                              >
+                                <i className="ph ph-trash text-base" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Formula Tester Dialog */}
-      <Dialog open={formulaTesterOpen} onOpenChange={setFormulaTesterOpen}>
-        <DialogContent className="max-w-xl">
+      {/* Delete Confirmation Modal */}
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Controlled Formula Tester</DialogTitle>
+            <DialogTitle>Delete Salary Component</DialogTitle>
             <DialogDescription>
-              Test mathematical expressions against sample employee variables. Safely verified via AST parser.
+              Are you sure you want to delete{" "}
+              <span className="font-semibold text-foreground">{deleteTarget?.name}</span>? This
+              action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-3">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Formula Expression</label>
-              <Input
-                value={formulaToTest}
-                onChange={(e) => setFormulaToTest(e.target.value)}
-                placeholder="e.g. BASIC * 0.5 + SPECIAL * 0.1"
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                Available variables: BASIC (25,000), HRA (10,000), SPECIAL (10,000), CTC (50,000), WORKING_DAYS (30), PAYABLE_DAYS (30)
-              </p>
-            </div>
-
-            {formulaResult && (
-              <div className="p-4 border rounded-md bg-muted/20 space-y-2">
-                <span className="text-xs font-bold uppercase text-muted-foreground">Evaluation Trace</span>
-                {formulaResult.error ? (
-                  <div className="text-destructive font-mono text-sm flex items-center gap-1.5">
-                    <AlertCircle className="h-4 w-4" /> {formulaResult.error}
-                  </div>
-                ) : (
-                  <div className="text-emerald-600 font-mono text-lg font-bold">
-                    Computed Output: ₹{Number(formulaResult.result).toLocaleString("en-IN")}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFormulaTesterOpen(false)}>
-              Close
-            </Button>
-            <Button
-              onClick={() => testFormulaMutation.mutate()}
-              disabled={testFormulaMutation.isPending}
-              className="gap-1.5"
-            >
-              <Calculator className="h-4 w-4" /> Evaluate
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* New Component Dialog */}
-      <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Salary Component</DialogTitle>
-            <DialogDescription>
-              Add a new earning, deduction, or reimbursement element to the compensation library.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-3">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Component Name</label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g. Internet Allowance"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Code (Identifier)</label>
-                <Input
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                  placeholder="e.g. INTERNET_ALLOW"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Type</label>
-                <select
-                  value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  className="w-full border rounded-md p-2 bg-background text-sm"
-                >
-                  <option value="earning">Earning</option>
-                  <option value="deduction">Deduction</option>
-                  <option value="reimbursement">Reimbursement</option>
-                  <option value="statutory_employer">Employer Contribution</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Calculation Type</label>
-                <select
-                  value={formData.calculationType}
-                  onChange={(e) => setFormData({ ...formData, calculationType: e.target.value })}
-                  className="w-full border rounded-md p-2 bg-background text-sm"
-                >
-                  <option value="flat">Fixed / Flat Amount</option>
-                  <option value="percentage_of_ctc">Percentage of CTC</option>
-                  <option value="percentage_of_basic">Percentage of Basic</option>
-                  <option value="formula">Formula Expression</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 pt-2">
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.isTaxable}
-                  onChange={(e) => setFormData({ ...formData, isTaxable: e.target.checked })}
-                  className="rounded border"
-                />
-                Subject to Income Tax
-              </label>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.includeInPf}
-                  onChange={(e) => setFormData({ ...formData, includeInPf: e.target.checked })}
-                  className="rounded border"
-                />
-                Include in EPF Wage
-              </label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateModalOpen(false)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
               Cancel
             </Button>
             <Button
-              onClick={() => createMutation.mutate(formData)}
-              disabled={createMutation.isPending || !formData.name || !formData.code}
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
             >
-              Save Component
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

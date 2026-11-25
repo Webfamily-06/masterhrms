@@ -9,6 +9,7 @@ const PUBLIC_UPLOAD_PREFIXES = [
   "branding/",
   "platform/branding/",
   "workspace/branding/",
+  "avatars/",
   "addons/",
   "media/icons/",
   "media/screens/",

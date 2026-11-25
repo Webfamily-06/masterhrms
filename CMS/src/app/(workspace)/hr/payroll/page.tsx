@@ -97,7 +97,7 @@ function HrPayrollOverviewPage() {
       <StatsOverviewGrid>
         <StatCard
           title="Last Payroll Run"
-          value="$945,800.00"
+          value="₹9,45,800.00"
           icon={DollarSign}
           description="Total disbursement"
         />

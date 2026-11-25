@@ -515,7 +515,7 @@ function TenantDashboardPage() {
           </Link>
 
           <Link
-            to="/tenant/files"
+            to="/tenant/file-manager"
             className="flex flex-col items-center justify-center p-3 rounded-md border border-border-color bg-light/30 dark:bg-slate-800/30 hover:border-primary hover:bg-white dark:hover:bg-slate-800 transition-all text-center group"
           >
             <div className="size-10 rounded-md bg-teal-500/10 text-teal-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">

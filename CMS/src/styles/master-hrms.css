@@ -8,6 +8,17 @@ body {
   visibility: visible !important;
   opacity: 1 !important;
   font-family: "Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 500;
+  -webkit-font-smoothing: auto;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+}
+
+label, button, th, td, input, select, textarea {
+  font-weight: 500;
 }
 
 button,
@@ -417,8 +428,8 @@ textarea,
   --sidebar-width: 250px;
   --sidebar-mini-width: 72px;
   --layout-gap: 0px;
-  --topbar-height: 56px;
-  --desktop-left-offset: 250px;
+  --topbar-height: 64px;
+  --desktop-left-offset: 252px;
   --desktop-mini-offset: 72px;
   --impersonation-banner-height: 0px;
 
@@ -509,9 +520,10 @@ textarea,
   top: 0 !important;
   left: 0 !important;
   width: 100% !important;
-  height: 56px !important;
-  min-height: 56px !important;
-  max-height: 56px !important;
+  height: 64px !important;
+  min-height: 64px !important;
+  max-height: 64px !important;
+  padding: 6px 10px !important;
   display: flex !important;
   align-items: center !important;
   flex-shrink: 0 !important;
@@ -528,14 +540,20 @@ textarea,
 .dark .sidebar .sidebar-logo .brand-logo {
   display: flex !important;
   align-items: center !important;
+  justify-content: flex-start !important;
   opacity: 1 !important;
   visibility: visible !important;
+  width: 100% !important;
 }
 
 .sidebar .sidebar-logo .logo img,
 .sidebar .sidebar-logo .brand-logo img {
-  max-height: 32px !important;
+  height: 48px !important;
+  max-height: 48px !important;
+  max-width: 196px !important;
   width: auto !important;
+  object-fit: contain !important;
+  object-position: left center !important;
 }
 
 /* Explicitly honor hidden / dark:hidden inside sidebar logo */
@@ -569,8 +587,8 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
   top: 0 !important;
   left: 0 !important;
   width: 100% !important;
-  height: calc(100% - 56px) !important;
-  max-height: calc(100vh - 56px) !important;
+  height: calc(100% - 64px) !important;
+  max-height: calc(100vh - 64px) !important;
   min-height: 0 !important;
   flex: 1 1 0% !important;
   overflow-y: auto !important;
@@ -1266,10 +1284,12 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
 .sidebar .sidebar-logo .brand-logo.logo img,
 .sidebar .sidebar-logo a.logo img {
   flex-shrink: 0 !important;
-  height: 32px !important;
-  max-height: 32px !important;
+  height: 48px !important;
+  max-height: 48px !important;
+  max-width: 224px !important;
   width: auto !important;
   object-fit: contain !important;
+  object-position: left center !important;
 }
 
 /* Any text node / span inside the logo link */
@@ -1550,23 +1570,34 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
 }
 
 /* Custom Sleek Scrollbar */
-.scrollbar-thin {
+.scrollbar-thin,
+.custom-scrollbar {
   scrollbar-width: thin !important;
-  scrollbar-color: rgba(150, 150, 150, 0.35) transparent !important;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent !important;
 }
-.scrollbar-thin::-webkit-scrollbar {
+.scrollbar-thin::-webkit-scrollbar,
+.custom-scrollbar::-webkit-scrollbar {
   width: 5px !important;
   height: 5px !important;
 }
-.scrollbar-thin::-webkit-scrollbar-track {
+.scrollbar-thin::-webkit-scrollbar-button,
+.custom-scrollbar::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.scrollbar-thin::-webkit-scrollbar-track,
+.custom-scrollbar::-webkit-scrollbar-track {
   background: transparent !important;
 }
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(150, 150, 150, 0.3) !important;
-  border-radius: 4px !important;
+.scrollbar-thin::-webkit-scrollbar-thumb,
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.32) !important;
+  border-radius: 9999px !important;
 }
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(150, 150, 150, 0.6) !important;
+.scrollbar-thin::-webkit-scrollbar-thumb:hover,
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.6) !important;
 }
 
 
@@ -1889,4 +1920,285 @@ pre {
   background-color: rgba(255, 255, 255, 0.12) !important;
   color: #f1f5f9 !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AUTHORITATIVE TENANT LAYOUT, SIDEBAR VARIANT/STYLE & HIGH-CONTRAST MENUS
+   Placed at end of stylesheet so it always wins cascade cleanly.
+   ═══════════════════════════════════════════════════════════════════════════ */
+html {
+  scroll-behavior: smooth;
+}
+
+html body :is(.main-wrapper, .workspace-shell, .super-layout) .sidebar {
+  transition: width 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+              background-color 0.2s ease,
+              box-shadow 0.2s ease !important;
+}
+
+/* FULL WIDTH MODE: Standard 252px sidebar visible on desktop */
+@media (min-width: 992px) {
+  html[data-layout="full-width"]:not([dir="rtl"]) body #sidebar.sidebar {
+    left: 0 !important;
+    margin-left: 0 !important;
+    transform: none !important;
+    width: 252px !important;
+    min-width: 252px !important;
+    max-width: 252px !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  html[data-layout="full-width"]:not([dir="rtl"]) body :is(.main-wrapper, .workspace-shell, .super-layout) :is(.page-wrapper, .navbar-header) {
+    margin-left: 252px !important;
+    width: calc(100% - 252px) !important;
+  }
+}
+
+/* MINI MODE: Exact 76px icon rail at rest; auto-expands smoothly to 256px on hover (zero text blending) */
+@media (min-width: 992px) {
+  html[data-layout="mini"] body #sidebar.sidebar {
+    left: 0 !important;
+    top: 0 !important;
+    margin-left: 0 !important;
+    transform: none !important;
+    width: 76px !important;
+    min-width: 76px !important;
+    max-width: 76px !important;
+    overflow-x: hidden !important;
+    z-index: 1050 !important;
+    display: flex !important;
+  }
+  html[data-layout="mini"] body #sidebar.sidebar:not(:hover) :is(.menu-title, .sidebar-menu a > span, .sidebar-menu button > span, .menu-arrow, .submenu > ul) {
+    display: none !important;
+  }
+  html[data-layout="mini"] body #sidebar.sidebar:not(:hover) .sidebar-menu :is(a, button) {
+    justify-content: center !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  html[data-layout="mini"] body #sidebar.sidebar:hover,
+  html[data-layout="mini"] body.mini-sidebar #sidebar.sidebar:hover,
+  html[data-layout="mini"] body.expand-menu #sidebar.sidebar,
+  html[data-layout="mini"] body.mini-sidebar.expand-menu #sidebar.sidebar,
+  html[data-layout="mini"].sidebar-hovered body #sidebar.sidebar,
+  html.sidebar-hovered body .main-wrapper.mini-sidebar #sidebar.sidebar {
+    width: 256px !important;
+    min-width: 256px !important;
+    max-width: 256px !important;
+    box-shadow: 10px 0 32px rgba(15, 23, 42, 0.22) !important;
+  }
+  html[data-layout="mini"] body #sidebar.sidebar:hover :is(.sidebar-menu a > span, .sidebar-menu button > span),
+  html[data-layout="mini"] body.expand-menu #sidebar.sidebar :is(.sidebar-menu a > span, .sidebar-menu button > span) {
+    display: inline-block !important;
+    white-space: nowrap !important;
+  }
+  html[data-layout="mini"]:not([dir="rtl"]) body :is(.main-wrapper, .workspace-shell, .super-layout) :is(.page-wrapper, .navbar-header) {
+    margin-left: 76px !important;
+    width: calc(100% - 76px) !important;
+  }
+}
+
+/* HOVER VIEW MODE: Exact 76px icon rail at rest; expands smoothly to 256px on hover above topbar (zero blending) */
+@media (min-width: 992px) {
+  html[data-layout="hoverview"] body #sidebar.sidebar {
+    left: 0 !important;
+    top: 0 !important;
+    margin-left: 0 !important;
+    transform: none !important;
+    width: 76px !important;
+    min-width: 76px !important;
+    max-width: 76px !important;
+    overflow-x: hidden !important;
+    z-index: 1050 !important;
+    display: flex !important;
+    background-color: var(--card) !important;
+  }
+  html[data-layout="hoverview"] body #sidebar.sidebar:not(:hover) :is(.menu-title, .sidebar-menu a > span, .sidebar-menu button > span, .menu-arrow, .submenu > ul) {
+    display: none !important;
+  }
+  html[data-layout="hoverview"] body #sidebar.sidebar:not(:hover) .sidebar-menu :is(a, button) {
+    justify-content: center !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  html[data-layout="hoverview"] body #sidebar.sidebar:hover {
+    width: 256px !important;
+    min-width: 256px !important;
+    max-width: 256px !important;
+    box-shadow: 10px 0 32px rgba(15, 23, 42, 0.22) !important;
+  }
+  html[data-layout="hoverview"] body #sidebar.sidebar:hover :is(.sidebar-menu a > span, .sidebar-menu button > span) {
+    display: inline-block !important;
+    white-space: nowrap !important;
+  }
+  html[data-layout="hoverview"][dir="ltr"] body :is(.main-wrapper, .workspace-shell, .super-layout) :is(.page-wrapper, .navbar-header) {
+    margin-left: 76px !important;
+    width: calc(100% - 76px) !important;
+  }
+}
+
+/* HIDDEN SIDEBAR MODE */
+html[data-layout="hidden"] body #sidebar.sidebar {
+  display: none !important;
+}
+html[data-layout="hidden"] body :is(.main-wrapper, .workspace-shell, .super-layout) :is(.page-wrapper, .navbar-header) {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  width: 100% !important;
+}
+
+/* RTL LAYOUT MIRRORING */
+@media (min-width: 992px) {
+  html[dir="rtl"] body :is(.main-wrapper, .workspace-shell, .super-layout) .sidebar {
+    left: auto !important;
+    right: 0 !important;
+    border-right: none !important;
+    border-left: 1px solid var(--border) !important;
+  }
+  html[dir="rtl"]:not([data-layout="hidden"]) body :is(.main-wrapper, .workspace-shell, .super-layout) :is(.page-wrapper, .navbar-header) {
+    margin-left: 0 !important;
+    margin-right: 252px !important;
+    width: calc(100% - 252px) !important;
+  }
+  html[dir="rtl"][data-layout="mini"] body :is(.main-wrapper, .workspace-shell, .super-layout) :is(.page-wrapper, .navbar-header),
+  html[dir="rtl"][data-layout="hoverview"] body :is(.main-wrapper, .workspace-shell, .super-layout) :is(.page-wrapper, .navbar-header) {
+    margin-right: 76px !important;
+    width: calc(100% - 76px) !important;
+  }
+}
+
+/* SIDEBAR VARIANTS: Inset | Floating | Minimal */
+html[data-sidebar-variant="floating"] body :is(.main-wrapper, .workspace-shell, .super-layout) .sidebar {
+  top: 10px !important;
+  bottom: 10px !important;
+  left: 10px !important;
+  height: calc(100vh - 20px) !important;
+  border-radius: 14px !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12) !important;
+}
+html[data-sidebar-variant="minimal"] body :is(.main-wrapper, .workspace-shell, .super-layout) .sidebar {
+  border-right-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* SIDEBAR STYLES: Plain | Colored | Gradient (High-Contrast Active Menus in Light & Dark) */
+html[data-sidebar-style="plain"] body .sidebar :is(a.active, .active > a, [data-active="true"]) {
+  background-color: var(--sidebar-menu-active-bg) !important;
+  color: var(--sidebar-menu-active-item) !important;
+  font-weight: 600 !important;
+  border-left: 3px solid var(--sidebar-menu-active-item) !important;
+}
+html[data-sidebar-style="plain"] body .sidebar :is(a.active, .active > a, [data-active="true"]) :is(i, svg, span) {
+  color: var(--sidebar-menu-active-item) !important;
+}
+
+html[data-sidebar-style="colored"] body #sidebar.sidebar {
+  --sidebar-menu-title: rgba(255, 255, 255, 0.72) !important;
+  --sidebar-menu-item: rgba(255, 255, 255, 0.94) !important;
+  --sidebar-submenu-item: rgba(255, 255, 255, 0.88) !important;
+  --sidebar-menu-active-item: #ffffff !important;
+  --sidebar-submenu-active-item: #ffffff !important;
+  --sidebar-menu-active-bg: rgba(255, 255, 255, 0.22) !important;
+  --foreground: #ffffff !important;
+  --muted-foreground: rgba(255, 255, 255, 0.78) !important;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--tenant-brand-color, #10b981) 86%, #0f172a) 0%,
+    color-mix(in srgb, var(--tenant-brand-color, #10b981) 76%, #020617) 100%
+  ) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+html[data-sidebar-style="colored"] body #sidebar.sidebar :is(.sidebar-logo, .sidebar-inner, .sidebar-menu, ul, li, .submenu > ul) {
+  background: transparent !important;
+  background-color: transparent !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+html[data-sidebar-style="colored"] body #sidebar.sidebar .sidebar-menu ul li.menu-title span {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+html[data-sidebar-style="colored"] body #sidebar.sidebar .sidebar-menu :is(a, button, span, p, i, svg) {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+html[data-sidebar-style="colored"] body #sidebar.sidebar .sidebar-menu ul ul li a::before {
+  background-color: rgba(255, 255, 255, 0.55) !important;
+}
+html[data-sidebar-style="colored"] body #sidebar.sidebar .sidebar-menu :is(a, button):hover {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+}
+html[data-sidebar-style="colored"] body #sidebar.sidebar .sidebar-menu :is(a.active, .active > a, [data-active="true"]) {
+  background-color: rgba(255, 255, 255, 0.24) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border-left: 3px solid #ffffff !important;
+}
+
+html[data-sidebar-style="gradient"] body #sidebar.sidebar {
+  --sidebar-menu-title: rgba(255, 255, 255, 0.68) !important;
+  --sidebar-menu-item: rgba(255, 255, 255, 0.94) !important;
+  --sidebar-submenu-item: rgba(255, 255, 255, 0.88) !important;
+  --sidebar-menu-active-item: #ffffff !important;
+  --sidebar-submenu-active-item: #ffffff !important;
+  --sidebar-menu-active-bg: rgba(255, 255, 255, 0.2) !important;
+  --foreground: #ffffff !important;
+  --muted-foreground: rgba(255, 255, 255, 0.78) !important;
+  background: linear-gradient(
+    180deg,
+    #0f172a 0%,
+    color-mix(in srgb, var(--tenant-brand-color, #10b981) 70%, #0f172a) 100%
+  ) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+html[data-sidebar-style="gradient"] body #sidebar.sidebar :is(.sidebar-logo, .sidebar-inner, .sidebar-menu, ul, li, .submenu > ul) {
+  background: transparent !important;
+  background-color: transparent !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+html[data-sidebar-style="gradient"] body #sidebar.sidebar .sidebar-menu ul li.menu-title span {
+  color: rgba(255, 255, 255, 0.68) !important;
+}
+html[data-sidebar-style="gradient"] body #sidebar.sidebar .sidebar-menu :is(a, button, span, p, i, svg) {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+html[data-sidebar-style="gradient"] body #sidebar.sidebar .sidebar-menu ul ul li a::before {
+  background-color: rgba(255, 255, 255, 0.55) !important;
+}
+html[data-sidebar-style="gradient"] body #sidebar.sidebar .sidebar-menu :is(a, button):hover {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  color: #ffffff !important;
+}
+html[data-sidebar-style="gradient"] body #sidebar.sidebar .sidebar-menu :is(a.active, .active > a, [data-active="true"]) {
+  background-color: rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border-left: 3px solid #ffffff !important;
+}
+
+/* Unified Topbar & Sidebar Seamless Blending (Aligned 64px header + soft hairline borders) */
+html body :is(.main-wrapper, .workspace-shell, .super-layout) .navbar-header {
+  height: 64px !important;
+  min-height: 64px !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent) !important;
+  box-shadow: none !important;
+}
+html[data-sidebar-variant="inset"] body #sidebar.sidebar {
+  border-radius: 0 !important;
+  border-right: 1px solid color-mix(in srgb, var(--border) 55%, transparent) !important;
+  box-shadow: none !important;
+}
+html body #sidebar.sidebar .sidebar-logo {
+  height: 64px !important;
+  min-height: 64px !important;
+  max-height: 64px !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent) !important;
+}
+
+.btn-primary {
+  background-color: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #ffffff !important;
 }

@@ -83,7 +83,7 @@ const emptyExpenseForm = {
   category: "",
   receiptDate: new Date().toISOString().split("T")[0],
   amount: "",
-  currency: "USD",
+  currency: "INR",
   description: "",
   receiptUrl: "",
   receiptName: "",
@@ -176,7 +176,7 @@ export default function TripExpensesPage() {
       category: e.category || "",
       receiptDate: toInputDate(e.receiptDate),
       amount: String(Number(e.amount || 0)),
-      currency: e.currency || "USD",
+      currency: e.currency || "INR",
       description: e.description || "",
       receiptUrl: e.receiptUrl || "",
       receiptName: e.receiptName || "",
@@ -348,7 +348,7 @@ export default function TripExpensesPage() {
                       <TableCell className="font-medium text-sm">{exp.category}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{formatDateSafe(exp.receiptDate)}</TableCell>
                       <TableCell className="font-semibold text-sm">
-                        {exp.currency || "USD"} {Number(exp.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        {exp.currency || "INR"} {Number(exp.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-[220px] truncate">
                         {exp.description || "—"}

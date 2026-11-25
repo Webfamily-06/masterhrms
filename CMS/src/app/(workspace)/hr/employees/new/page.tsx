@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useMemo } from "react";
+import { useFormDraft } from "@/src/hooks/use-form-draft";
 import { useNavigate } from "@/src/lib/router-compat";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -113,73 +114,105 @@ function splitFullName(fullName: string): { firstName: string; lastName: string 
 function NewEmployeeWizardPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [currentStep, setCurrentStep] = useState<number>(1);
+  const {
+    state: wizardMeta,
+    setState: setWizardMeta,
+    clearDraft: clearWizardMetaDraft,
+  } = useFormDraft("hr-employee-new-meta", {
+    currentStep: 1,
+    documents: [createEmptyDocumentDraft()] as EmployeeDocumentDraft[],
+  });
+  const currentStep = wizardMeta.currentStep;
+  const setCurrentStep = (val: number | ((prev: number) => number)) =>
+    setWizardMeta((prev) => ({
+      ...prev,
+      currentStep: typeof val === "function" ? val(prev.currentStep) : val,
+    }));
+  const documents = wizardMeta.documents;
+  const setDocuments = (
+    val:
+      | EmployeeDocumentDraft[]
+      | ((prev: EmployeeDocumentDraft[]) => EmployeeDocumentDraft[])
+  ) =>
+    setWizardMeta((prev) => ({
+      ...prev,
+      documents: typeof val === "function" ? val(prev.documents) : val,
+    }));
+
   const [showPassword, setShowPassword] = useState(false);
   const [avatarFileName, setAvatarFileName] = useState<string>("");
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [documents, setDocuments] = useState<EmployeeDocumentDraft[]>([createEmptyDocumentDraft()]);
 
-  const [formData, setFormData] = useState({
-    // Step 1: Personal (Basic Information)
-    fullName: "",
-    employeeCode: "",
-    email: "",
-    password: "",
-    phone: "",
-    dateOfBirth: "",
-    gender: "male",
-    avatarUrl: "",
+  const {
+    state: formData,
+    setState: setFormData,
+    hasRestoredDraft,
+    clearDraft: clearFormDraft,
+  } = useFormDraft(
+    "hr-employee-new-form",
+    {
+      // Step 1: Personal (Basic Information)
+      fullName: "",
+      employeeCode: "",
+      email: "",
+      password: "",
+      phone: "",
+      dateOfBirth: "",
+      gender: "male",
+      avatarUrl: "",
 
-    // Step 2: Employment
-    branchId: "",
-    departmentId: "",
-    designationId: "",
-    managerId: "",
-    shiftId: "",
-    attendancePolicyId: "",
-    employmentType: "full_time",
-    joinedAt: new Date().toISOString().split("T")[0],
-    status: "active",
-    createLoginAccount: true,
-    userRole: "employee",
+      // Step 2: Employment
+      branchId: "",
+      departmentId: "",
+      designationId: "",
+      managerId: "",
+      shiftId: "",
+      attendancePolicyId: "",
+      employmentType: "full_time",
+      joinedAt: new Date().toISOString().split("T")[0],
+      status: "active",
+      createLoginAccount: true,
+      userRole: "employee",
 
-    // Step 3: Contact
-    address: "",
-    country: "India",
-    state: "",
-    district: "",
-    city: "",
-    zipCode: "",
-    bloodGroup: "",
-    maritalStatus: "single",
-    emergencyContactName: "",
-    emergencyContactRelationship: "",
-    emergencyContactRelationshipOther: "",
-    emergencyContactPhone: "",
+      // Step 3: Contact
+      address: "",
+      country: "India",
+      state: "",
+      district: "",
+      city: "",
+      zipCode: "",
+      bloodGroup: "",
+      maritalStatus: "single",
+      emergencyContactName: "",
+      emergencyContactRelationship: "",
+      emergencyContactRelationshipOther: "",
+      emergencyContactPhone: "",
 
-    // Step 4: Banking & Compensation
-    bankName: "",
-    bankAccount: "",
-    bankIfsc: "",
-    bankBranch: "",
-    salary: "",
-    taxRegime: "new",
-    pan: "",
-    aadhaar: "",
-    uan: "",
-    esiNumber: "",
-    pfNumber: "",
-    pfEligible: true,
-    esiEligible: true,
-    ptEligible: true,
-    tdsEligible: true,
+      // Step 4: Banking & Compensation
+      bankName: "",
+      bankAccount: "",
+      bankIfsc: "",
+      bankBranch: "",
+      salary: "",
+      taxRegime: "new",
+      pan: "",
+      aadhaar: "",
+      uan: "",
+      esiNumber: "",
+      pfNumber: "",
+      pfEligible: true,
+      esiEligible: true,
+      ptEligible: true,
+      tdsEligible: true,
 
-    // Step 5: Documents & Notes
-    documentCategory: "Aadhaar Card / National Identity Proof",
-    documentTitle: "",
-    documentUrl: "",
-    onboardingNotes: "",
-  });
+      // Step 5: Documents & Notes
+      documentCategory: "Aadhaar Card / National Identity Proof",
+      documentTitle: "",
+      documentUrl: "",
+      onboardingNotes: "",
+    },
+    { excludeKeys: ["password"] }
+  );
 
   const updateField = (key: string, val: any) => {
     setFormData((prev) => ({ ...prev, [key]: val }));
@@ -341,6 +374,8 @@ function NewEmployeeWizardPage() {
       return await api.post("/hr/employees", payload);
     },
     onSuccess: () => {
+      clearFormDraft(false);
+      clearWizardMetaDraft(false);
       toast.success("Employee created successfully.");
       navigate({ to: "/hr/employees" as any });
     },
@@ -610,20 +645,41 @@ function NewEmployeeWizardPage() {
             Add a new employee to your organization.
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => navigate({ to: "/hr/employees" as any })}
-          className="h-9 gap-1.5 text-xs font-medium"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back
-        </Button>
+        <div className="flex items-center gap-2">
+          {hasRestoredDraft && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                clearFormDraft(true);
+                clearWizardMetaDraft(true);
+                toast.info("Saved employee draft cleared.");
+              }}
+              className="h-9 gap-1.5 text-xs font-medium text-rose-600 border-rose-500/30 hover:bg-rose-500/10"
+            >
+              <i className="ph ph-trash" />
+              Clear Draft
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => navigate({ to: "/hr/employees" as any })}
+            className="h-9 gap-1.5 text-xs font-medium"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back
+          </Button>
+        </div>
       </div>
 
       {/* ── Outer Wizard Container ── */}
-      <div className="rounded-xl border border-border/80 bg-card shadow-xs p-5 lg:p-6 space-y-6">
+      <div
+        data-draft-managed="true"
+        className="rounded-xl border border-border/80 bg-card shadow-xs p-5 lg:p-6 space-y-6"
+      >
         {/* ── 5-Step Horizontal Stepper ── */}
         <div className="flex items-center justify-between overflow-x-auto pb-1">
           {STEPS.map((step, index) => {

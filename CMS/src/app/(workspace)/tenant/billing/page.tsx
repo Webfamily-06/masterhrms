@@ -1,184 +1,154 @@
 'use client';
+
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { api } from "@/lib/api";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Receipt, Download, ExternalLink, CheckCircle2, Loader2, Calendar, FileText } from "lucide-react";
-import { formatSystemAmount } from "@/lib/currency";
+import { AccessDenied } from "@/components/access-denied";
+import { usePermissions } from "@/lib/permissions";
 
-function formatItemName(inv: any): string {
-  if (inv.planId?.startsWith("addon_")) {
-    const slug = inv.planId.replace("addon_", "").replace(/-/g, " ");
-    return `Add-on: ${slug.charAt(0).toUpperCase() + slug.slice(1)}`;
-  }
-  if (inv.invoiceNo?.startsWith("ADDON-INV")) {
-    return `Add-on: Modular Extension`;
-  }
-  if (inv.planId) {
-    return `Subscription: ${inv.planId.replace(/-/g, " ")}`;
-  }
-  return inv.itemName || "Workspace Subscription";
+type BillingInvoiceRow = {
+  id: string;
+  invoiceNo: string | null;
+  amount: number;
+  currency: string;
+  status: string;
+  billingCycle: string;
+  periodStart: string;
+  periodEnd: string;
+  paidAt: string | null;
+  createdAt: string;
+};
+
+function formatINR(val: number) {
+  return `₹${Number(val || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function handleDownloadPdf(invoiceId: string) {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-  window.open(`${baseUrl}/api/billing/invoices/${invoiceId}/download?token=${token || ""}`, "_blank");
-}
+export default function TenantBillingPage() {
+  const { isWorkspaceAdmin, isSuperAdmin, loading } = usePermissions();
+  const isAuthorized = isWorkspaceAdmin || isSuperAdmin;
 
-function TenantBillingPage() {
-  const { data: invoices = [], isLoading } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["tenant-billing-invoices"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/billing/invoices");
-        const list = Array.isArray(res) ? res : res?.items || [];
-        return list;
-      } catch {
-        return [];
-      }
+      const res: any = await api.get("/workspace/billing/invoices");
+      return res?.data || res || { invoices: [], subscription: null };
     },
+    enabled: isAuthorized,
   });
 
+  const invoices: BillingInvoiceRow[] = Array.isArray(data?.invoices) ? data.invoices : [];
+  const subscription = data?.subscription || null;
+
+  if (!loading && !isAuthorized) {
+    return <AccessDenied moduleName="Tenant Billing" requiredPermission="workspace.billing.view" />;
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-5">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Billing & Invoices
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Subscription receipts, add-on purchase invoices, downloadable tax receipts, and payment history.
-          </p>
-        </div>
-      </div>
+    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+      <PageHeader
+        title="Tenant Billing & Invoices"
+        description="View your active SaaS subscription plan, renewal schedule, and historical GST/platform invoices."
+        actions={
+          <Link href="/tenant/subscription">
+            <Button size="sm" variant="outline" className="gap-1.5">
+              <i className="ph ph-crown" />
+              Manage Plan
+            </Button>
+          </Link>
+        }
+      />
 
-      <Card className="border-border/80">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Receipt className="size-4 text-emerald-500" />
-            Payment History & Tax Invoices
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Official GST/VAT-compliant digital invoices issued for your workspace subscriptions and modular add-ons.
-          </CardDescription>
+      {/* Subscription Summary */}
+      <Card className="border border-border/80 rounded-xl bg-card shadow-xs">
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-base">
+              {subscription?.planName || "Enterprise Workspace Plan"}
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Billing cycle: {subscription?.billingCycle || "monthly"}
+              {subscription?.currentPeriodEnd
+                ? ` • Renews on ${new Date(subscription.currentPeriodEnd).toLocaleDateString()}`
+                : ""}
+            </CardDescription>
+          </div>
+          <Badge variant={subscription?.status === "active" ? "success" : "soft"} className="uppercase text-xs">
+            {subscription?.status || "Active"}
+          </Badge>
         </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-muted/50 border-b border-border/60 uppercase tracking-wider text-[11px] text-muted-foreground font-semibold">
-                <tr>
-                  <th className="p-3.5">Invoice #</th>
-                  <th className="p-3.5">Item Description</th>
-                  <th className="p-3.5">Billing Period</th>
-                  <th className="p-3.5">Expiry / Renewal Date</th>
-                  <th className="p-3.5">Amount</th>
-                  <th className="p-3.5">Payment Method</th>
-                  <th className="p-3.5">Status</th>
-                  <th className="p-3.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/50">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                      <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-primary" />
-                      Loading invoices...
-                    </td>
-                  </tr>
-                ) : invoices.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                      <FileText className="size-8 mx-auto mb-2 text-muted-foreground/40" />
-                      No invoices issued yet.
-                    </td>
-                  </tr>
-                ) : (
-                  invoices.map((inv: any) => {
-                    const isPaid = inv.status === "paid";
-                    const isAddon = inv.invoiceNo?.startsWith("ADDON-INV") || inv.planId?.startsWith("addon_");
-
-                    return (
-                      <tr key={inv.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="p-3.5 font-mono font-medium text-foreground whitespace-nowrap">
-                          {inv.invoiceNo || inv.invoiceNumber || inv.id}
-                        </td>
-                        <td className="p-3.5">
-                          <div className="font-semibold text-foreground flex items-center gap-1.5">
-                            {isAddon ? (
-                              <Badge variant="outline" className="text-[10px] bg-indigo-500/10 text-indigo-600 border-indigo-500/20 font-bold">
-                                Add-on
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-600 border-blue-500/20 font-bold">
-                                Plan
-                              </Badge>
-                            )}
-                            <span className="capitalize">{formatItemName(inv)}</span>
-                          </div>
-                        </td>
-                        <td className="p-3.5 text-muted-foreground whitespace-nowrap">
-                          {inv.periodStart && inv.periodEnd
-                            ? `${new Date(inv.periodStart).toLocaleDateString()} - ${new Date(inv.periodEnd).toLocaleDateString()}`
-                            : inv.dueDate
-                            ? new Date(inv.dueDate).toLocaleDateString()
-                            : "Standard"}
-                        </td>
-                        <td className="p-3.5 whitespace-nowrap">
-                          {inv.periodEnd ? (
-                            <Badge variant="outline" className="font-mono text-[11px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 font-semibold gap-1">
-                              <Calendar className="size-3" />
-                              {new Date(inv.periodEnd).toLocaleDateString(undefined, {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </td>
-                        <td className="p-3.5 font-semibold text-foreground whitespace-nowrap">
-                          {Number(inv.amount) === 0 ? "Free" : formatSystemAmount(Number(inv.amount || 0))}
-                        </td>
-                        <td className="p-3.5 text-muted-foreground whitespace-nowrap capitalize">
-                          {inv.paymentMethod || "Online Gateway"}
-                        </td>
-                        <td className="p-3.5 whitespace-nowrap">
-                          <Badge
-                            variant="outline"
-                            className={
-                              isPaid
-                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] font-bold"
-                                : "bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px] font-bold"
-                            }
-                          >
-                            {inv.status ? inv.status.toUpperCase() : "PAID"}
-                          </Badge>
-                        </td>
-                        <td className="p-3.5 text-right whitespace-nowrap">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDownloadPdf(inv.id)}
-                            className="h-7 text-xs gap-1 hover:text-primary hover:bg-primary/10"
-                            title="Download official tax invoice PDF"
-                          >
-                            <Download className="h-3 w-3" /> PDF
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-0">
+          <div className="p-3.5 rounded-lg border border-border/70 bg-muted/20">
+            <p className="text-[11px] text-muted-foreground">Monthly Plan Rate</p>
+            <p className="text-lg font-bold text-foreground mt-0.5">
+              {formatINR(subscription?.priceMonthly || 0)}
+            </p>
+          </div>
+          <div className="p-3.5 rounded-lg border border-border/70 bg-muted/20">
+            <p className="text-[11px] text-muted-foreground">Total Invoices</p>
+            <p className="text-lg font-bold text-foreground mt-0.5">{invoices.length}</p>
+          </div>
+          <div className="p-3.5 rounded-lg border border-border/70 bg-muted/20">
+            <p className="text-[11px] text-muted-foreground">Currency</p>
+            <p className="text-lg font-bold text-foreground mt-0.5">INR (₹)</p>
           </div>
         </CardContent>
       </Card>
+
+      {/* Invoices Table */}
+      <div className="overflow-x-auto border border-border/80 rounded-lg bg-card">
+        <table className="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr className="border-b border-border/70">
+              <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground p-3">Invoice No</th>
+              <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground p-3">Billing Period</th>
+              <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground p-3">Cycle</th>
+              <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground p-3">Amount</th>
+              <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground p-3">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/60">
+            {isLoading ? (
+              <tr>
+                <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                  <i className="ph ph-spinner-gap animate-spin text-xl text-primary block mx-auto mb-2" />
+                  Loading billing invoices...
+                </td>
+              </tr>
+            ) : invoices.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                  No billing invoices generated yet for this organization.
+                </td>
+              </tr>
+            ) : (
+              invoices.map((inv) => (
+                <tr key={inv.id} className="hover:bg-muted/40 transition-colors">
+                  <td className="p-3 font-semibold text-foreground">
+                    {inv.invoiceNo || inv.id.slice(0, 10).toUpperCase()}
+                  </td>
+                  <td className="p-3 text-muted-foreground">
+                    {new Date(inv.periodStart).toLocaleDateString()} – {new Date(inv.periodEnd).toLocaleDateString()}
+                  </td>
+                  <td className="p-3 capitalize">{inv.billingCycle}</td>
+                  <td className="p-3 font-semibold text-foreground">{formatINR(inv.amount)}</td>
+                  <td className="p-3">
+                    <Badge
+                      variant={inv.status === "paid" ? "success" : inv.status === "failed" ? "destructive" : "warning"}
+                      className="text-[10px] uppercase"
+                    >
+                      {inv.status}
+                    </Badge>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
-
-export default TenantBillingPage;

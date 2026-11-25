@@ -1,13 +1,12 @@
 'use client';
-import {  createFileRoute  } from "@/src/lib/router-compat";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -31,12 +30,12 @@ import {
   Shield,
   Loader2,
   Edit2,
-  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-
+import { AccessDenied } from "@/components/access-denied";
+import { usePermissions } from "@/lib/permissions";
+import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 export type WorkspaceUser = {
   id: string;
@@ -61,10 +60,6 @@ export type RoleOption = {
   isActive: boolean;
 };
 
-import { AccessDenied } from "@/components/access-denied";
-import { usePermissions } from "@/lib/permissions";
-import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
-
 function UsersPage() {
   const { isWorkspaceAdmin, isSuperAdmin, loading, profile } = usePermissions();
   const queryClient = useQueryClient();
@@ -79,6 +74,9 @@ function UsersPage() {
   const [editingUser, setEditingUser] = useState<WorkspaceUser | null>(null);
   const [targetRoleId, setTargetRoleId] = useState("");
 
+  // Tenant Admin Disable 2FA Modal State
+  const [disable2faTarget, setDisable2faTarget] = useState<WorkspaceUser | null>(null);
+
   // 1. Fetch Real Users from Workspace API
   const { data: users = [], isLoading: usersLoading } = useQuery<WorkspaceUser[]>({
     queryKey: ["workspace-users-list"],
@@ -89,10 +87,6 @@ function UsersPage() {
     enabled: isAuthorized,
   });
 
-  if (!loading && !isAuthorized) {
-    return <AccessDenied moduleName="User & Role Management" requiredPermission="workspace.users.manage" />;
-  }
-
   // 2. Fetch Workspace Roles
   const { data: roles = [] } = useQuery<RoleOption[]>({
     queryKey: ["workspace-roles"],
@@ -100,6 +94,7 @@ function UsersPage() {
       const res = await api.get("/workspace/roles");
       return res || [];
     },
+    enabled: isAuthorized,
   });
 
   // 3. Mutation: Assign Role to User
@@ -117,6 +112,22 @@ function UsersPage() {
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to assign role");
+    },
+  });
+
+  // 4. Mutation: Tenant Admin Disable 2FA for any user
+  const adminDisable2faMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return await api.post(`/auth/admin/users/${userId}/disable-2fa`, {});
+    },
+    onSuccess: (res: any) => {
+      toast.success(res?.message || "Two-Factor Authentication disabled for user.");
+      setDisable2faTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["workspace-users-list"] });
+      queryClient.invalidateQueries({ queryKey: ["auth-2fa-status"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to disable 2FA for user.");
     },
   });
 
@@ -145,8 +156,12 @@ function UsersPage() {
     return roles.find((r) => r.id === targetRoleId);
   }, [roles, targetRoleId]);
 
+  if (!loading && !isAuthorized) {
+    return <AccessDenied moduleName="User & Role Management" requiredPermission="workspace.users.manage" />;
+  }
+
   return (
-    <div className="w-full flex-1 min-w-0 bg-background">
+    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto w-full flex-1 min-w-0 bg-background">
       <div className="w-full min-w-0 space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -155,14 +170,14 @@ function UsersPage() {
               <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">
                 Workspace Identity & Access Management
               </span>
-              <span className="text-xs text-muted-foreground font-mono">Live Database</span>
+              <span className="text-xs text-muted-foreground">Live Database</span>
             </div>
             <BreadcrumbNav />
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+            <h1 className="text-xl font-bold tracking-tight text-foreground">
               Workspace Users & Role Assignments
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              Manage member roles and RBAC authorization scopes across the workspace.
+              Manage member roles, RBAC authorization scopes, and 2FA security status across your organization.
             </p>
           </div>
         </div>
@@ -175,7 +190,7 @@ function UsersPage() {
             { title: "Specialized Managers", value: managerCount.toString(), desc: "HR, Sales, Finance Managers", icon: Shield, color: "text-purple-500 bg-purple-500/10" },
             { title: "Standard Employees", value: employeeCount.toString(), desc: "Self-Service Access", icon: UserCheck, color: "text-emerald-500 bg-emerald-500/10" },
           ].map((w) => (
-            <Card key={w.title} className="border border-border/70 shadow-xs">
+            <Card key={w.title} className="border border-border/80 rounded-xl bg-card shadow-xs">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
@@ -193,7 +208,7 @@ function UsersPage() {
         </div>
 
         {/* Filters Card */}
-        <Card className="border border-border/70 shadow-xs">
+        <Card className="border border-border/80 rounded-xl bg-card shadow-xs">
           <CardContent className="p-4 sm:p-5">
             <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
               <div className="relative w-full sm:w-80">
@@ -226,15 +241,15 @@ function UsersPage() {
         </Card>
 
         {/* Users Table */}
-        <Card className="border border-border/70 shadow-xs overflow-hidden">
+        <Card className="border border-border/80 rounded-xl bg-card shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-border/70 bg-muted/30 text-muted-foreground font-semibold">
+                <tr className="border-b border-border/70 bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
                   <th className="px-5 py-3.5">USER</th>
                   <th className="px-4 py-3.5">ASSIGNED ROLE</th>
                   <th className="px-4 py-3.5">STATUS</th>
-                  <th className="px-4 py-3.5">2FA</th>
+                  <th className="px-4 py-3.5">2FA STATUS</th>
                   <th className="px-4 py-3.5">JOINED DATE</th>
                   <th className="px-5 py-3.5 text-right">ACTIONS</th>
                 </tr>
@@ -255,17 +270,18 @@ function UsersPage() {
                   </tr>
                 ) : (
                   filteredUsers.map((u) => (
-                    <tr key={u.id} className="hover:bg-muted/20 transition-colors">
+                    <tr key={u.id} className="hover:bg-muted/40 transition-colors">
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <Avatar className="size-8">
+                            {u.avatarUrl && <AvatarImage src={u.avatarUrl} alt={u.fullName} />}
                             <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
                               {u.fullName.substring(0, 2).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           <div>
                             <p className="font-semibold text-foreground text-xs">{u.fullName}</p>
-                            <p className="text-[11px] text-muted-foreground font-mono">{u.email}</p>
+                            <p className="text-[11px] text-muted-foreground">{u.email}</p>
                           </div>
                         </div>
                       </td>
@@ -301,34 +317,49 @@ function UsersPage() {
 
                       <td className="px-4 py-3.5">
                         {u.twoFactorEnabled ? (
-                          <Badge variant="outline" className="text-[10px] font-bold py-0.5 px-2 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10">
-                            ● Enabled
+                          <Badge variant="outline" className="text-[10px] font-bold py-0.5 px-2 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 gap-1">
+                            <i className="ph ph-shield-check" />
+                            Enabled
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-[10px] font-bold py-0.5 px-2 border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10">
-                            ○ Pending Setup
+                          <Badge variant="outline" className="text-[10px] font-bold py-0.5 px-2 border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 gap-1">
+                            <i className="ph ph-shield-warning" />
+                            Disabled
                           </Badge>
                         )}
                       </td>
 
-                      <td className="px-4 py-3.5 text-muted-foreground font-mono text-[11px]">
+                      <td className="px-4 py-3.5 text-muted-foreground text-[11px]">
                         {new Date(u.createdAt).toLocaleDateString()}
                       </td>
 
                       <td className="px-5 py-3.5 text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setEditingUser(u);
-                            setTargetRoleId(u.assignedRole?.id || roles[0]?.id || "");
-                            setIsEditModalOpen(true);
-                          }}
-                          className="h-7 text-xs px-2.5 font-semibold gap-1"
-                        >
-                          <Edit2 className="size-3" />
-                          Change Role
-                        </Button>
+                        <div className="inline-flex items-center gap-2 justify-end">
+                          {u.twoFactorEnabled && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setDisable2faTarget(u)}
+                              className="h-7 text-xs px-2.5 font-semibold gap-1 text-rose-600 border-rose-500/30 hover:bg-rose-500/10"
+                            >
+                              <i className="ph ph-shield-slash" />
+                              Disable 2FA
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingUser(u);
+                              setTargetRoleId(u.assignedRole?.id || roles[0]?.id || "");
+                              setIsEditModalOpen(true);
+                            }}
+                            className="h-7 text-xs px-2.5 font-semibold gap-1"
+                          >
+                            <Edit2 className="size-3" />
+                            Change Role
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -373,7 +404,6 @@ function UsersPage() {
                 </Select>
               </div>
 
-              {/* Selected Role Summary Preview Card */}
               {selectedRoleInfo && (
                 <div className="rounded-lg border border-border/80 bg-muted/30 p-3.5 space-y-1.5">
                   <div className="flex items-center justify-between">
@@ -403,6 +433,39 @@ function UsersPage() {
               >
                 {assignRoleMutation.isPending && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
                 Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Tenant Admin Disable 2FA Confirmation Dialog */}
+        <Dialog open={Boolean(disable2faTarget)} onOpenChange={(open) => !open && setDisable2faTarget(null)}>
+          <DialogContent className="sm:max-w-md w-full p-6">
+            <DialogHeader className="space-y-1.5">
+              <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                <i className="ph ph-shield-slash text-rose-600" />
+                Disable User 2FA
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Are you sure you want to disable Two-Factor Authentication for{" "}
+                <span className="font-semibold text-foreground">{disable2faTarget?.fullName}</span> (
+                {disable2faTarget?.email})? They will be able to sign in with their password and re-enable 2FA anytime from their Profile.
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogFooter className="gap-2 sm:gap-0 pt-3 border-t border-border/60">
+              <Button variant="outline" size="sm" onClick={() => setDisable2faTarget(null)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={adminDisable2faMutation.isPending || !disable2faTarget}
+                onClick={() => disable2faTarget && adminDisable2faMutation.mutate(disable2faTarget.id)}
+                className="font-semibold px-4 gap-1.5"
+              >
+                {adminDisable2faMutation.isPending && <Loader2 className="size-3.5 animate-spin" />}
+                Confirm Disable 2FA
               </Button>
             </DialogFooter>
           </DialogContent>
