@@ -153,10 +153,13 @@
     "@prisma/client@5.22.0": true,
     "@prisma/engines@5.22.0": true,
     "core-js@3.50.0": true,
+    "esbuild@0.21.5": true,
     "esbuild@0.28.2": true,
     "msgpackr-extract@3.0.4": true,
     "prisma@5.22.0": true,
+    "sharp@0.34.5": true,
     "tesseract.js@7.0.0": true,
+    "unrs-resolver@1.12.2": true,
     "workerd@1.20260704.1": true
   }
 }

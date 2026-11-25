@@ -3,6 +3,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { MarkdownData } from '@/src/interface/interface';
 
+const STATIC_MARKDOWN_DIRS: Record<string, string> = {
+  blog: path.join(process.cwd(), 'src', 'data', 'blog'),
+  services: path.join(process.cwd(), 'src', 'data', 'services'),
+  team: path.join(process.cwd(), 'src', 'data', 'team'),
+};
+
+function resolveMarkdownDir(folder: string): string | null {
+  const normalized = folder.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  const key = normalized.startsWith('src/data/')
+    ? normalized.slice('src/data/'.length)
+    : normalized;
+  const dir = STATIC_MARKDOWN_DIRS[key];
+  if (dir && fs.existsSync(dir)) return dir;
+  return null;
+}
+
 const getMarkDownData = <T extends MarkdownData = MarkdownData>(
   folder: string,
   reversedSort?: boolean,
@@ -11,12 +27,9 @@ const getMarkDownData = <T extends MarkdownData = MarkdownData>(
   if (!sortBy) {
     sortBy = 'title';
   }
-  let dir = path.join(process.cwd(), folder);
-  if (!fs.existsSync(dir)) {
-    const fallbackDir = path.resolve(__dirname, '../../', folder);
-    if (fs.existsSync(fallbackDir)) {
-      dir = fallbackDir;
-    }
+  const dir = resolveMarkdownDir(folder);
+  if (!dir) {
+    return [];
   }
   const files = fs.readdirSync(dir);
   const markdownPosts = files.filter((file) => file.endsWith('.md'));
