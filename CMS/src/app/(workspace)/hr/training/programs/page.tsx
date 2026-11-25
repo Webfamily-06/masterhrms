@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, unwrapArray } from "@/lib/api";
+import { useWorkspaceSettings } from "@/src/context/workspace-settings-context";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,13 +88,6 @@ const EMPTY_FORM = {
   allowSelfEnrollment: false,
 };
 
-function formatCurrency(val: number) {
-  return `$${Number(val || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
 function StatusBadge({ status }: { status: ProgramStatus }) {
   if (status === "active") {
     return (
@@ -126,6 +120,7 @@ function StatusBadge({ status }: { status: ProgramStatus }) {
 export default function HrTrainingProgramsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { formatCurrency } = useWorkspaceSettings();
 
   const [search, setSearch] = useState("");
   const [selectedType, setSelectedType] = useState("all");

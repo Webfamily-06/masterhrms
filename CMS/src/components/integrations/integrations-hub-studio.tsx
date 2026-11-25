@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { api } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -114,6 +115,36 @@ const DEFAULT_INTEGRATIONS: IntegrationApp[] = [
     authType: 'oauth',
     docsUrl: 'https://marketplace.zoom.us',
     defaultEvents: ['Interview Scheduling', 'Virtual Standups'],
+  },
+  {
+    id: 'telegram',
+    name: 'Telegram Bot',
+    category: 'Communication',
+    description: 'Deliver instant HR notifications, leave approvals, and attendance alerts directly to employee Telegram groups via BotFather.',
+    iconBg: 'bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800',
+    iconColor: 'text-sky-600 dark:text-sky-400',
+    badgeLabel: 'Bot Alerts',
+    connected: false,
+    lastSync: 'Never',
+    apiVersion: 'Bot API 7.0',
+    authType: 'apiKey',
+    docsUrl: 'https://core.telegram.org/bots/api',
+    defaultEvents: ['Leave Alerts', 'Payroll Published', 'Daily Digest'],
+  },
+  {
+    id: 'twilio',
+    name: 'Twilio SMS',
+    category: 'Communication',
+    description: 'Send real-time SMS alerts, interview reminders, shift notifications, and two-factor OTP verification codes via Twilio.',
+    iconBg: 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800',
+    iconColor: 'text-rose-600 dark:text-rose-400',
+    badgeLabel: 'SMS & OTP',
+    connected: false,
+    lastSync: 'Never',
+    apiVersion: '2010-04-01',
+    authType: 'apiKey',
+    docsUrl: 'https://www.twilio.com/docs/sms',
+    defaultEvents: ['OTP Verification', 'Shift Reminders', 'Urgent Alerts'],
   },
   {
     id: 'quickbooks',
@@ -252,11 +283,177 @@ const DEFAULT_INTEGRATIONS: IntegrationApp[] = [
   },
 ];
 
-export function IntegrationsHubStudio() {
+function renderBrandLogo(app: IntegrationApp) {
+  if (app.id === 'slack') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-label="Slack">
+        <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313z" fill="#E01E5A" />
+        <path d="M8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312z" fill="#36C5F0" />
+        <path d="M18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312z" fill="#2EB67D" />
+        <path d="M15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" fill="#ECB22E" />
+      </svg>
+    );
+  }
+  if (app.id === 'telegram') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-label="Telegram">
+        <circle cx="12" cy="12" r="11" fill="#26A5E4" />
+        <path d="M17.2 7.4L15.1 17.3c-.16.7-.57.87-1.15.54l-3.18-2.34-1.53 1.48c-.17.17-.31.31-.64.31l.23-3.24 5.9-5.33c.26-.23-.06-.35-.4-.13l-7.29 4.59-3.14-.98c-.68-.21-.7-.68.14-1.01l12.27-4.73c.57-.21 1.07.13.89.94z" fill="#ffffff" />
+      </svg>
+    );
+  }
+  if (app.id === 'twilio') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-label="Twilio">
+        <circle cx="12" cy="12" r="10.5" stroke="#F22F46" strokeWidth="2.4" />
+        <circle cx="9.2" cy="9.2" r="1.9" fill="#F22F46" />
+        <circle cx="14.8" cy="9.2" r="1.9" fill="#F22F46" />
+        <circle cx="9.2" cy="14.8" r="1.9" fill="#F22F46" />
+        <circle cx="14.8" cy="14.8" r="1.9" fill="#F22F46" />
+      </svg>
+    );
+  }
+  if (app.id === 'zoom') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-label="Zoom">
+        <rect x="1.5" y="1.5" width="21" height="21" rx="6" fill="#0B5CFF" />
+        <rect x="5.5" y="8.2" width="9.5" height="7.6" rx="1.8" fill="#ffffff" />
+        <path d="M15.8 10.6L19.2 8.4v7.2l-3.4-2.2v-2.8z" fill="#ffffff" />
+      </svg>
+    );
+  }
+  if (app.id === 'google-workspace') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-label="Google Workspace">
+        <path d="M21.8 12.23c0-.72-.06-1.41-.18-2.08H12v3.94h5.5a4.7 4.7 0 0 1-2.04 3.09v2.56h3.3c1.93-1.78 3.04-4.4 3.04-7.51z" fill="#4285F4" />
+        <path d="M12 22c2.76 0 5.07-.91 6.76-2.48l-3.3-2.56c-.91.61-2.08.98-3.46.98-2.66 0-4.91-1.8-5.71-4.21H2.88v2.64A10.2 10.2 0 0 0 12 22z" fill="#34A853" />
+        <path d="M6.29 13.73A6.14 6.14 0 0 1 5.97 12c0-.6.11-1.18.32-1.73V7.63H2.88A10.2 10.2 0 0 0 1.8 12c0 1.65.39 3.21 1.08 4.37l3.41-2.64z" fill="#FBBC05" />
+        <path d="M12 6.06c1.5 0 2.85.52 3.91 1.53l2.93-2.93C17.06 2.99 14.76 2 12 2a10.2 10.2 0 0 0-9.12 5.63l3.41 2.64C7.09 7.86 9.34 6.06 12 6.06z" fill="#EA4335" />
+      </svg>
+    );
+  }
+  if (app.id === 'quickbooks') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-label="QuickBooks">
+        <circle cx="12" cy="12" r="10.5" fill="#2CA01C" />
+        <path d="M6.5 12a3 3 0 0 1 3-3h1.2v6.8a1 1 0 0 1-1 1h-.6v-5.3H9.5a1.5 1.5 0 0 0 0 3h.4v1.5h-.4a3 3 0 0 1-3-3z" fill="#ffffff" />
+        <path d="M17.5 12a3 3 0 0 1-3 3h-1.2V8.2a1 1 0 0 1 1-1h.6v5.3h.6a1.5 1.5 0 0 0 0-3h-.4V8h.4a3 3 0 0 1 3 3z" fill="#ffffff" />
+      </svg>
+    );
+  }
+  if (app.id === 'stripe') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-label="Stripe">
+        <rect x="2" y="2" width="20" height="20" rx="5" fill="#635BFF" />
+        <path d="M11.3 9.7c0-.7.58-1 1.53-1 1.37 0 3.1.42 4.47 1.16V6.43c-1.5-.6-2.98-.83-4.47-.83-3.65 0-6.08 1.91-6.08 5.1 0 4.98 6.86 4.18 6.86 6.33 0 .83-.72 1.1-1.73 1.1-1.5 0-3.42-.62-4.94-1.45v3.48c1.68.72 3.38 1.04 4.94 1.04 3.74 0 6.32-1.85 6.32-5.08 0-5.38-6.9-4.42-6.9-6.42z" fill="#ffffff" />
+      </svg>
+    );
+  }
+  if (app.id === 'github') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="#0f172a" className="dark:fill-white" aria-label="GitHub">
+        <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.522 2 12 2z" />
+      </svg>
+    );
+  }
+  if (app.id === 'zkteco') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="ZKTeco Biometrics">
+        <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" />
+        <path d="M14 13.12c0 2.38 0 6.38-1 8.88" />
+        <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02" />
+        <path d="M2 12a10 10 0 0 1 18-6" />
+        <path d="M2 16h.01" />
+        <path d="M21.8 16c.2-2 .131-5.354 0-6" />
+        <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2" />
+        <path d="M8.65 22c.21-.66.45-1.32.57-2" />
+        <path d="M9 6.8a6 6 0 0 1 9 5.2v2" />
+      </svg>
+    );
+  }
+  if (app.id === 'razorpay') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-label="Razorpay">
+        <rect x="2" y="2" width="20" height="20" rx="5" fill="#072654" />
+        <path d="M14.9 6L11.4 13.1L14.1 13.1L12.1 18.5L17.8 6H14.9Z" fill="#3395FF" />
+        <path d="M10.4 11.2L6.8 18.5H10.2L12.7 13.1L10.4 11.2Z" fill="#ffffff" />
+      </svg>
+    );
+  }
+  if (app.id === 'jira') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-label="Jira Software">
+        <path d="M11.53 2c0 2.4 1.97 4.35 4.35 4.35h1.78v1.7c0 2.4 1.94 4.34 4.34 4.35V2.84a.84.84 0 0 0-.84-.84h-9.63z" fill="#2684FF" />
+        <path d="M6.77 6.8a4.36 4.36 0 0 0 4.34 4.34h1.8v1.72a4.36 4.36 0 0 0 4.34 4.34V7.63a.84.84 0 0 0-.83-.83H6.77z" fill="#0052CC" />
+        <path d="M2 11.6c0 2.4 1.95 4.34 4.35 4.35h1.78v1.7c.01 2.39 1.95 4.34 4.34 4.35v-9.57a.84.84 0 0 0-.84-.83H2z" fill="#2684FF" />
+      </svg>
+    );
+  }
+  if (app.id === 'tally') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-label="Tally Prime">
+        <rect x="2" y="2" width="20" height="20" rx="5" fill="#EA580C" />
+        <path d="M6.5 7.5h11v2.8h-4v7.2h-3v-7.2h-4V7.5z" fill="#ffffff" />
+      </svg>
+    );
+  }
+  if (app.id === 'woocommerce') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-label="WooCommerce">
+        <rect x="2" y="4" width="20" height="14" rx="4" fill="#7F54B3" />
+        <path d="M13.5 18l3 3.2V18h-3z" fill="#7F54B3" />
+        <path d="M5.4 8.2l1.2 5.6 1.7-3.4 1.4 3.4 1.3-5.6M13.3 9.2c-1 0-1.7.8-1.7 2s.7 2 1.7 2 1.7-.8 1.7-2-.7-2-1.7-2zm4.2 0c-1 0-1.7.8-1.7 2s.7 2 1.7 2 1.7-.8 1.7-2-.7-2-1.7-2z" stroke="#ffffff" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (app.id === 'webhook-gateway') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Outbox Webhooks">
+        <path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2" />
+        <path d="m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06" />
+        <path d="m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8" />
+      </svg>
+    );
+  }
+  return app.name.substring(0, 2).toUpperCase();
+}
+
+const TENANT_PERSISTED_SECTIONS = new Set(['slack', 'telegram', 'twilio', 'zoom']);
+
+export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'tenant' }) {
   const [apps, setApps] = useState<IntegrationApp[]>(DEFAULT_INTEGRATIONS);
+  const [tenantSettingsMap, setTenantSettingsMap] = useState<Record<string, any>>({});
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+
+  useEffect(() => {
+    if (mode !== 'tenant') return;
+    let active = true;
+    api
+      .get('/workspace/system-settings')
+      .then((res: any) => {
+        if (!active) return;
+        const s = res?.data?.settings || res?.settings || {};
+        setTenantSettingsMap(s);
+        setApps((prev) =>
+          prev.map((app) => {
+            if (TENANT_PERSISTED_SECTIONS.has(app.id) && s[app.id]) {
+              return {
+                ...app,
+                connected: Boolean(s[app.id].enabled),
+                lastSync: s[app.id].enabled ? 'Configured' : 'Disabled',
+              };
+            }
+            return app;
+          })
+        );
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [mode]);
 
   // Modal State (Reference C)
   const [settingsApp, setSettingsApp] = useState<IntegrationApp | null>(null);
@@ -301,6 +498,12 @@ export function IntegrationsHubStudio() {
       prev.map((a) => {
         if (a.id === appId) {
           const nextState = !a.connected;
+          if (mode === 'tenant' && TENANT_PERSISTED_SECTIONS.has(appId)) {
+            const existing = tenantSettingsMap[appId] || {};
+            const updated = { ...existing, enabled: nextState };
+            setTenantSettingsMap((m) => ({ ...m, [appId]: updated }));
+            api.put(`/workspace/system-settings/${appId}`, updated).catch(() => {});
+          }
           toast.success(`${a.name} integration ${nextState ? 'enabled' : 'disabled'}`);
           return {
             ...a,
@@ -317,11 +520,32 @@ export function IntegrationsHubStudio() {
   function handleOpenSettings(app: IntegrationApp) {
     setSettingsApp(app);
     setFormEnv('production');
-    // Security compliance: Do NOT reproduce real secrets or demo secrets
-    setFormClientId(app.connected ? `mstr_${app.id}_client_prod` : '');
-    setFormClientSecret(app.connected ? '••••••••••••••••••••' : '');
+    const saved = mode === 'tenant' ? tenantSettingsMap[app.id] || {} : {};
+    if (mode === 'tenant' && TENANT_PERSISTED_SECTIONS.has(app.id)) {
+      if (app.id === 'slack') {
+        setFormClientId(saved.defaultChannel || '#hr-updates');
+        setFormClientSecret(saved.botToken || '');
+        setFormWebhookUrl(saved.webhookUrl || '');
+      } else if (app.id === 'telegram') {
+        setFormClientId(saved.chatId || '');
+        setFormClientSecret(saved.botToken || '');
+        setFormWebhookUrl('');
+      } else if (app.id === 'twilio') {
+        setFormClientId(saved.accountSid || '');
+        setFormClientSecret(saved.authToken || '');
+        setFormWebhookUrl(saved.fromNumber || '');
+      } else if (app.id === 'zoom') {
+        setFormClientId(saved.clientId || '');
+        setFormClientSecret(saved.clientSecret || '');
+        setFormWebhookUrl(saved.accountId || '');
+      }
+    } else {
+      // Security compliance: Do NOT reproduce real secrets or demo secrets
+      setFormClientId(app.connected ? `mstr_${app.id}_client_prod` : '');
+      setFormClientSecret(app.connected ? '••••••••••••••••••••' : '');
+      setFormWebhookUrl(`https://api.masterhrms.com/v1/webhooks/${app.id}/callback`);
+    }
     setShowSecret(false);
-    setFormWebhookUrl(`https://api.masterhrms.com/v1/webhooks/${app.id}/callback`);
     setSelectedEvents(app.defaultEvents || []);
     setTestResult({ status: 'idle', message: '' });
   }
@@ -342,8 +566,29 @@ export function IntegrationsHubStudio() {
   }
 
   // Save Settings
-  function handleSaveSettings() {
+  async function handleSaveSettings() {
     if (!settingsApp) return;
+
+    if (mode === 'tenant' && TENANT_PERSISTED_SECTIONS.has(settingsApp.id)) {
+      const existing = tenantSettingsMap[settingsApp.id] || {};
+      let payload: Record<string, any> = { ...existing, enabled: true };
+      if (settingsApp.id === 'slack') {
+        payload = { ...payload, defaultChannel: formClientId, botToken: formClientSecret, webhookUrl: formWebhookUrl };
+      } else if (settingsApp.id === 'telegram') {
+        payload = { ...payload, chatId: formClientId, botToken: formClientSecret };
+      } else if (settingsApp.id === 'twilio') {
+        payload = { ...payload, accountSid: formClientId, authToken: formClientSecret, fromNumber: formWebhookUrl };
+      } else if (settingsApp.id === 'zoom') {
+        payload = { ...payload, clientId: formClientId, clientSecret: formClientSecret, accountId: formWebhookUrl };
+      }
+      try {
+        await api.put(`/workspace/system-settings/${settingsApp.id}`, payload);
+        setTenantSettingsMap((m) => ({ ...m, [settingsApp.id]: payload }));
+      } catch (err: any) {
+        toast.error(err?.message || `Failed to save ${settingsApp.name} settings`);
+        return;
+      }
+    }
 
     setApps((prev) =>
       prev.map((a) => {
@@ -467,7 +712,7 @@ export function IntegrationsHubStudio() {
                 <div
                   className={`size-12 rounded-xl border flex items-center justify-center font-bold text-base shadow-2xs shrink-0 ${app.iconBg} ${app.iconColor}`}
                 >
-                  {app.name.substring(0, 2).toUpperCase()}
+                  {renderBrandLogo(app)}
                 </div>
 
                 <div className="flex items-center gap-1.5">

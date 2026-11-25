@@ -38,6 +38,7 @@ export const ROUTES = {
     billing: "/tenant/billing",
     branding: "/tenant/branding",
     settings: "/tenant/settings",
+    mailTemplates: "/tenant/mail-templates",
     domain: "/tenant/domain",
     integrations: "/tenant/integrations",
     data: "/tenant/data",

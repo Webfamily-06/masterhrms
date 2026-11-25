@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { api } from "@/lib/api";
+import { useWorkspaceSettings } from "@/src/context/workspace-settings-context";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,6 +92,7 @@ const emptyExpenseForm = {
 };
 
 export default function TripExpensesPage() {
+  const { formatCurrency } = useWorkspaceSettings();
   const params = useParams();
   const tripId = String(params?.id || "");
   const queryClient = useQueryClient();
@@ -295,19 +297,19 @@ export default function TripExpensesPage() {
             <div className="rounded-xl p-4 bg-blue-500/5 border border-blue-500/15">
               <p className="text-xs font-medium text-blue-600 dark:text-blue-400">Total Expenses</p>
               <p className="text-2xl font-bold text-blue-700 dark:text-blue-300 mt-1">
-                ${totals.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrency(totals.total)}
               </p>
             </div>
             <div className="rounded-xl p-4 bg-emerald-500/5 border border-emerald-500/15">
               <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Reimbursable</p>
               <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 mt-1">
-                ${totals.reimbursable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrency(totals.reimbursable)}
               </p>
             </div>
             <div className="rounded-xl p-4 bg-purple-500/5 border border-purple-500/15">
               <p className="text-xs font-medium text-purple-600 dark:text-purple-400">Advance Amount</p>
               <p className="text-2xl font-bold text-purple-700 dark:text-purple-300 mt-1">
-                ${totals.advance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrency(totals.advance)}
               </p>
             </div>
           </div>
@@ -348,7 +350,7 @@ export default function TripExpensesPage() {
                       <TableCell className="font-medium text-sm">{exp.category}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{formatDateSafe(exp.receiptDate)}</TableCell>
                       <TableCell className="font-semibold text-sm">
-                        {exp.currency || "INR"} {Number(exp.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        {formatCurrency(Number(exp.amount || 0))}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-[220px] truncate">
                         {exp.description || "—"}

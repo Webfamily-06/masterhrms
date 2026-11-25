@@ -12,6 +12,22 @@ import { SettingsService } from "../services/settings/settings.service";
 import { CompanyProfileService } from "../services/company-profile/company-profile.service";
 import { requireEntitlement } from "../middleware/entitlements";
 import { getUploadsRoot } from "../services/media/media.service";
+import {
+  getAuthoritativeTemplates,
+  SAMPLE_VARS,
+  substituteTemplateVars,
+  type EmailTemplate,
+} from "../lib/email-templates-registry";
+import {
+  brandingToTemplateVars,
+  resolveUniversalEmailBranding,
+} from "../lib/email-design-system/branding";
+import { substituteUniversalEmailVars } from "../lib/email-design-system";
+import {
+  dispatchHrWorkflowEmail,
+  HR_EVENT_TO_TEMPLATE_ID,
+  type HrEmailEventKey,
+} from "../services/hr-workflow-email.service";
 
 export const workspaceRouter = Router();
 
@@ -2516,31 +2532,288 @@ workspaceRouter.post("/system-settings/test-email", requireWorkspaceAdminGuard, 
     }
 
     const { settings } = await loadTenantSystemSettings(tenantId);
-    const cfg = { ...settings.email, ...(smtp || {}) };
+    const incoming = smtp || {};
+    const incomingPass = String(incoming.password ?? "").trim();
+    const isMaskedPass = !incomingPass || /^[•*]+$/.test(incomingPass);
+
+    const cfg = {
+      ...settings.email,
+      ...incoming,
+      host: String(incoming.host ?? settings.email?.host ?? "").trim(),
+      port: Number(incoming.port ?? settings.email?.port ?? 587) || 587,
+      username: String(incoming.username ?? settings.email?.username ?? "").trim(),
+      password: isMaskedPass ? String(settings.email?.password ?? "").trim() : incomingPass,
+      encryption: String(incoming.encryption ?? settings.email?.encryption ?? "TLS").trim().toUpperCase(),
+      fromAddress: String(incoming.fromAddress ?? settings.email?.fromAddress ?? "").trim(),
+      fromName: String(incoming.fromName ?? settings.email?.fromName ?? "MasterHRMS").trim(),
+    };
 
     if (!cfg.host) {
       return res.status(400).json({ error: "SMTP Host is required before sending a test email." });
     }
 
-    const port = Number(cfg.port) || 587;
+    const isSsl = cfg.encryption === "SSL" || cfg.port === 465;
     const transporter = nodemailer.createTransport({
       host: cfg.host,
-      port,
-      secure: String(cfg.encryption || "").toUpperCase() === "SSL" || port === 465,
-      auth: cfg.username ? { user: cfg.username, pass: cfg.password || "" } : undefined,
-      connectionTimeout: 8000,
+      port: cfg.port,
+      secure: isSsl,
+      requireTLS: cfg.encryption === "TLS" && !isSsl,
+      auth: cfg.username ? { user: cfg.username, pass: cfg.password } : undefined,
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 10000,
     });
 
-    await transporter.sendMail({
-      from: `"${cfg.fromName || "MasterHRMS"}" <${cfg.fromAddress || cfg.username}>`,
+    const authUserIsEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cfg.username);
+    const primaryFrom = cfg.fromAddress || cfg.username;
+    const mailBase = {
       to: String(toEmail).trim(),
       subject: `[Test] ${cfg.fromName || "MasterHRMS"} SMTP Configuration Verified`,
       text: "Your Tenant SMTP email configuration is working properly in real time.",
+    };
+
+    try {
+      await transporter.sendMail({
+        ...mailBase,
+        from: `"${cfg.fromName || "MasterHRMS"}" <${primaryFrom}>`,
+      });
+      return res.json({ success: true, message: `Test email sent successfully to ${toEmail}.` });
+    } catch (sendErr: any) {
+      const errMsg = String(sendErr?.message || "");
+      const isRelayOrSenderDenied =
+        /550|5\.7\.1|relay|sender.*not allowed|SendAsDenied|mail from|owned by/i.test(errMsg);
+
+      // Automatic fallback: many SMTP providers (Zoho, M365, Hostinger, cPanel, GoDaddy) require
+      // the envelope From address to match the authenticated SMTP Username.
+      if (isRelayOrSenderDenied && authUserIsEmail && primaryFrom.toLowerCase() !== cfg.username.toLowerCase()) {
+        await transporter.sendMail({
+          ...mailBase,
+          from: `"${cfg.fromName || "MasterHRMS"}" <${cfg.username}>`,
+          replyTo: primaryFrom,
+        });
+        return res.json({
+          success: true,
+          message: `Test email sent to ${toEmail} using your authenticated SMTP account (${cfg.username}). Tip: set "From Address" to "${cfg.username}" to avoid 550 relay restrictions.`,
+        });
+      }
+      throw sendErr;
+    }
+  } catch (err: any) {
+    const rawMsg = err?.message || "SMTP connection failed. Please verify host, port, and credentials.";
+    const hint = /550|5\.7\.1|relay|not allowed/i.test(rawMsg)
+      ? " (Ensure 'From Address' matches your authenticated 'SMTP Username' email address.)"
+      : "";
+    return res.status(400).json({ error: `${rawMsg}${hint}` });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ORGANIZATION / TENANT HTML MAIL TEMPLATES (HR, Calendar, Tasks, Invoices, Payroll)
+// ═══════════════════════════════════════════════════════════════════════════
+const TENANT_EMAIL_TEMPLATE_CATEGORIES = new Set(["HR", "Calendar", "Tasks", "Invoices", "Payroll"]);
+
+function getTenantDefaultTemplates(): EmailTemplate[] {
+  return getAuthoritativeTemplates().filter((t) => TENANT_EMAIL_TEMPLATE_CATEGORIES.has(t.category));
+}
+
+function mergeTenantEmailTemplates(persistedList: EmailTemplate[] = []): EmailTemplate[] {
+  const defaults = getTenantDefaultTemplates();
+  const persistedMap = new Map<string, EmailTemplate>();
+  for (const t of persistedList) {
+    if (t && t.id && TENANT_EMAIL_TEMPLATE_CATEGORIES.has(t.category)) {
+      persistedMap.set(t.id, t);
+    }
+  }
+  const merged: EmailTemplate[] = [];
+  for (const def of defaults) {
+    if (persistedMap.has(def.id)) {
+      merged.push(persistedMap.get(def.id)!);
+      persistedMap.delete(def.id);
+    } else {
+      merged.push(def);
+    }
+  }
+  for (const custom of persistedMap.values()) {
+    merged.push(custom);
+  }
+  return merged;
+}
+
+// GET /api/workspace/email-templates
+workspaceRouter.get("/email-templates", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const [page, branding] = await Promise.all([
+      prisma.cmsPage.findUnique({
+        where: { slug: `tenant-${tenantId}-email-templates` },
+      }),
+      resolveUniversalEmailBranding(tenantId),
+    ]);
+    const persisted = Array.isArray((page?.content as any)?.templates)
+      ? ((page?.content as any).templates as EmailTemplate[])
+      : [];
+    const templates = mergeTenantEmailTemplates(persisted);
+    return res.json({
+      success: true,
+      templates,
+      branding,
+      brandingVars: brandingToTemplateVars(branding),
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to load organization email templates." });
+  }
+});
+
+// PUT /api/workspace/email-templates
+workspaceRouter.put("/email-templates", requireWorkspaceAdminGuard, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const incoming = Array.isArray(req.body?.templates) ? (req.body.templates as EmailTemplate[]) : [];
+    const merged = mergeTenantEmailTemplates(incoming);
+    const slug = `tenant-${tenantId}-email-templates`;
+
+    await prisma.cmsPage.upsert({
+      where: { slug },
+      update: {
+        title: "Organization Email Templates",
+        content: { templates: merged } as any,
+        published: true,
+      },
+      create: {
+        slug,
+        title: "Organization Email Templates",
+        metaDescription: "Organization-specific HTML email templates for HR, Calendar, Tasks, Invoices, and Payroll",
+        content: { templates: merged } as any,
+        published: true,
+      },
     });
 
-    return res.json({ success: true, message: `Test email sent successfully to ${toEmail}.` });
+    return res.json({ success: true, templates: merged });
   } catch (err: any) {
-    return res.status(400).json({ error: err?.message || "SMTP connection failed. Please verify host, port, and credentials." });
+    return res.status(500).json({ error: err.message || "Failed to save organization email templates." });
+  }
+});
+
+// POST /api/workspace/email-templates/test
+workspaceRouter.post("/email-templates/test", requireWorkspaceAdminGuard, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const { toEmail, subject, htmlBody } = req.body || {};
+    if (!toEmail || !String(toEmail).includes("@")) {
+      return res.status(400).json({ error: "Valid recipient email address is required." });
+    }
+
+    const { settings } = await loadTenantSystemSettings(tenantId);
+    const saved = (settings.email || {}) as Record<string, any>;
+
+    const cfg = {
+      host: String(saved.host || process.env.SMTP_HOST || "").trim(),
+      port: Number(saved.port || process.env.SMTP_PORT || 587),
+      username: String(saved.username || process.env.SMTP_USER || "").trim(),
+      password: String(saved.password || process.env.SMTP_PASS || ""),
+      encryption: String(saved.encryption || "TLS").toUpperCase(),
+      fromAddress: String(saved.fromAddress || saved.username || process.env.SMTP_FROM || "").trim(),
+      fromName: String(saved.fromName || settings.brand?.companyName || "MasterHRMS").trim(),
+    };
+
+    if (!cfg.host) {
+      return res.status(400).json({ error: "SMTP Host is not configured. Please configure Mail Settings in Workspace Settings first." });
+    }
+
+    const branding = await resolveUniversalEmailBranding(tenantId);
+    const vars: Record<string, string> = {
+      ...SAMPLE_VARS,
+      ...brandingToTemplateVars(branding),
+    };
+
+    const renderedSubject = substituteTemplateVars(String(subject || "Test Email"), vars);
+    const renderedHtml = substituteUniversalEmailVars(String(htmlBody || "<p>Test email</p>"), vars);
+
+    const isSsl = cfg.encryption === "SSL" || cfg.port === 465;
+    const transporter = nodemailer.createTransport({
+      host: cfg.host,
+      port: cfg.port,
+      secure: isSsl,
+      requireTLS: cfg.encryption === "TLS" && !isSsl,
+      auth: cfg.username ? { user: cfg.username, pass: cfg.password } : undefined,
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 10000,
+    });
+
+    const authUserIsEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cfg.username);
+    const primaryFrom = cfg.fromAddress || cfg.username;
+    const mailBase = {
+      to: String(toEmail).trim(),
+      subject: `[Test] ${renderedSubject}`,
+      html: renderedHtml,
+    };
+
+    try {
+      await transporter.sendMail({
+        ...mailBase,
+        from: `"${cfg.fromName}" <${primaryFrom}>`,
+      });
+      return res.json({ success: true, message: `Test HTML email sent successfully to ${toEmail}.` });
+    } catch (sendErr: any) {
+      const errMsg = String(sendErr?.message || "");
+      const isRelayOrSenderDenied =
+        /550|5\.7\.1|relay|sender.*not allowed|SendAsDenied|mail from|owned by/i.test(errMsg);
+      if (isRelayOrSenderDenied && authUserIsEmail && primaryFrom.toLowerCase() !== cfg.username.toLowerCase()) {
+        await transporter.sendMail({
+          ...mailBase,
+          from: `"${cfg.fromName}" <${cfg.username}>`,
+          replyTo: primaryFrom,
+        });
+        return res.json({
+          success: true,
+          message: `Test HTML email sent to ${toEmail} using your authenticated SMTP account (${cfg.username}).`,
+        });
+      }
+      throw sendErr;
+    }
+  } catch (err: any) {
+    return res.status(400).json({ error: err?.message || "Failed to send test email." });
+  }
+});
+
+// POST /api/workspace/email-templates/test-all (Verify all 24 HR auto-trigger templates to a test email)
+workspaceRouter.post("/email-templates/test-all", requireWorkspaceAdminGuard, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const toEmail = String(req.body?.toEmail || "").trim();
+    if (!toEmail || !toEmail.includes("@")) {
+      return res.status(400).json({ error: "Valid recipient email address is required." });
+    }
+
+    const keys = Object.keys(HR_EVENT_TO_TEMPLATE_ID) as HrEmailEventKey[];
+    const results = [];
+    for (const eventKey of keys) {
+      const r = await dispatchHrWorkflowEmail({
+        tenantId,
+        eventKey,
+        toEmail,
+        forceSend: true,
+      });
+      results.push(r);
+    }
+
+    const sentCount = results.filter((r) => r.success && !r.skipped).length;
+    return res.json({
+      success: sentCount === keys.length,
+      total: keys.length,
+      sentCount,
+      failedCount: keys.length - sentCount,
+      results,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || "Failed to dispatch batch HR test emails." });
   }
 });
 

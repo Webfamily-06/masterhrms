@@ -56,10 +56,6 @@ type SectionId =
   | "currency"
   | "email"
   | "email_notifications"
-  | "slack"
-  | "telegram"
-  | "twilio"
-  | "zoom"
   | "working_days"
   | "ip_restriction"
   | "noc"
@@ -77,10 +73,6 @@ const NAV_ITEMS: Array<{
   { id: "currency", label: "Currency Settings", icon: "ph-currency-inr", scope: "overall" },
   { id: "email", label: "Email Settings", icon: "ph-envelope-simple", scope: "overall" },
   { id: "email_notifications", label: "Email Notification Settings", icon: "ph-bell", scope: "hr" },
-  { id: "slack", label: "Slack Settings", icon: "ph-chat-centered-text", scope: "addon" },
-  { id: "telegram", label: "Telegram Settings", icon: "ph-paper-plane-tilt", scope: "addon" },
-  { id: "twilio", label: "Twilio SMS Settings", icon: "ph-device-mobile", scope: "addon" },
-  { id: "zoom", label: "Zoom Meeting Settings", icon: "ph-video-camera", scope: "addon" },
   { id: "working_days", label: "Working Days Settings", icon: "ph-clock", scope: "hr" },
   { id: "ip_restriction", label: "IP Restriction Settings", icon: "ph-git-branch", scope: "overall" },
   { id: "noc", label: "NOC Settings", icon: "ph-file-text", scope: "hr" },
@@ -208,6 +200,8 @@ export function TenantSystemSettingsConsole({
     layoutDirection: "ltr",
     sidebarPosition: "left",
   });
+
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
 
   const [currency, setCurrency] = useState<WorkspaceCurrencyConfig>({
     defaultCurrency: "INR",
@@ -1412,7 +1406,24 @@ export function TenantSystemSettingsConsole({
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs font-medium">SMTP Password *</Label>
-                        <Input type="password" value={email.password} onChange={(e) => setEmail((p) => ({ ...p, password: e.target.value }))} placeholder="••••••••••••" className="h-9 text-xs" />
+                        <div className="relative">
+                          <Input
+                            type={showSmtpPassword ? "text" : "password"}
+                            value={email.password}
+                            onChange={(e) => setEmail((p) => ({ ...p, password: e.target.value }))}
+                            placeholder="••••••••••••"
+                            className="h-9 text-xs pr-9"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowSmtpPassword((v) => !v)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                            aria-label={showSmtpPassword ? "Hide SMTP password" : "Show SMTP password"}
+                            title={showSmtpPassword ? "Hide password" : "Show password"}
+                          >
+                            <i className={`ph ${showSmtpPassword ? "ph-eye-slash" : "ph-eye"} text-base`} />
+                          </button>
+                        </div>
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs font-medium">Mail Encryption *</Label>
@@ -1508,142 +1519,7 @@ export function TenantSystemSettingsConsole({
               </CardContent>
             </Card>
 
-            {/* 6-9. DEDICATED ADDON-INTEGRATIONS (Slack, Telegram, Twilio SMS, Zoom) */}
-            {mode === "tenant" && (
-              <>
-                <Card id="settings-section-slack" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
-                  <CardContent className="p-6 space-y-4">
-                    <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h2 className="text-base font-bold text-foreground">Slack Settings</h2>
-                          <Badge variant="soft" className="text-[10px]">Add-on Integration</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Connect Slack webhooks for real-time HR & workspace alerts.
-                        </p>
-                      </div>
-                      <SaveBtn section="slack" payload={slack} />
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg border border-border/70 p-3">
-                      <span className="text-xs font-semibold">Enable Slack Integration</span>
-                      <Switch checked={slack.enabled} onCheckedChange={(v) => setSlack((p) => ({ ...p, enabled: v }))} />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Slack Webhook URL</Label>
-                        <Input value={slack.webhookUrl} onChange={(e) => setSlack((p) => ({ ...p, webhookUrl: e.target.value }))} placeholder="https://hooks.slack.com/services/..." className="h-9 text-xs" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Default Channel</Label>
-                        <Input value={slack.defaultChannel} onChange={(e) => setSlack((p) => ({ ...p, defaultChannel: e.target.value }))} placeholder="#hr-updates" className="h-9 text-xs" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card id="settings-section-telegram" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
-                  <CardContent className="p-6 space-y-4">
-                    <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h2 className="text-base font-bold text-foreground">Telegram Settings</h2>
-                          <Badge variant="soft" className="text-[10px]">Add-on Integration</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Configure Telegram Bot token and Chat ID for instant notifications.
-                        </p>
-                      </div>
-                      <SaveBtn section="telegram" payload={telegram} />
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg border border-border/70 p-3">
-                      <span className="text-xs font-semibold">Enable Telegram Bot</span>
-                      <Switch checked={telegram.enabled} onCheckedChange={(v) => setTelegram((p) => ({ ...p, enabled: v }))} />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Telegram Access Token</Label>
-                        <Input type="password" value={telegram.botToken} onChange={(e) => setTelegram((p) => ({ ...p, botToken: e.target.value }))} placeholder="BotFather token" className="h-9 text-xs" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Telegram Chat ID</Label>
-                        <Input value={telegram.chatId} onChange={(e) => setTelegram((p) => ({ ...p, chatId: e.target.value }))} placeholder="-1001234567890" className="h-9 text-xs" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card id="settings-section-twilio" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
-                  <CardContent className="p-6 space-y-4">
-                    <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h2 className="text-base font-bold text-foreground">Twilio SMS Settings</h2>
-                          <Badge variant="soft" className="text-[10px]">Add-on Integration</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Configure Twilio SMS credentials for employee alerts and OTP SMS.
-                        </p>
-                      </div>
-                      <SaveBtn section="twilio" payload={twilio} />
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg border border-border/70 p-3">
-                      <span className="text-xs font-semibold">Enable Twilio SMS</span>
-                      <Switch checked={twilio.enabled} onCheckedChange={(v) => setTwilio((p) => ({ ...p, enabled: v }))} />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Account SID</Label>
-                        <Input value={twilio.accountSid} onChange={(e) => setTwilio((p) => ({ ...p, accountSid: e.target.value }))} placeholder="ACxxxxxxxxxxxxxxxx" className="h-9 text-xs" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Auth Token</Label>
-                        <Input type="password" value={twilio.authToken} onChange={(e) => setTwilio((p) => ({ ...p, authToken: e.target.value }))} placeholder="••••••••••••" className="h-9 text-xs" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">From Number</Label>
-                        <Input value={twilio.fromNumber} onChange={(e) => setTwilio((p) => ({ ...p, fromNumber: e.target.value }))} placeholder="+1234567890" className="h-9 text-xs" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card id="settings-section-zoom" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
-                  <CardContent className="p-6 space-y-4">
-                    <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h2 className="text-base font-bold text-foreground">Zoom Meeting Settings</h2>
-                          <Badge variant="soft" className="text-[10px]">Add-on Integration</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Connect Zoom Server-to-Server OAuth for interviews and HR meetings.
-                        </p>
-                      </div>
-                      <SaveBtn section="zoom" payload={zoom} />
-                    </div>
-                    <div className="flex items-center justify-between rounded-lg border border-border/70 p-3">
-                      <span className="text-xs font-semibold">Enable Zoom Meetings</span>
-                      <Switch checked={zoom.enabled} onCheckedChange={(v) => setZoom((p) => ({ ...p, enabled: v }))} />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Account ID</Label>
-                        <Input value={zoom.accountId} onChange={(e) => setZoom((p) => ({ ...p, accountId: e.target.value }))} placeholder="Zoom Account ID" className="h-9 text-xs" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Client ID</Label>
-                        <Input value={zoom.clientId} onChange={(e) => setZoom((p) => ({ ...p, clientId: e.target.value }))} placeholder="Zoom Client ID" className="h-9 text-xs" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Client Secret</Label>
-                        <Input type="password" value={zoom.clientSecret} onChange={(e) => setZoom((p) => ({ ...p, clientSecret: e.target.value }))} placeholder="••••••••••••" className="h-9 text-xs" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </>
-            )}
+            {/* Slack, Telegram, Twilio SMS, and Zoom Meeting Settings are managed in /tenant/integrations */}
 
             {/* 10. WORKING DAYS SETTINGS (HRMS) */}
             <Card id="settings-section-working_days" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">

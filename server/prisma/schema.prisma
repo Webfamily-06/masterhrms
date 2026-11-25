@@ -7436,3 +7436,21 @@ model ChatPushSubscription {
   @@index([tenantId, userId, isActive])
   @@map("chat_push_subscriptions")
 }
+
+model TenantMailTemplate {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  tenantId  String   @map("tenant_id") @db.VarChar(36)
+  eventKey  String   @map("event_key") @db.VarChar(80)
+  name      String   @db.VarChar(150)
+  module    String   @default("HR") @db.VarChar(60)
+  subject   String   @db.VarChar(300)
+  body      String
+  variables Json     @default("[]")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, eventKey])
+  @@index([tenantId, module])
+  @@map("tenant_mail_templates")
+}

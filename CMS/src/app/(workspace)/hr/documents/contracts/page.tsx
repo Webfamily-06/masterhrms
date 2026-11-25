@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, unwrapArray } from "@/lib/api";
+import { useWorkspaceSettings } from "@/src/context/workspace-settings-context";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -191,6 +192,7 @@ function ContractStatusBadge({ status }: { status: string }) {
 
 export default function HrEmployeeContractsPage() {
   const queryClient = useQueryClient();
+  const { formatCurrency } = useWorkspaceSettings();
 
   const [search, setSearch] = useState("");
   const [selectedType, setSelectedType] = useState("all");

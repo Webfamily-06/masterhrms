@@ -14,6 +14,11 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Mail, Code, Eye, Save, RefreshCw, Loader2, Send } from "lucide-react";
+import { UNIVERSAL_SUPER_ADMIN_TEMPLATES } from "@/lib/super-universal-templates";
+import { substituteUniversalEmailVars } from "@/lib/email-design-system";
+import { useAppConfig } from "@/lib/useAppConfig";
+
+const MOVED_TO_TENANT_CATEGORIES = new Set(["HR", "Calendar", "Tasks", "Invoices", "Payroll"]);
 
 
 
@@ -21,7 +26,7 @@ export type EmailTemplate = {
   id: string;
   name: string;
   subject: string;
-  category: "Subscription" | "Onboarding" | "Payroll" | "Security" | "Invoices" | "Calendar" | "Tasks" | string;
+  category: "HR" | "Subscription" | "Onboarding" | "Payroll" | "Security" | "Invoices" | "Calendar" | "Tasks" | string;
   html_body: string;
   variables: string[];
 };
@@ -90,6 +95,95 @@ const SAMPLE_VARS: Record<string, string> = {
   taskUrl: "/hr/todo?taskId=task-bench-402",
   app_name: "Master HRMS & ERP",
   appName: "Master HRMS & ERP",
+  // HR Workflow Email Template Sample Variables
+  employee_code: "EMP-1024",
+  employee_email: "alex.morgan@company.com",
+  candidate_name: "Priya Sharma",
+  recipient_name: "HR Manager",
+  user_email: "alex.morgan@company.com",
+  role_name: "HR Executive",
+  portal_url: "https://app.masterhrms.com",
+  document_title: "Employee Code of Conduct 2026",
+  document_category: "Compliance Documents",
+  assigned_by: "Sarah Jenkins",
+  note: "Please review and acknowledge before the due date.",
+  award_type: "Employee of the Quarter",
+  award_date: "2026-11-25",
+  award_gift: "Trophy + Gift Voucher",
+  award_description: "For exceptional leadership and timely project delivery.",
+  job_title: "Senior Full-Stack Engineer",
+  status: "Approved",
+  stage: "Technical Interview",
+  updated_date: "2026-11-25",
+  remarks: "Proceeding to the next step.",
+  complaint_id: "CMP-204",
+  complaint_title: "Shift Allocation Concern",
+  submitted_by: "Elena Rostova",
+  against_employee: "Operations Desk",
+  complaint_date: "2026-11-25",
+  description: "Detailed summary logged in HR portal.",
+  contract_number: "EMP-2026-1105",
+  contract_type: "Permanent Full-time",
+  end_date: "2028-11-30",
+  salary: "₹12,00,000.00",
+  updated_by: "HR Admin",
+  department: "Engineering",
+  designation: "Software Engineer",
+  branch: "Headquarters",
+  joining_date: "2026-12-01",
+  from_branch: "Chennai Branch",
+  from_department: "Support",
+  to_branch: "Bengaluru HQ",
+  to_department: "Engineering",
+  transfer_date: "2026-12-15",
+  reason: "Role progression and team alignment",
+  interview_date: "2026-11-28",
+  interview_time: "11:00 AM",
+  interviewer_name: "Marcus Vance",
+  location: "Zoom Video Call",
+  meeting_link: "https://meet.masterhrms.com/m/abc-123",
+  feedback: "Strong technical and communication skills.",
+  application_id: "APP-8842",
+  applied_date: "2026-11-24",
+  leave_type: "Annual Leave",
+  total_days: "3",
+  approver_name: "Sarah Jenkins",
+  offered_salary: "₹15,00,000.00",
+  pay_period: "November 2026",
+  pay_date: "2026-11-30",
+  net_salary: "₹95,000.00",
+  previous_designation: "Software Engineer",
+  new_designation: "Senior Software Engineer",
+  promotion_date: "2026-12-01",
+  salary_adjustment: "+15%",
+  resignation_date: "2026-11-25",
+  last_working_day: "2026-12-25",
+  termination_type: "Voluntary / Mutual",
+  notice_date: "2026-11-25",
+  termination_date: "2026-12-15",
+  trip_purpose: "Annual Client Summit",
+  destination: "Mumbai",
+  advance_amount: "₹25,000.00",
+  warning_type: "Written",
+  warning_date: "2026-11-25",
+  warning_subject: "Attendance Policy Compliance",
+  severity: "Medium",
+  tenant_logo_url: "/logo.webp",
+  tenant_tagline: "Smart HR. Better Workforce.",
+  tenant_brand_color: "#1d4ed8",
+  platform_logo_url: "/logo.webp",
+  platform_support_email: "support@masterhrms.com",
+  platform_website: "https://masterhrms.com",
+  platform_website_label: "masterhrms.com",
+  platform_copyright: "© 2026 MasterHRMS. All rights reserved.",
+  platform_playstore_url: "https://play.google.com/store",
+  platform_appstore_url: "https://apps.apple.com",
+  platform_privacy_url: "https://masterhrms.com/privacy-policy",
+  platform_social_facebook: "https://facebook.com",
+  platform_social_x: "https://x.com",
+  platform_social_instagram: "https://instagram.com",
+  platform_social_linkedin: "https://linkedin.com",
+  platform_social_youtube: "https://youtube.com",
 };
 
 const DEFAULT_TEMPLATES: EmailTemplate[] = [
@@ -1084,8 +1178,11 @@ const DEFAULT_TEMPLATES: EmailTemplate[] = [
   },
 ];
 
+const SUPER_DEFAULT_TEMPLATES: EmailTemplate[] = UNIVERSAL_SUPER_ADMIN_TEMPLATES;
+
 function EmailTemplatesAdmin() {
   const qc = useQueryClient();
+  const { appConfig } = useAppConfig();
   const [selectedId, setSelectedId] = useState("subscription-reminder-15d");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [activeView, setActiveView] = useState<"code" | "preview">("preview");
@@ -1104,10 +1201,14 @@ function EmailTemplatesAdmin() {
       try {
         const page = await api.get("/cms/pages/system-email-templates");
         if (page?.content && Array.isArray(page.content.templates) && page.content.templates.length > 0) {
-          // Merge with any missing DEFAULT_TEMPLATES so new lifecycle templates appear
-          const fetchedMap = new Map((page.content.templates as EmailTemplate[]).map((t) => [t.id, t]));
+          // Keep only Super Admin platform templates (HR, Calendar, Tasks, Invoices, Payroll live in /tenant/mail-templates)
+          const fetchedMap = new Map(
+            (page.content.templates as EmailTemplate[])
+              .filter((t) => !MOVED_TO_TENANT_CATEGORIES.has(t.category))
+              .map((t) => [t.id, t])
+          );
           const merged: EmailTemplate[] = [];
-          for (const def of DEFAULT_TEMPLATES) {
+          for (const def of SUPER_DEFAULT_TEMPLATES) {
             merged.push(fetchedMap.get(def.id) || def);
             fetchedMap.delete(def.id);
           }
@@ -1117,14 +1218,14 @@ function EmailTemplatesAdmin() {
           }
           return merged;
         }
-        return DEFAULT_TEMPLATES;
+        return SUPER_DEFAULT_TEMPLATES;
       } catch {
-        return DEFAULT_TEMPLATES;
+        return SUPER_DEFAULT_TEMPLATES;
       }
     },
   });
 
-  const list = templates ?? DEFAULT_TEMPLATES;
+  const list = templates ?? SUPER_DEFAULT_TEMPLATES;
   const current = list.find((t) => t.id === selectedId) ?? list[0];
 
   // 2. Save mutation
@@ -1149,15 +1250,32 @@ function EmailTemplatesAdmin() {
     saveMutation.mutate(updated);
   }
 
-  // Render preview with substituted sample vars
-  const renderedPreviewHtml = (() => {
-    let out = current.html_body || "";
-    for (const [k, v] of Object.entries(SAMPLE_VARS)) {
-      const reg = new RegExp(`{{${k}}}`, "g");
-      out = out.replace(reg, v);
-    }
-    return out;
-  })();
+  // Render preview with substituted sample vars (Universal Design System)
+  const publicAppUrl = (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000")
+  ).replace(/\/+$/, "");
+
+  const platformCompanyName = appConfig?.appName || "MasterHRMS";
+  const platformHeaderLogo = appConfig?.logoLightUrl || appConfig?.logoDarkUrl || "/logo.webp";
+
+  const effectiveSampleVars: Record<string, string> = {
+    ...SAMPLE_VARS,
+    company_name: platformCompanyName,
+    COMPANY_NAME: platformCompanyName,
+    tenant_logo_url: platformHeaderLogo,
+    tenant_tagline: "Smart HR. Better Workforce.",
+    platform_logo_url: platformHeaderLogo,
+    portal_url: publicAppUrl,
+    login_url: `${publicAppUrl}/auth`,
+    renewal_url: `${publicAppUrl}/tenant/subscription`,
+    reset_url: `${publicAppUrl}/auth?mode=reset&token=sec_tok_9918bc42`,
+  };
+
+  const renderedPreviewHtml = substituteUniversalEmailVars(
+    current.html_body || "",
+    effectiveSampleVars
+  );
 
   async function handleSendTestEmail() {
     if (!testEmailAddress || !testEmailAddress.includes("@")) {
@@ -1200,7 +1318,7 @@ function EmailTemplatesAdmin() {
             </Badge>
           </div>
           <p className="text-muted-foreground text-sm mt-1">
-            Customize transactional email templates for subscription expiry reminders (15d, 10d, 5d, 3d, 2d, 1d), account suspension, and renewal.
+            Customize platform-level SaaS email templates for subscription lifecycle reminders, onboarding, and security. Organization templates (HR, Calendar, Tasks, Invoices, Payroll) are managed in Tenant Mail Templates.
           </p>
         </div>
 
@@ -1248,7 +1366,7 @@ function EmailTemplatesAdmin() {
 
             {/* Category Filter Pills */}
             <div className="flex flex-wrap gap-1 p-1.5 mb-2 bg-muted/40 rounded-lg border border-border/50 text-[11px]">
-              {Array.from(new Set(["All", "Calendar", "Tasks", "Invoices", "Subscription", "Payroll", "Onboarding", "Security", ...list.map((t) => t.category)])).map((cat) => {
+              {Array.from(new Set(["All", "Subscription", "Onboarding", "Security", ...list.map((t) => t.category)])).map((cat) => {
                 const count = cat === "All" ? list.length : list.filter((t) => t.category === cat).length;
                 if (count === 0 && cat !== "All") return null;
                 const isSelected = selectedCategory === cat;
@@ -1297,7 +1415,11 @@ function EmailTemplatesAdmin() {
                     >
                       {t.category}
                     </span>
-                    {t.category === "Invoices" ? (
+                    {t.category === "HR" ? (
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded ${current.id === t.id ? "bg-white/20 text-white" : "bg-emerald-500/10 text-emerald-600"}`}>
+                        HR HTML
+                      </span>
+                    ) : t.category === "Invoices" ? (
                       <span className={`text-[9px] px-1.5 py-0.5 rounded ${current.id === t.id ? "bg-white/20 text-white" : "bg-emerald-500/10 text-emerald-600"}`}>
                         HTML Invoice
                       </span>
@@ -1392,7 +1514,7 @@ function EmailTemplatesAdmin() {
               <div className="border rounded-xl p-4 bg-slate-100 dark:bg-slate-900 min-h-[460px]">
                 <div className="bg-white dark:bg-slate-950 border rounded-t-lg p-3 text-xs text-muted-foreground border-b flex items-center gap-2">
                   <span className="font-semibold text-foreground">Subject:</span>
-                  <span>{current.subject.replace(/{{company_name}}/g, SAMPLE_VARS.company_name)}</span>
+                  <span>{current.subject.replace(/{{company_name}}/g, effectiveSampleVars.company_name)}</span>
                 </div>
                 <iframe
                   title="Email Preview"

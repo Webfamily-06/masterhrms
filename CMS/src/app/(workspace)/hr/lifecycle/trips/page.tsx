@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, differenceInCalendarDays } from "date-fns";
 import { api, unwrapArray } from "@/lib/api";
+import { useWorkspaceSettings } from "@/src/context/workspace-settings-context";
 import { PageHeader } from "@/components/ui/page-header";
 import { StandardPagination } from "@/components/ui/standard-pagination";
 import { Button } from "@/components/ui/button";
@@ -90,10 +91,6 @@ function calcDays(from?: string | null, to?: string | null) {
   } catch {
     return 1;
   }
-}
-
-function formatMoney(val: number) {
-  return `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function normalizeTripStatus(status?: string): "planned" | "ongoing" | "completed" | "cancelled" {
@@ -249,6 +246,7 @@ const emptyForm = {
 };
 
 export default function HrTripsPage() {
+  const { formatCurrency: formatMoney } = useWorkspaceSettings();
   const queryClient = useQueryClient();
 
   // Filter & Expand State

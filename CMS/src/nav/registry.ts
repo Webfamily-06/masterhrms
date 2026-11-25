@@ -1961,6 +1961,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
   { id: "tenant-data", portal: "tenant", heading: "14. Administration & System", label: "Data Management", path: ROUTES.tenant.data, icon: "Database", order: 1470 },
   { id: "tenant-audit-logs", portal: "tenant", heading: "14. Administration & System", label: "Audit Trail", path: ROUTES.tenant.auditLogs, icon: "FileSearch", order: 1480 },
   { id: "tenant-settings", portal: "tenant", heading: "14. Administration & System", label: "General Settings", path: ROUTES.tenant.settings, icon: "Settings", order: 1490 },
+  { id: "tenant-mail-templates", portal: "tenant", heading: "14. Administration & System", label: "Mail Templates", path: ROUTES.tenant.mailTemplates, icon: "Mail", order: 1495 },
   { id: "tenant-2fa", portal: "tenant", heading: "14. Administration & System", label: "Two-Factor Auth (2FA)", path: "/profile", icon: "Lock", order: 1500 },
   { id: "tenant-security", portal: "tenant", heading: "14. Administration & System", label: "Security Settings", path: ROUTES.tenant.settings, icon: "Shield", order: 1510 },
   { id: "tenant-activity", portal: "tenant", heading: "14. Administration & System", label: "Activity Logs", path: ROUTES.tenant.auditLogs, icon: "Clock", order: 1520 },

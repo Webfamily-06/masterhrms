@@ -32,7 +32,7 @@ import {
   ShoppingCart, Landmark, Kanban, MessageSquare, Package, Store, Compass,
   Fingerprint, ScanLine, HardDrive, Target, ArrowRightLeft, Truck, Building2, SlidersHorizontal,
   CalendarDays, Trophy, ShieldAlert, Timer, TrendingUp, UserCheck, UserX, PiggyBank, Percent, GitBranch, Coins, RefreshCw, Award, Gift, Phone, Repeat, Megaphone,
-  Bell, History, Database, Code, Webhook, Lightbulb, Bot
+  Bell, History, Database, Code, Webhook, Lightbulb, Bot, Mail
 } from "lucide-react";
 import { api, clearToken, setToken, getAuthToken } from "@/lib/api";
 import { toast } from "sonner";
@@ -166,6 +166,7 @@ const ALL_SEARCH_ITEMS = [
   { title: "AI Copywriter", url: "/ai-writer", group: "Collaboration", icon: Sparkles },
   { title: "HRM Hub & Overview", url: "/hr/dashboard", group: "HRM Suite", icon: Users },
   { title: "Workspace Settings", url: "/tenant/settings", group: "Platform", icon: Settings },
+  { title: "Mail Templates", url: "/tenant/mail-templates", group: "Platform", icon: Mail },
   { title: "Roles & Permissions", url: "/tenant/roles", group: "Platform", icon: ShieldAlert },
   { title: "Enabled Modules", url: "/tenant/modules", group: "Platform", icon: Layers },
   { title: "HR Administration Settings", url: "/hr/settings", group: "HRM Suite", icon: Settings },

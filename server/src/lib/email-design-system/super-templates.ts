@@ -1,0 +1,436 @@
+/**
+ * MASTERHRMS — Super Admin Platform Email Templates (Universal Email Design System)
+ * =================================================================================
+ * All 12 platform-level SaaS email templates (10 Subscription Lifecycle + 1 Onboarding + 1 Security)
+ * rendered through renderUniversalEmail() with the exact MasterHRMS Universal Email Design System:
+ * - Header: Left logo (fits bar height) + Right company name & tagline
+ * - Hero: Enterprise SaaS light-blue band + category + badge
+ * - Body: Reusable DetailsCard, ReminderBanner, Primary CTA (dynamic .env URL)
+ * - Footer: 2-column MasterHRMS Platform Footer (logo, social icons, Play Store & App Store, clean domain without https://)
+ */
+
+import { renderUniversalEmail, TEMPLATE_PLACEHOLDER_BRANDING } from "./index";
+
+export interface SuperUniversalEmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  category: "Subscription" | "Onboarding" | "Security";
+  html_body: string;
+  variables: string[];
+}
+
+function buildSubscriptionReminder(params: {
+  id: string;
+  name: string;
+  subject: string;
+  daysLabel: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  badgeTone: "info" | "warning" | "danger";
+  bannerTitle: string;
+  bannerMessage: string;
+  bannerTone: "info" | "warning" | "danger";
+  ctaLabel: string;
+  ctaTone: "primary" | "danger";
+}): SuperUniversalEmailTemplate {
+  return {
+    id: params.id,
+    name: params.name,
+    subject: params.subject,
+    category: "Subscription",
+    variables: [
+      "{{tenant_logo_url}}",
+      "{{company_name}}",
+      "{{plan_name}}",
+      "{{expiry_date}}",
+      "{{days_remaining}}",
+      "{{renewal_url}}",
+      "{{support_email}}",
+    ],
+    html_body: renderUniversalEmail(
+      {
+        id: params.id,
+        subject: params.subject,
+        category: "Subscription Lifecycle",
+        heroTitle: params.heroTitle,
+        heroSubtitle: params.heroSubtitle,
+        statusBadge: { label: params.daysLabel, tone: params.badgeTone },
+        greeting: "Hello {{company_name}} Team,",
+        messages: [
+          "This is an automated subscription notice regarding your <strong>{{plan_name}}</strong> workspace plan.",
+        ],
+        detailsTitle: "Subscription Summary",
+        details: [
+          { label: "Organization", value: "{{company_name}}" },
+          { label: "Active Plan", value: "{{plan_name}}" },
+          { label: "Expiration Date", value: "{{expiry_date}}" },
+          { label: "Days Remaining", value: "{{days_remaining}} day(s)", badgeTone: params.badgeTone },
+        ],
+        reminder: {
+          title: params.bannerTitle,
+          message: params.bannerMessage,
+          tone: params.bannerTone,
+        },
+        primaryAction: {
+          label: params.ctaLabel,
+          url: "{{renewal_url}}",
+          tone: params.ctaTone,
+        },
+        supportingNote:
+          "Renew before your expiration date to keep all HR, Payroll, Attendance, and Workforce modules running without interruption.",
+      },
+      TEMPLATE_PLACEHOLDER_BRANDING
+    ),
+  };
+}
+
+export const UNIVERSAL_SUPER_ADMIN_TEMPLATES: SuperUniversalEmailTemplate[] = [
+  buildSubscriptionReminder({
+    id: "subscription-reminder-15d",
+    name: "Subscription Expiry — 15 Days",
+    subject: "Reminder: Your {{company_name}} subscription expires in 15 days",
+    daysLabel: "15 Days Remaining",
+    heroTitle: "Subscription Renewal Reminder",
+    heroSubtitle: "Your {{plan_name}} plan expires on {{expiry_date}}",
+    badgeTone: "info",
+    bannerTitle: "Plan Ahead for Seamless Renewal",
+    bannerMessage:
+      "Renew your workspace plan anytime over the next 15 days to guarantee uninterrupted access for your team.",
+    bannerTone: "info",
+    ctaLabel: "Renew Subscription",
+    ctaTone: "primary",
+  }),
+  buildSubscriptionReminder({
+    id: "subscription-reminder-10d",
+    name: "Subscription Expiry — 10 Days",
+    subject: "Action Notice: Your {{company_name}} subscription expires in 10 days",
+    daysLabel: "10 Days Remaining",
+    heroTitle: "Subscription Expires in 10 Days",
+    heroSubtitle: "Action recommended before {{expiry_date}}",
+    badgeTone: "info",
+    bannerTitle: "10 Days Until Plan Expiration",
+    bannerMessage:
+      "Review your billing details and renew your {{plan_name}} subscription to avoid service interruption.",
+    bannerTone: "info",
+    ctaLabel: "Renew Plan Now",
+    ctaTone: "primary",
+  }),
+  buildSubscriptionReminder({
+    id: "subscription-reminder-5d",
+    name: "Subscription Expiry — 5 Days",
+    subject: "Important: Your {{company_name}} subscription expires in 5 days",
+    daysLabel: "5 Days Remaining",
+    heroTitle: "5 Days Left on Your Subscription",
+    heroSubtitle: "Expiration scheduled for {{expiry_date}}",
+    badgeTone: "warning",
+    bannerTitle: "Renewal Window Closing Soon",
+    bannerMessage:
+      "Your workspace plan expires in 5 days. Renew now so employee attendance, leave, and payroll workflows continue smoothly.",
+    bannerTone: "warning",
+    ctaLabel: "Renew Subscription",
+    ctaTone: "primary",
+  }),
+  buildSubscriptionReminder({
+    id: "subscription-reminder-3d",
+    name: "Subscription Expiry — 3 Days",
+    subject: "Urgent: Your {{company_name}} subscription expires in 3 days",
+    daysLabel: "3 Days Remaining",
+    heroTitle: "Subscription Expires in 3 Days",
+    heroSubtitle: "Immediate renewal recommended",
+    badgeTone: "warning",
+    bannerTitle: "Only 3 Days Remaining",
+    bannerMessage:
+      "Renew your {{plan_name}} subscription before {{expiry_date}} to prevent automatic account restriction.",
+    bannerTone: "warning",
+    ctaLabel: "Complete Renewal Now",
+    ctaTone: "primary",
+  }),
+  buildSubscriptionReminder({
+    id: "subscription-reminder-2d",
+    name: "Subscription Expiry — 2 Days",
+    subject: "Urgent: Your {{company_name}} subscription expires in 2 days",
+    daysLabel: "2 Days Remaining",
+    heroTitle: "48 Hours Until Subscription Expiry",
+    heroSubtitle: "Plan expires on {{expiry_date}}",
+    badgeTone: "danger",
+    bannerTitle: "Urgent Action Required",
+    bannerMessage:
+      "Your organization workspace has 2 days remaining before subscription expiration. Renew now to prevent downtime.",
+    bannerTone: "danger",
+    ctaLabel: "Renew Immediately",
+    ctaTone: "danger",
+  }),
+  buildSubscriptionReminder({
+    id: "subscription-reminder-1d",
+    name: "Subscription Expiry — 1 Day",
+    subject: "Final Reminder: Your {{company_name}} subscription expires tomorrow",
+    daysLabel: "Expires Tomorrow",
+    heroTitle: "Final 24-Hour Renewal Notice",
+    heroSubtitle: "Your {{plan_name}} plan expires tomorrow ({{expiry_date}})",
+    badgeTone: "danger",
+    bannerTitle: "Final Warning — 1 Day Remaining",
+    bannerMessage:
+      "Complete payment before {{expiry_date}} to keep your workspace active without interruption.",
+    bannerTone: "danger",
+    ctaLabel: "Renew Subscription Today",
+    ctaTone: "danger",
+  }),
+  {
+    id: "subscription-expired",
+    name: "Subscription Expired",
+    subject: "Notice: Your {{company_name}} subscription has expired",
+    category: "Subscription",
+    variables: [
+      "{{tenant_logo_url}}",
+      "{{company_name}}",
+      "{{plan_name}}",
+      "{{expiry_date}}",
+      "{{renewal_url}}",
+      "{{support_email}}",
+    ],
+    html_body: renderUniversalEmail(
+      {
+        id: "subscription-expired",
+        subject: "Notice: Your {{company_name}} subscription has expired",
+        category: "Subscription Lifecycle",
+        heroTitle: "Subscription Expired",
+        heroSubtitle: "Your {{plan_name}} plan ended on {{expiry_date}}",
+        statusBadge: { label: "Expired", tone: "danger" },
+        greeting: "Hello {{company_name}} Team,",
+        messages: [
+          "Your subscription for <strong>{{plan_name}}</strong> expired on <strong>{{expiry_date}}</strong>. Your organization data remains securely preserved, and full access will be restored immediately upon renewal.",
+        ],
+        detailsTitle: "Expired Subscription Details",
+        details: [
+          { label: "Organization", value: "{{company_name}}" },
+          { label: "Plan", value: "{{plan_name}}" },
+          { label: "Expired On", value: "{{expiry_date}}" },
+          { label: "Status", value: "Expired", badgeTone: "danger" },
+        ],
+        reminder: {
+          title: "Restore Instant Access",
+          message:
+            "Renew your subscription to reactivate all employee portals, payroll, and HR modules immediately.",
+          tone: "danger",
+        },
+        primaryAction: {
+          label: "Renew & Restore Access",
+          url: "{{renewal_url}}",
+          tone: "danger",
+        },
+      },
+      TEMPLATE_PLACEHOLDER_BRANDING
+    ),
+  },
+  {
+    id: "tenant-account-suspended",
+    name: "Tenant Account Suspended",
+    subject: "Account Suspended: Action required for {{company_name}}",
+    category: "Subscription",
+    variables: [
+      "{{tenant_logo_url}}",
+      "{{company_name}}",
+      "{{tenant_id}}",
+      "{{suspension_date}}",
+      "{{suspension_reason}}",
+      "{{renewal_url}}",
+      "{{support_email}}",
+    ],
+    html_body: renderUniversalEmail(
+      {
+        id: "tenant-account-suspended",
+        subject: "Account Suspended: Action required for {{company_name}}",
+        category: "Account Status",
+        heroTitle: "Workspace Account Suspended",
+        heroSubtitle: "Action required to restore organization access",
+        statusBadge: { label: "Suspended", tone: "danger" },
+        greeting: "Hello {{company_name}} Administrator,",
+        messages: [
+          "Access to your organization workspace (<strong>{{tenant_id}}</strong>) has been temporarily suspended as of <strong>{{suspension_date}}</strong>.",
+        ],
+        detailsTitle: "Suspension Details",
+        details: [
+          { label: "Organization", value: "{{company_name}}" },
+          { label: "Tenant ID", value: "{{tenant_id}}" },
+          { label: "Suspended On", value: "{{suspension_date}}" },
+          { label: "Reason", value: "{{suspension_reason}}" },
+        ],
+        reminder: {
+          title: "Your Data Is Safe",
+          message:
+            "All organization records remain encrypted and preserved. Resolve your billing status or contact support to reactivate your workspace.",
+          tone: "danger",
+        },
+        primaryAction: {
+          label: "Resolve & Reactivate",
+          url: "{{renewal_url}}",
+          tone: "danger",
+        },
+      },
+      TEMPLATE_PLACEHOLDER_BRANDING
+    ),
+  },
+  {
+    id: "tenant-account-reactivated",
+    name: "Tenant Account Reactivated",
+    subject: "Workspace Reactivated: Welcome back {{company_name}}",
+    category: "Subscription",
+    variables: [
+      "{{tenant_logo_url}}",
+      "{{company_name}}",
+      "{{plan_name}}",
+      "{{login_url}}",
+      "{{support_email}}",
+    ],
+    html_body: renderUniversalEmail(
+      {
+        id: "tenant-account-reactivated",
+        subject: "Workspace Reactivated: Welcome back {{company_name}}",
+        category: "Account Status",
+        heroTitle: "Workspace Account Reactivated",
+        heroSubtitle: "Full platform access has been restored",
+        statusBadge: { label: "Active", tone: "success" },
+        greeting: "Hello {{company_name}} Team,",
+        messages: [
+          "Great news! Your organization workspace on the <strong>{{plan_name}}</strong> plan has been reactivated. All users and employees can sign in normally.",
+        ],
+        detailsTitle: "Account Status",
+        details: [
+          { label: "Organization", value: "{{company_name}}" },
+          { label: "Active Plan", value: "{{plan_name}}" },
+          { label: "Status", value: "Active", badgeTone: "success" },
+        ],
+        primaryAction: {
+          label: "Sign In to Workspace",
+          url: "{{login_url}}",
+          tone: "primary",
+        },
+      },
+      TEMPLATE_PLACEHOLDER_BRANDING
+    ),
+  },
+  {
+    id: "subscription-renewed",
+    name: "Subscription Renewed",
+    subject: "Confirmation: {{company_name}} subscription renewed successfully",
+    category: "Subscription",
+    variables: [
+      "{{tenant_logo_url}}",
+      "{{company_name}}",
+      "{{plan_name}}",
+      "{{expiry_date}}",
+      "{{login_url}}",
+      "{{support_email}}",
+    ],
+    html_body: renderUniversalEmail(
+      {
+        id: "subscription-renewed",
+        subject: "Confirmation: {{company_name}} subscription renewed successfully",
+        category: "Subscription Lifecycle",
+        heroTitle: "Subscription Renewed Successfully",
+        heroSubtitle: "Thank you for continuing with MasterHRMS",
+        statusBadge: { label: "Renewed", tone: "success" },
+        greeting: "Hello {{company_name}} Team,",
+        messages: [
+          "Your <strong>{{plan_name}}</strong> subscription has been renewed successfully. Your workspace remains active through <strong>{{expiry_date}}</strong>.",
+        ],
+        detailsTitle: "Renewal Confirmation",
+        details: [
+          { label: "Organization", value: "{{company_name}}" },
+          { label: "Plan", value: "{{plan_name}}" },
+          { label: "Valid Through", value: "{{expiry_date}}" },
+          { label: "Status", value: "Active", badgeTone: "success" },
+        ],
+        primaryAction: {
+          label: "Open Workspace Dashboard",
+          url: "{{login_url}}",
+          tone: "primary",
+        },
+      },
+      TEMPLATE_PLACEHOLDER_BRANDING
+    ),
+  },
+  {
+    id: "et-1",
+    name: "Welcome & Workspace Setup Email",
+    subject: "Welcome to MasterHRMS — {{company_name}} Workspace Ready",
+    category: "Onboarding",
+    variables: [
+      "{{tenant_logo_url}}",
+      "{{company_name}}",
+      "{{admin_name}}",
+      "{{plan_name}}",
+      "{{login_url}}",
+      "{{support_email}}",
+    ],
+    html_body: renderUniversalEmail(
+      {
+        id: "et-1",
+        subject: "Welcome to MasterHRMS — {{company_name}} Workspace Ready",
+        category: "Onboarding",
+        heroTitle: "Welcome to MasterHRMS",
+        heroSubtitle: "Your workspace for {{company_name}} is ready to launch",
+        statusBadge: { label: "Workspace Ready", tone: "success" },
+        greeting: "Hello {{admin_name}},",
+        messages: [
+          "Your organization workspace for <strong>{{company_name}}</strong> has been provisioned on the <strong>{{plan_name}}</strong> plan. Sign in below to configure departments, invite employees, and launch HR operations.",
+        ],
+        detailsTitle: "Workspace Overview",
+        details: [
+          { label: "Organization", value: "{{company_name}}" },
+          { label: "Administrator", value: "{{admin_name}}" },
+          { label: "Subscribed Plan", value: "{{plan_name}}" },
+        ],
+        primaryAction: {
+          label: "Launch Workspace",
+          url: "{{login_url}}",
+          tone: "primary",
+        },
+      },
+      TEMPLATE_PLACEHOLDER_BRANDING
+    ),
+  },
+  {
+    id: "PASSWORD_RESET",
+    name: "Password Reset Request",
+    subject: "Reset Your Password — {{company_name}}",
+    category: "Security",
+    variables: [
+      "{{tenant_logo_url}}",
+      "{{company_name}}",
+      "{{user_name}}",
+      "{{reset_url}}",
+      "{{expiry_minutes}}",
+      "{{support_email}}",
+    ],
+    html_body: renderUniversalEmail(
+      {
+        id: "PASSWORD_RESET",
+        subject: "Reset Your Password — {{company_name}}",
+        category: "Account Security",
+        heroTitle: "Reset Your Password",
+        heroSubtitle: "Secure password recovery link inside",
+        statusBadge: { label: "Security Request", tone: "warning" },
+        greeting: "Hello {{user_name}},",
+        messages: [
+          "We received a request to reset the password for your <strong>{{company_name}}</strong> account. Click the button below to choose a new password.",
+        ],
+        reminder: {
+          title: "Link Expires in {{expiry_minutes}} Minutes",
+          message:
+            "For your security, this password reset link is single-use and will expire automatically after {{expiry_minutes}} minutes. If you did not request a password reset, you can safely ignore this email.",
+          tone: "warning",
+        },
+        primaryAction: {
+          label: "Reset Password",
+          url: "{{reset_url}}",
+          tone: "primary",
+        },
+        supportingNote:
+          "If the button above does not work, copy and paste this URL into your browser: {{reset_url}}",
+      },
+      TEMPLATE_PLACEHOLDER_BRANDING
+    ),
+  },
+];

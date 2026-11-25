@@ -76,6 +76,7 @@ import cors from "cors";
 import compression from "compression";
 import { authRouter } from "./routes/auth.routes";
 import { workspaceRouter } from "./routes/workspace.routes";
+import { hrEmailAutoTriggerMiddleware } from "./middleware/hr-email-auto-trigger.middleware";
 import { workspaceRoutingRouter } from "./routes/workspace-routing.routes";
 import { tenantDomainRouter } from "./routes/tenant-domain.routes";
 import { workspaceHostMiddleware } from "./middleware/workspace-host.middleware";
@@ -594,6 +595,7 @@ app.use("/api/v1/company-profile", companyProfileRouter);
 app.use("/api/company-profile", companyProfileRouter);
 
 // Mount Routes
+app.use("/api", hrEmailAutoTriggerMiddleware);
 app.use("/api/billing", billingRouter);
 app.use("/api/commerce", commerceRouter);
 app.post("/api/webhooks/razorpay", handleRazorpayWebhook);

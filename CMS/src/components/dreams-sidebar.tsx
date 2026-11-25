@@ -421,6 +421,15 @@ export function DreamsSidebar({
       className={cn("sidebar border-r border-border/70 bg-card/95 backdrop-blur-md shadow-2xs", mobileOpen && "opened")}
       id="sidebar"
       data-lenis-prevent="true"
+      data-lenis-prevent-wheel="true"
+      data-lenis-prevent-touch="true"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100dvh",
+        maxHeight: "100dvh",
+        overflow: "hidden",
+      }}
       onMouseEnter={() => {
         if ((collapsed || isHoverLayout || effectiveMini) && !ignoreHover) {
           setIsHovered(true);
@@ -494,12 +503,22 @@ export function DreamsSidebar({
       <div
         className="sidebar-inner custom-scrollbar"
         data-lenis-prevent="true"
+        data-lenis-prevent-wheel="true"
+        data-lenis-prevent-touch="true"
+        onWheel={(e) => {
+          e.stopPropagation();
+        }}
         style={{
+          position: "relative",
           overflowY: "auto",
-          height: "calc(100% - 56px)",
-          maxHeight: "calc(100vh - 56px)",
+          overflowX: "hidden",
+          height: "calc(100dvh - 64px)",
+          maxHeight: "calc(100dvh - 64px)",
           minHeight: 0,
           flex: "1 1 0%",
+          overscrollBehaviorY: "contain",
+          touchAction: "pan-y",
+          WebkitOverflowScrolling: "touch",
         }}
         onClick={(e) => {
           const target = e.target as HTMLElement;
@@ -2217,6 +2236,12 @@ export function DreamsSidebar({
                 <Link to="/tenant/settings" onClick={onCloseMobile} className={cn(currentPath === "/tenant/settings" && "active")}>
                   <i className="ph-duotone ph-gear-six"></i>
                   <span>Workspace Settings</span>
+                </Link>
+              </li>
+              <li>
+                <Link to="/tenant/mail-templates" onClick={onCloseMobile} className={cn(currentPath === "/tenant/mail-templates" && "active")}>
+                  <i className="ph-duotone ph-envelope-simple-open"></i>
+                  <span>Mail Templates</span>
                 </Link>
               </li>
               <li>

@@ -7,7 +7,12 @@
  * - Next.js CMS & TanStack client-side routing
  */
 
+import { HR_EMAIL_TEMPLATES, HR_SAMPLE_VARS } from "./hr-email-templates";
+import { UNIVERSAL_CORE_TENANT_TEMPLATES } from "./email-design-system/core-templates";
+import { UNIVERSAL_SUPER_ADMIN_TEMPLATES } from "./email-design-system/super-templates";
+
 export type EmailTemplateCategory =
+  | "HR"
   | "Calendar"
   | "Tasks"
   | "Subscription"
@@ -29,6 +34,7 @@ export interface EmailTemplate {
 const defaultAppBaseUrl = (process.env.APP_URL || process.env.FRONTEND_BASE_URL || (process.env.NODE_ENV === "production" ? "https://app.masterhrms.com" : "http://localhost:3000")).replace(/\/+$/, "");
 
 export const SAMPLE_VARS: Record<string, string> = {
+  ...HR_SAMPLE_VARS,
   // Calendar variables
   recipientName: "Alex Morgan",
   recipient_name: "Alex Morgan",
@@ -114,6 +120,24 @@ export const SAMPLE_VARS: Record<string, string> = {
   // Security variables
   reset_url: "https://example.com/auth?mode=reset&token=sec_tok_9918bc42",
   expiry_minutes: "60",
+
+  // Universal Email Design System Branding Variables
+  tenant_logo_url: "",
+  tenant_tagline: "Enterprise Workforce Solutions",
+  tenant_brand_color: "#1d4ed8",
+  platform_logo_url: "/logo.webp",
+  platform_support_email: "support@masterhrms.com",
+  platform_website: "https://masterhrms.com",
+  platform_website_label: "masterhrms.com",
+  platform_copyright: "© 2026 MasterHRMS. All rights reserved.",
+  platform_playstore_url: "https://play.google.com/store",
+  platform_appstore_url: "https://apps.apple.com",
+  platform_privacy_url: "https://masterhrms.com/privacy-policy",
+  platform_social_facebook: "https://facebook.com",
+  platform_social_x: "https://x.com",
+  platform_social_instagram: "https://instagram.com",
+  platform_social_linkedin: "https://linkedin.com",
+  platform_social_youtube: "https://youtube.com",
 };
 
 export const AUTHORITATIVE_EMAIL_TEMPLATES: EmailTemplate[] = [
@@ -901,10 +925,20 @@ export const AUTHORITATIVE_EMAIL_TEMPLATES: EmailTemplate[] = [
 ];
 
 /**
- * Returns a cloned copy of the 23 authoritative email templates.
+ * Returns a cloned copy of all authoritative email templates (Universal Core + 24 HR HTML templates + Platform/Invoice templates).
  */
 export function getAuthoritativeTemplates(): EmailTemplate[] {
-  return JSON.parse(JSON.stringify(AUTHORITATIVE_EMAIL_TEMPLATES));
+  const universalList: EmailTemplate[] = [
+    ...UNIVERSAL_CORE_TENANT_TEMPLATES,
+    ...UNIVERSAL_SUPER_ADMIN_TEMPLATES,
+  ];
+  const universalIds = new Set(universalList.map((t) => t.id));
+  const merged = [
+    ...universalList,
+    ...AUTHORITATIVE_EMAIL_TEMPLATES.filter((t) => !universalIds.has(t.id)),
+    ...HR_EMAIL_TEMPLATES,
+  ];
+  return JSON.parse(JSON.stringify(merged));
 }
 
 /**
@@ -925,7 +959,7 @@ export function mergeWithPersistedTemplates(persistedList: EmailTemplate[] = [])
   const result: EmailTemplate[] = [];
 
   // 1. Maintain authoritative template order, using persisted customizations if present
-  for (const def of AUTHORITATIVE_EMAIL_TEMPLATES) {
+  for (const def of getAuthoritativeTemplates()) {
     if (persistedMap.has(def.id)) {
       result.push(persistedMap.get(def.id)!);
       persistedMap.delete(def.id);

@@ -29,6 +29,7 @@ import { meAssetsRouter } from "./me-assets.routes";
 import { hrMeetingsRouter } from "./hr-meetings.routes";
 import { meMeetingsRouter } from "./me-meetings.routes";
 import { hrZoomMeetingsRouter } from "./hr-zoom-meetings.routes";
+import { hrMailTemplatesRouter } from "./hr-mail-templates.routes";
 import { hrDocumentsRouter } from "./hr-documents.routes";
 import { meDocumentsRouter } from "./me-documents.routes";
 import { hrCollaborationRouter } from "./hr-collaboration.routes";
@@ -87,6 +88,7 @@ platformFoundationRouter.use("/me/meetings", meMeetingsRouter);
 platformFoundationRouter.use("/hr/zoom-meetings", hrZoomMeetingsRouter);
 platformFoundationRouter.use("/hr/documents", hrDocumentsRouter);
 platformFoundationRouter.use("/me/documents", meDocumentsRouter);
+platformFoundationRouter.use("/hr/mail-templates", hrMailTemplatesRouter);
 
 // =========================================================================
 // P8. COLLABORATION & FINAL POLISH BUSINESS LAYER

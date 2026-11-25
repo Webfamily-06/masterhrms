@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api, unwrapData } from "@/lib/api";
+import { useWorkspaceSettings } from "@/src/context/workspace-settings-context";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,13 +38,6 @@ interface TrainingProgramDetail {
   completedTrainings: number;
 }
 
-function formatCurrency(val: number) {
-  return `$${Number(val || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
 function StatusBadge({ status }: { status?: string }) {
   if (status === "active") {
     return (
@@ -74,6 +68,7 @@ function StatusBadge({ status }: { status?: string }) {
 }
 
 export default function TrainingProgramDetailsPage() {
+  const { formatCurrency } = useWorkspaceSettings();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const programId = params?.id;

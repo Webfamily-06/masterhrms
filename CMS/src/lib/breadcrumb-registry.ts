@@ -272,6 +272,7 @@ export const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
   "/tenant/modules": [{ label: "Home", href: "/tenant/dashboard" }, { label: "Tenant Management", href: "/tenant/dashboard" }, { label: "Feature Modules & Subscriptions" }],
   "/tenant/roles": [{ label: "Home", href: "/tenant/dashboard" }, { label: "Tenant Management", href: "/tenant/dashboard" }, { label: "Roles & Permissions" }],
   "/tenant/settings": [{ label: "Home", href: "/tenant/dashboard" }, { label: "Tenant Management", href: "/tenant/dashboard" }, { label: "General Workspace Settings" }],
+  "/tenant/mail-templates": [{ label: "Home", href: "/tenant/dashboard" }, { label: "Tenant Management", href: "/tenant/dashboard" }, { label: "Mail Templates" }],
   "/tenant/subscription": [{ label: "Home", href: "/tenant/dashboard" }, { label: "Tenant Management", href: "/tenant/dashboard" }, { label: "Active Subscription Plan" }],
   "/tenant/support": [{ label: "Home", href: "/tenant/dashboard" }, { label: "Tenant Management", href: "/tenant/dashboard" }, { label: "Support & Help Desk" }],
   "/tenant/users": [{ label: "Home", href: "/tenant/dashboard" }, { label: "Tenant Management", href: "/tenant/dashboard" }, { label: "Tenant Workspace Users" }],

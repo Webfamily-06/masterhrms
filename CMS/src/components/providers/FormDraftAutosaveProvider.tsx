@@ -47,7 +47,7 @@ function isFormField(el: EventTarget | null): el is FormFieldElement {
 }
 
 function shouldSkipField(el: FormFieldElement): boolean {
-  if (el.disabled || el.readOnly) return true;
+  if (el.disabled || ("readOnly" in el && el.readOnly)) return true;
   if (el.closest("[data-no-autosave='true'], [data-draft-managed='true']")) return true;
   if (el.getAttribute("data-no-autosave") === "true") return true;
 
@@ -328,27 +328,37 @@ export function FormDraftAutosaveProvider() {
     document.addEventListener("change", handleFieldUpdate, true);
     document.addEventListener("submit", handleFormSubmit, true);
 
-    // Initial restoration after React hydration settles
-    const initTimer1 = window.setTimeout(restoreFieldsInDom, 150);
-    const initTimer2 = window.setTimeout(restoreFieldsInDom, 600);
-
-    // Observe dynamic forms (modals, drawers, async-loaded pages)
+    const hasPendingDraft = Object.keys(pendingFieldsRef.current).length > 0;
+    let initTimer1: number | null = null;
+    let initTimer2: number | null = null;
     let mutationTimer: number | null = null;
-    const observer = new MutationObserver(() => {
-      if (mutationTimer) window.clearTimeout(mutationTimer);
-      mutationTimer = window.setTimeout(restoreFieldsInDom, 180);
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
+    let observer: MutationObserver | null = null;
+
+    // Only run DOM scans & MutationObserver when there is actually an unsaved draft to restore
+    if (hasPendingDraft) {
+      initTimer1 = window.setTimeout(restoreFieldsInDom, 150);
+      initTimer2 = window.setTimeout(restoreFieldsInDom, 600);
+
+      observer = new MutationObserver(() => {
+        if (Object.keys(pendingFieldsRef.current).length === 0) {
+          observer?.disconnect();
+          return;
+        }
+        if (mutationTimer) window.clearTimeout(mutationTimer);
+        mutationTimer = window.setTimeout(restoreFieldsInDom, 180);
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
 
     return () => {
       document.removeEventListener("input", handleFieldUpdate, true);
       document.removeEventListener("change", handleFieldUpdate, true);
       document.removeEventListener("submit", handleFormSubmit, true);
-      window.clearTimeout(initTimer1);
-      window.clearTimeout(initTimer2);
+      if (initTimer1) window.clearTimeout(initTimer1);
+      if (initTimer2) window.clearTimeout(initTimer2);
       if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
       if (mutationTimer) window.clearTimeout(mutationTimer);
-      observer.disconnect();
+      observer?.disconnect();
     };
   }, [pathname]);
 
