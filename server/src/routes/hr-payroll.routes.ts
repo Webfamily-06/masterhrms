@@ -626,7 +626,7 @@ const handleUpdateRun = async (req: AuthRequest, res: Response) => {
         : {};
     const currentMeta = getRunMeta(existing);
 
-    const nextMeta = {
+    const nextMeta: Record<string, any> = {
       ...currentMeta,
       ...(req.body.title !== undefined ? { title: String(req.body.title).trim() } : {}),
       ...(req.body.frequency !== undefined ? { frequency: String(req.body.frequency).trim() } : {}),
@@ -2273,7 +2273,7 @@ hrPayrollRouter.get("/payslips/:id/download/pdf", async (req: AuthRequest, res: 
     // Resolve company details from Tenant + Settings
     const settingMap = new Map<string, any>();
     for (const s of companySettings || []) {
-      const val = s.valueJson ?? s.valueString;
+      const val = s.valueJson;
       settingMap.set(s.key, val);
     }
     const companyName = String(settingMap.get("company_name") || tenant?.name || "Company").trim();
@@ -3733,16 +3733,14 @@ hrPayrollRouter.post("/tax/declarations", async (req: AuthRequest, res: Response
         tenantId,
         employeeId,
         financialYear: String(financialYear),
-        regime: String(regime).toLowerCase(),
-        totalDeclared: new Decimal(totalDeclared),
-        totalApproved: new Decimal(0),
+        taxRegime: String(regime).toLowerCase(),
+        section80C: new Decimal(Number(section80c)),
+        section80D: new Decimal(Number(section80d)),
+        houseRentPaid: new Decimal(Number(hraExemption)),
+        otherIncome: new Decimal(Number(otherExemptions)),
+        totalDeductionClaimed: new Decimal(totalDeclared),
+        totalDeductionApproved: new Decimal(0),
         status: "submitted",
-        declarationData: {
-          section80c: Number(section80c),
-          section80d: Number(section80d),
-          hraExemption: Number(hraExemption),
-          otherExemptions: Number(otherExemptions),
-        },
       },
       include: { employee: { select: EMPLOYEE_AVATAR_SELECT }, proofs: true },
     });
@@ -3768,10 +3766,13 @@ hrPayrollRouter.patch("/tax/declarations/:id", async (req: AuthRequest, res: Res
 
     const data: any = {};
     if (req.body.status !== undefined) data.status = String(req.body.status).toLowerCase();
-    if (req.body.regime !== undefined) data.regime = String(req.body.regime).toLowerCase();
-    if (req.body.totalApproved !== undefined) data.totalApproved = new Decimal(Number(req.body.totalApproved));
-    else if (req.body.status === "verified" || req.body.status === "approved") {
-      data.totalApproved = existing.totalDeclared;
+    if (req.body.regime !== undefined || req.body.taxRegime !== undefined) {
+      data.taxRegime = String(req.body.taxRegime ?? req.body.regime).toLowerCase();
+    }
+    if (req.body.totalApproved !== undefined || req.body.totalDeductionApproved !== undefined) {
+      data.totalDeductionApproved = new Decimal(Number(req.body.totalDeductionApproved ?? req.body.totalApproved));
+    } else if (req.body.status === "verified" || req.body.status === "approved") {
+      data.totalDeductionApproved = existing.totalDeductionClaimed;
     }
 
     const updated = await db.employeeTaxDeclaration.update({

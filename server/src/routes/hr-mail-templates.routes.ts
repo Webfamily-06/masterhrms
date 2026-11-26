@@ -689,12 +689,21 @@ hrMailTemplatesRouter.post(
       });
       if (!tpl) return res.status(404).json({ error: "Mail template not found." });
 
-      const tenant = await prisma.tenant.findUnique({
-        where: { id: tenantId },
-        select: { name: true, settings: true },
-      });
-      const settingsObj = (tenant?.settings as any) || {};
-      const emailCfg = settingsObj?.systemSettings?.email || settingsObj?.email || {};
+      const [tenant, emailSetting] = await Promise.all([
+        prisma.tenant.findUnique({
+          where: { id: tenantId },
+          select: { name: true },
+        }),
+        prisma.setting.findFirst({
+          where: {
+            scope: "TENANT",
+            scopeId: tenantId,
+            group: "tenant_system_settings",
+            key: "email",
+          },
+        }),
+      ]);
+      const emailCfg = (emailSetting?.valueJson as any) || {};
 
       if (!emailCfg.host) {
         return res
