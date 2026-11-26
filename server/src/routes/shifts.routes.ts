@@ -14,31 +14,6 @@ const DEFAULT_SEED_SHIFTS = [
   { name: "Night Differential", code: "NIGHT", startTime: "23:00", endTime: "07:30", breakMinutes: 30, allowance: 600, color: "indigo", isOvertimeEligible: true },
   { name: "Weekly Off", code: "OFF", startTime: "00:00", endTime: "00:00", breakMinutes: 0, allowance: 0, color: "slate", isOvertimeEligible: false },
 ];
-
-/**
- * Helper to auto-seed default shifts if tenant has none
- */
-async function ensureSeedShifts(tenantId: string) {
-  const count = await prisma.shiftDefinition.count({ where: { tenantId } });
-  if (count === 0) {
-    for (const s of DEFAULT_SEED_SHIFTS) {
-      await prisma.shiftDefinition.create({
-        data: {
-          tenantId,
-          name: s.name,
-          code: s.code,
-          startTime: s.startTime,
-          endTime: s.endTime,
-          breakMinutes: s.breakMinutes,
-          allowance: s.allowance,
-          color: s.color,
-          isOvertimeEligible: s.isOvertimeEligible,
-        },
-      });
-    }
-  }
-}
-
 // GET /api/shifts (List shift definitions)
 shiftsRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   try {

@@ -28,33 +28,6 @@ const DANGEROUS_TAGS = [
 ];
 
 const SAFE_SCHEMES = ['http:', 'https:', 'mailto:', 'tel:'];
-
-/**
- * Validates a URL attribute (href or src) to ensure it is not a javascript: or dangerous URI
- */
-export function isSafeUrl(url: string): boolean {
-  if (!url || typeof url !== 'string') return false;
-  const trimmed = url.trim().toLowerCase();
-
-  // Allow relative URLs, fragments, and root-relative paths
-  if (trimmed.startsWith('/') || trimmed.startsWith('#') || trimmed.startsWith('./') || trimmed.startsWith('../')) {
-    return true;
-  }
-
-  // Allow safe data URIs for images only
-  if (trimmed.startsWith('data:image/')) {
-    return true;
-  }
-
-  try {
-    const parsed = new URL(url.trim());
-    return SAFE_SCHEMES.includes(parsed.protocol);
-  } catch {
-    // If not a valid absolute URL and not starting with safe relative markers, reject
-    return false;
-  }
-}
-
 /**
  * Strips dangerous HTML tags, attributes, and URL protocols from an HTML string
  */

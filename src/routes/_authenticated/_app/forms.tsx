@@ -90,15 +90,6 @@ const CATEGORY_CONFIG: Record<string, { label: string; bg: string; text: string;
   onboarding_checklist: { label: "Onboarding Review", bg: "bg-pink-500/10", text: "text-pink-600 dark:text-pink-400", border: "border-pink-500/30" },
   general: { label: "General Form", bg: "bg-muted", text: "text-muted-foreground", border: "border-border" },
 };
-
-function fmtCurrency(n: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(n || 0);
-}
-
 export function FormsPage() {
   const { user } = useSession();
   const { data: profile } = useCurrentProfile(user);

@@ -9,14 +9,6 @@ import { apiClient } from '../api/apiClient';
 export type AppRuntimeEnvironment = 'expo-go' | 'development-build' | 'production';
 
 let mockRuntimeOverride: AppRuntimeEnvironment | null = null;
-
-/**
- * Test utility to simulate different runtime environments (Expo Go vs Dev Build vs Production).
- */
-export const setAppRuntimeOverrideForTesting = (env: AppRuntimeEnvironment | null) => {
-  mockRuntimeOverride = env;
-};
-
 /**
  * Supported Expo runtime environment detection.
  * Distinguishes:
@@ -60,17 +52,7 @@ export const getAppRuntimeEnvironment = (): AppRuntimeEnvironment => {
 
 export const isExpoGoEnvironment = (): boolean => {
   return getAppRuntimeEnvironment() === 'expo-go';
-};
-
-export const isDevelopmentBuild = (): boolean => {
-  return getAppRuntimeEnvironment() === 'development-build';
-};
-
-export const isProductionBuild = (): boolean => {
-  return getAppRuntimeEnvironment() === 'production';
-};
-
-export type PushTokenType = 'expo' | 'fcm' | 'apns' | 'none';
+};export type PushTokenType = 'expo' | 'fcm' | 'apns' | 'none';
 
 export const BACKGROUND_NOTIFICATION_TASK = 'MASTERHRMS_BACKGROUND_NOTIFICATION';
 

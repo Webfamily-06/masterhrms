@@ -97,56 +97,7 @@ export default function EditCharterPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const addMember = () => {
-    if (!memberInput.userName.trim()) return;
-    setForm((p) => ({
-      ...p,
-      members: [
-        ...p.members,
-        {
-          userId: `u_${Date.now()}`,
-          userName: memberInput.userName.trim(),
-          roleId: `r_${Date.now()}`,
-          roleName: memberInput.roleName,
-        },
-      ],
-    }));
-    setMemberInput({ userName: "", roleName: "Contributor" });
-  };
-
-  const removeMember = (idx: number) => {
-    setForm((p) => ({
-      ...p,
-      members: p.members.filter((_, i) => i !== idx),
-    }));
-  };
-
-  const addAttachment = () => {
-    if (!attachmentInput.name.trim() || !attachmentInput.url.trim()) return;
-    setForm((p) => ({
-      ...p,
-      attachments: [
-        ...p.attachments,
-        {
-          id: `att_${Date.now()}`,
-          name: attachmentInput.name.trim(),
-          url: attachmentInput.url.trim(),
-        },
-      ],
-    }));
-    setAttachmentInput({ name: "", url: "" });
-  };
-
-  const removeAttachment = (idx: number) => {
-    setForm((p) => ({
-      ...p,
-      attachments: p.attachments.filter((_, i) => i !== idx),
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  };  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return toast.error("Charter name is required");
 

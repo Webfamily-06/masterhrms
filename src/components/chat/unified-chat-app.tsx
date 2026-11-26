@@ -30,16 +30,6 @@ export function cleanPersonName(name: string): string {
     .trim();
 }
 
-export function cleanSystemEventContent(content: string): string {
-  if (!content) return "";
-  return content
-    .replace(/\s*\([^)]*(admin|administrator|manager|employee|owner|leader|supervisor|tester|user|staff|hr)[^)]*\)/gi, "")
-    .replace(/\s*\(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?\)/gi, "")
-    .replace(/\s*\.\s*$/, "")
-    .trim();
-}
-
-
 import React, { useState, useEffect, useRef, useMemo, useCallback, useContext } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, API_BASE } from "@/lib/api";
@@ -1917,18 +1907,6 @@ export function UnifiedChatApp({
     setShowScrollBottom(false);
     setUnreadBelowCount(0);
   }, []);
-
-  const handleMessagesScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < 120;
-    if (isNearBottom) {
-      setShowScrollBottom(false);
-      setUnreadBelowCount(0);
-    } else {
-      setShowScrollBottom(true);
-    }
-  };
-
   // ──────────────────────────────────────────────────────────────────────────
   // 1. DATA QUERIES (Authoritative, Zero Mock)
   // ──────────────────────────────────────────────────────────────────────────
@@ -7477,24 +7455,6 @@ export function UnifiedChatApp({
       setIsForwarding(false);
     }
   };
-
-  const handleForwardMessage = async () => {
-    if (!forwardMessage || !forwardTargetThreadId) return;
-    try {
-      await api.post("/api/chat/messages", {
-        threadId: forwardTargetThreadId,
-        content: forwardMessage.content,
-        clientTempId: `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        attachments: forwardMessage.attachments,
-      });
-      toast.success("Message forwarded");
-      setForwardMessage(null);
-      setForwardTargetThreadId("");
-    } catch (err: any) {
-      toast.error("Failed to forward message");
-    }
-  };
-
   const handleVotePoll = async (messageId: string, optionId: string) => {
     queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
       if (!old || !old.messages) return old;

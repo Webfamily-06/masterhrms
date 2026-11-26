@@ -268,11 +268,6 @@ function InvoiceDetailPage() {
       idempotencyKey: `pay-${invoice?.id}-${Date.now()}`,
     });
   };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
   const handleCopyLink = () => {
     const portalUrl = `${window.location.origin}/portal/invoices/${invoice?.number || invoice?.invoiceNo || id}`;
     navigator.clipboard.writeText(portalUrl);

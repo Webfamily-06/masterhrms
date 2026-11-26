@@ -15,27 +15,7 @@ export function readFileAsDataUrl(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error || new Error("Failed to read file as Data URL"));
     reader.readAsDataURL(file);
   });
-}
-
-export function readFileAsText(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error || new Error("Failed to read file as text"));
-    reader.readAsText(file);
-  });
-}
-
-export function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as ArrayBuffer);
-    reader.onerror = () => reject(reader.error || new Error("Failed to read file as ArrayBuffer"));
-    reader.readAsArrayBuffer(file);
-  });
-}
-
-/**
+}/**
  * Validate file according to size, mime type, and extension
  */
 export function validateFile(

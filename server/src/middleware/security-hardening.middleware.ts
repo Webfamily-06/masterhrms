@@ -72,11 +72,6 @@ async function getRedisClient(): Promise<any | null> {
     return null;
   }
 }
-
-export function getRateLimiterBackend(): "redis" | "memory" {
-  return redisRateLimitClient?.isReady ? "redis" : "memory";
-}
-
 /**
  * Distributed-ready sliding window rate limiter.
  * Uses Redis atomic INCR + PEXPIRE when REDIS_URL is configured for multi-instance deployments,

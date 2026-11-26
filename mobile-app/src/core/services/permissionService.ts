@@ -47,36 +47,6 @@ export const checkMicrophonePermission = async (): Promise<boolean> => {
     return false;
   }
 };
-
-/**
- * Requests camera permission with genuine native platform calls.
- */
-export const requestCameraPermission = async (): Promise<boolean> => {
-  try {
-    if (Platform.OS === 'android') {
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.CAMERA,
-        {
-          title: 'Camera Permission Request',
-          message:
-            'MasterHRMS requires access to your camera for taking profile & attachment photos.',
-          buttonPositive: 'Allow',
-          buttonNegative: 'Deny',
-        }
-      );
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
-    }
-    if (typeof ImagePicker?.requestCameraPermissionsAsync === 'function') {
-      const response = await ImagePicker.requestCameraPermissionsAsync();
-      return Boolean(response?.granted);
-    }
-    return true;
-  } catch (err) {
-    console.warn('[PermissionService] Camera permission error:', err);
-    return false;
-  }
-};
-
 /**
  * Requests microphone permission with genuine native platform calls.
  */
@@ -104,76 +74,7 @@ export const requestMicrophonePermission = async (): Promise<boolean> => {
     console.warn('[PermissionService] Microphone permission error:', err);
     return false;
   }
-};
-
-/**
- * Requests storage/media library permission with Android 13+ modern permissions fallback.
- */
-export const requestStoragePermission = async (): Promise<boolean> => {
-  if (Platform.OS === 'android') {
-    try {
-      const version =
-        typeof Platform.Version === 'number'
-          ? Platform.Version
-          : parseInt(String(Platform.Version), 10) || 0;
-      if (version >= 33) {
-        const perms = [
-          PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
-          PermissionsAndroid.PERMISSIONS.READ_MEDIA_VIDEO,
-          PermissionsAndroid.PERMISSIONS.READ_MEDIA_AUDIO,
-        ].filter(Boolean);
-        const results = await PermissionsAndroid.requestMultiple(perms);
-        return Object.values(results).some((res) => res === PermissionsAndroid.RESULTS.GRANTED);
-      } else {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
-          {
-            title: 'Storage Permission Request',
-            message:
-              'MasterHRMS requires access to your device files to attach documents and preview photos.',
-            buttonPositive: 'Allow',
-            buttonNegative: 'Deny',
-          }
-        );
-        return granted === PermissionsAndroid.RESULTS.GRANTED;
-      }
-    } catch (err) {
-      console.warn('[PermissionService] Storage permission error:', err);
-      return false;
-    }
-  }
-  return true;
-};
-
-/**
- * Requests location permission for sharing current or live location in chats.
- */
-export const requestLocationPermission = async (): Promise<boolean> => {
-  if (Platform.OS === 'android') {
-    try {
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        {
-          title: 'Location Permission Request',
-          message:
-            'MasterHRMS requires access to your location to share your current or live location with your team.',
-          buttonPositive: 'Allow',
-          buttonNegative: 'Deny',
-        }
-      );
-      return (
-        granted === PermissionsAndroid.RESULTS.GRANTED ||
-        granted === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN
-      );
-    } catch (err) {
-      console.warn('[PermissionService] Location permission error:', err);
-      return false;
-    }
-  }
-  return true;
-};
-
-/**
+};/**
  * Requests essential hardware permissions upon application startup.
  */
 export const requestAppMediaPermissions = async (): Promise<MediaPermissionsStatus> => {

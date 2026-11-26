@@ -46,50 +46,6 @@ export interface ThermalReceiptData {
 }
 
 let isQzConnected = false;
-
-export async function initQz(
-  certEndpoint = "/api/qz/certificate",
-  signEndpoint = "/api/qz/sign"
-): Promise<boolean> {
-  try {
-    const qz = (window as any).qz;
-    if (!qz) {
-      console.warn("QZ-Tray library not loaded on window. Standard browser printing fallback will be used.");
-      return false;
-    }
-
-    qz.security.setCertificatePromise((resolve: any, reject: any) => {
-      fetch(certEndpoint)
-        .then((res) => res.text())
-        .then(resolve)
-        .catch(reject);
-    });
-
-    qz.security.setSignaturePromise((toSign: string) => (resolve: any, reject: any) => {
-      fetch(signEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ request: toSign }),
-      })
-        .then((res) => res.text())
-        .then(resolve)
-        .catch(reject);
-    });
-
-    if (!qz.websocket.isActive()) {
-      await qz.websocket.connect({ retries: 2, delay: 1 });
-    }
-
-    isQzConnected = true;
-    // QZ-Tray connected
-    return true;
-  } catch (err) {
-    console.warn("QZ-Tray daemon connection bypassed (using browser print fallback):", err);
-    isQzConnected = false;
-    return false;
-  }
-}
-
 /**
  * Generates clean, high-contrast, offline-first thermal receipt HTML
  * strictly formatted for 80mm or 58mm POS thermal printers.

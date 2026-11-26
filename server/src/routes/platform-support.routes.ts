@@ -28,41 +28,6 @@ const DEFAULT_PLATFORM_TICKETS = [
     initialMessage: "Need guidance on configuring the real-time biometric TCP/HTTP push webhook for 3 new office branch locations.",
   },
 ];
-
-/**
- * Auto-seed standard platform tickets if empty
- */
-async function ensureSeedPlatformTickets(tenantId: string) {
-  const count = await prisma.platformSupportTicket.count({ where: { tenantId } });
-  if (count === 0) {
-    for (const t of DEFAULT_PLATFORM_TICKETS) {
-      const randomCode = Math.floor(1000 + Math.random() * 9000);
-      const ticketCode = `SUP-${randomCode}`;
-
-      const ticket = await prisma.platformSupportTicket.create({
-        data: {
-          tenantId,
-          ticketCode,
-          subject: t.subject,
-          requestType: t.requestType,
-          targetAddonSlug: t.targetAddonSlug || null,
-          priority: t.priority,
-          status: "open",
-        },
-      });
-
-      await prisma.platformTicketMessage.create({
-        data: {
-          ticketId: ticket.id,
-          senderType: "tenant_admin",
-          senderName: "Organization Administrator",
-          message: t.initialMessage,
-        },
-      });
-    }
-  }
-}
-
 // GET /api/support/platform/tickets (List platform tickets)
 platformSupportRouter.get("/tickets", requireAuth, async (req: AuthRequest, res: Response) => {
   try {

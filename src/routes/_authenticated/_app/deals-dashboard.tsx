@@ -198,17 +198,6 @@ export default function DealsDashboardPage() {
       setDeleting(false);
     }
   };
-
-  const handleStageChange = async (dealId: string, stage: string) => {
-    try {
-      await api.patch(`/crm/deals/${dealId}/stage`, { stage });
-      toast.success(`Deal moved to ${stage}`);
-      queryClient.invalidateQueries({ queryKey: ["deals-dashboard-data"] });
-    } catch (err: any) {
-      toast.error(err.message || "Failed to update deal stage");
-    }
-  };
-
   // Funnel & Pipeline Charts (matching ui/crm-dashboard.html)
   const funnelChartOptions: ApexCharts.ApexOptions = useMemo(
     () => ({

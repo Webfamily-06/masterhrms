@@ -363,15 +363,3 @@ export function PortalSidebar({
     </>
   );
 }
-
-export function HrSidebar() {
-  return <PortalSidebar portal="hr" />;
-}
-
-export function EmployeeSidebar() {
-  return <PortalSidebar portal="me" />;
-}
-
-export function TenantSidebar() {
-  return <PortalSidebar portal="tenant" />;
-}

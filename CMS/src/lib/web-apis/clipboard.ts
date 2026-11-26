@@ -72,15 +72,6 @@ export async function readFromClipboard(): Promise<string | null> {
     return null;
   }
 }
-
-/**
- * Copy JSON or structured data with pretty printing
- */
-export async function copyFormattedJson(data: any): Promise<boolean> {
-  const jsonStr = typeof data === "string" ? data : JSON.stringify(data, null, 2);
-  return copyToClipboard(jsonStr);
-}
-
 /**
  * Reactive React Hook for 1-click clipboard actions with automated reset timer
  */

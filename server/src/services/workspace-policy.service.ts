@@ -54,15 +54,6 @@ export function assertWorkspaceActive(policy: ReturnType<typeof resolveWorkspace
 }
 
 export const workspacePolicyCache = new Map<string, { policy: any; expiresAt: number }>();
-
-export function invalidateWorkspacePolicyCache(tenantId?: string) {
-  if (!tenantId) {
-    workspacePolicyCache.clear();
-    return;
-  }
-  workspacePolicyCache.delete(tenantId);
-}
-
 export async function getWorkspacePolicy(tenantId: string, db: any = prisma) {
   const now = Date.now();
   const cached = workspacePolicyCache.get(tenantId);

@@ -89,23 +89,4 @@ export function getCountryCode(countryOrCode?: string | null): string {
 export function getCountryFlagUrl(countryOrCode?: string | null): string {
   const code = getCountryCode(countryOrCode);
   return `/flags/${code}.svg`;
-}
-
-/**
- * Returns dial code for a country (e.g. "India" -> "+91", "US" -> "+1")
- */
-export function getCountryDialCode(countryOrCode?: string | null): string {
-  const code = getCountryCode(countryOrCode);
-  const country = CODE_TO_COUNTRY.get(code);
-  return country?.phoneCode || "+1";
-}
-
-/**
- * Returns full country data object by code or name
- */
-export function getCountryData(countryOrCode?: string | null): Country | undefined {
-  const code = getCountryCode(countryOrCode);
-  return CODE_TO_COUNTRY.get(code);
-}
-
-export { COUNTRIES };
+}export { COUNTRIES };

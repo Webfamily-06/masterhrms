@@ -214,17 +214,6 @@ export function DreamsSidebar({
       : isMiniLayout;
   const isMini =
     ((effectiveMini || isHoverLayout || collapsed) && !isHovered);
-
-  const handleToggleCollapse = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIgnoreHover(true);
-    setIsHovered(false);
-    document.body.classList.remove("expand-menu");
-    onToggleCollapse();
-    // Auto-reset ignoreHover so hover works again if cursor was already outside
-    setTimeout(() => setIgnoreHover(false), 600);
-  };
-
   // Submenu toggle states
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     dashboards: true,

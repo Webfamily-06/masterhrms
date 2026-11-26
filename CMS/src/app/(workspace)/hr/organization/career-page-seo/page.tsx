@@ -30,34 +30,6 @@ interface CareerSeoData {
   tenantName?: string;
   tenantSlug?: string;
 }
-
-function applySeoToDocumentHead(seo: CareerSeoData) {
-  if (typeof document === "undefined") return;
-  if (seo.metaTitle.trim()) {
-    document.title = seo.metaTitle.trim();
-  }
-  const upsertMeta = (attr: "name" | "property", key: string, content: string) => {
-    if (!content.trim()) return;
-    let tag = document.querySelector(`meta[${attr}="${key}"]`) as HTMLMetaElement | null;
-    if (!tag) {
-      tag = document.createElement("meta");
-      tag.setAttribute(attr, key);
-      document.head.appendChild(tag);
-    }
-    tag.setAttribute("content", content.trim());
-  };
-  upsertMeta("name", "description", seo.metaDescription);
-  upsertMeta("name", "keywords", seo.metaKeywords);
-  upsertMeta("property", "og:title", seo.metaTitle);
-  upsertMeta("property", "og:description", seo.metaDescription);
-  if (seo.metaSocialImage) {
-    upsertMeta("property", "og:image", seo.metaSocialImage);
-    upsertMeta("name", "twitter:image", seo.metaSocialImage);
-  }
-  upsertMeta("name", "twitter:title", seo.metaTitle);
-  upsertMeta("name", "twitter:description", seo.metaDescription);
-}
-
 export default function CareerPageSeoPage() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);

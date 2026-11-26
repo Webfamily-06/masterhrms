@@ -465,17 +465,3 @@ let activeConfig: CommercePricingConfig = buildCommercePricingConfig();
 export function getCommercePricingConfig(): CommercePricingConfig {
   return activeConfig;
 }
-
-/**
- * Updates commerce pricing configuration dynamically (for runtime adjustments or tests).
- */
-export function setCommercePricingConfig(overrides: Partial<CommercePricingConfig>): void {
-  activeConfig = buildCommercePricingConfig(overrides);
-}
-
-/**
- * Resets configuration to initial environment state.
- */
-export function resetCommercePricingConfig(): void {
-  activeConfig = buildCommercePricingConfig();
-}

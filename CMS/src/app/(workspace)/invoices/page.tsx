@@ -339,14 +339,6 @@ function InvoicesPage() {
       // Error surfaced by persistMut.onError; builder stays open with input intact
     }
   }
-
-  function markPaid(id: string) {
-    const inv = invoicesWithStatus.find((i) => i.id === id);
-    if (inv) {
-      openRecordPayment(inv);
-    }
-  }
-
   function markSent(id: string) {
     persistMut.mutate(invoices.map((i) => (i.id === id ? { ...i, status: "sent" as const } : i)));
     toast.success("Invoice marked as sent!");

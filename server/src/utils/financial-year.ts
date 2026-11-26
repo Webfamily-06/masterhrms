@@ -101,37 +101,7 @@ export function getFinancialYearFromPeriod(month: number, year: number): string 
  */
 export function getCurrentFinancialYear(): string {
   return getFinancialYearFromDate(new Date());
-}
-
-/**
- * Compute Assessment Year from a Financial Year.
- * E.g., FY 2025-2026 -> AY 2026-2027.
- */
-export function getAssessmentYear(financialYear: string): string {
-  const normalized = normalizeFinancialYear(financialYear);
-  const startYear = parseInt(normalized.split("-")[0], 10);
-  return `${startYear + 1}-${startYear + 2}`;
-}
-
-/**
- * Convert canonical "2025-2026" to short "2025-26".
- */
-export function toShortFY(financialYear: string): string {
-  const normalized = normalizeFinancialYear(financialYear);
-  const [start, end] = normalized.split("-");
-  return `${start}-${end.slice(-2)}`;
-}
-
-/**
- * Determine the governing statutory direct tax Act for a given financial year.
- */
-export function getGoverningTaxAct(financialYear: string): "Income-tax Act, 1961" | "Income-tax Act, 2025" {
-  const normalized = normalizeFinancialYear(financialYear);
-  const startYear = parseInt(normalized.split("-")[0], 10);
-  return startYear >= 2026 ? "Income-tax Act, 2025" : "Income-tax Act, 1961";
-}
-
-/**
+}/**
  * Get full metadata for a given Financial Year.
  */
 export function getFinancialYearMeta(financialYear?: string | null, referenceDate: Date = new Date()): FinancialYearMeta {

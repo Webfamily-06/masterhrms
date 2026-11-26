@@ -18,13 +18,6 @@
 
 import { rawPrisma as prisma } from "../prisma";
 import { processBiometricPunch } from "../routes/biometric.routes";
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function startOfDay(d: Date): Date {
-  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-}
-
 function previousMonth(): { start: Date; end: Date; label: string } {
   const now = new Date();
   const year  = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();

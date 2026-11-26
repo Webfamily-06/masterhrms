@@ -88,28 +88,6 @@ export async function getFirebaseApp() {
     return null;
   }
 }
-
-export async function getFirebaseAnalytics() {
-  if (typeof window === "undefined") return null;
-  if (firebaseAnalyticsInstance) return firebaseAnalyticsInstance;
-
-  try {
-    const app = await getFirebaseApp();
-    if (!app) return null;
-
-    const { getAnalytics, isSupported } = await optionalImport("firebase/analytics");
-    const supported = await isSupported().catch(() => false);
-    if (supported) {
-      firebaseAnalyticsInstance = getAnalytics(app);
-      return firebaseAnalyticsInstance;
-    }
-    return null;
-  } catch (err) {
-    console.warn("[Firebase CMS] Analytics initialization deferred:", err);
-    return null;
-  }
-}
-
 let firebaseMessagingInitialized = false;
 
 export async function initFirebaseMessagingIfConfigured(

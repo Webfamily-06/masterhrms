@@ -29,12 +29,6 @@ export function getPlatformBaseDomain(): string {
   const parts = host.split(".");
   return parts.length >= 3 ? parts.slice(1).join(".") : host;
 }
-
-/** Builds `{slug}.{baseDomain}` (no protocol). */
-export function getWorkspaceHost(slug: string, baseDomain = getPlatformBaseDomain()): string {
-  return `${slug}.${baseDomain}`;
-}
-
 /**
  * Resolves the display base domain for previewing workspace and public URLs,
  * dynamically reflecting the configured platform domain or active host/port.
@@ -294,12 +288,6 @@ export function getTenantWorkspaceUrl(
   const displayBase = getPlatformDisplayBaseDomain();
   return `${protocol}//${slug}.${displayBase}${normPath}`;
 }
-
-/** Default platform support mailbox derived from configuration. */
-export function getDefaultSupportEmail(baseDomain = getPlatformBaseDomain()): string {
-  return `support@${baseDomain}`;
-}
-
 /**
  * Returns true if the hostname represents a tenant workspace subdomain
  * (e.g. acme.localhost, acme.yourdomain.com, beta.example.in)
@@ -347,42 +335,6 @@ export function isTenantWorkspaceHost(hostname?: string): boolean {
   // Flow 2: Custom domain (e.g. app.acme.com, hr.mycorp.org)
   return true;
 }
-
-/**
- * Returns true if the host is a custom domain (Flow 2) rather than a platform subdomain (Flow 1).
- */
-export function isCustomDomainHost(hostname?: string): boolean {
-  if (typeof window === "undefined" && !hostname) return false;
-  const host = (hostname || (typeof window !== "undefined" ? window.location.hostname : ""))
-    .toLowerCase()
-    .split(":")[0]
-    .trim();
-  if (!host) return false;
-
-  const baseDomain = getPlatformBaseDomain().toLowerCase();
-
-  // Root or platform infrastructure hosts
-  if (
-    host === baseDomain ||
-    host === `www.${baseDomain}` ||
-    host === "127.0.0.1" ||
-    host === "0.0.0.0" ||
-    (baseDomain === "localhost" && host === "localhost") ||
-    host === `super.${baseDomain}` ||
-    host === "super.localhost"
-  ) {
-    return false;
-  }
-
-  // Flow 1 subdomains
-  if (host.endsWith(`.${baseDomain}`) || host.endsWith(".localhost")) {
-    return false;
-  }
-
-  // Any other host is a Flow 2 custom domain
-  return true;
-}
-
 /**
  * Resolves the target tenant workspace origin (`{protocol}//{companySlug}.{domain}{port}`)
  * when a non-super-admin user logs in or opens a workspace route on the root domain.

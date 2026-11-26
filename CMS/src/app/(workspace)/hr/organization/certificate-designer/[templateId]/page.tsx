@@ -416,28 +416,6 @@ export default function CertificateDesignerPage() {
       console.error("Failed to parse dropped element:", err);
     }
   };
-
-  // Alignment & Distribution Helpers
-  const alignSelectedElements = (action: "left" | "center" | "right" | "top" | "middle" | "bottom") => {
-    if (!selectedElementId) return;
-    setElements(prev => {
-      const next = prev.map(el => {
-        if (el.id !== selectedElementId) return el;
-        let x = el.x;
-        let y = el.y;
-        if (action === "left") x = 20;
-        if (action === "center") x = Math.round((canvasWidth - el.width) / 2);
-        if (action === "right") x = canvasWidth - el.width - 20;
-        if (action === "top") y = 20;
-        if (action === "middle") y = Math.round((canvasHeight - el.height) / 2);
-        if (action === "bottom") y = canvasHeight - el.height - 20;
-        return { ...el, x, y };
-      });
-      pushState(next);
-      return next;
-    });
-  };
-
   // Add Element
   const addElement = (type: string, defaults: any = {}) => {
     const newId = `el-${type}-${Date.now().toString(36)}`;

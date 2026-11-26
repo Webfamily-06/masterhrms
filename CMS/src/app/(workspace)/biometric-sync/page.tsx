@@ -418,60 +418,7 @@ function BiometricSyncPage() {
     } catch (err: any) {
       toast.error(err.message || "Failed to remove device");
     }
-  }
-
-  async function toggleAutoSync(id: string, val: boolean) {
-    try {
-      await api.put(`/biometric/devices/${id}`, { autoAttendanceSync: val });
-      qc.invalidateQueries({ queryKey: ["biometric-devices", tenantId] });
-      toast.success(`Auto-sync ${val ? "enabled" : "disabled"}`);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to update device");
-    }
-  }
-
-  // Push employee punches directly to MySQL attendance API
-  async function pushToAttendanceTable(punches: EmployeePunchLog[]) {
-    if (!tenantId) return;
-
-    try {
-      for (const punch of punches) {
-        let emp = dbEmployees.find(
-          (e: any) => e.id === punch.employeeId || e.employeeCode === punch.employeeCode || e.employee_code === punch.employeeCode,
-        );
-
-        if (!emp && dbEmployees.length > 0) {
-          emp = dbEmployees.find(
-            (e: any) =>
-              `${e.firstName || e.first_name} ${e.lastName || e.last_name}`.toLowerCase() === punch.employeeName.toLowerCase(),
-          );
-        }
-
-        if (emp) {
-          if (punch.punchType === "Clock In") {
-            await api.post("/attendance/check-in", {
-              employeeId: emp.id,
-              notes: `Biometric Punch from ${punch.deviceName}`,
-            });
-          } else {
-            await api.post("/attendance/check-out", {
-              employeeId: emp.id,
-              notes: `Biometric Punch from ${punch.deviceName}`,
-            });
-          }
-        }
-      }
-
-      qc.invalidateQueries({ queryKey: ["attendance-list"] });
-      qc.invalidateQueries({ queryKey: ["attendance-today"] });
-      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
-      qc.invalidateQueries({ queryKey: ["hrm-hub-stats"] });
-    } catch (err: any) {
-      console.warn("Attendance push warning:", err.message);
-    }
-  }
-
-  // Quick register an unregistered device user into MySQL employees table
+  }  // Quick register an unregistered device user into MySQL employees table
   async function handleQuickRegister() {
     if (!quickRegModalPunch) return;
     if (!quickRegForm.firstName.trim() || !quickRegForm.lastName.trim()) {

@@ -1966,32 +1966,3 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
   { id: "tenant-activity", portal: "tenant", heading: "14. Administration & System", label: "Activity Logs", path: ROUTES.tenant.auditLogs, icon: "Clock", order: 1520 },
   { id: "tenant-backup", portal: "tenant", heading: "14. Administration & System", label: "Backup & Restore", path: ROUTES.tenant.data, icon: "HardDrive", order: 1530 },
 ];
-
-/**
- * Get items filtered for a specific active portal
- */
-export function getNavItemsForPortal(
-  portal: PortalId,
-  context?: NavigationFilterContext
-): NavRegistryItem[] {
-  switch (portal) {
-    case "tenant":
-      return TENANT_NAVIGATION_REGISTRY;
-    case "hr":
-      return HR_NAVIGATION_REGISTRY;
-    case "me":
-      return EMPLOYEE_NAVIGATION_REGISTRY;
-    default:
-      return [];
-  }
-}
-
-/**
- * Checks if a route path is currently active
- */
-export function isPathActive(currentPath: string, targetPath: string, exact = false): boolean {
-  const normCurrent = currentPath.toLowerCase().replace(/\/+$/, "") || "/";
-  const normTarget = targetPath.toLowerCase().replace(/\/+$/, "") || "/";
-  if (exact) return normCurrent === normTarget;
-  return normCurrent === normTarget || normCurrent.startsWith(`${normTarget}/`);
-}

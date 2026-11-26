@@ -42,38 +42,6 @@ export function checkGeofence(
     distanceMeters,
   };
 }
-
-/**
- * One-off Promise-based Geolocation request
- */
-export function getCurrentLocation(
-  options: PositionOptions = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-): Promise<GeolocationCoordinates> {
-  return new Promise((resolve, reject) => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      reject(new Error("Geolocation API is not supported by this browser environment."));
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        resolve({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          altitude: pos.coords.altitude,
-          altitudeAccuracy: pos.coords.altitudeAccuracy,
-          heading: pos.coords.heading,
-          speed: pos.coords.speed,
-          timestamp: pos.timestamp,
-        });
-      },
-      (err) => reject(err),
-      options
-    );
-  });
-}
-
 /**
  * Reactive React Hook for Geolocation tracking & watch updates
  */

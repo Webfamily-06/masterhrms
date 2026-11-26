@@ -1023,53 +1023,6 @@ function formatReviewRecord(r: any) {
       : null,
   };
 }
-
-async function ensureDefaultPerformanceIndicators(tenantId: string) {
-  const db = getTenantDb();
-  const existingCount = await db.performanceIndicator.count({
-    where: { tenantId, isActive: true },
-  });
-  if (existingCount > 0) return;
-
-  for (const catDef of DEFAULT_PERFORMANCE_CATEGORIES) {
-    let category = await db.indicatorCategory.findFirst({
-      where: { tenantId, code: catDef.code },
-    });
-    if (!category) {
-      category = await db.indicatorCategory.create({
-        data: {
-          tenantId,
-          code: catDef.code,
-          name: catDef.name,
-          description: catDef.description,
-          defaultWeight: 1.0,
-          isActive: true,
-        },
-      });
-    }
-    for (const indDef of catDef.indicators) {
-      const existingInd = await db.performanceIndicator.findFirst({
-        where: { tenantId, code: indDef.code },
-      });
-      if (!existingInd) {
-        await db.performanceIndicator.create({
-          data: {
-            tenantId,
-            categoryId: category.id,
-            code: indDef.code,
-            name: indDef.name,
-            description: indDef.description,
-            measurementUnit: indDef.measurementUnit,
-            targetValue: indDef.targetValue,
-            weight: indDef.weight,
-            isActive: true,
-          },
-        });
-      }
-    }
-  }
-}
-
 hrPerformanceRouter.get("/reviews", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;

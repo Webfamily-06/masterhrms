@@ -209,32 +209,6 @@ function WhatsAppAlertsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["whatsapp-alerts", tenantId] }),
     onError: (e: Error) => toast.error(e.message),
   });
-
-  function saveTemplate() {
-    if (!templateForm.name.trim() || !templateForm.body.trim())
-      return toast.error("Name and body required");
-    let updatedTemplates: WaTemplate[];
-    if (editingTemplate) {
-      updatedTemplates = templates.map((t) =>
-        t.id === editingTemplate.id ? { ...editingTemplate, ...templateForm } : t,
-      );
-      toast.success("Template updated!");
-    } else {
-      const t: WaTemplate = {
-        ...templateForm,
-        id: `tpl-${Date.now()}`,
-        enabled: true,
-        createdAt: new Date().toISOString(),
-      };
-      updatedTemplates = [t, ...templates];
-      toast.success(`Template "${t.name}" created!`);
-    }
-    persist.mutate({ templates: updatedTemplates, botRules, logs, config });
-    setIsTemplateModalOpen(false);
-    setTemplateForm({ name: "", body: "", trigger: TRIGGERS[0] });
-    setEditingTemplate(null);
-  }
-
   function saveBotRule() {
     if (!botForm.keyword.trim() || !botForm.replyText.trim())
       return toast.error("Keyword and reply text are required");

@@ -90,22 +90,6 @@ function WebhookEndpointDetailPage() {
   useEffect(() => {
     fetchData();
   }, [id]);
-
-  const handleToggle = async (active: boolean) => {
-    try {
-      const res = await fetch(`/api/v1/addons/webhook/endpoints/${id}/toggle`, {
-        method: "PATCH",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ isActive: active }),
-      });
-      if (!res.ok) throw new Error("Failed to toggle endpoint");
-      toast.success(`Endpoint ${active ? "activated" : "deactivated"}`);
-      fetchData();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
-
   const handleRotateSecret = async () => {
     if (!confirm("Are you sure you want to rotate the HMAC secret? The current secret will be invalidated immediately.")) {
       return;

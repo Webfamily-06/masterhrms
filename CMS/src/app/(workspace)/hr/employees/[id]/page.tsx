@@ -98,15 +98,6 @@ function renderProfileAwardIcon(iconName?: string | null, className = "size-4") 
   }
 }
 
-function EmployeeRouteWrapper() {
-  const childMatches = useChildMatches();
-  if (childMatches && childMatches.length > 0) {
-    return <Outlet />;
-  }
-  return <Employee360Page />;
-}
-
-
 interface DetailFieldProps {
   label: string;
   value?: string | number | null;
@@ -2708,6 +2699,5 @@ function Employee360Page() {
     </div>
   );
 }
-
 
 export default Employee360Page;

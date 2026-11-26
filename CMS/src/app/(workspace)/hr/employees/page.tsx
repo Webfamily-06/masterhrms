@@ -121,14 +121,6 @@ function formatEmploymentType(type?: string): string {
       return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
 }
-
-function getPaginationDisplayRange(page: number, limit: number, total: number): string {
-  if (total === 0) return "Showing 0–0 of 0 employees";
-  const start = (page - 1) * limit + 1;
-  const end = Math.min(page * limit, total);
-  return `Showing ${start}–${end} of ${total} employees`;
-}
-
 function getStatusBadge(status?: string) {
   const norm = (status || "").toLowerCase();
   switch (norm) {

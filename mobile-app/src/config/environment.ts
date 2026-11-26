@@ -111,15 +111,6 @@ export function resolveDevelopmentApiUrl(): string {
   // 5. Physical Android / iOS devices on local Wi-Fi
   return `http://${DEFAULT_DEV_LAN_IP}:${DEFAULT_BACKEND_PORT}`;
 }
-
-/**
- * Backwards-compatible helper returning the dev API host and port (e.g. '192.168.1.176:4000').
- */
-export function getDevApiHost(): string {
-  const url = resolveDevelopmentApiUrl();
-  return url.replace(/^https?:\/\//, '');
-}
-
 /**
  * Resolves the Staging API origin.
  * Requires an explicit configuration value; does not invent a fictional domain.

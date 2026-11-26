@@ -62,10 +62,3 @@ export function getStatesByCountry(countryCodeOrName: string): StateProvince[] {
   }
   return [];
 }
-
-export function getStateByCode(code: string, country?: string): StateProvince | undefined {
-  const states = country ? getStatesByCountry(country) : [...INDIA_STATES, ...US_STATES];
-  return states.find(
-    (s) => s.code.toLowerCase() === code.toLowerCase() || s.name.toLowerCase() === code.toLowerCase()
-  );
-}

@@ -586,41 +586,6 @@ function EmployeeEditWizardPage() {
       toast.error(err.message || "Failed to add document.");
     },
   });
-
-  // Handle Document File Upload
-  const handleDocFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 15 * 1024 * 1024) {
-      toast.error("Document file size must be under 15 MB.");
-      return;
-    }
-
-    try {
-      setIsUploadingDoc(true);
-      const data = new FormData();
-      data.append("file", file);
-      data.append("folder", "documents/employee");
-
-      const res = await api.post("/v1/media/upload", data);
-      const uploadedUrl = res.url || res.data?.url;
-      if (uploadedUrl) {
-        setNewDocData((prev) => ({
-          ...prev,
-          fileUrl: uploadedUrl,
-          fileName: file.name,
-          title: prev.title || file.name.replace(/\.[^/.]+$/, ""),
-        }));
-        toast.success("Document file uploaded.");
-      }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to upload document file.");
-    } finally {
-      setIsUploadingDoc(false);
-    }
-  };
-
   // Delete Document Mutation
   const deleteDocMutation = useMutation({
     mutationFn: async (docId: string) => {

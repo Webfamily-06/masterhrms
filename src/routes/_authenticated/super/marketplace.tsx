@@ -979,21 +979,7 @@ function MarketplaceAdmin() {
     setTargetCategoryOldName("");
     setCategoryInputName("");
     setCategoryModalOpen(true);
-  }
-
-  function openEditCategory(cat: CategoryDetail) {
-    setCategoryModalMode("edit");
-    setTargetCategoryOldName(cat.name);
-    setCategoryInputName(cat.name);
-    setCategoryModalOpen(true);
-  }
-
-  function confirmDeleteCategory(cat: CategoryDetail) {
-    setCategoryToDelete(cat);
-    setDeleteCategoryModalOpen(true);
-  }
-
-  function handleSaveCategory() {
+  }  function handleSaveCategory() {
     if (!categoryInputName.trim()) {
       return toast.error("Category name is required");
     }

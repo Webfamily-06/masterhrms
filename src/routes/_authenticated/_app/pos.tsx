@@ -208,19 +208,6 @@ function PosPage() {
       }, 100);
     }
   }, [isScannerModalOpen]);
-
-  // Category Icon helper
-  function getCategoryIcon(cat: string) {
-    const c = cat.toLowerCase();
-    if (c === "all" || c === "all menu") return <Utensils className="size-5 text-orange-500" />;
-    if (c.includes("hardware") || c.includes("computer") || c.includes("device")) return <Laptop className="size-5 text-indigo-500" />;
-    if (c.includes("electronic") || c.includes("chip") || c.includes("ai")) return <Cpu className="size-5 text-blue-500" />;
-    if (c.includes("service") || c.includes("consult")) return <Sparkles className="size-5 text-emerald-500" />;
-    if (c.includes("spare") || c.includes("part") || c.includes("accessor")) return <Wrench className="size-5 text-amber-500" />;
-    if (c.includes("software") || c.includes("license")) return <Briefcase className="size-5 text-purple-500" />;
-    return <Package className="size-5 text-primary" />;
-  }
-
   // Barcode Studio & Generator State
   const [isBarcodeStudioOpen, setIsBarcodeStudioOpen] = useState(false);
   const [selectedBarcodeProduct, setSelectedBarcodeProduct] = useState<string>("all");
@@ -729,11 +716,6 @@ function PosPage() {
       })
     );
   }
-
-  function removeFromCart(id: string) {
-    setCart((prev) => prev.filter((i) => i.id !== id));
-  }
-
   async function handleCheckout() {
     if (cart.length === 0) return toast.error("Cart is empty");
     const sale: PosSale = {
@@ -806,14 +788,6 @@ function PosPage() {
     setIsHeldOpen(false);
     toast.success(`Order "${held.name}" parked!`);
   }
-
-  function recallOrder(held: HeldOrder) {
-    setCart(held.cart);
-    setCustomerName(held.customer);
-    persistHeld.mutate(heldOrders.filter((o) => o.id !== held.id));
-    toast.success(`"${held.name}" recalled to cart!`);
-  }
-
   // Analytics
   const todaySales = useMemo(() => {
     const today = new Date().toLocaleDateString("en-IN");
