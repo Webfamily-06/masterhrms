@@ -323,7 +323,8 @@ export function ManageRolesConsole() {
   // CREATE / EDIT ROLE SCREEN (Matches Screenshot 3)
   // =========================================================================
   if (editorMode !== "closed") {
-    const currentModuleResources = permissionsByModule.get(effectiveTab) || new Map();
+    const currentModuleResources =
+      permissionsByModule.get(effectiveTab) || new Map<string, PermissionCatalogItem[]>();
     const q = moduleSearch.trim().toLowerCase();
     const visibleResourceEntries = Array.from(currentModuleResources.entries()).filter(([resKey, items]) => {
       if (!q) return true;

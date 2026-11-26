@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { MASTER_ADDON_NAV_REGISTRY } from "@/lib/addon-navigation";
+import { MASTER_ADDON_REGISTRY } from "@/lib/addon-navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,10 +24,10 @@ export default function DynamicAddonWorkspacePage() {
   const [webhookUrl, setWebhookUrl] = useState("");
   const [customJson, setCustomJson] = useState("{}");
 
-  // Check if this addon has a dedicated workspace route in MASTER_ADDON_NAV_REGISTRY
+  // Check if this addon has a dedicated workspace route in MASTER_ADDON_REGISTRY
   const dedicatedNav = useMemo(() => {
     const clean = slug.toLowerCase();
-    return MASTER_ADDON_NAV_REGISTRY.find(
+    return MASTER_ADDON_REGISTRY.find(
       (def) =>
         def.slug.toLowerCase() === clean ||
         (def.aliases || []).some((a) => a.toLowerCase() === clean)
