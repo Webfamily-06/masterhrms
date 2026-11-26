@@ -2193,6 +2193,17 @@ export function DreamsSidebar({
                       </li>
                       <li>
                         <Link
+                          to="/tenant/biometric-sync"
+                          onClick={onCloseMobile}
+                          className={cn(
+                            (currentPath === "/tenant/biometric-sync" || currentPath === "/biometric-sync") && "active"
+                          )}
+                        >
+                          Biometric Hardware
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
                           to="/tenant/data"
                           onClick={onCloseMobile}
                           className={cn(currentPath === "/tenant/data" && "active")}

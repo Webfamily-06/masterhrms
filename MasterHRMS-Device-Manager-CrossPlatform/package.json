@@ -1,0 +1,10 @@
+{
+  "name": "masterhrms-device-manager",
+  "version": "2.0.0",
+  "description": "Cross-Platform (Windows / macOS / Linux) Zero-DLL Biometric Device Manager for Master HRMS",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Master HRMS — Biometric Device Manager</title>
+  <link rel="icon" href="/assets/favicon.ico" />
+  <style>
+    :root {
+      --primary: #0d6efd;
+      --primary-hover: #0b5ed7;
+      --slate-950: #020617;
+      --slate-900: #0f172a;
+      --slate-800: #1e293b;
+      --slate-700: #334155;
+      --slate-500: #64748b;
+      --slate-300: #cbd5e1;
+      --slate-200: #e2e8f0;
+      --slate-100: #f1f5f9;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --success: #16a34a;
+      --warning: #f59e0b;
+      --danger: #e11d48;
+      --info: #0284c7;
+      --purple: #7c3aed;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--slate-900);
+      display: flex;
+      min-height: 100vh;
+      font-size: 13.5px;
+      line-height: 1.5;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 256px;
+      background: var(--slate-900);
+      color: #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      border-right: 1px solid rgba(255,255,255,0.06);
+    }
+    .brand {
+      padding: 20px 20px 18px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-icon {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #0d6efd, #38bdf8);
+      display: grid; place-items: center;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .brand-title { font-weight: 700; font-size: 14.5px; color: #fff; letter-spacing: -0.01em; }
+    .brand-sub { font-size: 11px; color: #94a3b8; }
+
+    .nav { padding: 14px 12px; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+    .nav-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; padding: 10px 10px 4px; font-weight: 600; }
+    .nav-btn {
+      display: flex; align-items: center; gap: 10px;
+      width: 100%; padding: 10px 12px; border: 0; border-radius: 8px;
+      background: transparent; color: #cbd5e1; font-size: 13px; font-weight: 500;
+      cursor: pointer; text-align: left; transition: all 0.15s;
+    }
+    .nav-btn:hover { background: rgba(255,255,255,0.06); color: #fff; }
+    .nav-btn.active { background: var(--primary); color: #fff; font-weight: 600; box-shadow: 0 4px 14px rgba(13,110,253,0.35); }
+    .nav-btn svg { width: 17px; height: 17px; flex-shrink: 0; }
+
+    .sidebar-footer {
+      padding: 14px 16px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      font-size: 11.5px;
+      color: #94a3b8;
+    }
+    .os-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 9px; border-radius: 999px;
+      background: rgba(56,189,248,0.12); color: #38bdf8;
+      border: 1px solid rgba(56,189,248,0.25);
+      font-size: 11px; font-weight: 600; margin-bottom: 6px;
+    }
+
+    /* Main Workspace */
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .topbar {
+      background: var(--card);
+      border-bottom: 1px solid var(--slate-200);
+      padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      flex-wrap: wrap;
+    }
+    .conn-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .input {
+      height: 36px; padding: 0 11px; border: 1px solid var(--slate-300); border-radius: 8px;
+      font-size: 13px; color: var(--slate-900); background: #fff; outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(13,110,253,0.12); }
+    .input[readonly] { background: var(--slate-100); color: var(--slate-700); }
+    .input-sm { height: 32px; font-size: 12.5px; }
+
+    .btn {
+      height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid transparent;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      transition: all 0.15s; white-space: nowrap;
+    }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-success:hover:not(:disabled) { background: #15803d; }
+    .btn-warning { background: var(--warning); color: #fff; }
+    .btn-warning:hover:not(:disabled) { background: #d97706; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-outline { background: #fff; color: var(--slate-800); border-color: var(--slate-300); }
+    .btn-outline:hover:not(:disabled) { background: var(--slate-100); }
+    .btn-soft { background: rgba(13,110,253,0.1); color: var(--primary); border-color: rgba(13,110,253,0.2); }
+    .btn-soft:hover:not(:disabled) { background: rgba(13,110,253,0.16); }
+
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+      background: var(--slate-100); color: var(--slate-500); border: 1px solid var(--slate-200);
+    }
+    .status-badge.online { background: rgba(22,163,74,0.1); color: var(--success); border-color: rgba(22,163,74,0.25); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+    .content { padding: 22px 24px; max-width: 1280px; width: 100%; display: flex; flex-direction: column; gap: 18px; }
+    .view { display: none; flex-direction: column; gap: 18px; }
+    .view.active { display: flex; }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+    .kpi {
+      background: var(--card); border: 1px solid var(--slate-200); border-radius: 12px;
+      padding: 15px 16px; display: flex; flex-direction: column; gap: 4px;
+    }
+    .kpi-label { font-size: 11.5px; color: var(--slate-500); font-weight: 500; }
+    .kpi-val { font-size: 16px; font-weight: 700; color: var(--slate-900); font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 18px; }
+    .card {
+      background: var(--card); border: 1px solid var(--slate-200); border-radius: 12px;
+      padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;
+    }
+    .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--slate-100); padding-bottom: 12px; flex-wrap: wrap; }
+    .card-title { font-size: 15px; font-weight: 700; color: var(--slate-900); }
+    .card-desc { font-size: 12px; color: var(--slate-500); margin-top: 2px; }
+
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label { font-size: 12px; font-weight: 600; color: var(--slate-700); }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* Tables */
+    .table-wrap { border: 1px solid var(--slate-200); border-radius: 10px; overflow: auto; max-height: 420px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    th {
+      position: sticky; top: 0; background: var(--slate-100); color: var(--slate-500);
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+      text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--slate-200);
+    }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--slate-100); font-variant-numeric: tabular-nums; }
+    tr:hover td { background: #f8fafc; }
+
+    .pill {
+      display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 600; margin-right: 4px;
+    }
+    .pill-blue { background: rgba(13,110,253,0.1); color: var(--primary); }
+    .pill-purple { background: rgba(124,58,237,0.1); color: var(--purple); }
+    .pill-sky { background: rgba(2,132,199,0.1); color: var(--info); }
+    .pill-amber { background: rgba(245,158,11,0.12); color: #b45309; }
+    .pill-green { background: rgba(22,163,74,0.1); color: var(--success); }
+
+    .console {
+      background: var(--slate-950); color: #e2e8f0; border-radius: 10px;
+      padding: 14px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 12px; min-height: 220px; max-height: 320px; overflow: auto; white-space: pre-wrap;
+    }
+
+    #toast {
+      position: fixed; bottom: 20px; right: 20px; z-index: 999;
+      background: var(--slate-900); color: #fff; padding: 11px 16px; border-radius: 10px;
+      font-size: 13px; font-weight: 500; box-shadow: 0 12px 30px rgba(15,23,42,0.25);
+      display: none; max-width: 420px;
+    }
+    #toast.success { background: var(--success); }
+    #toast.error { background: var(--danger); }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand" style="flex-direction:column;align-items:flex-start;gap:6px">
+      <img src="/assets/white-logo.webp" alt="Master HRMS" style="height:30px;width:auto;object-fit:contain" />
+      <div class="brand-sub">Biometric Device Manager v2.0</div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-label">Hardware Console</div>
+      <button class="nav-btn active" onclick="switchView('adms', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        Device &amp; ADMS Config
+      </button>
+      <button class="nav-btn" onclick="switchView('sync', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Users, Modes &amp; Logs
+      </button>
+      <button class="nav-btn" onclick="switchView('autosync', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+        Background Auto-Sync
+      </button>
+      <button class="nav-btn" onclick="switchView('diag', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        Diagnostics &amp; Clock
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="os-pill" id="osBadge">Cross-Platform TCP</div>
+      <div>Zero DLLs &bull; Works on Windows, macOS &amp; Linux</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="conn-bar">
+        <input id="ipInput" class="input" style="width:165px" value="10.10.10.215" placeholder="Device LAN IP" />
+        <input id="portInput" class="input" style="width:78px" value="4370" placeholder="Port" />
+        <button id="btnConnect" class="btn btn-primary" onclick="connectDevice()">Connect Hardware</button>
+        <button class="btn btn-warning" onclick="restartDevice()">Restart Device</button>
+      </div>
+      <div id="statusBadge" class="status-badge"><span class="dot"></span> Disconnected</div>
+    </header>
+
+    <div class="content">
+      <!-- VIEW 1: DEVICE & ADMS CONFIG -->
+      <section id="view-adms" class="view active">
+        <div class="kpi-grid">
+          <div class="kpi">
+            <span class="kpi-label">Hardware Serial Number (SN)</span>
+            <div class="kpi-val">
+              <span id="kpiSn">—</span>
+              <button class="btn btn-soft" style="height:26px;padding:0 9px;font-size:11px" onclick="copyText(document.getElementById('kpiSn').textContent)">Copy</button>
+            </div>
+          </div>
+          <div class="kpi"><span class="kpi-label">Firmware Version</span><div class="kpi-val" id="kpiFw">—</div></div>
+          <div class="kpi"><span class="kpi-label">Device MAC Address</span><div class="kpi-val" id="kpiMac">—</div></div>
+          <div class="kpi"><span class="kpi-label">Current ADMS Server</span><div class="kpi-val" id="kpiAdms">—</div></div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">Current Hardware Network Info</div>
+                <div class="card-desc">Read directly over TCP from your biometric machine</div>
+              </div>
+              <button class="btn btn-outline" style="height:32px" onclick="connectDevice()">Refresh</button>
+            </div>
+            <div class="row">
+              <div class="field"><label>Subnet Mask</label><input id="curMask" class="input" readonly /></div>
+              <div class="field"><label>Default Gateway</label><input id="curGw" class="input" readonly /></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>DNS Server</label><input id="curDns" class="input" readonly /></div>
+              <div class="field"><label>ADMS Cloud Port</label><input id="curAdmsPort" class="input" readonly /></div>
+            </div>
+            <div class="field"><label>ADMS Cloud Push Host (ICLOCKSVRURL)</label><input id="curAdmsUrl" class="input" readonly /></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">Configure Master HRMS ADMS Push</div>
+                <div class="card-desc">Hostname only (no https:// or /iclock/cdata) for ZKTeco firmware</div>
+              </div>
+              <button class="btn btn-soft" style="height:30px;font-size:12px" onclick="fillPreset()">Master HRMS Preset</button>
+            </div>
+            <div class="row">
+              <div class="field"><label>Subnet Mask</label><input id="newMask" class="input" value="255.255.255.0" /></div>
+              <div class="field"><label>Default Gateway</label><input id="newGw" class="input" value="192.168.1.1" /></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>DNS Server</label><input id="newDns" class="input" value="8.8.8.8" /></div>
+              <div class="field"><label>ADMS Server Port (80 HTTP / 5000 Local)</label><input id="newAdmsPort" class="input" value="80" /></div>
+            </div>
+            <div class="field"><label>Master HRMS ADMS Hostname</label><input id="newAdmsUrl" class="input" value="api.masterhrms.com" /></div>
+            <button class="btn btn-success" onclick="updateAdmsSettings()">Update Device Settings</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 2: USERS, AUTH MODES & LOGS SYNC -->
+      <section id="view-sync" class="view">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="card-title">Pull Enrolled Users, Unlock Modes &amp; Attendance Logs</div>
+              <div class="card-desc">Fetch users (Fingerprint, Face, RFID Card, PIN) and punch logs directly from hardware and push to Master HRMS</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <input id="serverUrlInput" class="input input-sm" style="width:240px" value="http://localhost:5000" placeholder="Master HRMS API URL" />
+              <button id="btnPullAll" class="btn btn-primary" style="height:32px" onclick="pullUsersAndLogs()">1. Pull Users &amp; Logs</button>
+              <button id="btnPushAll" class="btn btn-success" style="height:32px" onclick="pushBundle()">2. Push to Master HRMS</button>
+            </div>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="kpi"><span class="kpi-label">Enrolled Hardware Users</span><div class="kpi-val" id="cntUsers">0</div></div>
+            <div class="kpi"><span class="kpi-label">Downloaded Punch Logs</span><div class="kpi-val" id="cntLogs">0</div></div>
+            <div class="kpi"><span class="kpi-label">Face / Card / PIN Detected</span><div class="kpi-val" id="cntModes">—</div></div>
+          </div>
+
+          <div class="grid-2">
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <strong>Enrolled Hardware Users &amp; Auth Modes</strong>
+                <input id="filterUsers" class="input input-sm" style="width:170px" placeholder="Search user..." oninput="renderUsers()" />
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>User ID</th><th>Machine Name</th><th>Auth Modes</th><th>Card No</th></tr></thead>
+                  <tbody id="usersTbody"><tr><td colspan="4" style="text-align:center;color:#64748b;padding:24px">Click "1. Pull Users &amp; Logs" to fetch from device</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <strong>Attendance Punch Logs (Latest 300)</strong>
+                <input id="filterLogs" class="input input-sm" style="width:170px" placeholder="Search code..." oninput="renderLogs()" />
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>User ID</th><th>Timestamp</th><th>Verify Mode</th><th>Type</th></tr></thead>
+                  <tbody id="logsTbody"><tr><td colspan="4" style="text-align:center;color:#64748b;padding:24px">No logs pulled yet</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 3: BACKGROUND AUTO-SYNC DAEMON -->
+      <section id="view-autosync" class="view">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="card-title">Background Auto-Sync Daemon (Runs Even When Browser Is Closed)</div>
+              <div class="card-desc">Automatically pulls new punches &amp; enrolled users from your biometric machine and pushes them to Master HRMS on schedule</div>
+            </div>
+            <div id="autoSyncBadge" class="status-badge online"><span class="dot"></span> Active</div>
+          </div>
+
+          <div class="row" style="grid-template-columns:2fr 1fr 1fr">
+            <div class="field">
+              <label>Master HRMS Server URL</label>
+              <input id="asServerUrl" class="input" value="https://api.masterhrms.com" />
+            </div>
+            <div class="field">
+              <label>Sync Interval</label>
+              <select id="asInterval" class="input">
+                <option value="1">Every 1 Minute</option>
+                <option value="5" selected>Every 5 Minutes</option>
+                <option value="15">Every 15 Minutes</option>
+                <option value="30">Every 30 Minutes</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Background Auto-Sync</label>
+              <select id="asEnabled" class="input">
+                <option value="true">Enabled (Running)</option>
+                <option value="false">Paused</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="saveAutoSyncConfig()">Save Auto-Sync Settings</button>
+            <button id="btnRunAutoNow" class="btn btn-success" onclick="runAutoSyncNow()">Run Auto-Sync Now</button>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="kpi"><span class="kpi-label">Last Background Sync</span><div class="kpi-val" id="asLastAt">Never</div></div>
+            <div class="kpi"><span class="kpi-label">Last Sync Result</span><div class="kpi-val" id="asLastMsg" style="font-size:12.5px;font-weight:500">—</div></div>
+          </div>
+
+          <div class="card" style="background:#f8fafc;padding:14px">
+            <strong style="font-size:13px">Run Silently on OS Startup (Zero Window):</strong>
+            <div style="font-size:12px;color:#475569;margin-top:4px">
+              &bull; <strong>Windows:</strong> Double-click <code>install-background-windows.bat</code><br/>
+              &bull; <strong>macOS:</strong> Run <code>chmod +x install-background-mac.sh && ./install-background-mac.sh</code><br/>
+              &bull; <strong>Linux:</strong> Run <code>chmod +x install-background-linux.sh && ./install-background-linux.sh</code>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Time</th><th>Trigger</th><th>Status</th><th>Message</th></tr></thead>
+              <tbody id="asHistoryTbody"><tr><td colspan="4" style="text-align:center;color:#64748b;padding:20px">No background sync runs yet</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 4: DIAGNOSTICS & CLOCK SYNC -->
+      <section id="view-diag" class="view">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head"><div><div class="card-title">Clock Sync &amp; Cloud Firewall Check</div><div class="card-desc">Verify hardware clock accuracy and outbound Master HRMS connectivity</div></div></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-outline" onclick="getDeviceTime()">Get Device Time</button>
+              <button class="btn btn-success" onclick="syncDeviceTime()">Sync Clock to PC Time</button>
+              <button class="btn btn-primary" onclick="testCloudServer()">Test Master HRMS Server</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><div><div class="card-title">Raw ZKTeco Option Console</div><div class="card-desc">Read or write any ZKTeco system option (GetOption / SetOption)</div></div></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <input id="optKey" class="input" style="flex:1;min-width:140px" value="ICLOCKSVRURL" placeholder="Option Key" />
+              <input id="optVal" class="input" style="flex:1;min-width:120px" placeholder="Value (for Set)" />
+              <button class="btn btn-outline" onclick="getOpt()">Get</button>
+              <button class="btn btn-primary" onclick="setOpt()">Set</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Diagnostic Output</div><button class="btn btn-outline" style="height:28px;font-size:12px" onclick="document.getElementById('diagConsole').textContent=''">Clear</button></div>
+          <div id="diagConsole" class="console">Master HRMS Cross-Platform Device Manager ready.</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+
+  <script>
+    let currentSn = "";
+    let pulledUsers = [];
+    let pulledLogs = [];
+
+    function toast(msg, type = "") {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.className = type;
+      el.style.display = "block";
+      clearTimeout(window._tt);
+      window._tt = setTimeout(() => (el.style.display = "none"), 4000);
+    }
+
+    function logDiag(msg) {
+      const c = document.getElementById("diagConsole");
+      c.textContent += "\n[" + new Date().toLocaleTimeString() + "] " + msg;
+      c.scrollTop = c.scrollHeight;
+    }
+
+    function switchView(id, btn) {
+      document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+      document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
+      document.getElementById("view-" + id).classList.add("active");
+      if (btn) btn.classList.add("active");
+    }
+
+    function copyText(t) {
+      if (!t || t === "—") return;
+      navigator.clipboard.writeText(t);
+      toast("Copied: " + t, "success");
+    }
+
+    function devTarget() {
+      return {
+        ip: document.getElementById("ipInput").value.trim(),
+        port: Number(document.getElementById("portInput").value) || 4370,
+      };
+    }
+
+    async function apiPost(path, payload) {
+      const r = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json();
+      if (!r.ok || data.ok === false) throw new Error(data.error || JSON.stringify(data.response || "Request failed"));
+      return data;
+    }
+
+    async function connectDevice() {
+      const btn = document.getElementById("btnConnect");
+      btn.disabled = true;
+      btn.textContent = "Connecting...";
+      try {
+        const res = await apiPost("/api/device/connect", devTarget());
+        applyDeviceInfo(res.info);
+        const badge = document.getElementById("statusBadge");
+        badge.className = "status-badge online";
+        badge.innerHTML = '<span class="dot"></span> Connected (' + (res.info.serialNumber || devTarget().ip) + ")";
+        toast("Connected to biometric device!", "success");
+        logDiag("Connected to " + devTarget().ip + ":" + devTarget().port + " | SN: " + res.info.serialNumber);
+      } catch (e) {
+        toast(e.message, "error");
+        logDiag("ERROR: " + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Connect Hardware";
+      }
+    }
+
+    function applyDeviceInfo(info) {
+      currentSn = info.serialNumber || "";
+      document.getElementById("kpiSn").textContent = info.serialNumber || "—";
+      document.getElementById("kpiFw").textContent = info.firmwareVersion || "—";
+      document.getElementById("kpiMac").textContent = info.mac || "—";
+      document.getElementById("kpiAdms").textContent = info.admsUrl ? info.admsUrl + (info.admsPort ? ":" + info.admsPort : "") : "—";
+      document.getElementById("curMask").value = info.netMask || "";
+      document.getElementById("curGw").value = info.gateway || "";
+      document.getElementById("curDns").value = info.dns || "";
+      document.getElementById("curAdmsPort").value = info.admsPort || "";
+      document.getElementById("curAdmsUrl").value = info.admsUrl || "";
+      if (info.netMask) document.getElementById("newMask").value = info.netMask;
+      if (info.gateway) document.getElementById("newGw").value = info.gateway;
+      if (info.dns) document.getElementById("newDns").value = info.dns;
+    }
+
+    function fillPreset() {
+      document.getElementById("newAdmsUrl").value = "api.masterhrms.com";
+      document.getElementById("newAdmsPort").value = "80";
+      toast("Master HRMS Cloud ADMS preset filled.");
+    }
+
+    async function updateAdmsSettings() {
+      try {
+        const res = await apiPost("/api/device/update-adms", {
+          ...devTarget(),
+          netMask: document.getElementById("newMask").value,
+          gateway: document.getElementById("newGw").value,
+          dns: document.getElementById("newDns").value,
+          admsPort: document.getElementById("newAdmsPort").value,
+          admsUrl: document.getElementById("newAdmsUrl").value,
+        });
+        applyDeviceInfo(res.info);
+        toast(res.message, "success");
+        logDiag("Updated ADMS settings -> " + res.info.admsUrl + ":" + res.info.admsPort);
+      } catch (e) {
+        toast(e.message, "error");
+      }
+    }
+
+    async function restartDevice() {
+      if (!confirm("Restart biometric terminal now?")) return;
+      try {
+        const res = await apiPost("/api/device/restart", devTarget());
+        toast(res.message, "success");
+        logDiag("Restart command sent.");
+      } catch (e) {
+        toast(e.message, "error");
+      }
+    }
+
+    async function pullUsersAndLogs() {
+      const btn = document.getElementById("btnPullAll");
+      btn.disabled = true;
+      btn.textContent = "Pulling...";
+      try {
+        const res = await apiPost("/api/device/pull-users-logs", devTarget());
+        if (res.info) applyDeviceInfo(res.info);
+        pulledUsers = res.users || [];
+        pulledLogs = res.logs || [];
+        document.getElementById("cntUsers").textContent = pulledUsers.length.toLocaleString();
+        document.getElementById("cntLogs").textContent = pulledLogs.length.toLocaleString();
+        const faceCnt = pulledUsers.filter((u) => u.hasFace).length;
+        const cardCnt = pulledUsers.filter((u) => u.hasCard).length;
+        const pinCnt = pulledUsers.filter((u) => u.hasPassword).length;
+        document.getElementById("cntModes").textContent = `Face: ${faceCnt} | Card: ${cardCnt} | PIN: ${pinCnt}`;
+        renderUsers();
+        renderLogs();
+        toast(`Pulled ${pulledUsers.length} users & ${pulledLogs.length} logs!`, "success");
+      } catch (e) {
+        toast(e.message, "error");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "1. Pull Users & Logs";
+      }
+    }
+
+    function modePill(m) {
+      const cls = m === "Face" ? "pill-purple" : m === "RFID Card" ? "pill-sky" : m === "PIN" ? "pill-amber" : "pill-blue";
+      return `<span class="pill ${cls}">${m}</span>`;
+    }
+
+    function renderUsers() {
+      const q = (document.getElementById("filterUsers").value || "").toLowerCase();
+      const rows = pulledUsers.filter((u) => !q || String(u.biometricId).toLowerCase().includes(q) || String(u.name).toLowerCase().includes(q));
+      const tb = document.getElementById("usersTbody");
+      if (!rows.length) { tb.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#64748b;padding:20px">No matching users</td></tr>'; return; }
+      tb.innerHTML = rows.map((u) => `<tr><td><strong>${u.biometricId}</strong></td><td>${u.name}</td><td>${(u.authModes || ["Fingerprint"]).map(modePill).join("")}</td><td>${u.cardNumber || "—"}</td></tr>`).join("");
+    }
+
+    function renderLogs() {
+      const q = (document.getElementById("filterLogs").value || "").toLowerCase();
+      const rows = pulledLogs.slice(-300).reverse().filter((l) => !q || String(l.employeeCode).toLowerCase().includes(q));
+      const tb = document.getElementById("logsTbody");
+      if (!rows.length) { tb.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#64748b;padding:20px">No matching logs</td></tr>'; return; }
+      tb.innerHTML = rows.map((l) => `<tr><td><strong>${l.employeeCode}</strong></td><td>${l.punchTimeLocal || l.punchTime}</td><td>${modePill(l.verificationMode)}</td><td>${l.punchType}</td></tr>`).join("");
+    }
+
+    async function pushBundle() {
+      if (!currentSn) return toast("Connect to the device first so Serial Number is read.", "error");
+      if (!pulledUsers.length && !pulledLogs.length) return toast("Pull users & logs first.", "error");
+      const btn = document.getElementById("btnPushAll");
+      btn.disabled = true;
+      btn.textContent = "Pushing...";
+      try {
+        const res = await apiPost("/api/cloud/push-bundle", {
+          serverUrl: document.getElementById("serverUrlInput").value,
+          serialNumber: currentSn,
+          users: pulledUsers,
+          logs: pulledLogs,
+        });
+        toast(res.response?.message || "Pushed to Master HRMS!", "success");
+        logDiag("Push Bundle OK: " + JSON.stringify(res.response));
+      } catch (e) {
+        toast(e.message, "error");
+        logDiag("Push Bundle ERROR: " + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "2. Push to Master HRMS";
+      }
+    }
+
+    async function getDeviceTime() {
+      try { const r = await apiPost("/api/device/time/get", devTarget()); logDiag("Device Clock: " + r.deviceTime); toast("Device Time: " + r.deviceTime, "success"); }
+      catch (e) { toast(e.message, "error"); }
+    }
+
+    async function syncDeviceTime() {
+      try { const r = await apiPost("/api/device/time/sync", devTarget()); logDiag("Synced Device Clock to: " + r.syncedTo); toast("Device clock synced!", "success"); }
+      catch (e) { toast(e.message, "error"); }
+    }
+
+    async function testCloudServer() {
+      try {
+        const r = await apiPost("/api/cloud/test-server", { serverUrl: document.getElementById("serverUrlInput").value });
+        logDiag("Master HRMS Cloud Reachable: " + JSON.stringify(r.response));
+        toast("Master HRMS Server Reachable!", "success");
+      } catch (e) { toast(e.message, "error"); logDiag("Cloud Test Failed: " + e.message); }
+    }
+
+    async function getOpt() {
+      try { const r = await apiPost("/api/device/option/get", { ...devTarget(), key: document.getElementById("optKey").value }); logDiag(r.key + " = " + r.value); }
+      catch (e) { toast(e.message, "error"); }
+    }
+
+    async function setOpt() {
+      try { const r = await apiPost("/api/device/option/set", { ...devTarget(), key: document.getElementById("optKey").value, value: document.getElementById("optVal").value }); logDiag("SET " + r.key + " = " + r.value + " -> " + (r.ok ? "OK" : "FAILED")); toast("Option updated", "success"); }
+      catch (e) { toast(e.message, "error"); }
+    }
+
+    async function loadAutoSyncStatus() {
+      try {
+        const r = await fetch("/api/autosync/status").then((x) => x.json());
+        const cfg = r.config || {};
+        if (cfg.ip) document.getElementById("ipInput").value = cfg.ip;
+        if (cfg.port) document.getElementById("portInput").value = cfg.port;
+        if (cfg.serverUrl) {
+          document.getElementById("asServerUrl").value = cfg.serverUrl;
+          document.getElementById("serverUrlInput").value = cfg.serverUrl;
+        }
+        document.getElementById("asInterval").value = String(cfg.intervalMinutes || 5);
+        document.getElementById("asEnabled").value = cfg.autoSyncEnabled ? "true" : "false";
+        const badge = document.getElementById("autoSyncBadge");
+        badge.className = "status-badge " + (cfg.autoSyncEnabled ? "online" : "");
+        badge.innerHTML = '<span class="dot"></span> ' + (cfg.autoSyncEnabled ? `Active (Every ${cfg.intervalMinutes || 5}m)` : "Paused");
+        document.getElementById("asLastAt").textContent = cfg.lastSyncAt ? new Date(cfg.lastSyncAt).toLocaleString("en-IN") : "Never";
+        document.getElementById("asLastMsg").textContent = cfg.lastSyncMessage || "—";
+
+        const hist = cfg.history || [];
+        const tb = document.getElementById("asHistoryTbody");
+        if (!hist.length) {
+          tb.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#64748b;padding:20px">No background sync runs yet</td></tr>';
+        } else {
+          tb.innerHTML = hist.map((h) => `<tr><td>${new Date(h.at).toLocaleString("en-IN")}</td><td>${h.trigger}</td><td><span class="pill ${h.status === "success" ? "pill-green" : "pill-amber"}">${h.status}</span></td><td>${h.message}</td></tr>`).join("");
+        }
+      } catch {}
+    }
+
+    async function saveAutoSyncConfig() {
+      try {
+        await apiPost("/api/autosync/config", {
+          ...devTarget(),
+          serverUrl: document.getElementById("asServerUrl").value,
+          intervalMinutes: Number(document.getElementById("asInterval").value),
+          autoSyncEnabled: document.getElementById("asEnabled").value === "true",
+        });
+        toast("Background Auto-Sync settings saved!", "success");
+        loadAutoSyncStatus();
+      } catch (e) { toast(e.message, "error"); }
+    }
+
+    async function runAutoSyncNow() {
+      const btn = document.getElementById("btnRunAutoNow");
+      btn.disabled = true;
+      btn.textContent = "Syncing...";
+      try {
+        const res = await apiPost("/api/autosync/run-now", {
+          ...devTarget(),
+          serverUrl: document.getElementById("asServerUrl").value,
+        });
+        toast(res.message || "Auto-sync completed!", "success");
+        loadAutoSyncStatus();
+      } catch (e) {
+        toast(e.message, "error");
+        loadAutoSyncStatus();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Run Auto-Sync Now";
+      }
+    }
+
+    fetch("/api/system").then((r) => r.json()).then((s) => {
+      const osName = s.platform === "win32" ? "Windows" : s.platform === "darwin" ? "macOS" : "Linux";
+      document.getElementById("osBadge").textContent = `${osName} (${s.arch}) • Zero-DLL`;
+    }).catch(() => {});
+    loadAutoSyncStatus();
+    setInterval(loadAutoSyncStatus, 15000);
+  </script>
+</body>
+</html>
