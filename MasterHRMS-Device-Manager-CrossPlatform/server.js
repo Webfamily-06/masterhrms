@@ -15,7 +15,7 @@ const CONFIG_FILE = path.join(__dirname, "config.json");
 const DEFAULT_CONFIG = {
   ip: "10.10.10.215",
   port: 4370,
-  serverUrl: "https://api.masterhrms.com",
+  serverUrl: "https://www.masterhrms.com",
   autoSyncEnabled: true,
   intervalMinutes: 5,
   lastSyncAt: null,
@@ -68,7 +68,7 @@ function sendJson(res, status, data) {
   res.end(body);
 }
 
-function postJsonToUrl(targetUrl, payloadObj) {
+function postJsonToUrl(targetUrl, payloadObj, redirectsLeft = 4) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(targetUrl);
     const lib = urlObj.protocol === "https:" ? https : http;
@@ -86,13 +86,19 @@ function postJsonToUrl(targetUrl, payloadObj) {
         },
       },
       (resp) => {
+        const status = resp.statusCode || 500;
+        if ([301, 302, 307, 308].includes(status) && resp.headers.location && redirectsLeft > 0) {
+          resp.resume();
+          const nextUrl = new URL(resp.headers.location, targetUrl).toString();
+          return postJsonToUrl(nextUrl, payloadObj, redirectsLeft - 1).then(resolve, reject);
+        }
         const chunks = [];
         resp.on("data", (c) => chunks.push(c));
         resp.on("end", () => {
           const text = Buffer.concat(chunks).toString("utf8");
           let json = null;
           try { json = JSON.parse(text); } catch {}
-          resolve({ status: resp.statusCode || 500, body: json || text });
+          resolve({ status, body: json || text });
         });
       }
     );
@@ -363,6 +369,26 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+function openBrowser(url) {
+  const cmd = process.platform === "win32" ? `start "" "${url}"` : process.platform === "darwin" ? `open "${url}"` : `xdg-open "${url}"`;
+  exec(cmd, () => {});
+}
+
+server.on("error", (err) => {
+  if (err && err.code === "EADDRINUSE") {
+    const url = `http://127.0.0.1:${PORT}`;
+    console.log(`\n  Master HRMS Biometric Device Manager is ALREADY running at ${url}`);
+    console.log(`  Opening browser...\n`);
+    if (!process.env.NO_OPEN_BROWSER && !process.argv.includes("--background")) {
+      openBrowser(url);
+    }
+    setTimeout(() => process.exit(0), 600);
+    return;
+  }
+  console.error("Server error:", err);
+  process.exit(1);
+});
+
 server.listen(PORT, "127.0.0.1", () => {
   const url = `http://127.0.0.1:${PORT}`;
   console.log(`\n  Master HRMS Biometric Device Manager (Cross-Platform Background Daemon)`);
@@ -371,7 +397,6 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`  Auto-Sync  : ${appConfig.autoSyncEnabled ? `ENABLED (every ${appConfig.intervalMinutes} min)` : "PAUSED"}\n`);
 
   if (!process.env.NO_OPEN_BROWSER && !process.argv.includes("--background")) {
-    const cmd = process.platform === "win32" ? `start "" "${url}"` : process.platform === "darwin" ? `open "${url}"` : `xdg-open "${url}"`;
-    exec(cmd, () => {});
+    openBrowser(url);
   }
 });

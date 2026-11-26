@@ -294,7 +294,7 @@
               <div class="field"><label>DNS Server</label><input id="newDns" class="input" value="8.8.8.8" /></div>
               <div class="field"><label>ADMS Server Port (80 HTTP / 5000 Local)</label><input id="newAdmsPort" class="input" value="80" /></div>
             </div>
-            <div class="field"><label>Master HRMS ADMS Hostname</label><input id="newAdmsUrl" class="input" value="api.masterhrms.com" /></div>
+            <div class="field"><label>Master HRMS ADMS Hostname</label><input id="newAdmsUrl" class="input" value="www.masterhrms.com" /></div>
             <button class="btn btn-success" onclick="updateAdmsSettings()">Update Device Settings</button>
           </div>
         </div>
@@ -365,7 +365,7 @@
           <div class="row" style="grid-template-columns:2fr 1fr 1fr">
             <div class="field">
               <label>Master HRMS Server URL</label>
-              <input id="asServerUrl" class="input" value="https://api.masterhrms.com" />
+              <input id="asServerUrl" class="input" value="https://www.masterhrms.com" />
             </div>
             <div class="field">
               <label>Sync Interval</label>
@@ -533,7 +533,7 @@
     }
 
     function fillPreset() {
-      document.getElementById("newAdmsUrl").value = "api.masterhrms.com";
+      document.getElementById("newAdmsUrl").value = "www.masterhrms.com";
       document.getElementById("newAdmsPort").value = "80";
       toast("Master HRMS Cloud ADMS preset filled.");
     }
