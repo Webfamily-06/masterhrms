@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, setToken } from '@/src/lib/api';
-import { resolveTenantSubdomainOrigin } from '@/src/lib/platform-domain';
+import { resolveTenantSubdomainOrigin, isTenantSubdomainReachable } from '@/src/lib/platform-domain';
 import { toast } from 'sonner';
 import {
   Loader2,
@@ -183,7 +183,7 @@ function Verify2faContent() {
             tenantSlug: res.tenantSlug || res.user?.tenantSlug || res.user?.tenant?.slug,
             workspaceUrl: res.workspaceUrl,
           });
-          if (targetOrigin) {
+          if (targetOrigin && (await isTenantSubdomainReachable(targetOrigin))) {
             window.location.href = `${targetOrigin}/auth?token=${encodeURIComponent(res.token)}&redirect=${encodeURIComponent(targetRoute)}`;
             return;
           }

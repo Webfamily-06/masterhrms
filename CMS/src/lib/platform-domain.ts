@@ -454,3 +454,41 @@ export function resolveTenantSubdomainOrigin(options: {
   const targetOrigin = `${protocol}//${cleanSlug}.${baseDomain}${port}`;
   return currentOrigin !== targetOrigin.toLowerCase() ? targetOrigin : null;
 }
+
+/**
+ * Verifies that the target tenant subdomain is actually bound to a live deployment
+ * (e.g. wildcard `*.masterhrms.com` configured in Vercel Domains) before redirecting,
+ * preventing `404 DEPLOYMENT_NOT_FOUND` lockouts if wildcard DNS/Vercel binding is pending.
+ */
+export async function isTenantSubdomainReachable(targetOrigin: string): Promise<boolean> {
+  if (typeof window === "undefined" || !targetOrigin) return false;
+  const cacheKey = `subdomain_reachable:${targetOrigin.toLowerCase()}`;
+  try {
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached === "true") return true;
+    if (cached === "false") return false;
+  } catch {}
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2500);
+  try {
+    const res = await fetch(`${targetOrigin}/api/subdomain-check`, {
+      method: "GET",
+      mode: "cors",
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    const ok = res.ok;
+    try {
+      sessionStorage.setItem(cacheKey, ok ? "true" : "false");
+    } catch {}
+    return ok;
+  } catch {
+    try {
+      sessionStorage.setItem(cacheKey, "false");
+    } catch {}
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}

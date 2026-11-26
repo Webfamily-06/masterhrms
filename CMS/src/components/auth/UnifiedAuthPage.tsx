@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, setToken, API_BASE } from '@/src/lib/api';
-import { resolveTenantSubdomainOrigin } from '@/src/lib/platform-domain';
+import { resolveTenantSubdomainOrigin, isTenantSubdomainReachable } from '@/src/lib/platform-domain';
 import { toast } from 'sonner';
 import {
   Loader2,
@@ -319,13 +319,13 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
 
           const targetRoute = resolveDefaultRoute(verifiedRoles, redirect, { isImpersonating });
 
-          // Redirect non-super-admin tenant users to {companySlug}.{domain}/pages/*
+          // Redirect non-super-admin tenant users to {companySlug}.{domain}/pages/* only if subdomain is live
           if (!isSuperAdmin && typeof window !== 'undefined') {
             const targetOrigin = resolveTenantSubdomainOrigin({
               tenantSlug: res.tenantSlug || res.user?.tenantSlug || res.user?.tenant?.slug,
               workspaceUrl: res.workspaceUrl,
             });
-            if (targetOrigin) {
+            if (targetOrigin && (await isTenantSubdomainReachable(targetOrigin))) {
               window.location.href = `${targetOrigin}/auth?token=${encodeURIComponent(res.token)}&redirect=${encodeURIComponent(targetRoute)}`;
               return;
             }
@@ -495,7 +495,7 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
             tenantSlug: res.tenantSlug || res.user?.tenantSlug || res.user?.tenant?.slug,
             workspaceUrl: res.workspaceUrl,
           });
-          if (targetOrigin) {
+          if (targetOrigin && (await isTenantSubdomainReachable(targetOrigin))) {
             window.location.href = `${targetOrigin}/auth?token=${encodeURIComponent(res.token)}&redirect=${encodeURIComponent(targetRoute)}`;
             return;
           }

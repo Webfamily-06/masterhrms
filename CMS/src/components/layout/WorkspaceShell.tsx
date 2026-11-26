@@ -35,7 +35,7 @@ import {
   Bell, History, Database, Code, Webhook, Lightbulb, Bot, Mail
 } from "lucide-react";
 import { api, clearToken, setToken, getAuthToken } from "@/lib/api";
-import { resolveTenantSubdomainOrigin } from "@/lib/platform-domain";
+import { resolveTenantSubdomainOrigin, isTenantSubdomainReachable } from "@/lib/platform-domain";
 import { toast } from "sonner";
 import { WorkspaceUnavailableView } from "@/components/workspace-unavailable-view";
 import { useAppConfig } from "@/lib/useAppConfig";
@@ -663,8 +663,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Enforce tenant subdomain routing: non-super-admin users on the root domain
-  // are automatically redirected to {companySlug}.{domain}/{currentPath}
+  // Enforce tenant subdomain routing only when the subdomain deployment is live & reachable
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!profile || !profile.tenant?.slug) return;
@@ -675,13 +674,20 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     });
     if (!targetOrigin) return;
 
-    const token = getAuthToken();
-    const fullPath = `${window.location.pathname}${window.location.search}`;
-    if (token) {
-      window.location.href = `${targetOrigin}/auth?token=${encodeURIComponent(token)}&redirect=${encodeURIComponent(fullPath)}`;
-    } else {
-      window.location.href = `${targetOrigin}${fullPath}`;
-    }
+    let cancelled = false;
+    isTenantSubdomainReachable(targetOrigin).then((reachable) => {
+      if (cancelled || !reachable) return;
+      const token = getAuthToken();
+      const fullPath = `${window.location.pathname}${window.location.search}`;
+      if (token) {
+        window.location.href = `${targetOrigin}/auth?token=${encodeURIComponent(token)}&redirect=${encodeURIComponent(fullPath)}`;
+      } else {
+        window.location.href = `${targetOrigin}${fullPath}`;
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [profile]);
 
   async function handleSignOut() {
