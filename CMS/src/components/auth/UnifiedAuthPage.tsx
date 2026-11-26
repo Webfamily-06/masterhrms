@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, setToken, API_BASE } from '@/src/lib/api';
+import { resolveTenantSubdomainOrigin } from '@/src/lib/platform-domain';
 import { toast } from 'sonner';
 import {
   Loader2,
@@ -316,21 +317,20 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
           const isSuperAdmin = verifiedRoles.includes('super_admin');
           const isImpersonating = res.isImpersonating || extractRolesFromToken(res.token).isImpersonating;
 
-          // If logging in on root domain, redirect to tenant workspace (ONLY for non-super-admins)
-          // On localhost/127.0.0.1 without custom domain, skip subdomain redirection to avoid NXDOMAIN DNS errors on Windows
-          const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-          if (!isLocalhost && !isSuperAdmin && res.workspaceUrl && typeof window !== 'undefined') {
-            try {
-              const currentOrigin = window.location.origin.toLowerCase();
-              const targetOrigin = new URL(res.workspaceUrl).origin.toLowerCase();
-              if (currentOrigin !== targetOrigin) {
-                window.location.href = `${res.workspaceUrl}/auth?token=${res.token}${redirect ? `&redirect=${encodeURIComponent(redirect)}` : ''}`;
-                return;
-              }
-            } catch {}
+          const targetRoute = resolveDefaultRoute(verifiedRoles, redirect, { isImpersonating });
+
+          // Redirect non-super-admin tenant users to {companySlug}.{domain}/pages/*
+          if (!isSuperAdmin && typeof window !== 'undefined') {
+            const targetOrigin = resolveTenantSubdomainOrigin({
+              tenantSlug: res.tenantSlug || res.user?.tenantSlug || res.user?.tenant?.slug,
+              workspaceUrl: res.workspaceUrl,
+            });
+            if (targetOrigin) {
+              window.location.href = `${targetOrigin}/auth?token=${encodeURIComponent(res.token)}&redirect=${encodeURIComponent(targetRoute)}`;
+              return;
+            }
           }
 
-          const targetRoute = resolveDefaultRoute(verifiedRoles, redirect, { isImpersonating });
           window.location.href = targetRoute;
         }
       }
@@ -488,18 +488,20 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
         const isSuperAdmin = verifiedRoles.includes('super_admin');
         const isImpersonating = res.isImpersonating || extractRolesFromToken(res.token).isImpersonating;
 
-        if (!isSuperAdmin && res.workspaceUrl && typeof window !== 'undefined') {
-          try {
-            const currentOrigin = window.location.origin.toLowerCase();
-            const targetOrigin = new URL(res.workspaceUrl).origin.toLowerCase();
-            if (currentOrigin !== targetOrigin) {
-              window.location.href = `${res.workspaceUrl}/auth?token=${res.token}${redirect ? `&redirect=${encodeURIComponent(redirect)}` : ''}`;
-              return;
-            }
-          } catch {}
+        const targetRoute = resolveDefaultRoute(verifiedRoles, redirect, { isImpersonating });
+
+        if (!isSuperAdmin && typeof window !== 'undefined') {
+          const targetOrigin = resolveTenantSubdomainOrigin({
+            tenantSlug: res.tenantSlug || res.user?.tenantSlug || res.user?.tenant?.slug,
+            workspaceUrl: res.workspaceUrl,
+          });
+          if (targetOrigin) {
+            window.location.href = `${targetOrigin}/auth?token=${encodeURIComponent(res.token)}&redirect=${encodeURIComponent(targetRoute)}`;
+            return;
+          }
         }
 
-        router.push(resolveDefaultRoute(verifiedRoles, redirect, { isImpersonating }));
+        router.push(targetRoute);
       }
     } catch (err: any) {
       toast.error(err.message || 'Verification code failed. Please check your Authenticator app.');

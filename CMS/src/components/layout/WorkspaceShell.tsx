@@ -35,6 +35,7 @@ import {
   Bell, History, Database, Code, Webhook, Lightbulb, Bot, Mail
 } from "lucide-react";
 import { api, clearToken, setToken, getAuthToken } from "@/lib/api";
+import { resolveTenantSubdomainOrigin } from "@/lib/platform-domain";
 import { toast } from "sonner";
 import { WorkspaceUnavailableView } from "@/components/workspace-unavailable-view";
 import { useAppConfig } from "@/lib/useAppConfig";
@@ -661,6 +662,27 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       document.documentElement.style.removeProperty("--impersonation-banner-height");
     };
   }, []);
+
+  // Enforce tenant subdomain routing: non-super-admin users on the root domain
+  // are automatically redirected to {companySlug}.{domain}/{currentPath}
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!profile || !profile.tenant?.slug) return;
+    if (isSuperAdminUser(profile)) return;
+
+    const targetOrigin = resolveTenantSubdomainOrigin({
+      tenantSlug: profile.tenant.slug,
+    });
+    if (!targetOrigin) return;
+
+    const token = getAuthToken();
+    const fullPath = `${window.location.pathname}${window.location.search}`;
+    if (token) {
+      window.location.href = `${targetOrigin}/auth?token=${encodeURIComponent(token)}&redirect=${encodeURIComponent(fullPath)}`;
+    } else {
+      window.location.href = `${targetOrigin}${fullPath}`;
+    }
+  }, [profile]);
 
   async function handleSignOut() {
     try { await api.post("/auth/logout"); } catch {}

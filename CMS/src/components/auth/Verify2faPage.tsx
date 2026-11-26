@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, setToken } from '@/src/lib/api';
+import { resolveTenantSubdomainOrigin } from '@/src/lib/platform-domain';
 import { toast } from 'sonner';
 import {
   Loader2,
@@ -175,18 +176,20 @@ function Verify2faContent() {
         const isSuperAdmin = verifiedRoles.includes('super_admin');
         const isImpersonating = res.isImpersonating || extractRolesFromToken(res.token).isImpersonating;
 
-        if (!isSuperAdmin && res.workspaceUrl && typeof window !== 'undefined') {
-          try {
-            const currentOrigin = window.location.origin.toLowerCase();
-            const targetOrigin = new URL(res.workspaceUrl).origin.toLowerCase();
-            if (currentOrigin !== targetOrigin) {
-              window.location.href = `${res.workspaceUrl}/auth?token=${res.token}${redirect ? `&redirect=${encodeURIComponent(redirect)}` : ''}`;
-              return;
-            }
-          } catch {}
+        const targetRoute = resolveDefaultRoute(verifiedRoles, redirect, { isImpersonating });
+
+        if (!isSuperAdmin && typeof window !== 'undefined') {
+          const targetOrigin = resolveTenantSubdomainOrigin({
+            tenantSlug: res.tenantSlug || res.user?.tenantSlug || res.user?.tenant?.slug,
+            workspaceUrl: res.workspaceUrl,
+          });
+          if (targetOrigin) {
+            window.location.href = `${targetOrigin}/auth?token=${encodeURIComponent(res.token)}&redirect=${encodeURIComponent(targetRoute)}`;
+            return;
+          }
         }
 
-        router.push(resolveDefaultRoute(verifiedRoles, redirect, { isImpersonating }));
+        router.push(targetRoute);
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Invalid or expired verification code.');

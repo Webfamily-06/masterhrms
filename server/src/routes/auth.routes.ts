@@ -861,7 +861,20 @@ const loginHandler = async (req: any, res: Response) => {
             if (primaryCustomDomain?.domain) {
               workspaceUrl = getCustomDomainUrl(primaryCustomDomain.domain);
             } else {
-              workspaceUrl = getWorkspaceUrl(tenant.slug);
+              const reqHost = getEffectiveRequestHost(req).split(":")[0].toLowerCase();
+              const derivedBase =
+                !process.env.BASE_DOMAIN &&
+                reqHost &&
+                reqHost !== "localhost" &&
+                reqHost !== "127.0.0.1" &&
+                !reqHost.endsWith(".vercel.app")
+                  ? reqHost.startsWith("www.")
+                    ? reqHost.slice(4)
+                    : reqHost.split(".").length >= 3
+                      ? reqHost.split(".").slice(1).join(".")
+                      : reqHost
+                  : undefined;
+              workspaceUrl = getWorkspaceUrl(tenant.slug, undefined, derivedBase);
             }
           }
         }

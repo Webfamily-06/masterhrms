@@ -382,3 +382,75 @@ export function isCustomDomainHost(hostname?: string): boolean {
   // Any other host is a Flow 2 custom domain
   return true;
 }
+
+/**
+ * Resolves the target tenant workspace origin (`{protocol}//{companySlug}.{domain}{port}`)
+ * when a non-super-admin user logs in or opens a workspace route on the root domain.
+ * Returns `null` if the browser is already on the target origin or if the current host
+ * cannot host wildcard subdomains (e.g. raw IP addresses or `*.vercel.app` default domains).
+ */
+export function resolveTenantSubdomainOrigin(options: {
+  tenantSlug?: string | null;
+  workspaceUrl?: string | null;
+}): string | null {
+  if (typeof window === "undefined") return null;
+
+  const currentOrigin = window.location.origin.toLowerCase();
+  const hostname = window.location.hostname.toLowerCase();
+  const protocol = window.location.protocol;
+  const port = window.location.port ? `:${window.location.port}` : "";
+
+  // Raw IPs and Vercel default preview domains cannot host wildcard tenant subdomains
+  if (
+    hostname === "127.0.0.1" ||
+    hostname === "0.0.0.0" ||
+    /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) ||
+    hostname.endsWith(".vercel.app")
+  ) {
+    return null;
+  }
+
+  const cleanSlug = (options.tenantSlug || "").trim().toLowerCase();
+
+  // Compute root base domain from current browser host so deployments on ANY domain work automatically
+  let baseDomain = hostname;
+  if (hostname === "localhost" || hostname.endsWith(".localhost")) {
+    baseDomain = "localhost";
+  } else if (hostname.startsWith("www.")) {
+    baseDomain = hostname.slice(4);
+  } else {
+    const configuredBase = getPlatformBaseDomain().toLowerCase();
+    if (configuredBase && configuredBase !== "localhost" && (hostname === configuredBase || hostname.endsWith(`.${configuredBase}`))) {
+      baseDomain = configuredBase;
+    } else {
+      const parts = hostname.split(".");
+      // If currently on {sub}.{domain}.{tld} (e.g. acme.example.com), extract example.com
+      // If on apex {domain}.{tld} (e.g. example.com), keep example.com
+      baseDomain = parts.length >= 3 ? parts.slice(1).join(".") : hostname;
+    }
+  }
+
+  // Prefer verified custom domain if backend returned a non-localhost workspaceUrl on a distinct domain
+  if (options.workspaceUrl) {
+    try {
+      const parsed = new URL(options.workspaceUrl);
+      const targetHost = parsed.hostname.toLowerCase();
+      const isFallbackProdHost =
+        targetHost.endsWith(".masterhrms.com") && baseDomain !== "masterhrms.com";
+      const isLocalMismatch =
+        targetHost.endsWith(".localhost") && baseDomain !== "localhost";
+
+      if (!isFallbackProdHost && !isLocalMismatch) {
+        const targetOrigin = parsed.origin.toLowerCase();
+        return currentOrigin !== targetOrigin ? parsed.origin : null;
+      }
+    } catch {
+      // Ignore malformed workspaceUrl and fall back to slug + active baseDomain
+    }
+  }
+
+  if (!cleanSlug) return null;
+
+  const targetOrigin = `${protocol}//${cleanSlug}.${baseDomain}${port}`;
+  return currentOrigin !== targetOrigin.toLowerCase() ? targetOrigin : null;
+}
