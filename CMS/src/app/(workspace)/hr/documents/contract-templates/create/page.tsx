@@ -181,7 +181,7 @@ export default function CreateContractTemplatePage() {
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="Enter template content..."
-              className="font-mono text-sm"
+              className="tabular-nums text-sm"
               required
             />
           </div>

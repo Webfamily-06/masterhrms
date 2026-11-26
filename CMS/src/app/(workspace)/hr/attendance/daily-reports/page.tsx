@@ -428,7 +428,7 @@ export default function HrDailyReportsPage() {
                         <TableCell className="text-xs font-medium text-foreground p-3">
                           {r.department || '-'}
                         </TableCell>
-                        <TableCell className="text-xs font-mono text-muted-foreground p-3">
+                        <TableCell className="text-xs tabular-nums text-muted-foreground p-3">
                           {r.hours ? `${r.hours} hrs` : '-'}
                         </TableCell>
                         <TableCell className="text-xs font-medium text-foreground p-3">

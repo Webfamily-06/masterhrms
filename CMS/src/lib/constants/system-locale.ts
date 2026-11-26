@@ -143,32 +143,41 @@ export function resolveIanaTimezone(input?: string | null): string {
 }
 
 export const DATE_FORMAT_OPTIONS: Array<{ value: string; label: string; example: string }> = [
-  { value: "M j, Y", label: "M j, Y", example: "(Jan 1, 2025)" },
-  { value: "d-m-Y", label: "d-m-Y", example: "(01-01-2025)" },
-  { value: "m-d-Y", label: "m-d-Y", example: "(01-01-2025)" },
-  { value: "Y-m-d", label: "Y-m-d", example: "(2025-01-01)" },
-  { value: "d M, Y", label: "d M, Y", example: "(01 Jan, 2025)" },
-  { value: "d F, Y", label: "d F, Y", example: "(01 January, 2025)" },
-  { value: "F j, Y", label: "F j, Y", example: "(January 1, 2025)" },
-  { value: "j F Y", label: "j F Y", example: "(1 January 2025)" },
-  { value: "D, M j, Y", label: "D, M j, Y", example: "(Thu, Jan 1, 2025)" },
-  { value: "l, F j, Y", label: "l, F j, Y", example: "(Thursday, January 1, 2025)" },
-  { value: "d/m/Y", label: "d/m/Y", example: "(01/01/2025)" },
+  { value: "YYYY-MM-DD", label: "YYYY-MM-DD", example: "(2024-01-15)" },
+  { value: "MM-DD-YYYY", label: "MM-DD-YYYY", example: "(01-15-2024)" },
+  { value: "DD-MM-YYYY", label: "DD-MM-YYYY", example: "(15-01-2024)" },
+  { value: "YYYY/MM/DD", label: "YYYY/MM/DD", example: "(2024/01/15)" },
+  { value: "MM/DD/YYYY", label: "MM/DD/YYYY", example: "(01/15/2024)" },
+  { value: "DD/MM/YYYY", label: "DD/MM/YYYY", example: "(15/01/2024)" },
 ];
 
 export const TIME_FORMAT_OPTIONS: Array<{ value: string; label: string; example: string }> = [
-  { value: "g:i A", label: "g:i A", example: "(1:30 PM)" },
-  { value: "g:i a", label: "g:i a", example: "(1:30 pm)" },
-  { value: "h:i A", label: "h:i A", example: "(01:30 PM)" },
-  { value: "h:i a", label: "h:i a", example: "(01:30 pm)" },
-  { value: "G:i", label: "G:i", example: "(13:30)" },
-  { value: "H:i", label: "H:i", example: "(13:30)" },
-  { value: "H:i:s", label: "H:i:s", example: "(13:30:00)" },
-  { value: "g:i:s A", label: "g:i:s A", example: "(1:30:00 PM)" },
-  { value: "g:i:s a", label: "g:i:s a", example: "(1:30:00 pm)" },
-  { value: "h:i:s A", label: "h:i:s A", example: "(01:30:00 PM)" },
-  { value: "h:i:s a", label: "h:i:s a", example: "(01:30:00 pm)" },
+  { value: "24h", label: "24 Hour", example: "(13:30)" },
+  { value: "12h", label: "12 Hour", example: "(1:30 PM)" },
 ];
+
+export function normalizeDateFormat(input?: string | null): string {
+  const raw = String(input || "").trim();
+  const allowed = new Set(DATE_FORMAT_OPTIONS.map((o) => o.value));
+  if (allowed.has(raw)) return raw;
+  const legacyMap: Record<string, string> = {
+    "Y-m-d": "YYYY-MM-DD",
+    "m-d-Y": "MM-DD-YYYY",
+    "d-m-Y": "DD-MM-YYYY",
+    "Y/m/d": "YYYY/MM/DD",
+    "m/d/Y": "MM/DD/YYYY",
+    "d/m/Y": "DD/MM/YYYY",
+  };
+  return legacyMap[raw] || "YYYY-MM-DD";
+}
+
+export function normalizeTimeFormat(input?: string | null): "24h" | "12h" {
+  const raw = String(input || "").trim();
+  if (raw === "24h" || raw === "12h") return raw;
+  if (raw.includes("H") || raw.includes("G")) return "24h";
+  if (raw.includes("h") || raw.includes("g") || raw.toLowerCase().includes("a")) return "12h";
+  return "24h";
+}
 
 export interface LanguageOption {
   code: string;
@@ -194,10 +203,403 @@ export const LANGUAGE_OPTIONS: LanguageOption[] = [
   { code: "hi", countryCode: "IN", label: "हिन्दी" },
 ];
 
-/** Format a Date using PHP-style Date Format tokens + IANA timezone */
+export interface CountryOption {
+  code: string; // ISO-2 uppercase (e.g. "IN") -> /assets/img/flags/in.svg
+  name: string;
+  dialCode: string;
+  zipMin?: number;
+  zipMax?: number;
+  phoneMin?: number;
+  phoneMax?: number;
+  states: string[];
+}
+
+export const COUNTRY_OPTIONS: CountryOption[] = [
+  {
+    code: "IN",
+    name: "India",
+    dialCode: "+91",
+    zipMin: 6,
+    zipMax: 6,
+    phoneMin: 10,
+    phoneMax: 10,
+    states: [
+      "Andhra Pradesh",
+      "Arunachal Pradesh",
+      "Assam",
+      "Bihar",
+      "Chhattisgarh",
+      "Goa",
+      "Gujarat",
+      "Haryana",
+      "Himachal Pradesh",
+      "Jharkhand",
+      "Karnataka",
+      "Kerala",
+      "Madhya Pradesh",
+      "Maharashtra",
+      "Manipur",
+      "Meghalaya",
+      "Mizoram",
+      "Nagaland",
+      "Odisha",
+      "Punjab",
+      "Rajasthan",
+      "Sikkim",
+      "Tamil Nadu",
+      "Telangana",
+      "Tripura",
+      "Uttar Pradesh",
+      "Uttarakhand",
+      "West Bengal",
+      "Andaman and Nicobar Islands",
+      "Chandigarh",
+      "Dadra and Nagar Haveli and Daman and Diu",
+      "Delhi",
+      "Jammu and Kashmir",
+      "Ladakh",
+      "Lakshadweep",
+      "Puducherry",
+    ],
+  },
+  {
+    code: "US",
+    name: "United States",
+    dialCode: "+1",
+    zipMin: 5,
+    zipMax: 9,
+    phoneMin: 10,
+    phoneMax: 10,
+    states: [
+      "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut",
+      "Delaware", "District of Columbia", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois",
+      "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts",
+      "Michigan", "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada",
+      "New Hampshire", "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota",
+      "Ohio", "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina",
+      "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
+      "West Virginia", "Wisconsin", "Wyoming",
+    ],
+  },
+  {
+    code: "GB",
+    name: "United Kingdom",
+    dialCode: "+44",
+    zipMin: 4,
+    zipMax: 8,
+    phoneMin: 10,
+    phoneMax: 11,
+    states: ["England", "Scotland", "Wales", "Northern Ireland", "Greater London", "West Midlands", "Greater Manchester", "West Yorkshire"],
+  },
+  {
+    code: "AE",
+    name: "United Arab Emirates",
+    dialCode: "+971",
+    zipMin: 4,
+    zipMax: 6,
+    phoneMin: 9,
+    phoneMax: 9,
+    states: ["Abu Dhabi", "Dubai", "Sharjah", "Ajman", "Umm Al Quwain", "Ras Al Khaimah", "Fujairah"],
+  },
+  {
+    code: "SG",
+    name: "Singapore",
+    dialCode: "+65",
+    zipMin: 6,
+    zipMax: 6,
+    phoneMin: 8,
+    phoneMax: 8,
+    states: ["Central Region", "East Region", "North Region", "North-East Region", "West Region"],
+  },
+  {
+    code: "CA",
+    name: "Canada",
+    dialCode: "+1",
+    zipMin: 5,
+    zipMax: 7,
+    phoneMin: 10,
+    phoneMax: 10,
+    states: [
+      "Alberta", "British Columbia", "Manitoba", "New Brunswick", "Newfoundland and Labrador",
+      "Northwest Territories", "Nova Scotia", "Nunavut", "Ontario", "Prince Edward Island",
+      "Quebec", "Saskatchewan", "Yukon",
+    ],
+  },
+  {
+    code: "AU",
+    name: "Australia",
+    dialCode: "+61",
+    zipMin: 4,
+    zipMax: 4,
+    phoneMin: 9,
+    phoneMax: 10,
+    states: [
+      "Australian Capital Territory", "New South Wales", "Northern Territory", "Queensland",
+      "South Australia", "Tasmania", "Victoria", "Western Australia",
+    ],
+  },
+  {
+    code: "DE",
+    name: "Germany",
+    dialCode: "+49",
+    zipMin: 5,
+    zipMax: 5,
+    phoneMin: 9,
+    phoneMax: 12,
+    states: [
+      "Baden-Württemberg", "Bavaria", "Berlin", "Brandenburg", "Bremen", "Hamburg", "Hesse",
+      "Lower Saxony", "Mecklenburg-Vorpommern", "North Rhine-Westphalia", "Rhineland-Palatinate",
+      "Saarland", "Saxony", "Saxony-Anhalt", "Schleswig-Holstein", "Thuringia",
+    ],
+  },
+  {
+    code: "FR",
+    name: "France",
+    dialCode: "+33",
+    zipMin: 5,
+    zipMax: 5,
+    phoneMin: 9,
+    phoneMax: 10,
+    states: [
+      "Auvergne-Rhône-Alpes", "Bourgogne-Franche-Comté", "Brittany", "Centre-Val de Loire",
+      "Corsica", "Grand Est", "Hauts-de-France", "Île-de-France", "Normandy",
+      "Nouvelle-Aquitaine", "Occitanie", "Pays de la Loire", "Provence-Alpes-Côte d'Azur",
+    ],
+  },
+  {
+    code: "SA",
+    name: "Saudi Arabia",
+    dialCode: "+966",
+    zipMin: 5,
+    zipMax: 5,
+    phoneMin: 9,
+    phoneMax: 9,
+    states: ["Riyadh", "Makkah", "Madinah", "Eastern Province", "Asir", "Tabuk", "Qassim", "Hail", "Jazan", "Najran"],
+  },
+  {
+    code: "QA",
+    name: "Qatar",
+    dialCode: "+974",
+    zipMin: 4,
+    zipMax: 6,
+    phoneMin: 8,
+    phoneMax: 8,
+    states: ["Doha", "Al Rayyan", "Al Wakrah", "Al Khor", "Umm Salal", "Al Daayen", "Al Shamal"],
+  },
+  {
+    code: "OM",
+    name: "Oman",
+    dialCode: "+968",
+    zipMin: 3,
+    zipMax: 6,
+    phoneMin: 8,
+    phoneMax: 8,
+    states: ["Muscat", "Dhofar", "Musandam", "Al Buraimi", "Ad Dakhiliyah", "Al Batinah North", "Al Batinah South"],
+  },
+  {
+    code: "KW",
+    name: "Kuwait",
+    dialCode: "+965",
+    zipMin: 5,
+    zipMax: 5,
+    phoneMin: 8,
+    phoneMax: 8,
+    states: ["Al Asimah", "Hawalli", "Farwaniya", "Mubarak Al-Kabeer", "Ahmadi", "Jahra"],
+  },
+  {
+    code: "BH",
+    name: "Bahrain",
+    dialCode: "+973",
+    zipMin: 3,
+    zipMax: 4,
+    phoneMin: 8,
+    phoneMax: 8,
+    states: ["Capital", "Muharraq", "Northern", "Southern"],
+  },
+  {
+    code: "MY",
+    name: "Malaysia",
+    dialCode: "+60",
+    zipMin: 5,
+    zipMax: 5,
+    phoneMin: 9,
+    phoneMax: 10,
+    states: ["Johor", "Kedah", "Kelantan", "Kuala Lumpur", "Melaka", "Negeri Sembilan", "Pahang", "Penang", "Perak", "Sabah", "Sarawak", "Selangor"],
+  },
+  {
+    code: "NL",
+    name: "Netherlands",
+    dialCode: "+31",
+    zipMin: 4,
+    zipMax: 6,
+    phoneMin: 9,
+    phoneMax: 10,
+    states: ["North Holland", "South Holland", "Utrecht", "North Brabant", "Gelderland", "Limburg", "Overijssel", "Groningen"],
+  },
+  {
+    code: "IE",
+    name: "Ireland",
+    dialCode: "+353",
+    zipMin: 4,
+    zipMax: 7,
+    phoneMin: 9,
+    phoneMax: 10,
+    states: ["Leinster", "Munster", "Connacht", "Ulster", "Dublin", "Cork", "Galway"],
+  },
+  {
+    code: "JP",
+    name: "Japan",
+    dialCode: "+81",
+    zipMin: 7,
+    zipMax: 7,
+    phoneMin: 10,
+    phoneMax: 11,
+    states: ["Tokyo", "Osaka", "Kanagawa", "Aichi", "Saitama", "Chiba", "Hyogo", "Hokkaido", "Fukuoka", "Kyoto"],
+  },
+  {
+    code: "KR",
+    name: "South Korea",
+    dialCode: "+82",
+    zipMin: 5,
+    zipMax: 5,
+    phoneMin: 9,
+    phoneMax: 11,
+    states: ["Seoul", "Busan", "Incheon", "Daegu", "Daejeon", "Gwangju", "Ulsan", "Gyeonggi-do"],
+  },
+  {
+    code: "NZ",
+    name: "New Zealand",
+    dialCode: "+64",
+    zipMin: 4,
+    zipMax: 4,
+    phoneMin: 8,
+    phoneMax: 10,
+    states: ["Auckland", "Wellington", "Canterbury", "Waikato", "Bay of Plenty", "Otago"],
+  },
+  {
+    code: "ZA",
+    name: "South Africa",
+    dialCode: "+27",
+    zipMin: 4,
+    zipMax: 4,
+    phoneMin: 9,
+    phoneMax: 10,
+    states: ["Gauteng", "Western Cape", "KwaZulu-Natal", "Eastern Cape", "Free State", "Limpopo", "Mpumalanga", "North West", "Northern Cape"],
+  },
+  {
+    code: "ES",
+    name: "Spain",
+    dialCode: "+34",
+    zipMin: 5,
+    zipMax: 5,
+    phoneMin: 9,
+    phoneMax: 9,
+    states: ["Madrid", "Catalonia", "Andalusia", "Valencia", "Basque Country", "Galicia", "Castile and León"],
+  },
+  {
+    code: "IT",
+    name: "Italy",
+    dialCode: "+39",
+    zipMin: 5,
+    zipMax: 5,
+    phoneMin: 9,
+    phoneMax: 11,
+    states: ["Lombardy", "Lazio", "Veneto", "Piedmont", "Emilia-Romagna", "Tuscany", "Campania", "Sicily"],
+  },
+  {
+    code: "CH",
+    name: "Switzerland",
+    dialCode: "+41",
+    zipMin: 4,
+    zipMax: 4,
+    phoneMin: 9,
+    phoneMax: 10,
+    states: ["Zurich", "Geneva", "Bern", "Vaud", "Basel-Stadt", "Lucerne", "Ticino"],
+  },
+  {
+    code: "LK",
+    name: "Sri Lanka",
+    dialCode: "+94",
+    zipMin: 5,
+    zipMax: 5,
+    phoneMin: 9,
+    phoneMax: 10,
+    states: ["Western", "Central", "Southern", "Northern", "Eastern", "North Western", "North Central", "Uva", "Sabaragamuwa"],
+  },
+  {
+    code: "PH",
+    name: "Philippines",
+    dialCode: "+63",
+    zipMin: 4,
+    zipMax: 4,
+    phoneMin: 10,
+    phoneMax: 10,
+    states: ["Metro Manila", "Cebu", "Davao", "Calabarzon", "Central Luzon", "Western Visayas"],
+  },
+  {
+    code: "ID",
+    name: "Indonesia",
+    dialCode: "+62",
+    zipMin: 5,
+    zipMax: 5,
+    phoneMin: 9,
+    phoneMax: 12,
+    states: ["Jakarta", "West Java", "East Java", "Central Java", "Bali", "North Sumatra", "Banten"],
+  },
+  {
+    code: "BR",
+    name: "Brazil",
+    dialCode: "+55",
+    zipMin: 8,
+    zipMax: 8,
+    phoneMin: 10,
+    phoneMax: 11,
+    states: ["São Paulo", "Rio de Janeiro", "Minas Gerais", "Bahia", "Paraná", "Rio Grande do Sul", "Distrito Federal"],
+  },
+  {
+    code: "MX",
+    name: "Mexico",
+    dialCode: "+52",
+    zipMin: 5,
+    zipMax: 5,
+    phoneMin: 10,
+    phoneMax: 10,
+    states: ["Mexico City", "Jalisco", "Nuevo León", "State of Mexico", "Puebla", "Guanajuato", "Querétaro"],
+  },
+  {
+    code: "NG",
+    name: "Nigeria",
+    dialCode: "+234",
+    zipMin: 6,
+    zipMax: 6,
+    phoneMin: 10,
+    phoneMax: 11,
+    states: ["Lagos", "Abuja (FCT)", "Rivers", "Kano", "Oyo", "Kaduna", "Ogun"],
+  },
+  {
+    code: "KE",
+    name: "Kenya",
+    dialCode: "+254",
+    zipMin: 5,
+    zipMax: 5,
+    phoneMin: 9,
+    phoneMax: 10,
+    states: ["Nairobi", "Mombasa", "Kisumu", "Nakuru", "Kiambu", "Eldoret"],
+  },
+];
+
+export function getCountryByCode(code?: string | null): CountryOption {
+  const norm = String(code || "IN").trim().toUpperCase();
+  return (
+    COUNTRY_OPTIONS.find((c) => c.code === norm || c.name.toLowerCase() === norm.toLowerCase()) ||
+    COUNTRY_OPTIONS[0]
+  );
+}
+
+/** Format a Date using the selected standard Date Format + IANA timezone */
 export function formatDateWithPattern(
   input: Date | string | number | null | undefined,
-  pattern: string = "Y-m-d",
+  pattern: string = "YYYY-MM-DD",
   timezone: string = "Asia/Kolkata"
 ): string {
   if (!input) return "—";
@@ -205,47 +607,30 @@ export function formatDateWithPattern(
   if (Number.isNaN(dt.getTime())) return String(input);
 
   const tz = resolveIanaTimezone(timezone);
+  const fmt = normalizeDateFormat(pattern);
   try {
     const parts = new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
-      weekday: "long",
     }).formatToParts(dt);
 
-    const monthShort = new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short" }).format(dt);
-    const monthLong = new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "long" }).format(dt);
-    const weekdayShort = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(dt);
-
     const get = (t: string) => parts.find((p) => p.type === t)?.value || "";
-    const Y = get("year");
-    const m = get("month").padStart(2, "0");
-    const d = get("day").padStart(2, "0");
-    const j = String(Number(d));
-    const l = get("weekday");
+    const YYYY = get("year");
+    const MM = get("month").padStart(2, "0");
+    const DD = get("day").padStart(2, "0");
 
-    const map: Record<string, string> = {
-      Y,
-      m,
-      d,
-      j,
-      M: monthShort,
-      F: monthLong,
-      D: weekdayShort,
-      l,
-    };
-
-    return pattern.replace(/[YmdjMFDl]/g, (tok) => map[tok] ?? tok);
+    return fmt.replace("YYYY", YYYY).replace("MM", MM).replace("DD", DD);
   } catch {
     return dt.toLocaleDateString();
   }
 }
 
-/** Format a Date using PHP-style Time Format tokens + IANA timezone */
+/** Format a Date using 24 Hour (13:30) or 12 Hour (1:30 PM) + IANA timezone */
 export function formatTimeWithPattern(
   input: Date | string | number | null | undefined,
-  pattern: string = "h:i a",
+  pattern: string = "24h",
   timezone: string = "Asia/Kolkata"
 ): string {
   if (!input) return "—";
@@ -253,34 +638,25 @@ export function formatTimeWithPattern(
   if (Number.isNaN(dt.getTime())) return String(input);
 
   const tz = resolveIanaTimezone(timezone);
+  const fmt = normalizeTimeFormat(pattern);
   try {
     const parts = new Intl.DateTimeFormat("en-US", {
       timeZone: tz,
       hour: "2-digit",
       minute: "2-digit",
-      second: "2-digit",
       hour12: false,
     }).formatToParts(dt);
 
     const get = (t: string) => parts.find((p) => p.type === t)?.value || "00";
     const h24 = Number(get("hour")) % 24;
     const min = get("minute").padStart(2, "0");
-    const sec = get("second").padStart(2, "0");
-    const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-    const ampm = h24 >= 12 ? "PM" : "AM";
 
-    const map: Record<string, string> = {
-      H: String(h24).padStart(2, "0"),
-      G: String(h24),
-      h: String(h12).padStart(2, "0"),
-      g: String(h12),
-      i: min,
-      s: sec,
-      A: ampm,
-      a: ampm.toLowerCase(),
-    };
-
-    return pattern.replace(/[HGhgisAa]/g, (tok) => map[tok] ?? tok);
+    if (fmt === "12h") {
+      const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+      const ampm = h24 >= 12 ? "PM" : "AM";
+      return `${h12}:${min} ${ampm}`;
+    }
+    return `${String(h24).padStart(2, "0")}:${min}`;
   } catch {
     return dt.toLocaleTimeString();
   }

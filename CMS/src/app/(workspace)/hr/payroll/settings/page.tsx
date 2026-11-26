@@ -511,7 +511,7 @@ export default function HrPayrollSettingsPage() {
                           <div>
                             <div className="flex items-center gap-2">
                               <Badge className="font-semibold">{rule.ruleType}</Badge>
-                              <span className="text-xs font-mono font-medium text-muted-foreground">
+                              <span className="text-xs tabular-nums font-medium text-muted-foreground">
                                 v{rule.version}
                               </span>
                               {rule.isGlobal ? (
@@ -541,7 +541,7 @@ export default function HrPayrollSettingsPage() {
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="p-4 pt-2 space-y-3">
-                        <div className="text-xs bg-muted/60 p-2.5 rounded-md space-y-1 font-mono text-[11px]">
+                        <div className="text-xs bg-muted/60 p-2.5 rounded-md space-y-1 tabular-nums text-[11px]">
                           {rule.ruleType === "EPF" && (
                             <>
                               <div>Ceiling: ₹{rule.configJson?.statutoryCeiling || 15000}/month</div>
@@ -958,23 +958,23 @@ export default function HrPayrollSettingsPage() {
                       <div className="border rounded-md divide-y text-xs">
                         <div className="flex items-center justify-between p-2">
                           <span className="font-medium">EPF (12% of Basic up to ceiling)</span>
-                          <span className="font-mono font-semibold">₹{simResult.breakdown.employeePf?.toFixed(2)}</span>
+                          <span className="tabular-nums font-semibold">₹{simResult.breakdown.employeePf?.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between p-2">
                           <span className="font-medium">ESI (0.75% of Gross if eligible)</span>
-                          <span className="font-mono font-semibold">₹{simResult.breakdown.employeeEsi?.toFixed(2)}</span>
+                          <span className="tabular-nums font-semibold">₹{simResult.breakdown.employeeEsi?.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between p-2">
                           <span className="font-medium">Professional Tax ({simState})</span>
-                          <span className="font-mono font-semibold">₹{simResult.breakdown.professionalTax?.toFixed(2)}</span>
+                          <span className="tabular-nums font-semibold">₹{simResult.breakdown.professionalTax?.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between p-2">
                           <span className="font-medium">Labour Welfare Fund (LWF)</span>
-                          <span className="font-mono font-semibold">₹{simResult.breakdown.employeeLwf?.toFixed(2)}</span>
+                          <span className="tabular-nums font-semibold">₹{simResult.breakdown.employeeLwf?.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between p-2">
                           <span className="font-medium">Monthly TDS (Tax Deducted at Source)</span>
-                          <span className="font-mono font-semibold">₹{simResult.breakdown.tdsMonthly?.toFixed(2)}</span>
+                          <span className="tabular-nums font-semibold">₹{simResult.breakdown.tdsMonthly?.toFixed(2)}</span>
                         </div>
                       </div>
                     </div>
@@ -985,19 +985,19 @@ export default function HrPayrollSettingsPage() {
                       <div className="border rounded-md divide-y text-xs bg-slate-50/50">
                         <div className="flex items-center justify-between p-2">
                           <span>EPF Employer Share (3.67%)</span>
-                          <span className="font-mono">₹{simResult.breakdown.epfEmployer?.toFixed(2)}</span>
+                          <span className="tabular-nums">₹{simResult.breakdown.epfEmployer?.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between p-2">
                           <span>EPS Pension Share (8.33%, Max ₹1,250)</span>
-                          <span className="font-mono">₹{simResult.breakdown.epsEmployer?.toFixed(2)}</span>
+                          <span className="tabular-nums">₹{simResult.breakdown.epsEmployer?.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between p-2">
                           <span>ESI Employer Share (3.25%)</span>
-                          <span className="font-mono">₹{simResult.breakdown.employerEsi?.toFixed(2)}</span>
+                          <span className="tabular-nums">₹{simResult.breakdown.employerEsi?.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between p-2">
                           <span>Gratuity Accrual (15/26 Formula)</span>
-                          <span className="font-mono">₹{simResult.breakdown.gratuityAccrual?.toFixed(2)}</span>
+                          <span className="tabular-nums">₹{simResult.breakdown.gratuityAccrual?.toFixed(2)}</span>
                         </div>
                       </div>
                     </div>
@@ -1007,7 +1007,7 @@ export default function HrPayrollSettingsPage() {
                       <div className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1.5">
                         <Lock className="h-3.5 w-3.5 text-blue-600" /> Statutory Provenance Manifest (Audit Immutable)
                       </div>
-                      <pre className="text-[10px] bg-slate-900 text-slate-100 p-3 rounded-md overflow-x-auto font-mono max-h-40">
+                      <pre className="text-[10px] bg-slate-900 text-slate-100 p-3 rounded-md overflow-x-auto tabular-nums max-h-40">
                         {JSON.stringify(simResult.statutoryManifest, null, 2)}
                       </pre>
                     </div>
@@ -1118,7 +1118,7 @@ export default function HrPayrollSettingsPage() {
               <Label className="text-xs">Proposed Parameters Configuration (JSON)</Label>
               <Textarea
                 rows={6}
-                className="font-mono text-xs"
+                className="tabular-nums text-xs"
                 value={ingestForm.configJsonString}
                 onChange={(e) => setIngestForm({ ...ingestForm, configJsonString: e.target.value })}
               />
@@ -1185,7 +1185,7 @@ export default function HrPayrollSettingsPage() {
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Rule Parameters JSON</Label>
-                <pre className="text-[11px] bg-slate-900 text-slate-100 p-3.5 rounded-md overflow-x-auto font-mono max-h-64">
+                <pre className="text-[11px] bg-slate-900 text-slate-100 p-3.5 rounded-md overflow-x-auto tabular-nums max-h-64">
                   {JSON.stringify(inspectedRule.configJson, null, 2)}
                 </pre>
               </div>

@@ -79,7 +79,7 @@ function OrgTreeNode({
           <div>
             <div className="flex items-center gap-2">
               <span className="font-semibold text-foreground text-sm">{node.name}</span>
-              <Badge variant="outline" className="text-[10px] py-0 px-1 font-mono">
+              <Badge variant="outline" className="text-[10px] py-0 px-1 tabular-nums">
                 {node.employeeCode}
               </Badge>
             </div>

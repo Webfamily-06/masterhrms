@@ -346,7 +346,7 @@ export default function HrLeaveTypesPage() {
                     <Input
                       value={form.color}
                       onChange={(e) => setForm({ ...form, color: e.target.value })}
-                      className="h-9 text-xs font-mono uppercase border-slate-200 dark:border-slate-700 rounded-lg min-w-0"
+                      className="h-9 text-xs tabular-nums uppercase border-slate-200 dark:border-slate-700 rounded-lg min-w-0"
                     />
                   </div>
                 </div>
@@ -392,7 +392,7 @@ export default function HrLeaveTypesPage() {
                 <Button
                   type="submit"
                   disabled={saveMutation.isPending}
-                  className="w-full bg-[#00a76f] hover:bg-[#008f5d] text-white font-medium h-10 rounded-lg text-xs shadow-xs transition-colors"
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium h-10 rounded-lg text-xs shadow-xs transition-colors"
                 >
                   {saveMutation.isPending
                     ? "Saving..."
@@ -436,7 +436,7 @@ export default function HrLeaveTypesPage() {
               <Button
                 type="button"
                 onClick={() => refetch()}
-                className="bg-[#00a76f] hover:bg-[#008f5d] text-white px-5 h-9 rounded-lg text-xs font-medium shrink-0 transition-colors"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground px-5 h-9 rounded-lg text-xs font-medium shrink-0 transition-colors"
               >
                 Search
               </Button>
@@ -545,7 +545,7 @@ export default function HrLeaveTypesPage() {
                                     {item.name}
                                   </h3>
                                   {item.code && (
-                                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                    <span className="text-[10px] tabular-nums px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                                       {item.code}
                                     </span>
                                   )}
@@ -734,7 +734,7 @@ export default function HrLeaveTypesPage() {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <h3 className="font-semibold text-sm text-slate-900 dark:text-slate-100">{item.name}</h3>
                           {item.code && (
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                            <span className="text-[10px] tabular-nums px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                               {item.code}
                             </span>
                           )}
@@ -833,7 +833,7 @@ export default function HrLeaveTypesPage() {
               window.scrollTo({ top: 0, behavior: "smooth" });
             }
           }}
-          className="w-12 h-12 rounded-full bg-[#00a76f] hover:bg-[#008f5d] text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all cursor-pointer"
+          className="w-12 h-12 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center shadow-lg hover:shadow-xl transition-all cursor-pointer"
           title="Create New Leave Type"
           aria-label="Create New Leave Type"
         >

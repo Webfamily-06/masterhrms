@@ -365,7 +365,7 @@ export default function CertificateBrandingPage() {
                           <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                             {asset.assetType.replace("_", " ")}
                           </span>
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-mono">
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground tabular-nums">
                             Certificates/Branding
                           </span>
                         </div>
@@ -542,7 +542,7 @@ export default function CertificateBrandingPage() {
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t">
-                      <span className="font-mono">Certificates/Signatures</span>
+                      <span className="tabular-nums">Certificates/Signatures</span>
                       <button
                         onClick={() => (window.location.href = "/hr/files")}
                         className="text-primary hover:underline flex items-center gap-0.5"
@@ -634,7 +634,7 @@ export default function CertificateBrandingPage() {
             <div className="p-3 bg-muted/40 rounded-lg text-xs space-y-1">
               <p className="font-semibold text-foreground">Current Asset: {assetToReplace?.assetName}</p>
               <p className="text-muted-foreground">Type: {assetToReplace?.assetType?.replace("_", " ")}</p>
-              <p className="text-muted-foreground font-mono">Location: Certificates/Branding</p>
+              <p className="text-muted-foreground tabular-nums">Location: Certificates/Branding</p>
             </div>
 
             <div className="space-y-2">
@@ -680,7 +680,7 @@ export default function CertificateBrandingPage() {
             )}
           </div>
           <DialogFooter className="flex items-center justify-between sm:justify-between">
-            <div className="text-xs text-muted-foreground font-mono">
+            <div className="text-xs text-muted-foreground tabular-nums">
               Folder: Certificates/Branding
             </div>
             <Button variant="outline" onClick={() => setPreviewModalAsset(null)}>

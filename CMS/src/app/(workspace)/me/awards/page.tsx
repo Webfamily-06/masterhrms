@@ -318,7 +318,7 @@ export default function MeAwardsSelfServicePage() {
   };
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto pb-16">
+    <div className="w-full space-y-6 pb-16">
       {/* ─── PageHeader with Action ────────────────────────────────────────── */}
       <PageHeader
         title="My Awards & Recognitions"
@@ -444,7 +444,7 @@ export default function MeAwardsSelfServicePage() {
                           <CardTitle className="text-base font-bold text-foreground leading-tight">
                             {award.awardType?.name || award.giftItem || "Corporate Award"}
                           </CardTitle>
-                          <p className="text-[11px] font-mono text-muted-foreground mt-0.5">
+                          <p className="text-[11px] tabular-nums text-muted-foreground mt-0.5">
                             {award.certificateNo || "AWD-VERIFIED"}
                           </p>
                         </div>
@@ -507,7 +507,7 @@ export default function MeAwardsSelfServicePage() {
                     </Button>
                     <Button
                       size="sm"
-                      className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="h-8 text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground"
                       onClick={() => handleDownloadCertificatePdf(award)}
                     >
                       <Download className="size-3.5" />
@@ -554,7 +554,7 @@ export default function MeAwardsSelfServicePage() {
                 <TableBody>
                   {myNominations.map((nom) => (
                     <TableRow key={nom.id}>
-                      <TableCell className="font-mono text-xs font-semibold">
+                      <TableCell className="tabular-nums text-xs font-semibold">
                         {nom.nominationNumber}
                       </TableCell>
                       <TableCell>
@@ -731,7 +731,7 @@ export default function MeAwardsSelfServicePage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold">Nomination Status & Details</DialogTitle>
-            <DialogDescription className="text-xs font-mono">
+            <DialogDescription className="text-xs tabular-nums">
               #{viewNomination?.nominationNumber}
             </DialogDescription>
           </DialogHeader>
@@ -860,7 +860,7 @@ export default function MeAwardsSelfServicePage() {
                     Date Bestowed
                   </div>
                 </div>
-                <span className="absolute bottom-2 right-4 text-[9px] font-mono text-muted-foreground">
+                <span className="absolute bottom-2 right-4 text-[9px] tabular-nums text-muted-foreground">
                   {certificateViewAward.certificateNo || "AWD-VERIFIED"}
                 </span>
               </div>
@@ -892,7 +892,7 @@ export default function MeAwardsSelfServicePage() {
                   </Button>
                   <Button
                     size="sm"
-                    className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="h-8 text-xs gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground"
                     onClick={() => handleDownloadCertificatePdf(certificateViewAward)}
                   >
                     <Download className="size-3.5" />

@@ -497,7 +497,7 @@ export default function CMSHRProfileChangeRequestsPage() {
                         {Object.entries(selectedRequest.oldValues).map(([k, v]) => (
                           <div key={k} className="p-2 rounded border bg-background">
                             <span className="text-muted-foreground font-medium block text-[11px] uppercase tracking-wider">{k}</span>
-                            <span className="font-mono text-foreground font-medium">{String(v ?? "—")}</span>
+                            <span className="tabular-nums text-foreground font-medium">{String(v ?? "—")}</span>
                           </div>
                         ))}
                       </div>
@@ -518,7 +518,7 @@ export default function CMSHRProfileChangeRequestsPage() {
                         {Object.entries(selectedRequest.newValues).map(([k, v]) => (
                           <div key={k} className="p-2 rounded border border-primary/30 bg-primary/5">
                             <span className="text-primary font-medium block text-[11px] uppercase tracking-wider">{k}</span>
-                            <span className="font-mono text-primary font-semibold">{String(v ?? "—")}</span>
+                            <span className="tabular-nums text-primary font-semibold">{String(v ?? "—")}</span>
                           </div>
                         ))}
                       </div>
@@ -538,7 +538,7 @@ export default function CMSHRProfileChangeRequestsPage() {
                     <FileCheck className="h-4 w-4 text-blue-600" />
                     <span>Supporting Document Proof Attached</span>
                   </div>
-                  <code className="font-mono text-[11px] bg-background px-2 py-0.5 rounded border">
+                  <code className="tabular-nums text-[11px] bg-background px-2 py-0.5 rounded border">
                     {selectedRequest.proofMediaId}
                   </code>
                 </div>

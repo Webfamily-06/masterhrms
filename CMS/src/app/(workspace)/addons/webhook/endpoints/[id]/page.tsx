@@ -188,9 +188,9 @@ function WebhookEndpointDetailPage() {
                 <Badge variant={endpoint.isActive ? "default" : "secondary"}>
                   {endpoint.isActive ? "Active" : "Disabled"}
                 </Badge>
-                <Badge variant="outline" className="font-mono">{endpoint.method}</Badge>
+                <Badge variant="outline" className="tabular-nums">{endpoint.method}</Badge>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5 font-mono break-all">
+              <p className="text-xs text-muted-foreground mt-0.5 tabular-nums break-all">
                 {endpoint.url}
               </p>
             </div>
@@ -235,7 +235,7 @@ function WebhookEndpointDetailPage() {
               <input
                 readOnly
                 value={revealedSecret}
-                className="font-mono text-xs p-2 bg-background border rounded flex-1 select-all"
+                className="tabular-nums text-xs p-2 bg-background border rounded flex-1 select-all"
               />
               <Button
                 size="sm"
@@ -258,7 +258,7 @@ function WebhookEndpointDetailPage() {
               <CardTitle className="text-xs text-muted-foreground uppercase font-semibold">Event Trigger</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="font-mono text-sm font-semibold">{endpoint.eventKey}</p>
+              <p className="tabular-nums text-sm font-semibold">{endpoint.eventKey}</p>
               <p className="text-xs text-muted-foreground mt-1">Module: {endpoint.module}</p>
             </CardContent>
           </Card>
@@ -268,7 +268,7 @@ function WebhookEndpointDetailPage() {
               <CardTitle className="text-xs text-muted-foreground uppercase font-semibold">Reliability & SLA</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xl font-bold font-mono text-emerald-600">{endpoint.successRate7d}%</p>
+              <p className="text-xl font-bold tabular-nums text-emerald-600">{endpoint.successRate7d}%</p>
               <p className="text-xs text-muted-foreground mt-1">
                 Timeout: {endpoint.timeoutMs}ms | Retries: {endpoint.maxRetries}
               </p>
@@ -283,7 +283,7 @@ function WebhookEndpointDetailPage() {
               </Button>
             </CardHeader>
             <CardContent>
-              <p className="font-mono text-xs text-muted-foreground">whsec_••••••••••••••••</p>
+              <p className="tabular-nums text-xs text-muted-foreground">whsec_••••••••••••••••</p>
               <p className="text-[11px] text-muted-foreground mt-1">HMAC-SHA256 signature calculated on payload</p>
             </CardContent>
           </Card>
@@ -318,12 +318,12 @@ function WebhookEndpointDetailPage() {
                         <XCircle className="w-4 h-4 text-rose-500" />
                       )}
                       <div>
-                        <span className="font-mono font-medium">{log.eventKey}</span>
+                        <span className="tabular-nums font-medium">{log.eventKey}</span>
                         <span className="text-muted-foreground ml-2">Attempt #{log.attempt}</span>
                       </div>
                     </div>
                     <div className="flex items-center space-x-4">
-                      <span className="font-mono">{log.httpStatus || "N/A"}</span>
+                      <span className="tabular-nums">{log.httpStatus || "N/A"}</span>
                       <span className="text-muted-foreground">{log.durationMs ? `${log.durationMs}ms` : "—"}</span>
                       <span className="text-muted-foreground">{new Date(log.createdAt).toLocaleTimeString()}</span>
                     </div>

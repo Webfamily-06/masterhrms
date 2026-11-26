@@ -163,7 +163,7 @@ export default function HrLifecycleDashboardPage() {
                   <div className={`p-2 rounded-lg bg-muted ${c.color}`}>
                     <Icon className="h-5 w-5" />
                   </div>
-                  <Badge variant="outline" className="font-mono text-xs">
+                  <Badge variant="outline" className="tabular-nums text-xs">
                     {c.stat}
                   </Badge>
                 </div>

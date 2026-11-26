@@ -41,8 +41,19 @@ export function parseUserAgent(userAgentHeader: string | undefined): { browser_n
 
 export async function recordLoginHistory(req: Request, userId: string, createdBy?: string): Promise<any> {
   try {
-    const rawIp = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "127.0.0.1";
-    const ip = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+    const rawIp =
+      (req.headers["cf-connecting-ip"] as string) ||
+      (req.headers["x-forwarded-for"] as string) ||
+      (req.headers["x-real-ip"] as string) ||
+      req.ip ||
+      req.socket.remoteAddress ||
+      "127.0.0.1";
+    const ip = rawIp.split(",")[0].trim().replace(/^::ffff:/, "").replace(/^::1$/, "127.0.0.1");
+
+    const acceptLang = String(req.headers["accept-language"] || "en").split(",")[0].split("-")[0].trim().toLowerCase() || "en";
+    const city = String(req.headers["x-vercel-ip-city"] || req.headers["cf-ipcity"] || "").trim();
+    const country = String(req.headers["x-vercel-ip-country"] || req.headers["cf-ipcountry"] || "").trim();
+    const location = [city, country].filter(Boolean).join(", ") || "Unknown";
 
     const referrerHeader = (req.headers["referer"] as string) || "";
     let referrer_host: string | null = null;
@@ -60,6 +71,8 @@ export async function recordLoginHistory(req: Request, userId: string, createdBy
       browser_name,
       os_name,
       device_type,
+      language: acceptLang,
+      location,
       referrer_host,
       referrer_path,
     });

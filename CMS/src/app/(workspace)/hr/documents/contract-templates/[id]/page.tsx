@@ -140,7 +140,7 @@ export default function ViewContractTemplatePage() {
       {/* Template Content */}
       <div className="bg-card border border-border/80 rounded-xl shadow-xs p-6 space-y-3">
         <h2 className="text-base font-bold text-foreground">Template Content</h2>
-        <pre className="p-5 rounded-xl bg-muted/40 border border-border/80 text-sm font-mono whitespace-pre-wrap leading-relaxed text-foreground">
+        <pre className="p-5 rounded-xl bg-muted/40 border border-border/80 text-sm tabular-nums whitespace-pre-wrap leading-relaxed text-foreground">
           {template.content}
         </pre>
         <div className="text-xs text-muted-foreground">{template.contentLength} characters</div>
@@ -157,7 +157,7 @@ export default function ViewContractTemplatePage() {
           {(template.variables || []).map((v) => (
             <span
               key={v}
-              className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-mono bg-sky-500/10 text-sky-700 border border-sky-500/20"
+              className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs tabular-nums bg-sky-500/10 text-sky-700 border border-sky-500/20"
             >
               {`{{${v}}}`}
             </span>

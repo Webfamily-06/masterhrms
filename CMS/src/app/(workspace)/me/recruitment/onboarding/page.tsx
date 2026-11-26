@@ -1,5 +1,5 @@
 'use client';
-import {  createFileRoute  } from "@/src/lib/router-compat";
+import { createFileRoute } from "@/src/lib/router-compat";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -42,7 +42,7 @@ export default function MeOnboardingPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="w-full space-y-6">
       <PageHeader
         title="My Onboarding & Buddy Responsibilities"
         description="Assigned pre-boarding checklist actions for incoming new team members."
@@ -94,7 +94,7 @@ export default function MeOnboardingPage() {
                         <Button
                           size="sm"
                           onClick={() => markCompleteMutation.mutate(task.id)}
-                          className="text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                          className="text-xs gap-1 bg-primary hover:bg-primary/90 text-primary-foreground"
                         >
                           <CheckCircle2 className="h-3 w-3" /> Mark Done
                         </Button>

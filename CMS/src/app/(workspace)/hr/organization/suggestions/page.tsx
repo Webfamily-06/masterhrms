@@ -425,11 +425,11 @@ export default function HrSuggestionsPage() {
                           )}
                         </TableCell>
 
-                        <TableCell className="p-3 font-mono text-muted-foreground">
+                        <TableCell className="p-3 tabular-nums text-muted-foreground">
                           {new Date(item.createdAt).toLocaleDateString()}
                         </TableCell>
 
-                        <TableCell className="p-3 font-mono font-bold text-foreground">
+                        <TableCell className="p-3 tabular-nums font-bold text-foreground">
                           <span className="inline-flex items-center gap-1 text-primary">
                             <i className="ph ph-thumbs-up text-xs" /> {item.voteCount || item.votes?.length || 0}
                           </span>
@@ -543,7 +543,7 @@ export default function HrSuggestionsPage() {
                         <Badge variant="outline" className="text-[10px] font-bold">{h.newStatus}</Badge>
                       </TableCell>
                       <TableCell className="p-3 text-muted-foreground max-w-[200px] truncate">{h.notes || "—"}</TableCell>
-                      <TableCell className="p-3 font-mono text-muted-foreground text-right">
+                      <TableCell className="p-3 tabular-nums text-muted-foreground text-right">
                         {new Date(h.createdAt).toLocaleDateString()}
                       </TableCell>
                     </TableRow>
@@ -653,7 +653,7 @@ export default function HrSuggestionsPage() {
                 <Input
                   value={catColor}
                   onChange={(e) => setCatColor(e.target.value)}
-                  className="h-9 text-xs font-mono"
+                  className="h-9 text-xs tabular-nums"
                 />
               </div>
             </div>

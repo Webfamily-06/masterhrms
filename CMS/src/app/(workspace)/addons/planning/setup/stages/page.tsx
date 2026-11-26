@@ -222,7 +222,7 @@ export default function SetupStagesPage() {
                         {stg.name}
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{stg.color}</TableCell>
+                    <TableCell className="tabular-nums text-xs">{stg.color}</TableCell>
                     <TableCell>
                       <span
                         className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${
@@ -285,7 +285,7 @@ export default function SetupStagesPage() {
                 <Input
                   value={form.color}
                   onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))}
-                  className="font-mono text-xs"
+                  className="tabular-nums text-xs"
                 />
               </div>
             </div>

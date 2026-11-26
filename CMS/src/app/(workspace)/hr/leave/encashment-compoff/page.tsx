@@ -1340,7 +1340,7 @@ export default function HrLeaveEncashmentCompOffPage() {
             <Button
               type="button"
               onClick={openNewEncashmentModal}
-              className="bg-[#00a76f] hover:bg-[#008f5d] text-white font-medium rounded-lg px-3.5 h-9 text-xs shadow-xs flex items-center gap-1.5 transition-colors"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg px-3.5 h-9 text-xs shadow-xs flex items-center gap-1.5 transition-colors"
             >
               <Plus className="w-4 h-4" />
               Add Encashment Request
@@ -1820,7 +1820,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                     return (
                       <TableRow key={r.id} className="text-xs hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
                         <TableCell>
-                          <div className="font-mono font-semibold text-slate-800 dark:text-slate-100">
+                          <div className="tabular-nums font-semibold text-slate-800 dark:text-slate-100">
                             {r.requestCode || r.id.slice(0, 8)}
                           </div>
                           <div className="text-[11px] text-slate-500">
@@ -1890,7 +1890,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                               {formatStatusLabel(st)}
                             </span>
                             {payPeriod && (
-                              <span className="text-[11px] text-slate-500 font-mono">
+                              <span className="text-[11px] text-slate-500 tabular-nums">
                                 Payroll: {payPeriod}
                               </span>
                             )}
@@ -1929,7 +1929,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                                   type="button"
                                   size="sm"
                                   onClick={() => openWorkflowDialog("approve", r)}
-                                  className="h-7 px-2.5 text-[11px] bg-[#00a76f] hover:bg-[#008f5d] text-white"
+                                  className="h-7 px-2.5 text-[11px] bg-primary hover:bg-primary/90 text-primary-foreground"
                                 >
                                   Approve
                                 </Button>
@@ -2048,7 +2048,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                         <div className="font-semibold text-slate-900 dark:text-slate-100">
                           {r.employee?.firstName} {r.employee?.lastName}
                         </div>
-                        <div className="text-[11px] text-slate-500 font-mono">
+                        <div className="text-[11px] text-slate-500 tabular-nums">
                           {r.requestCode || r.id.slice(0, 8)} • {r.leaveType?.name}
                         </div>
                       </div>
@@ -2160,7 +2160,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                     return (
                       <TableRow key={r.id} className="text-xs hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
                         <TableCell>
-                          <div className="font-mono font-semibold text-slate-800 dark:text-slate-100">
+                          <div className="tabular-nums font-semibold text-slate-800 dark:text-slate-100">
                             {r.requestCode || r.id.slice(0, 8)}
                           </div>
                           <div className="text-[11px] text-slate-500">
@@ -2249,7 +2249,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                                   type="button"
                                   size="sm"
                                   onClick={() => openWorkflowDialog("approve", r)}
-                                  className="h-7 px-2.5 text-[11px] bg-[#00a76f] hover:bg-[#008f5d] text-white"
+                                  className="h-7 px-2.5 text-[11px] bg-primary hover:bg-primary/90 text-primary-foreground"
                                 >
                                   Approve &amp; Credit
                                 </Button>
@@ -2397,7 +2397,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                     return (
                       <TableRow key={r.id} className="text-xs hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
                         <TableCell>
-                          <div className="font-mono font-semibold">{r.requestCode || r.id.slice(0, 8)}</div>
+                          <div className="tabular-nums font-semibold">{r.requestCode || r.id.slice(0, 8)}</div>
                           <Badge
                             variant="outline"
                             className={`mt-0.5 text-[10px] ${
@@ -2470,7 +2470,7 @@ export default function HrLeaveEncashmentCompOffPage() {
             {transactionRows.map((r: any) => (
               <div key={r.id} className="p-4 space-y-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-mono font-semibold">{r.requestCode || r.id.slice(0, 8)}</span>
+                  <span className="tabular-nums font-semibold">{r.requestCode || r.id.slice(0, 8)}</span>
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getStatusBadgeClasses(
                       r.status
@@ -2579,7 +2579,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                 onClick={() => setConfigSubTab("encashment-policies")}
                 className={
                   configSubTab === "encashment-policies"
-                    ? "bg-[#00a76f] hover:bg-[#008f5d] text-white text-xs h-8"
+                    ? "bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-8"
                     : "text-xs h-8"
                 }
               >
@@ -2592,7 +2592,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                 onClick={() => setConfigSubTab("compoff-policies")}
                 className={
                   configSubTab === "compoff-policies"
-                    ? "bg-[#00a76f] hover:bg-[#008f5d] text-white text-xs h-8"
+                    ? "bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-8"
                     : "text-xs h-8"
                 }
               >
@@ -2608,7 +2608,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                     ? openNewEncashConfigModal
                     : openNewCompOffConfigModal
                 }
-                className="bg-[#00a76f] hover:bg-[#008f5d] text-white text-xs h-8"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-8"
               >
                 <Plus className="w-3.5 h-3.5 mr-1.5" />
                 {configSubTab === "encashment-policies"
@@ -3067,7 +3067,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                 (encashPreview && !encashPreview.valid)
               }
               onClick={() => saveEncashmentMutation.mutate()}
-              className="bg-[#00a76f] hover:bg-[#008f5d] text-white"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {saveEncashmentMutation.isPending
                 ? "Submitting…"
@@ -3287,7 +3287,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                 (compOffPreview && (!compOffPreview.valid || compOffPreview.data?.eligible === false))
               }
               onClick={() => saveCompOffMutation.mutate()}
-              className="bg-[#00a76f] hover:bg-[#008f5d] text-white"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {saveCompOffMutation.isPending
                 ? "Submitting…"
@@ -3471,7 +3471,7 @@ export default function HrLeaveEncashmentCompOffPage() {
               className={
                 ["reject", "mark_failed", "reverse"].includes(workflowModal.action)
                   ? "bg-rose-600 hover:bg-rose-700 text-white"
-                  : "bg-[#00a76f] hover:bg-[#008f5d] text-white"
+                  : "bg-primary hover:bg-primary/90 text-primary-foreground"
               }
             >
               {workflowActionMutation.isPending ? "Processing…" : "Confirm Action"}
@@ -3557,7 +3557,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                     </div>
                     <div>
                       <span className="text-slate-500 block">Payroll Reference</span>
-                      <span className="font-mono font-semibold">
+                      <span className="tabular-nums font-semibold">
                         {detailRecord.payrollRef ||
                           (detailRecord.payrollMonth && detailRecord.payrollYear
                             ? `${String(detailRecord.payrollMonth).padStart(2, "0")}/${detailRecord.payrollYear}`
@@ -3612,7 +3612,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                       <TableBody>
                         {detailRecord.ledgerEntries.map((le: any) => (
                           <TableRow key={le.id} className="text-[11px]">
-                            <TableCell className="font-mono font-semibold">{le.entryType}</TableCell>
+                            <TableCell className="tabular-nums font-semibold">{le.entryType}</TableCell>
                             <TableCell className="font-semibold">{formatLeaveDays(le.days)}d</TableCell>
                             <TableCell>{le.year}</TableCell>
                             <TableCell className="max-w-xs truncate">{le.notes || "—"}</TableCell>
@@ -3645,7 +3645,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                         >
                           <span>
                             Leave Request{" "}
-                            <span className="font-mono">{al.leaveRequestId?.slice(0, 8)}</span>{" "}
+                            <span className="tabular-nums">{al.leaveRequestId?.slice(0, 8)}</span>{" "}
                             {al.leaveRequest
                               ? `(${formatDateDisplay(al.leaveRequest.startDate)} – ${formatDateDisplay(
                                   al.leaveRequest.endDate
@@ -4052,7 +4052,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                 encashCfgForm.eligibleLeaveTypeIds.length === 0
               }
               onClick={() => saveEncashConfigMutation.mutate()}
-              className="bg-[#00a76f] hover:bg-[#008f5d] text-white"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {saveEncashConfigMutation.isPending ? "Saving…" : "Save Encashment Policy"}
             </Button>
@@ -4304,7 +4304,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                 !compOffCfgForm.leaveTypeId
               }
               onClick={() => saveCompOffConfigMutation.mutate()}
-              className="bg-[#00a76f] hover:bg-[#008f5d] text-white"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {saveCompOffConfigMutation.isPending ? "Saving…" : "Save Comp-Off Policy"}
             </Button>

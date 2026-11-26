@@ -1,11 +1,11 @@
 'use client';
 
-import { WorkspaceAdminSettings } from "@/components/workspace-admin-settings";
+import { ManageRolesConsole } from "@/components/roles/manage-roles-console";
 
 export default function TenantRolesPage() {
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <WorkspaceAdminSettings defaultTab="roles" />
+    <div className="w-full px-3 sm:px-4 lg:px-5 py-4 space-y-6">
+      <ManageRolesConsole />
     </div>
   );
 }

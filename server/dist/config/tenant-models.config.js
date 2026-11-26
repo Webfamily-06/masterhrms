@@ -6,7 +6,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DIRECT_TENANT_MODELS = exports.SCOPED_TENANT_MODELS = exports.CHILD_DEPENDENT_MODELS = exports.ROOT_TENANT_MODEL = exports.GLOBAL_MODELS = void 0;
 exports.getModelClassification = getModelClassification;
+exports.validateTenantModelClassifications = validateTenantModelClassifications;
 // Models belonging strictly to the global SaaS platform control plane (Zero tenant isolation required)
+// SEC-006: Removed Setting, SettingSecret, SettingAudit from GLOBAL_MODELS so they never bypass isolation.
 exports.GLOBAL_MODELS = new Set([
     "User",
     "SubscriptionPlan",
@@ -18,9 +20,6 @@ exports.GLOBAL_MODELS = new Set([
     "SystemCronJob",
     "LoginHistory",
     "StateUTMaster",
-    "Setting",
-    "SettingSecret",
-    "SettingAudit",
     "PasswordResetToken",
     "CommercialPriceSchedule",
 ]);
@@ -321,8 +320,6 @@ exports.DIRECT_TENANT_MODELS = new Set([
     "ChatMediaBlob",
 ]);
 function getModelClassification(model) {
-    if (exports.GLOBAL_MODELS.has(model))
-        return "GLOBAL";
     if (model === exports.ROOT_TENANT_MODEL)
         return "ROOT_TENANT";
     if (exports.DIRECT_TENANT_MODELS.has(model))
@@ -331,5 +328,43 @@ function getModelClassification(model) {
         return "CHILD_DEPENDENT";
     if (exports.SCOPED_TENANT_MODELS.has(model))
         return "SCOPED_TENANT";
+    if (exports.GLOBAL_MODELS.has(model))
+        return "GLOBAL";
     return "UNKNOWN";
+}
+/**
+ * SEC-006: Startup & CI invariant validator.
+ * Verifies that every Prisma model appears in at most ONE isolation strategy bucket.
+ * Throws immediately if any model classification conflict exists.
+ */
+function validateTenantModelClassifications() {
+    const seen = new Map();
+    const conflicts = [];
+    const register = (model, bucket) => {
+        const existing = seen.get(model);
+        if (existing && existing !== bucket) {
+            conflicts.push(`Model '${model}' is classified in both ${existing} and ${bucket}`);
+        }
+        else {
+            seen.set(model, bucket);
+        }
+    };
+    register(exports.ROOT_TENANT_MODEL, "ROOT_TENANT");
+    for (const m of exports.GLOBAL_MODELS)
+        register(m, "GLOBAL");
+    for (const m of exports.DIRECT_TENANT_MODELS)
+        register(m, "DIRECT_TENANT");
+    for (const m of exports.CHILD_DEPENDENT_MODELS.keys())
+        register(m, "CHILD_DEPENDENT");
+    for (const m of exports.SCOPED_TENANT_MODELS)
+        register(m, "SCOPED_TENANT");
+    return {
+        valid: conflicts.length === 0,
+        conflicts,
+    };
+}
+// Enforce classification uniqueness immediately on module load
+const _initialValidation = validateTenantModelClassifications();
+if (!_initialValidation.valid) {
+    throw new Error(`[CRITICAL SECURITY] Tenant model classification conflict detected: ${_initialValidation.conflicts.join("; ")}`);
 }

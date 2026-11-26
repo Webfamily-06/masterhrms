@@ -214,7 +214,7 @@ function EditAiDocTemplatePage() {
                       <Badge
                         key={tok}
                         variant="secondary"
-                        className="cursor-pointer hover:bg-primary/20 text-[10px] font-mono"
+                        className="cursor-pointer hover:bg-primary/20 text-[10px] tabular-nums"
                         onClick={() => handleInsertPlaceholder(tok)}
                       >
                         +{tok}
@@ -227,7 +227,7 @@ function EditAiDocTemplatePage() {
                   rows={5}
                   value={promptTemplate}
                   onChange={(e) => setPromptTemplate(e.target.value)}
-                  className="font-mono text-xs"
+                  className="tabular-nums text-xs"
                   required
                 />
               </div>
@@ -238,7 +238,7 @@ function EditAiDocTemplatePage() {
                   <span className="text-[10px] uppercase font-bold text-muted-foreground flex items-center">
                     <Eye className="w-3.5 h-3.5 mr-1" /> Compiled Prompt Preview
                   </span>
-                  <p className="text-xs text-muted-foreground font-mono leading-relaxed select-all">
+                  <p className="text-xs text-muted-foreground tabular-nums leading-relaxed select-all">
                     {previewPrompt}
                   </p>
                 </div>

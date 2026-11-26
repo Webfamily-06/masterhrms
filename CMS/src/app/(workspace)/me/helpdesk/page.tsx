@@ -309,12 +309,12 @@ function HelpdeskPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-full pb-12">
+    <div className="w-full space-y-6 pb-12">
       <BreadcrumbNav className="mb-4" />
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight"> Internal Helpdesk & Employee Support
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Internal Helpdesk & Employee Support
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Internal organization support ticketing for IT hardware, payroll queries, leave policies, and facility issues with SLA tracking.
@@ -382,7 +382,7 @@ function HelpdeskPage() {
               <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
                 <LifeBuoy className="size-3.5 text-blue-500" /> Total Tickets
               </span>
-              <div className="text-xl font-black font-mono text-foreground">
+              <div className="text-xl font-black tabular-nums text-foreground">
                 {summary?.totalTickets || tickets.length} Total
               </div>
             </Card>
@@ -391,7 +391,7 @@ function HelpdeskPage() {
               <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
                 <Clock className="size-3.5 text-amber-500" /> Open Tickets
               </span>
-              <div className="text-xl font-black font-mono text-amber-600">
+              <div className="text-xl font-black tabular-nums text-amber-600">
                 {summary?.openCount || 0} Open
               </div>
             </Card>
@@ -400,7 +400,7 @@ function HelpdeskPage() {
               <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
                 <AlertCircle className="size-3.5 text-blue-500" /> In Progress
               </span>
-              <div className="text-xl font-black font-mono text-blue-600">
+              <div className="text-xl font-black tabular-nums text-blue-600">
                 {summary?.inProgressCount || 0} Active
               </div>
             </Card>
@@ -409,7 +409,7 @@ function HelpdeskPage() {
               <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1.5">
                 <CheckCircle2 className="size-3.5" /> SLA Compliance
               </span>
-              <div className="text-xl font-black font-mono text-emerald-600">
+              <div className="text-xl font-black tabular-nums text-emerald-600">
                 {summary?.slaCompliance || 100}% Resolved
               </div>
             </Card>
@@ -509,9 +509,9 @@ function HelpdeskPage() {
                         <TableRow key={t.id} className="hover:bg-muted/20 text-xs">
                           <TableCell>
                             <div>
-                              <span className="font-mono font-black text-primary block">{t.ticketCode}</span>
+                              <span className="tabular-nums font-black text-primary block">{t.ticketCode}</span>
                               <span className="font-bold text-foreground block max-w-[260px] truncate">{t.subject}</span>
-                              <span className="text-[10px] text-muted-foreground font-mono">
+                              <span className="text-[10px] text-muted-foreground tabular-nums">
                                 {new Date(t.createdAt).toLocaleDateString()} · SLA {t.slaHours}h
                               </span>
                             </div>
@@ -529,7 +529,7 @@ function HelpdeskPage() {
                                 <span className="font-medium text-foreground block">
                                   {t.employee?.firstName} {t.employee?.lastName}
                                 </span>
-                                <span className="text-[10px] text-muted-foreground font-mono">
+                                <span className="text-[10px] text-muted-foreground tabular-nums">
                                   {t.employee?.department?.name || "General"}
                                 </span>
                               </div>
@@ -612,25 +612,25 @@ function HelpdeskPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="p-4 border shadow-2xs space-y-2">
               <span className="text-xs text-muted-foreground font-semibold">Average Response Time</span>
-              <h3 className="text-2xl font-black text-foreground font-mono">1.8 Hours</h3>
+              <h3 className="text-2xl font-black text-foreground tabular-nums">1.8 Hours</h3>
               <p className="text-[11px] text-emerald-600 font-semibold">▲ 24% faster than target</p>
             </Card>
 
             <Card className="p-4 border shadow-2xs space-y-2">
               <span className="text-xs text-muted-foreground font-semibold">First Contact Resolution</span>
-              <h3 className="text-2xl font-black text-foreground font-mono">78.4%</h3>
+              <h3 className="text-2xl font-black text-foreground tabular-nums">78.4%</h3>
               <p className="text-[11px] text-emerald-600 font-semibold">▲ 4.2% this quarter</p>
             </Card>
 
             <Card className="p-4 border shadow-2xs space-y-2">
               <span className="text-xs text-muted-foreground font-semibold">Customer Satisfaction</span>
-              <h3 className="text-2xl font-black text-amber-500 font-mono">4.8 / 5.0</h3>
+              <h3 className="text-2xl font-black text-amber-500 tabular-nums">4.8 / 5.0</h3>
               <p className="text-[11px] text-muted-foreground">Based on 142 resolved ratings</p>
             </Card>
 
             <Card className="p-4 border shadow-2xs space-y-2">
               <span className="text-xs text-muted-foreground font-semibold">Overdue / SLA Breached</span>
-              <h3 className="text-2xl font-black text-rose-600 font-mono">0 Tickets</h3>
+              <h3 className="text-2xl font-black text-rose-600 tabular-nums">0 Tickets</h3>
               <p className="text-[11px] text-emerald-600 font-semibold">● 100% On-Time SLA</p>
             </Card>
           </div>
@@ -649,7 +649,7 @@ function HelpdeskPage() {
                   <div key={c.name} className="space-y-1">
                     <div className="flex justify-between text-xs font-semibold">
                       <span>{c.name}</span>
-                      <span className="font-mono text-muted-foreground">{c.count} tickets ({c.pct}%)</span>
+                      <span className="tabular-nums text-muted-foreground">{c.count} tickets ({c.pct}%)</span>
                     </div>
                     <div className="h-2 rounded-full bg-muted overflow-hidden">
                       <div className="h-full bg-primary rounded-full" style={{ width: `${c.pct}%` }} />
@@ -672,7 +672,7 @@ function HelpdeskPage() {
                       <span className="font-bold block text-foreground">{agent.name}</span>
                       <span className="text-[10px] text-muted-foreground">{agent.resolved} resolved this month</span>
                     </div>
-                    <Badge variant="outline" className="text-[10px] font-mono">
+                    <Badge variant="outline" className="text-[10px] tabular-nums">
                       {agent.open} active
                     </Badge>
                   </div>
@@ -727,13 +727,13 @@ function HelpdeskPage() {
                       <TableCell className="text-xs text-foreground max-w-xs">
                         {sla.description}
                       </TableCell>
-                      <TableCell className="text-xs font-mono font-semibold text-primary">
+                      <TableCell className="text-xs tabular-nums font-semibold text-primary">
                         {sla.firstResponseTime}
                       </TableCell>
-                      <TableCell className="text-xs font-mono font-semibold text-emerald-600">
+                      <TableCell className="text-xs tabular-nums font-semibold text-emerald-600">
                         {sla.resolutionTime}
                       </TableCell>
-                      <TableCell className="text-xs font-mono text-muted-foreground">
+                      <TableCell className="text-xs tabular-nums text-muted-foreground">
                         {sla.escalationTime}
                       </TableCell>
                       <TableCell className="text-xs font-medium text-foreground">
@@ -992,7 +992,7 @@ function HelpdeskPage() {
           <DialogContent className="max-w-xl">
             <DialogHeader>
               <div className="flex items-center justify-between pr-6">
-                <span className="font-mono font-black text-primary text-sm">
+                <span className="tabular-nums font-black text-primary text-sm">
                   {selectedTicketPassport.ticketCode}
                 </span>
                 <Badge variant="outline" className="text-[10px] font-bold capitalize">
@@ -1030,7 +1030,7 @@ function HelpdeskPage() {
                       <div key={i} className="p-2.5 rounded-lg border bg-card space-y-1">
                         <div className="flex justify-between font-bold text-[11px]">
                           <span>{c.isStaff ? "Support Specialist" : "Requester Employee"}</span>
-                          <span className="text-muted-foreground font-mono text-[9px]">
+                          <span className="text-muted-foreground tabular-nums text-[9px]">
                             {new Date(c.createdAt).toLocaleTimeString()}
                           </span>
                         </div>

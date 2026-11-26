@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { api, unwrapArray } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -124,6 +125,8 @@ const EMPTY_FORM = {
 };
 
 export default function HrTrainingSessionsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -300,13 +303,15 @@ export default function HrTrainingSessionsPage() {
         title="Training Sessions"
         description="Manage scheduled training sessions for your employees."
         actions={
-          <Button
-            onClick={openAdd}
-            className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-xs"
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Add Session
-          </Button>
+          !isEmployeePortal ? (
+            <Button
+              onClick={openAdd}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Add Session
+            </Button>
+          ) : undefined
         }
       />
 
@@ -590,24 +595,28 @@ export default function HrTrainingSessionsPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-sky-600"
-                            title="Edit Session"
-                            onClick={() => openEdit(session)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600"
-                            title="Delete Session"
-                            onClick={() => setDeleteTarget(session)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {!isEmployeePortal && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-sky-600"
+                                title="Edit Session"
+                                onClick={() => openEdit(session)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600"
+                                title="Delete Session"
+                                onClick={() => setDeleteTarget(session)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

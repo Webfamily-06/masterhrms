@@ -321,7 +321,7 @@ export default function HrLeaveReportPage() {
 
                   return (
                     <TableRow key={r.id} className="hover:bg-muted/40 transition-colors text-xs">
-                      <TableCell className="p-3 font-mono font-bold text-muted-foreground">
+                      <TableCell className="p-3 tabular-nums font-bold text-muted-foreground">
                         {emp.employeeCode || "EMP-001"}
                       </TableCell>
 
@@ -356,12 +356,12 @@ export default function HrLeaveReportPage() {
                         </Badge>
                       </TableCell>
 
-                      <TableCell className="p-3 font-mono text-muted-foreground">
+                      <TableCell className="p-3 tabular-nums text-muted-foreground">
                         {r.startDate ? format(new Date(r.startDate), "dd MMM yyyy") : "—"} →{" "}
                         {r.endDate ? format(new Date(r.endDate), "dd MMM yyyy") : "—"}
                       </TableCell>
 
-                      <TableCell className="p-3 font-mono font-bold text-primary">
+                      <TableCell className="p-3 tabular-nums font-bold text-primary">
                         {r.days || 1} day(s)
                       </TableCell>
 

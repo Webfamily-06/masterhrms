@@ -373,7 +373,7 @@ export default function HrAttendanceRecordsPage() {
       case "WEEKLY_OFF":
         return <Ban className="h-3.5 w-3.5 text-muted-foreground/40" />;
       case "FUTURE":
-        return <span className="text-muted-foreground/30 font-mono text-xs">-</span>;
+        return <span className="text-muted-foreground/30 tabular-nums text-xs">-</span>;
       case "NOT_ADDED":
         return <Circle className="h-3.5 w-3.5 text-muted-foreground/30" />;
       default:
@@ -925,7 +925,7 @@ export default function HrAttendanceRecordsPage() {
             <span>Day Off</span>
           </div>
           <div className="flex items-center gap-1.5 text-foreground">
-            <span className="text-muted-foreground font-mono font-bold">-</span>
+            <span className="text-muted-foreground tabular-nums font-bold">-</span>
             <span>Future</span>
           </div>
           <div className="flex items-center gap-1.5 text-foreground">

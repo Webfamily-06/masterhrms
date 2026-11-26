@@ -238,7 +238,7 @@ export default function EditDocumentTemplatePage() {
               rows={12}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="font-mono text-sm"
+              className="tabular-nums text-sm"
               required
             />
           </div>
@@ -270,7 +270,7 @@ export default function EditDocumentTemplatePage() {
               rows={4}
               value={defaultValuesText}
               onChange={(e) => setDefaultValuesText(e.target.value)}
-              className="font-mono text-xs"
+              className="tabular-nums text-xs"
             />
           </div>
 

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { api, unwrapArray } from "@/lib/api";
 import { useWorkspaceSettings } from "@/src/context/workspace-settings-context";
 import { PageHeader } from "@/components/ui/page-header";
@@ -191,6 +192,8 @@ function ContractStatusBadge({ status }: { status: string }) {
 }
 
 export default function HrEmployeeContractsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
   const { formatCurrency } = useWorkspaceSettings();
 
@@ -496,13 +499,15 @@ export default function HrEmployeeContractsPage() {
         title="Employee Contracts"
         description="Manage employee contracts and monitor expiry dates."
         actions={
-          <Button
-            onClick={openAdd}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Add Contract
-          </Button>
+          !isEmployeePortal ? (
+            <Button
+              onClick={openAdd}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Add Contract
+            </Button>
+          ) : undefined
         }
       />
 
@@ -795,27 +800,31 @@ export default function HrEmployeeContractsPage() {
                               <Eye className="h-4 w-4 mr-2 text-muted-foreground" />
                               View
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openEdit(c)}>
-                              <Edit className="h-4 w-4 mr-2 text-muted-foreground" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setNextStatus(c.status || "active");
-                                setStatusTarget(c);
-                              }}
-                            >
-                              <RefreshCw className="h-4 w-4 mr-2 text-muted-foreground" />
-                              Update Status
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => setDeleteTarget(c)}
-                              className="text-rose-600 focus:text-rose-600"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
+                            {!isEmployeePortal && (
+                              <>
+                                <DropdownMenuItem onClick={() => openEdit(c)}>
+                                  <Edit className="h-4 w-4 mr-2 text-muted-foreground" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setNextStatus(c.status || "active");
+                                    setStatusTarget(c);
+                                  }}
+                                >
+                                  <RefreshCw className="h-4 w-4 mr-2 text-muted-foreground" />
+                                  Update Status
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => setDeleteTarget(c)}
+                                  className="text-rose-600 focus:text-rose-600"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>

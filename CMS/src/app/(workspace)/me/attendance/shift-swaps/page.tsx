@@ -142,7 +142,7 @@ export default function EmployeeShiftSwapsPage() {
   const pendingPeerActionCount = displayIncoming.filter((s: any) => s.status === "pending_peer").length;
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full space-y-6">
       {/* ── Page Header ── */}
       <PageHeader
         title="Shift Swap Requests"
@@ -285,14 +285,14 @@ export default function EmployeeShiftSwapsPage() {
                               <span className="font-bold text-foreground block">
                                 {swap.requesterEmployee?.firstName} {swap.requesterEmployee?.lastName}
                               </span>
-                              <span className="text-[10px] text-muted-foreground font-mono">
+                              <span className="text-[10px] text-muted-foreground tabular-nums">
                                 {swap.requesterEmployee?.employeeCode || "Colleague"}
                               </span>
                             </div>
                           </div>
                         </TableCell>
 
-                        <TableCell className="p-3 font-mono font-bold text-primary">
+                        <TableCell className="p-3 tabular-nums font-bold text-primary">
                           {new Date(swap.shiftDate).toLocaleDateString("en-US", {
                             weekday: "short",
                             month: "short",
@@ -399,14 +399,14 @@ export default function EmployeeShiftSwapsPage() {
                               <span className="font-bold text-foreground block">
                                 {swap.targetEmployee?.firstName} {swap.targetEmployee?.lastName}
                               </span>
-                              <span className="text-[10px] text-muted-foreground font-mono">
+                              <span className="text-[10px] text-muted-foreground tabular-nums">
                                 {swap.targetEmployee?.employeeCode || "Colleague"}
                               </span>
                             </div>
                           </div>
                         </TableCell>
 
-                        <TableCell className="p-3 font-mono font-bold text-primary">
+                        <TableCell className="p-3 tabular-nums font-bold text-primary">
                           {new Date(swap.shiftDate).toLocaleDateString("en-US", {
                             weekday: "short",
                             month: "short",

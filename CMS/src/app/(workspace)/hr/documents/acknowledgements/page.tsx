@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { api, unwrapArray } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -159,6 +160,8 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function HrDocumentAcknowledgementsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
@@ -460,13 +463,15 @@ export default function HrDocumentAcknowledgementsPage() {
         title="Acknowledgments"
         description="Track employee acknowledgments for HR documents."
         actions={
-          <Button
-            onClick={openAssign}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Assign Document
-          </Button>
+          !isEmployeePortal ? (
+            <Button
+              onClick={openAssign}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Assign Document
+            </Button>
+          ) : undefined
         }
       />
 
@@ -738,14 +743,16 @@ export default function HrDocumentAcknowledgementsPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </button>
-                          <button
-                            type="button"
-                            title="Edit"
-                            onClick={() => openEdit(item)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-amber-600 hover:bg-amber-500/10 transition-colors"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
+                          {!isEmployeePortal && (
+                            <button
+                              type="button"
+                              title="Edit"
+                              onClick={() => openEdit(item)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-amber-600 hover:bg-amber-500/10 transition-colors"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                          )}
                           {!isAcked && (
                             <button
                               type="button"
@@ -759,14 +766,16 @@ export default function HrDocumentAcknowledgementsPage() {
                               <CheckCircle2 className="h-4 w-4" />
                             </button>
                           )}
-                          <button
-                            type="button"
-                            title="Delete"
-                            onClick={() => setDeleteTarget(item)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-rose-600 hover:bg-rose-500/10 transition-colors"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          {!isEmployeePortal && (
+                            <button
+                              type="button"
+                              title="Delete"
+                              onClick={() => setDeleteTarget(item)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-rose-600 hover:bg-rose-500/10 transition-colors"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

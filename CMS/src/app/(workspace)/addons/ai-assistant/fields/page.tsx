@@ -167,14 +167,14 @@ function AiFieldRulesPage() {
                     className="px-4 py-3 text-xs grid grid-cols-12 gap-2 items-center hover:bg-muted/20 transition-colors"
                   >
                     <div className="col-span-3 font-medium flex items-center space-x-1.5">
-                      <Badge variant="outline" className="text-[11px] font-mono">
+                      <Badge variant="outline" className="text-[11px] tabular-nums">
                         {rule.moduleSlug}
                       </Badge>
                     </div>
                     <div className="col-span-4 font-semibold text-foreground">
                       {rule.label}
                     </div>
-                    <div className="col-span-3 font-mono text-muted-foreground">
+                    <div className="col-span-3 tabular-nums text-muted-foreground">
                       {rule.fieldKey}
                     </div>
                     <div className="col-span-2 flex justify-end">

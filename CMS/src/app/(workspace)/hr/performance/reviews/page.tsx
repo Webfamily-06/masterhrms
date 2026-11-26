@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { api, unwrapArray } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -138,6 +139,8 @@ function PersonCell({
 }
 
 export default function HrPerformanceReviewsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -322,13 +325,15 @@ export default function HrPerformanceReviewsPage() {
         title="Employee Reviews"
         description="Manage performance reviews for your employees."
         actions={
-          <Button
-            onClick={() => router.push("/hr/performance/reviews/schedule")}
-            className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-xs"
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Schedule Review
-          </Button>
+          !isEmployeePortal ? (
+            <Button
+              onClick={() => router.push("/hr/performance/reviews/schedule")}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Schedule Review
+            </Button>
+          ) : undefined
         }
       />
 
@@ -556,29 +561,33 @@ export default function HrPerformanceReviewsPage() {
                             </Button>
                           )}
 
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-sky-600"
-                            title="Change Status"
-                            onClick={() => {
-                              setStatusModalReview(review);
-                              setNextStatus(review.status);
-                            }}
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </Button>
+                          {!isEmployeePortal && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-sky-600"
+                                title="Change Status"
+                                onClick={() => {
+                                  setStatusModalReview(review);
+                                  setNextStatus(review.status);
+                                }}
+                              >
+                                <RefreshCw className="h-4 w-4" />
+                              </Button>
 
-                          {!isCompleted && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600"
-                              title="Delete Review"
-                              onClick={() => setDeleteTarget(review)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                              {!isCompleted && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600"
+                                  title="Delete Review"
+                                  onClick={() => setDeleteTarget(review)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>

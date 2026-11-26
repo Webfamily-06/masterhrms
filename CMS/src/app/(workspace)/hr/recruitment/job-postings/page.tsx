@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouterState } from "@/lib/router-compat";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -33,16 +34,20 @@ function formatEmploymentType(job: any): string {
 }
 
 export default function HrJobPostingsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusTab, setStatusTab] = useState<"all" | "draft" | "published">("all");
+  const [statusTab, setStatusTab] = useState<"all" | "draft" | "published">(isEmployeePortal ? "published" : "all");
   const [sortAsc, setSortAsc] = useState<boolean | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
 
   const { data: jobList = [], isLoading } = useQuery({
-    queryKey: ["hr-job-postings"],
+    queryKey: [isEmployeePortal ? "me-job-postings" : "hr-job-postings"],
     queryFn: async () => {
-      const res: any = await api.get("/hr/recruitment/job-postings");
+      const res: any = await api.get(
+        isEmployeePortal ? "/me/recruitment/job-postings" : "/hr/recruitment/job-postings"
+      );
       return Array.isArray(res) ? res : res?.data || res?.jobs || [];
     },
   });
@@ -119,13 +124,15 @@ export default function HrJobPostingsPage() {
             Manage job postings and open positions in your organization.
           </p>
         </div>
-        <Link
-          href="/hr/recruitment/job-postings/new"
-          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors shadow-xs self-start sm:self-auto"
-        >
-          <i className="ph-bold ph-plus text-sm" />
-          Add Job Posting
-        </Link>
+        {!isEmployeePortal && (
+          <Link
+            href="/hr/recruitment/job-postings/new"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold transition-colors shadow-xs self-start sm:self-auto"
+          >
+            <i className="ph-bold ph-plus text-sm" />
+            Add Job Posting
+          </Link>
+        )}
       </div>
 
       {/* Search & Status Tabs Card */}
@@ -316,40 +323,44 @@ export default function HrJobPostingsPage() {
                           >
                             <i className="ph ph-eye text-[15px]" />
                           </Link>
-                          <Link
-                            href={`/hr/recruitment/job-postings/${job.id}/edit`}
-                            title="Edit Job Posting"
-                            className="h-7 w-7 inline-flex items-center justify-center rounded-md text-amber-600 hover:bg-amber-500/10 transition-colors"
-                          >
-                            <i className="ph ph-pencil-simple-line text-[15px]" />
-                          </Link>
-                          {isPublished ? (
-                            <button
-                              type="button"
-                              title="Unpublish (Move to Draft)"
-                              onClick={() => unpublishMutation.mutate(job.id)}
-                              className="h-7 w-7 inline-flex items-center justify-center rounded-md text-slate-600 hover:bg-slate-500/10 transition-colors"
-                            >
-                              <i className="ph ph-download-simple text-[15px]" />
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              title="Publish Job Posting"
-                              onClick={() => publishMutation.mutate(job.id)}
-                              className="h-7 w-7 inline-flex items-center justify-center rounded-md text-emerald-600 hover:bg-emerald-500/10 transition-colors"
-                            >
-                              <i className="ph ph-upload-simple text-[15px]" />
-                            </button>
+                          {!isEmployeePortal && (
+                            <>
+                              <Link
+                                href={`/hr/recruitment/job-postings/${job.id}/edit`}
+                                title="Edit Job Posting"
+                                className="h-7 w-7 inline-flex items-center justify-center rounded-md text-amber-600 hover:bg-amber-500/10 transition-colors"
+                              >
+                                <i className="ph ph-pencil-simple-line text-[15px]" />
+                              </Link>
+                              {isPublished ? (
+                                <button
+                                  type="button"
+                                  title="Unpublish (Move to Draft)"
+                                  onClick={() => unpublishMutation.mutate(job.id)}
+                                  className="h-7 w-7 inline-flex items-center justify-center rounded-md text-slate-600 hover:bg-slate-500/10 transition-colors"
+                                >
+                                  <i className="ph ph-download-simple text-[15px]" />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  title="Publish Job Posting"
+                                  onClick={() => publishMutation.mutate(job.id)}
+                                  className="h-7 w-7 inline-flex items-center justify-center rounded-md text-emerald-600 hover:bg-emerald-500/10 transition-colors"
+                                >
+                                  <i className="ph ph-upload-simple text-[15px]" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                title="Delete Job Posting"
+                                onClick={() => setDeleteTarget(job)}
+                                className="h-7 w-7 inline-flex items-center justify-center rounded-md text-rose-600 hover:bg-rose-500/10 transition-colors"
+                              >
+                                <i className="ph ph-trash text-[15px]" />
+                              </button>
+                            </>
                           )}
-                          <button
-                            type="button"
-                            title="Delete Job Posting"
-                            onClick={() => setDeleteTarget(job)}
-                            className="h-7 w-7 inline-flex items-center justify-center rounded-md text-rose-600 hover:bg-rose-500/10 transition-colors"
-                          >
-                            <i className="ph ph-trash text-[15px]" />
-                          </button>
                         </div>
                       </td>
                     </tr>

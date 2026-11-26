@@ -228,7 +228,7 @@ export default function CMSProfileChangeRequestsPage() {
   };
 
   return (
-    <div className="flex-1 space-y-6 p-6 max-w-7xl mx-auto">
+    <div className="flex-1 w-full space-y-6">
       <PageHeader
         title="Profile Change Requests"
         description="Submit and track self-service updates for personal, banking, address, and statutory information."
@@ -864,7 +864,7 @@ export default function CMSProfileChangeRequestsPage() {
                       {Object.entries(selectedRequest.oldValues).map(([k, v]) => (
                         <div key={k} className="flex justify-between border-b pb-1">
                           <span className="font-medium text-muted-foreground">{k}:</span>
-                          <span className="font-mono text-foreground">{String(v ?? "—")}</span>
+                          <span className="tabular-nums text-foreground">{String(v ?? "—")}</span>
                         </div>
                       ))}
                     </div>
@@ -880,7 +880,7 @@ export default function CMSProfileChangeRequestsPage() {
                       {Object.entries(selectedRequest.newValues).map(([k, v]) => (
                         <div key={k} className="flex justify-between border-b pb-1 bg-primary/5 px-1 rounded">
                           <span className="font-medium text-foreground">{k}:</span>
-                          <span className="font-mono text-primary font-semibold">{String(v ?? "—")}</span>
+                          <span className="tabular-nums text-primary font-semibold">{String(v ?? "—")}</span>
                         </div>
                       ))}
                     </div>
@@ -900,7 +900,7 @@ export default function CMSProfileChangeRequestsPage() {
               {selectedRequest.proofMediaId && (
                 <div className="text-xs flex items-center gap-2 p-2 rounded bg-muted/40 border">
                   <FileCheck className="h-4 w-4 text-blue-600" />
-                  <span>Document Proof Attached (Media ID: <code className="font-mono">{selectedRequest.proofMediaId}</code>)</span>
+                  <span>Document Proof Attached (Media ID: <code className="tabular-nums">{selectedRequest.proofMediaId}</code>)</span>
                 </div>
               )}
             </div>

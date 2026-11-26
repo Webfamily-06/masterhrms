@@ -137,7 +137,7 @@ export default function ChallengeDetailPage() {
           {challenge?.notes && (
             <div>
               <span className="font-semibold text-muted-foreground block mb-1">Internal Notes</span>
-              <p className="bg-muted/20 p-2.5 rounded border text-[11px] font-mono">{challenge.notes}</p>
+              <p className="bg-muted/20 p-2.5 rounded border text-[11px] tabular-nums">{challenge.notes}</p>
             </div>
           )}
         </CardContent>

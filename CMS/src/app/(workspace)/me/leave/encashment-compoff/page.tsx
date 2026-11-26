@@ -582,7 +582,7 @@ export default function MeLeaveEncashmentCompOffPage() {
             <Button
               type="button"
               onClick={openNewEncashModal}
-              className="bg-[#00a76f] hover:bg-[#008f5d] text-white font-medium rounded-lg px-3.5 h-9 text-xs"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg px-3.5 h-9 text-xs"
             >
               <Plus className="w-4 h-4 mr-1" />
               Request Encashment
@@ -791,7 +791,7 @@ export default function MeLeaveEncashmentCompOffPage() {
                     const isCompOff = r.type === "COMP_OFF";
                     return (
                       <TableRow key={r.id} className="text-xs">
-                        <TableCell className="font-mono font-semibold">
+                        <TableCell className="tabular-nums font-semibold">
                           {r.requestCode || r.id.slice(0, 8)}
                         </TableCell>
                         <TableCell>
@@ -837,7 +837,7 @@ export default function MeLeaveEncashmentCompOffPage() {
                             {formatStatusLabel(st)}
                           </span>
                           {r.payrollMonth && r.payrollYear && (
-                            <div className="text-[11px] text-slate-500 mt-0.5 font-mono">
+                            <div className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
                               Payroll: {String(r.payrollMonth).padStart(2, "0")}/{r.payrollYear}
                             </div>
                           )}
@@ -1062,7 +1062,7 @@ export default function MeLeaveEncashmentCompOffPage() {
                                 onClick={() =>
                                   setTeamDecisionTarget({ record: r, action: "approve" })
                                 }
-                                className="h-7 text-[11px] bg-[#00a76f] hover:bg-[#008f5d] text-white"
+                                className="h-7 text-[11px] bg-primary hover:bg-primary/90 text-primary-foreground"
                               >
                                 Approve
                               </Button>
@@ -1224,7 +1224,7 @@ export default function MeLeaveEncashmentCompOffPage() {
                 (encashPreview && !encashPreview.valid)
               }
               onClick={() => submitEncashMutation.mutate()}
-              className="bg-[#00a76f] hover:bg-[#008f5d] text-white"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {submitEncashMutation.isPending ? "Submitting…" : "Submit Request"}
             </Button>
@@ -1352,7 +1352,7 @@ export default function MeLeaveEncashmentCompOffPage() {
                 (compOffPreview && (!compOffPreview.valid || compOffPreview.data?.eligible === false))
               }
               onClick={() => submitCompOffMutation.mutate()}
-              className="bg-[#00a76f] hover:bg-[#008f5d] text-white"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {submitCompOffMutation.isPending ? "Submitting…" : "Submit Comp-Off"}
             </Button>
@@ -1446,7 +1446,7 @@ export default function MeLeaveEncashmentCompOffPage() {
               className={
                 teamDecisionTarget?.action === "reject"
                   ? "bg-rose-600 hover:bg-rose-700 text-white"
-                  : "bg-[#00a76f] hover:bg-[#008f5d] text-white"
+                  : "bg-primary hover:bg-primary/90 text-primary-foreground"
               }
             >
               {teamDecisionMutation.isPending ? "Saving…" : "Confirm"}

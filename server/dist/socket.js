@@ -194,6 +194,9 @@ function initSocket(server, allowedOrigins) {
             const userId = identity.userId || identity.id;
             if (!userId)
                 throw new Error("Invalid token identity");
+            if (process.env.NODE_ENV === "production" && !identity.sessionId) {
+                throw new Error("Active device session required");
+            }
             if (identity.sessionId) {
                 const sessionOk = await verifyActiveDeviceSession(String(identity.sessionId), userId);
                 if (!sessionOk)

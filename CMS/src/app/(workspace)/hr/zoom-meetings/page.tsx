@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouterState } from "@/lib/router-compat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, unwrapArray } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
@@ -111,6 +112,8 @@ function getStatusLabel(status: string) {
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function HrZoomMeetingsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
 
   const todayDate = useMemo(() => new Date(), []);
@@ -147,6 +150,7 @@ export default function HrZoomMeetingsPage() {
 
   const { data: employees = [] } = useQuery<EmployeeOption[]>({
     queryKey: ["hr-employees-for-zoom"],
+    enabled: !isEmployeePortal,
     queryFn: async () => {
       const res = await api.get("/hr/employees?limit=500");
       return unwrapArray<EmployeeOption>(res);
@@ -379,13 +383,15 @@ export default function HrZoomMeetingsPage() {
         title="Zoom Meetings"
         description="Schedule, manage, and start video meetings seamlessly with Zoom."
         actions={
-          <Button
-            onClick={() => openSchedule()}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Schedule Zoom Meeting
-          </Button>
+          !isEmployeePortal ? (
+            <Button
+              onClick={() => openSchedule()}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Schedule Zoom Meeting
+            </Button>
+          ) : undefined
         }
       />
 
@@ -453,11 +459,10 @@ export default function HrZoomMeetingsPage() {
                   key={mode}
                   type="button"
                   onClick={() => setViewMode(mode)}
-                  className={`px-3 py-1.5 capitalize transition-colors ${
-                    viewMode === mode
-                      ? "bg-slate-950 text-white"
-                      : "text-slate-300 hover:bg-slate-700"
-                  }`}
+                  className={`px-3 py-1.5 capitalize transition-colors ${viewMode === mode
+                    ? "bg-slate-950 text-white"
+                    : "text-slate-300 hover:bg-slate-700"
+                    }`}
                 >
                   {mode}
                 </button>
@@ -488,23 +493,21 @@ export default function HrZoomMeetingsPage() {
                     <div
                       key={cell.ymd}
                       onClick={() => setSelectedDate(cell.ymd)}
-                      className={`min-h-[92px] p-1.5 border-r border-b border-border/60 cursor-pointer transition-colors ${
-                        isToday
-                          ? "bg-amber-50/70 dark:bg-amber-500/10"
-                          : isSelected
+                      className={`min-h-[92px] p-1.5 border-r border-b border-border/60 cursor-pointer transition-colors ${isToday
+                        ? "bg-amber-50/70 dark:bg-amber-500/10"
+                        : isSelected
                           ? "bg-primary/5"
                           : "hover:bg-muted/30"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-end mb-1">
                         <span
-                          className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
-                            isSelected
-                              ? "bg-emerald-600 text-white"
-                              : cell.inMonth
+                          className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${isSelected
+                            ? "bg-emerald-600 text-white"
+                            : cell.inMonth
                               ? "text-foreground"
                               : "text-muted-foreground/50"
-                          }`}
+                            }`}
                         >
                           {cell.date.getDate()}
                         </span>
@@ -561,9 +564,8 @@ export default function HrZoomMeetingsPage() {
                     <div
                       key={wd.ymd}
                       onClick={() => setSelectedDate(wd.ymd)}
-                      className={`p-2 border-r last:border-r-0 border-border/60 space-y-2 cursor-pointer ${
-                        isToday ? "bg-amber-50/70 dark:bg-amber-500/10" : "hover:bg-muted/20"
-                      }`}
+                      className={`p-2 border-r last:border-r-0 border-border/60 space-y-2 cursor-pointer ${isToday ? "bg-amber-50/70 dark:bg-amber-500/10" : "hover:bg-muted/20"
+                        }`}
                     >
                       {dayMeetings.map((m) => (
                         <div
@@ -626,14 +628,16 @@ export default function HrZoomMeetingsPage() {
               <CalendarIcon className="h-4 w-4 text-muted-foreground" />
               <span>{selectedDate}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => openSchedule(selectedDate)}
-              className="text-xs font-medium text-emerald-600 hover:text-emerald-700 inline-flex items-center gap-1"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add
-            </button>
+            {!isEmployeePortal && (
+              <button
+                type="button"
+                onClick={() => openSchedule(selectedDate)}
+                className="text-xs font-medium text-primary hover:text-primary/80 inline-flex items-center gap-1"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add
+              </button>
+            )}
           </div>
 
           {isLoading ? (
@@ -734,43 +738,47 @@ export default function HrZoomMeetingsPage() {
                             <Eye className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
                             View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openEdit(m)}>
-                            <Edit className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() =>
-                              statusMutation.mutate({ id: m.id, status: "started" })
-                            }
-                          >
-                            <Play className="h-3.5 w-3.5 mr-2 text-amber-600" />
-                            Mark Started
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() =>
-                              statusMutation.mutate({ id: m.id, status: "ended" })
-                            }
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5 mr-2 text-emerald-600" />
-                            Mark Ended
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() =>
-                              statusMutation.mutate({ id: m.id, status: "cancelled" })
-                            }
-                          >
-                            <XCircle className="h-3.5 w-3.5 mr-2 text-rose-600" />
-                            Cancel Meeting
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => setDeleteTarget(m)}
-                            className="text-rose-600 focus:text-rose-600"
-                          >
-                            <Trash2 className="h-3.5 w-3.5 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
+                          {!isEmployeePortal && (
+                            <>
+                              <DropdownMenuItem onClick={() => openEdit(m)}>
+                                <Edit className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  statusMutation.mutate({ id: m.id, status: "started" })
+                                }
+                              >
+                                <Play className="h-3.5 w-3.5 mr-2 text-amber-600" />
+                                Mark Started
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  statusMutation.mutate({ id: m.id, status: "ended" })
+                                }
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 mr-2 text-emerald-600" />
+                                Mark Ended
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  statusMutation.mutate({ id: m.id, status: "cancelled" })
+                                }
+                              >
+                                <XCircle className="h-3.5 w-3.5 mr-2 text-rose-600" />
+                                Cancel Meeting
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => setDeleteTarget(m)}
+                                className="text-rose-600 focus:text-rose-600"
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -919,11 +927,10 @@ export default function HrZoomMeetingsPage() {
                             key={emp.id}
                             type="button"
                             onClick={() => toggleAttendee(emp.id)}
-                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs text-left transition-colors ${
-                              checked
-                                ? "bg-emerald-500/10 text-emerald-700 font-medium"
-                                : "hover:bg-muted text-foreground"
-                            }`}
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs text-left transition-colors ${checked
+                              ? "bg-emerald-500/10 text-emerald-700 font-medium"
+                              : "hover:bg-muted text-foreground"
+                              }`}
                           >
                             <span>{fullName}</span>
                             {checked && <Check className="h-3.5 w-3.5 text-emerald-600" />}
@@ -991,13 +998,13 @@ export default function HrZoomMeetingsPage() {
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
                   <div className="text-muted-foreground mb-0.5">Meeting ID</div>
-                  <div className="font-mono font-semibold text-foreground">
+                  <div className="tabular-nums font-semibold text-foreground">
                     {viewTarget.zoomMeetingId || "-"}
                   </div>
                 </div>
                 <div>
                   <div className="text-muted-foreground mb-0.5">Passcode</div>
-                  <div className="font-mono font-semibold text-foreground">
+                  <div className="tabular-nums font-semibold text-foreground">
                     {viewTarget.passcode || "-"}
                   </div>
                 </div>
@@ -1010,7 +1017,7 @@ export default function HrZoomMeetingsPage() {
                     <Input
                       readOnly
                       value={viewTarget.joinUrl}
-                      className="h-8 text-xs font-mono bg-muted/30"
+                      className="h-8 text-xs tabular-nums bg-muted/30"
                     />
                     <Button
                       type="button"

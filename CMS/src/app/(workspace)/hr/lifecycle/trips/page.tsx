@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { format, differenceInCalendarDays } from "date-fns";
 import { api, unwrapArray } from "@/lib/api";
 import { useWorkspaceSettings } from "@/src/context/workspace-settings-context";
@@ -246,6 +247,8 @@ const emptyForm = {
 };
 
 export default function HrTripsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const { formatCurrency: formatMoney } = useWorkspaceSettings();
   const queryClient = useQueryClient();
 
@@ -473,17 +476,17 @@ export default function HrTripsPage() {
         title="Trips"
         description="Manage business trips and travel requests for employees."
         breadcrumbs={[
-          { label: "Dashboard", href: "/hr/dashboard" },
-          { label: "Employee Lifecycle", href: "/hr/lifecycle" },
+          { label: "Dashboard", href: isEmployeePortal ? "/me/dashboard" : "/hr/dashboard" },
+          { label: "Employee Lifecycle", href: isEmployeePortal ? "/me/awards" : "/hr/lifecycle" },
           { label: "Trips" },
         ]}
         actions={
           <Button
             onClick={handleOpenCreate}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 h-9"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 h-9"
           >
             <Plus className="h-4 w-4" />
-            Add Trip
+            {isEmployeePortal ? "Request Trip" : "Add Trip"}
           </Button>
         }
       />
@@ -772,7 +775,7 @@ export default function HrTripsPage() {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            {!isCancelled && (
+                            {!isEmployeePortal && !isCancelled && (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -783,66 +786,70 @@ export default function HrTripsPage() {
                                 <Edit2 className="h-4 w-4" />
                               </Button>
                             )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-blue-600"
-                              title="Change Trip Status"
-                              onClick={() => {
-                                setTripStatusModal(t);
-                                setTripStatusValue(normalizeTripStatus(t.status));
-                              }}
-                            >
-                              <RefreshCw className="h-4 w-4" />
-                            </Button>
-                            {!isCancelled && (
+                            {!isEmployeePortal && (
                               <>
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-purple-600"
-                                  title="Change Advance Status"
+                                  className="h-8 w-8 text-muted-foreground hover:text-blue-600"
+                                  title="Change Trip Status"
                                   onClick={() => {
-                                    setAdvanceStatusModal(t);
-                                    setAdvanceStatusValue((t.advanceStatus || "requested").toLowerCase());
+                                    setTripStatusModal(t);
+                                    setTripStatusValue(normalizeTripStatus(t.status));
                                   }}
                                 >
-                                  <DollarSign className="h-4 w-4" />
+                                  <RefreshCw className="h-4 w-4" />
                                 </Button>
+                                {!isCancelled && (
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-muted-foreground hover:text-purple-600"
+                                      title="Change Advance Status"
+                                      onClick={() => {
+                                        setAdvanceStatusModal(t);
+                                        setAdvanceStatusValue((t.advanceStatus || "requested").toLowerCase());
+                                      }}
+                                    >
+                                      <DollarSign className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      asChild
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-muted-foreground hover:text-emerald-600"
+                                      title="Manage Trip Expenses"
+                                    >
+                                      <Link href={`/hr/lifecycle/trips/${t.id}/expenses`}>
+                                        <Receipt className="h-4 w-4" />
+                                      </Link>
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-muted-foreground hover:text-amber-600"
+                                      title="Change Reimbursement Status"
+                                      onClick={() => {
+                                        setReimbStatusModal(t);
+                                        setReimbStatusValue((t.reimbursementStatus || t.settlementStatus || "pending").toLowerCase());
+                                      }}
+                                    >
+                                      <CreditCard className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
                                 <Button
-                                  asChild
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-emerald-600"
-                                  title="Manage Trip Expenses"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                  title="Delete Trip"
+                                  onClick={() => setDeleteTarget(t)}
                                 >
-                                  <Link href={`/hr/lifecycle/trips/${t.id}/expenses`}>
-                                    <Receipt className="h-4 w-4" />
-                                  </Link>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-amber-600"
-                                  title="Change Reimbursement Status"
-                                  onClick={() => {
-                                    setReimbStatusModal(t);
-                                    setReimbStatusValue((t.reimbursementStatus || t.settlementStatus || "pending").toLowerCase());
-                                  }}
-                                >
-                                  <CreditCard className="h-4 w-4" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               </>
                             )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                              title="Delete Trip"
-                              onClick={() => setDeleteTarget(t)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
                             <Button
                               variant="outline"
                               size="icon"

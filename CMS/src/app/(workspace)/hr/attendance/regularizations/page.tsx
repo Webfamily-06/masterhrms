@@ -537,11 +537,11 @@ export default function HrAttendanceRegularizationsPage() {
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Original
                       </p>
-                      <p className="font-mono font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                      <p className="tabular-nums font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         {formatTimeHm(item.originalIn)}
                       </p>
-                      <p className="font-mono font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                      <p className="tabular-nums font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         {formatTimeHm(item.originalOut)}
                       </p>
@@ -553,11 +553,11 @@ export default function HrAttendanceRegularizationsPage() {
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Requested
                       </p>
-                      <p className="font-mono font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center justify-end gap-1">
+                      <p className="tabular-nums font-semibold text-emerald-600 dark:text-emerald-400 inline-flex items-center justify-end gap-1">
                         <Clock className="h-3 w-3" />
                         {formatTimeHm(item.proposedIn)}
                       </p>
-                      <p className="font-mono font-semibold text-emerald-600 dark:text-emerald-400 flex items-center justify-end gap-1">
+                      <p className="tabular-nums font-semibold text-emerald-600 dark:text-emerald-400 flex items-center justify-end gap-1">
                         <Clock className="h-3 w-3" />
                         {formatTimeHm(item.proposedOut)}
                       </p>
@@ -798,13 +798,13 @@ export default function HrAttendanceRegularizationsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <span className="text-muted-foreground">Original Time</span>
-                  <p className="font-mono font-semibold text-rose-600 mt-0.5">
+                  <p className="tabular-nums font-semibold text-rose-600 mt-0.5">
                     {formatTimeHm(viewItem.originalIn)} – {formatTimeHm(viewItem.originalOut)}
                   </p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Requested Time</span>
-                  <p className="font-mono font-semibold text-emerald-600 mt-0.5">
+                  <p className="tabular-nums font-semibold text-emerald-600 mt-0.5">
                     {formatTimeHm(viewItem.proposedIn)} – {formatTimeHm(viewItem.proposedOut)}
                   </p>
                 </div>

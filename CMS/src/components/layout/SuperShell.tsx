@@ -783,6 +783,12 @@ export function SuperShell({ children }: { children: React.ReactNode }) {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator className="my-2" />
                   <DropdownMenuItem asChild>
+                    <Link to="/super/profile" className="flex items-center gap-2.5 cursor-pointer py-2 text-xs">
+                      <i className="ph-duotone ph-user-circle text-base text-muted-foreground"></i>
+                      <span>Profile Settings</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
                     <Link to="/super/settings" className="flex items-center gap-2.5 cursor-pointer py-2 text-xs">
                       <i className="ph-duotone ph-gear text-base text-muted-foreground"></i>
                       <span>Platform Settings</span>

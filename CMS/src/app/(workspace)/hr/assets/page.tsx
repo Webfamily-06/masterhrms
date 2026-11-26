@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -137,6 +138,8 @@ const emptyAssetForm = {
 };
 
 export default function HrAssetsListPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const docInputRef = useRef<HTMLInputElement | null>(null);
@@ -533,20 +536,24 @@ export default function HrAssetsListPage() {
               <span>Dashboard</span>
             </Button>
           </Link>
-          <Link href="/hr/assets/depreciation">
-            <Button variant="outline" size="sm" className="h-9 gap-1.5">
-              <i className="ph ph-trend-down text-base" />
-              <span>Depreciation Report</span>
-            </Button>
-          </Link>
-          <Button
-            size="sm"
-            onClick={openAddModal}
-            className="h-9 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            <i className="ph ph-plus text-base" />
-            <span>Add Asset</span>
-          </Button>
+          {!isEmployeePortal && (
+            <>
+              <Link href="/hr/assets/depreciation">
+                <Button variant="outline" size="sm" className="h-9 gap-1.5">
+                  <i className="ph ph-trend-down text-base" />
+                  <span>Depreciation Report</span>
+                </Button>
+              </Link>
+              <Button
+                size="sm"
+                onClick={openAddModal}
+                className="h-9 gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground"
+              >
+                <i className="ph ph-plus text-base" />
+                <span>Add Asset</span>
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -823,74 +830,78 @@ export default function HrAssetsListPage() {
                           >
                             <i className="ph ph-eye text-base" />
                           </Link>
-                          <button
-                            type="button"
-                            title="Edit Asset"
-                            onClick={() => openEditModal(asset)}
-                            className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                          >
-                            <i className="ph ph-note-pencil text-base" />
-                          </button>
-                          <button
-                            type="button"
-                            title="Assign Asset"
-                            disabled={asset.status === "assigned"}
-                            onClick={() => {
-                              setAssignTarget(asset);
-                              setAssignForm({
-                                employeeId: "",
-                                checkoutDate: todayISO(),
-                                expectedReturnDate: "",
-                                checkoutCondition: asset.condition || "good",
-                                notes: "",
-                              });
-                            }}
-                            className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10 disabled:opacity-35 disabled:pointer-events-none transition-colors"
-                          >
-                            <i className="ph ph-user-plus text-base" />
-                          </button>
-                          <button
-                            type="button"
-                            title="Return Asset"
-                            disabled={asset.status !== "assigned"}
-                            onClick={() => {
-                              setReturnTarget(asset);
-                              setReturnForm({
-                                checkInDate: todayISO(),
-                                checkInCondition: asset.condition || "good",
-                                notes: "",
-                              });
-                            }}
-                            className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-sky-600 hover:bg-sky-500/10 disabled:opacity-35 disabled:pointer-events-none transition-colors"
-                          >
-                            <i className="ph ph-arrow-u-down-left text-base" />
-                          </button>
-                          <button
-                            type="button"
-                            title="Schedule Maintenance"
-                            onClick={() => {
-                              setMaintTarget(asset);
-                              setMaintForm({
-                                maintenanceType: "preventive",
-                                startDate: todayISO(),
-                                endDate: "",
-                                cost: "",
-                                details: "",
-                                supplier: asset.vendor || "",
-                              });
-                            }}
-                            className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10 transition-colors"
-                          >
-                            <i className="ph ph-wrench text-base" />
-                          </button>
-                          <button
-                            type="button"
-                            title="Delete Asset"
-                            onClick={() => setDeleteTarget(asset)}
-                            className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 transition-colors"
-                          >
-                            <i className="ph ph-trash text-base" />
-                          </button>
+                          {!isEmployeePortal && (
+                            <>
+                              <button
+                                type="button"
+                                title="Edit Asset"
+                                onClick={() => openEditModal(asset)}
+                                className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                              >
+                                <i className="ph ph-note-pencil text-base" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Assign Asset"
+                                disabled={asset.status === "assigned"}
+                                onClick={() => {
+                                  setAssignTarget(asset);
+                                  setAssignForm({
+                                    employeeId: "",
+                                    checkoutDate: todayISO(),
+                                    expectedReturnDate: "",
+                                    checkoutCondition: asset.condition || "good",
+                                    notes: "",
+                                  });
+                                }}
+                                className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10 disabled:opacity-35 disabled:pointer-events-none transition-colors"
+                              >
+                                <i className="ph ph-user-plus text-base" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Return Asset"
+                                disabled={asset.status !== "assigned"}
+                                onClick={() => {
+                                  setReturnTarget(asset);
+                                  setReturnForm({
+                                    checkInDate: todayISO(),
+                                    checkInCondition: asset.condition || "good",
+                                    notes: "",
+                                  });
+                                }}
+                                className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-sky-600 hover:bg-sky-500/10 disabled:opacity-35 disabled:pointer-events-none transition-colors"
+                              >
+                                <i className="ph ph-arrow-u-down-left text-base" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Schedule Maintenance"
+                                onClick={() => {
+                                  setMaintTarget(asset);
+                                  setMaintForm({
+                                    maintenanceType: "preventive",
+                                    startDate: todayISO(),
+                                    endDate: "",
+                                    cost: "",
+                                    details: "",
+                                    supplier: asset.vendor || "",
+                                  });
+                                }}
+                                className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10 transition-colors"
+                              >
+                                <i className="ph ph-wrench text-base" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Delete Asset"
+                                onClick={() => setDeleteTarget(asset)}
+                                className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 transition-colors"
+                              >
+                                <i className="ph ph-trash text-base" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -27,7 +27,7 @@ export default function MeAssessmentsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="w-full space-y-6">
       <PageHeader
         title="Candidate Assessments & Technical Reviews"
         description="Review candidate coding submissions and objective test scores assigned to your evaluation queue."

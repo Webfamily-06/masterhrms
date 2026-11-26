@@ -31,7 +31,7 @@ export default function MeStatutoryFormsPage() {
   const forms = formsData?.availableForms || [];
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="w-full space-y-6">
       <PageHeader
         title="Statutory Certificates & PF/ESI Forms"
         description="Download your annual Form 16 TDS certificate, investment declaration Form 12BB, and pre-filled EPF declarations."
@@ -50,7 +50,7 @@ export default function MeStatutoryFormsPage() {
             <span className="text-xs uppercase font-bold text-muted-foreground">Statutory Profile Verified</span>
             <div className="font-bold text-base">{employeeInfo?.name} ({employeeInfo?.code})</div>
             <div className="text-xs text-muted-foreground">
-              PAN: <span className="font-mono">{employeeInfo?.pan}</span> • UAN: <span className="font-mono">{employeeInfo?.uan}</span>
+              PAN: <span className="tabular-nums">{employeeInfo?.pan}</span> • UAN: <span className="tabular-nums">{employeeInfo?.uan}</span>
             </div>
           </div>
           <Badge variant="default" className="bg-emerald-600 text-white">Statutory Active</Badge>
@@ -63,7 +63,7 @@ export default function MeStatutoryFormsPage() {
           <Card key={f.code} className="hover:border-primary/50 transition-colors">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <Badge variant="outline" className="font-mono text-xs">{f.code}</Badge>
+                <Badge variant="outline" className="tabular-nums text-xs">{f.code}</Badge>
                 {f.year && <Badge variant="secondary">{f.year}</Badge>}
               </div>
               <CardTitle className="text-base mt-2">{f.title}</CardTitle>

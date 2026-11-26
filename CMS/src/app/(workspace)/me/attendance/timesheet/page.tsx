@@ -64,7 +64,7 @@ export default function MeAttendanceTimesheetPage() {
   const totalHours = timesheets.reduce((acc: number, t: any) => acc + Number(t.hours || 0), 0);
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <PageHeader
         title="My Timesheet"
         description="Submit your daily worked hours, task descriptions, and project work for manager signoff."
@@ -114,10 +114,10 @@ export default function MeAttendanceTimesheetPage() {
                 ) : (
                   timesheets.map((t: any) => (
                     <tr key={t.id} className="hover:bg-muted/30">
-                      <td className="py-3 px-4 font-mono text-xs whitespace-nowrap">
+                      <td className="py-3 px-4 tabular-nums text-xs whitespace-nowrap">
                         {new Date(t.date).toLocaleDateString()}
                       </td>
-                      <td className="py-3 px-4 font-mono font-semibold">
+                      <td className="py-3 px-4 tabular-nums font-semibold">
                         {t.hours} hrs
                       </td>
                       <td className="py-3 px-4 text-xs text-muted-foreground max-w-sm truncate" title={t.description}>

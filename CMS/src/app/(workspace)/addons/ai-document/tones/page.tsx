@@ -226,7 +226,7 @@ function AiDocTonesPage() {
                     key={tone.id}
                     className="px-4 py-3 grid grid-cols-12 gap-2 items-center hover:bg-muted/20 transition-colors"
                   >
-                    <span className="col-span-2 font-mono text-muted-foreground">#{tone.sortOrder}</span>
+                    <span className="col-span-2 tabular-nums text-muted-foreground">#{tone.sortOrder}</span>
                     <span className="col-span-8 font-semibold text-foreground text-sm flex items-center">
                       <Smile className="w-3.5 h-3.5 mr-2 text-primary" />
                       {tone.name}

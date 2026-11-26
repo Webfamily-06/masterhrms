@@ -412,13 +412,13 @@ export default function HrDocumentCompliancePage() {
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">
                         <div>{empName}</div>
-                        <div className="text-xs text-muted-foreground font-mono">
+                        <div className="text-xs text-muted-foreground tabular-nums">
                           {item.employee?.employeeCode || "—"} • {item.employee?.department?.name || "General"}
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="font-medium">{item.title}</div>
-                        <div className="text-xs text-muted-foreground font-mono">{item.documentCode}</div>
+                        <div className="text-xs text-muted-foreground tabular-nums">{item.documentCode}</div>
                       </TableCell>
                       <TableCell className="text-sm">
                         {item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : "—"}

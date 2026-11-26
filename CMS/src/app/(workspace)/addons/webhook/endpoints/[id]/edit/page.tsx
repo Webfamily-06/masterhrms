@@ -290,7 +290,7 @@ function EditWebhookEndpointPage() {
                         copy[idx].key = e.target.value;
                         setCustomHeaders(copy);
                       }}
-                      className="font-mono text-xs"
+                      className="tabular-nums text-xs"
                     />
                     <Input
                       placeholder="Value"
@@ -300,7 +300,7 @@ function EditWebhookEndpointPage() {
                         copy[idx].value = e.target.value;
                         setCustomHeaders(copy);
                       }}
-                      className="font-mono text-xs"
+                      className="tabular-nums text-xs"
                     />
                     <Button
                       type="button"
@@ -327,7 +327,7 @@ function EditWebhookEndpointPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <pre className="p-3 bg-muted/60 rounded text-xs font-mono overflow-x-auto max-h-48">
+                <pre className="p-3 bg-muted/60 rounded text-xs tabular-nums overflow-x-auto max-h-48">
                   {JSON.stringify(selectedEventObj.samplePayload, null, 2)}
                 </pre>
               </CardContent>

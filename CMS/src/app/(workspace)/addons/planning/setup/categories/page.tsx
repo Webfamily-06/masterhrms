@@ -162,7 +162,7 @@ export default function SetupCategoriesPage() {
               <TableBody>
                 {categories.map((cat) => (
                   <TableRow key={cat.id}>
-                    <TableCell className="font-mono text-xs">{cat.sortOrder}</TableCell>
+                    <TableCell className="tabular-nums text-xs">{cat.sortOrder}</TableCell>
                     <TableCell className="font-medium text-xs">{cat.name}</TableCell>
                     <TableCell>
                       <span

@@ -575,7 +575,7 @@ export default function PayrollCommandHubPage() {
 
             {/* Cryptographic Seal Notice */}
             {cryptographicHash && (
-              <div className="p-3 bg-background border rounded-md flex items-center justify-between text-xs font-mono">
+              <div className="p-3 bg-background border rounded-md flex items-center justify-between text-xs tabular-nums">
                 <div className="flex items-center gap-2">
                   <Hash className="w-4 h-4 text-green-600" />
                   <span className="text-muted-foreground">SHA-256 Cryptographic Seal:</span>
@@ -646,7 +646,7 @@ export default function PayrollCommandHubPage() {
                         >
                           {f.severity}
                         </Badge>
-                        <code className="text-xs font-mono font-semibold">{f.code}</code>
+                        <code className="text-xs tabular-nums font-semibold">{f.code}</code>
                         {f.employeeName && (
                           <span className="text-xs text-muted-foreground">
                             • {f.employeeName} ({f.employeeCode})

@@ -1142,7 +1142,7 @@ export default function CertificateDesignerPage() {
           <Button variant="ghost" size="sm" onClick={() => setZoom(Math.max(0.3, zoom - 0.1))} title="Zoom Out" className="h-7 w-7 p-0">
             <ZoomOut className="h-3.5 w-3.5" />
           </Button>
-          <span className="text-xs font-mono px-1 w-12 text-center">{Math.round(zoom * 100)}%</span>
+          <span className="text-xs tabular-nums px-1 w-12 text-center">{Math.round(zoom * 100)}%</span>
           <Button variant="ghost" size="sm" onClick={() => setZoom(Math.min(2.0, zoom + 0.1))} title="Zoom In" className="h-7 w-7 p-0">
             <ZoomIn className="h-3.5 w-3.5" />
           </Button>
@@ -1258,7 +1258,7 @@ export default function CertificateDesignerPage() {
             <Input
               value={customVerificationCode}
               onChange={(e) => setCustomVerificationCode(e.target.value)}
-              className="h-7 text-xs w-36 font-mono bg-background"
+              className="h-7 text-xs w-36 tabular-nums bg-background"
               placeholder="VERIFY-CODE"
             />
           </div>
@@ -2016,7 +2016,7 @@ export default function CertificateDesignerPage() {
                         onClick={(e) => e.stopPropagation()}
                       >
                         {/* Status / Dimension Floating Pill */}
-                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-mono px-2 py-0.5 rounded shadow pointer-events-none whitespace-nowrap z-50">
+                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] tabular-nums px-2 py-0.5 rounded shadow pointer-events-none whitespace-nowrap z-50">
                           {liveTransformText || `W: ${Math.round(el.width)} × H: ${Math.round(el.height)}`}
                         </div>
 
@@ -2174,7 +2174,7 @@ export default function CertificateDesignerPage() {
                           type="number"
                           value={Math.round(selectedElement.x)}
                           onChange={(e) => updateSelectedElement({ x: parseFloat(e.target.value) || 0 })}
-                          className="h-7 text-xs font-mono"
+                          className="h-7 text-xs tabular-nums"
                         />
                       </div>
                       <div>
@@ -2183,7 +2183,7 @@ export default function CertificateDesignerPage() {
                           type="number"
                           value={Math.round(selectedElement.y)}
                           onChange={(e) => updateSelectedElement({ y: parseFloat(e.target.value) || 0 })}
-                          className="h-7 text-xs font-mono"
+                          className="h-7 text-xs tabular-nums"
                         />
                       </div>
                       <div>
@@ -2192,7 +2192,7 @@ export default function CertificateDesignerPage() {
                           type="number"
                           value={Math.round(selectedElement.width)}
                           onChange={(e) => updateSelectedElement({ width: parseFloat(e.target.value) || 10 })}
-                          className="h-7 text-xs font-mono"
+                          className="h-7 text-xs tabular-nums"
                         />
                       </div>
                       <div>
@@ -2201,7 +2201,7 @@ export default function CertificateDesignerPage() {
                           type="number"
                           value={Math.round(selectedElement.height)}
                           onChange={(e) => updateSelectedElement({ height: parseFloat(e.target.value) || 4 })}
-                          className="h-7 text-xs font-mono"
+                          className="h-7 text-xs tabular-nums"
                         />
                       </div>
                       <div>
@@ -2212,7 +2212,7 @@ export default function CertificateDesignerPage() {
                           max={360}
                           value={selectedElement.rotation || 0}
                           onChange={(e) => updateSelectedElement({ rotation: parseInt(e.target.value) || 0 })}
-                          className="h-7 text-xs font-mono"
+                          className="h-7 text-xs tabular-nums"
                         />
                       </div>
                       <div>
@@ -2223,7 +2223,7 @@ export default function CertificateDesignerPage() {
                           max={100}
                           value={Math.round((selectedElement.opacity ?? 1) * 100)}
                           onChange={(e) => updateSelectedElement({ opacity: Math.max(0, Math.min(100, parseInt(e.target.value) || 100)) / 100 })}
-                          className="h-7 text-xs font-mono"
+                          className="h-7 text-xs tabular-nums"
                         />
                       </div>
                     </div>
@@ -2240,7 +2240,7 @@ export default function CertificateDesignerPage() {
                           value={selectedElement.text || ""}
                           onChange={(e) => updateSelectedElement({ text: e.target.value })}
                           rows={2}
-                          className="text-xs font-mono"
+                          className="text-xs tabular-nums"
                         />
                         {selectedElement.text?.includes("{{") && (
                           <p className="text-[10px] text-amber-600 bg-amber-500/10 p-1.5 rounded">
@@ -2286,7 +2286,7 @@ export default function CertificateDesignerPage() {
                               type="number"
                               value={selectedElement.fontSize || 14}
                               onChange={(e) => updateSelectedElement({ fontSize: parseInt(e.target.value) || 12 })}
-                              className="h-7 text-xs font-mono text-center"
+                              className="h-7 text-xs tabular-nums text-center"
                             />
                             <Button
                               variant="outline"
@@ -2403,7 +2403,7 @@ export default function CertificateDesignerPage() {
                           <Input
                             value={selectedElement.color || "#0F172A"}
                             onChange={(e) => updateSelectedElement({ color: e.target.value })}
-                            className="h-7 text-xs font-mono"
+                            className="h-7 text-xs tabular-nums"
                           />
                         </div>
                       </div>
@@ -2437,7 +2437,7 @@ export default function CertificateDesignerPage() {
                             max={12}
                             value={selectedElement.letterSpacing || 0}
                             onChange={(e) => updateSelectedElement({ letterSpacing: parseFloat(e.target.value) || 0 })}
-                            className="h-7 text-xs font-mono"
+                            className="h-7 text-xs tabular-nums"
                           />
                         </div>
                       </div>
@@ -2491,7 +2491,7 @@ export default function CertificateDesignerPage() {
                             <Input
                               value={selectedElement.fill || "transparent"}
                               onChange={(e) => updateSelectedElement({ fill: e.target.value })}
-                              className="h-7 text-xs font-mono"
+                              className="h-7 text-xs tabular-nums"
                             />
                           </div>
                         </div>
@@ -2510,7 +2510,7 @@ export default function CertificateDesignerPage() {
                           <Input
                             value={selectedElement.stroke || "#1E3A8A"}
                             onChange={(e) => updateSelectedElement({ stroke: e.target.value })}
-                            className="h-7 text-xs font-mono"
+                            className="h-7 text-xs tabular-nums"
                           />
                         </div>
                       </div>
@@ -2525,7 +2525,7 @@ export default function CertificateDesignerPage() {
                             max={30}
                             value={selectedElement.strokeWidth || 1}
                             onChange={(e) => updateSelectedElement({ strokeWidth: parseInt(e.target.value) || 1 })}
-                            className="h-7 text-xs font-mono"
+                            className="h-7 text-xs tabular-nums"
                           />
                         </div>
                         <div className="space-y-1">
@@ -2556,7 +2556,7 @@ export default function CertificateDesignerPage() {
                             max={50}
                             value={selectedElement.borderRadius || 0}
                             onChange={(e) => updateSelectedElement({ borderRadius: parseInt(e.target.value) || 0 })}
-                            className="h-7 text-xs font-mono"
+                            className="h-7 text-xs tabular-nums"
                           />
                         </div>
                       )}
@@ -2575,7 +2575,7 @@ export default function CertificateDesignerPage() {
                         <Input
                           value={selectedElement.placeholder || "{{certificate.verificationUrl}}"}
                           disabled
-                          className="h-7 text-xs font-mono bg-muted"
+                          className="h-7 text-xs tabular-nums bg-muted"
                         />
                       </div>
                     </div>
@@ -2597,7 +2597,7 @@ export default function CertificateDesignerPage() {
                           <Input
                             value={selectedElement.fill || "#D97706"}
                             onChange={(e) => updateSelectedElement({ fill: e.target.value })}
-                            className="h-7 text-xs font-mono"
+                            className="h-7 text-xs tabular-nums"
                           />
                         </div>
                       </div>
@@ -2809,7 +2809,7 @@ export default function CertificateDesignerPage() {
                       <p className="text-xs font-medium truncate" title={asset.assetName}>
                         {asset.assetName}
                       </p>
-                      <span className="text-[10px] text-muted-foreground uppercase font-mono">
+                      <span className="text-[10px] text-muted-foreground uppercase tabular-nums">
                         {asset.assetType}
                       </span>
                     </div>

@@ -36,7 +36,7 @@ export default function MeSalaryPage() {
   const revisions = salaryData?.revisionHistory || [];
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="w-full space-y-6">
       <PageHeader
         title="My Compensation & CTC Structure"
         description="View your active compensation components, monthly gross salary, and historical revision timeline."
@@ -114,7 +114,7 @@ export default function MeSalaryPage() {
                     <tr key={item.id} className="hover:bg-muted/20">
                       <td className="p-3 font-semibold">
                         <div>{item.component?.name}</div>
-                        <span className="text-xs text-muted-foreground font-mono">({item.component?.code})</span>
+                        <span className="text-xs text-muted-foreground tabular-nums">({item.component?.code})</span>
                       </td>
                       <td className="p-3 capitalize text-muted-foreground">{item.component?.type}</td>
                       <td className="p-3 text-right font-medium">
@@ -155,7 +155,7 @@ export default function MeSalaryPage() {
               <tbody className="divide-y">
                 {revisions.map((rev: any) => (
                   <tr key={rev.id} className="hover:bg-muted/20">
-                    <td className="p-3 font-mono">
+                    <td className="p-3 tabular-nums">
                       {new Date(rev.effectiveFrom).toLocaleDateString("en-IN")}
                     </td>
                     <td className="p-3 text-right font-medium">

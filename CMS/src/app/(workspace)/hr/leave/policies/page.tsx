@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { api, ApiError, unwrapArray } from "@/lib/api";
 import {
   useDebouncedValue,
@@ -99,6 +100,8 @@ const getInitialPolicyForm = (): PolicyFormState => ({
 });
 
 export default function HrLeavePoliciesPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearch = useDebouncedValue(searchTerm, 300);
@@ -341,14 +344,16 @@ export default function HrLeavePoliciesPage() {
           </p>
         </div>
 
-        <Button
-          type="button"
-          onClick={openCreate}
-          className="bg-[#00a76f] hover:bg-[#008f5d] text-white font-medium rounded-lg px-4 h-9 text-xs shadow-xs flex items-center gap-1.5 transition-colors self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          Add Leave Policy
-        </Button>
+        {!isEmployeePortal && (
+          <Button
+            type="button"
+            onClick={openCreate}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg px-4 h-9 text-xs shadow-xs flex items-center gap-1.5 transition-colors self-start sm:self-auto"
+          >
+            <Plus className="w-4 h-4" />
+            Add Leave Policy
+          </Button>
+        )}
       </div>
 
       {/* 2. Filter Card & Status Tabs */}
@@ -513,7 +518,7 @@ export default function HrLeavePoliciesPage() {
                       key={pol.id}
                       className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 dark:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-slate-800"
                     >
-                      <TableCell className="py-3 px-3 text-center text-xs text-slate-500 font-mono">
+                      <TableCell className="py-3 px-3 text-center text-xs text-slate-500 tabular-nums">
                         {rowNumber}
                       </TableCell>
 
@@ -593,46 +598,50 @@ export default function HrLeavePoliciesPage() {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleEdit(pol)}
-                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 hover:text-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
-                            title="Edit Policy"
-                            aria-label={`Edit ${pol.name}`}
-                          >
-                            <SquarePen className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              toggleStatusMutation.mutate({
-                                id: pol.id,
-                                status: pol.status === "active" ? "inactive" : "active",
-                              })
-                            }
-                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 hover:text-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
-                            title={pol.status === "active" ? "Deactivate Policy" : "Activate Policy"}
-                            aria-label={pol.status === "active" ? `Deactivate ${pol.name}` : `Activate ${pol.name}`}
-                          >
-                            {pol.status === "active" ? (
-                              <Lock className="w-4 h-4" />
-                            ) : (
-                              <Unlock className="w-4 h-4" />
-                            )}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDeleteTarget(pol);
-                              setDeleteBlockedCanDeactivate(false);
-                              setDeleteBlockedReason(null);
-                            }}
-                            className="p-2 rounded-lg hover:bg-rose-50 hover:text-red-600 transition-colors cursor-pointer"
-                            title="Delete Policy"
-                            aria-label={`Delete ${pol.name}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {!isEmployeePortal && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleEdit(pol)}
+                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 hover:text-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
+                                title="Edit Policy"
+                                aria-label={`Edit ${pol.name}`}
+                              >
+                                <SquarePen className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  toggleStatusMutation.mutate({
+                                    id: pol.id,
+                                    status: pol.status === "active" ? "inactive" : "active",
+                                  })
+                                }
+                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 hover:text-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
+                                title={pol.status === "active" ? "Deactivate Policy" : "Activate Policy"}
+                                aria-label={pol.status === "active" ? `Deactivate ${pol.name}` : `Activate ${pol.name}`}
+                              >
+                                {pol.status === "active" ? (
+                                  <Lock className="w-4 h-4" />
+                                ) : (
+                                  <Unlock className="w-4 h-4" />
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDeleteTarget(pol);
+                                  setDeleteBlockedCanDeactivate(false);
+                                  setDeleteBlockedReason(null);
+                                }}
+                                className="p-2 rounded-lg hover:bg-rose-50 hover:text-red-600 transition-colors cursor-pointer"
+                                title="Delete Policy"
+                                aria-label={`Delete ${pol.name}`}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -824,7 +833,7 @@ export default function HrLeavePoliciesPage() {
         <button
           type="button"
           onClick={openCreate}
-          className="w-12 h-12 rounded-full bg-[#00a76f] hover:bg-[#008f5d] text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all cursor-pointer"
+          className="w-12 h-12 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center shadow-lg hover:shadow-xl transition-all cursor-pointer"
           title="Create New Policy"
           aria-label="Create New Policy"
         >
@@ -864,7 +873,7 @@ export default function HrLeavePoliciesPage() {
                   placeholder="POL_AL"
                   value={form.code}
                   onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                  className="h-9 text-xs font-mono uppercase"
+                  className="h-9 text-xs tabular-nums uppercase"
                 />
               </div>
             </div>
@@ -1114,7 +1123,7 @@ export default function HrLeavePoliciesPage() {
                 type="submit"
                 size="sm"
                 disabled={saveMutation.isPending}
-                className="bg-[#00a76f] hover:bg-[#008f5d] text-white"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 {saveMutation.isPending ? "Saving..." : editingPolicy ? "Update Policy" : "Save Policy"}
               </Button>

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { api, unwrapArray } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -139,6 +140,8 @@ const EMPTY_BULK = {
 };
 
 export default function HrEmployeeTrainingsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -251,9 +254,8 @@ export default function HrEmployeeTrainingsPage() {
       if (dateFrom && item.assignedDate < dateFrom) return false;
       if (dateTo && item.assignedDate > dateTo) return false;
       if (q) {
-        const emp = `${item.employee?.firstName || ""} ${item.employee?.lastName || ""} ${
-          item.employee?.employeeCode || ""
-        }`.toLowerCase();
+        const emp = `${item.employee?.firstName || ""} ${item.employee?.lastName || ""} ${item.employee?.employeeCode || ""
+          }`.toLowerCase();
         const prog = `${item.course?.title || ""} ${item.course?.trainingTypeName || ""}`.toLowerCase();
         if (!emp.includes(q) && !prog.includes(q)) return false;
       }
@@ -287,14 +289,14 @@ export default function HrEmployeeTrainingsPage() {
         sortBy === "status"
           ? a.status
           : sortBy === "completionDate"
-          ? a.completionDate || ""
-          : a.assignedDate || "";
+            ? a.completionDate || ""
+            : a.assignedDate || "";
       const vb =
         sortBy === "status"
           ? b.status
           : sortBy === "completionDate"
-          ? b.completionDate || ""
-          : b.assignedDate || "";
+            ? b.completionDate || ""
+            : b.assignedDate || "";
       return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
     });
   }, [baseFiltered, activeTab, sortBy, sortAsc]);
@@ -350,32 +352,34 @@ export default function HrEmployeeTrainingsPage() {
         title="Employee Trainings"
         description="View and manage training enrollments for your employees."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => router.push("/hr/training/employee-trainings/dashboard")}
-            >
-              <BarChart2 className="h-4 w-4 mr-1.5" />
-              Dashboard
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setBulkData(EMPTY_BULK);
-                setBulkOpen(true);
-              }}
-            >
-              <UserPlus className="h-4 w-4 mr-1.5" />
-              Bulk Assign
-            </Button>
-            <Button
-              onClick={openAdd}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-xs"
-            >
-              <Plus className="h-4 w-4 mr-1.5" />
-              Assign Training
-            </Button>
-          </div>
+          !isEmployeePortal ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => router.push("/hr/training/employee-trainings/dashboard")}
+              >
+                <BarChart2 className="h-4 w-4 mr-1.5" />
+                Dashboard
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setBulkData(EMPTY_BULK);
+                  setBulkOpen(true);
+                }}
+              >
+                <UserPlus className="h-4 w-4 mr-1.5" />
+                Bulk Assign
+              </Button>
+              <Button
+                onClick={openAdd}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+              >
+                <Plus className="h-4 w-4 mr-1.5" />
+                Assign Training
+              </Button>
+            </div>
+          ) : undefined
         }
       />
 
@@ -479,18 +483,16 @@ export default function HrEmployeeTrainingsPage() {
                   setActiveTab(key);
                   setPage(1);
                 }}
-                className={`py-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
-                  active
-                    ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
+                className={`py-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${active
+                  ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 <Icon className="h-4 w-4" />
                 <span>{label}</span>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                    active ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground"
-                  }`}
+                  className={`px-2 py-0.5 rounded-full text-xs font-semibold ${active ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground"
+                    }`}
                 >
                   {count}
                 </span>
@@ -693,24 +695,28 @@ export default function HrEmployeeTrainingsPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-sky-600"
-                            title="Edit Assignment"
-                            onClick={() => openEdit(item)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600"
-                            title="Delete Assignment"
-                            onClick={() => setDeleteTarget(item)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {!isEmployeePortal && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-sky-600"
+                                title="Edit Assignment"
+                                onClick={() => openEdit(item)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600"
+                                title="Delete Assignment"
+                                onClick={() => setDeleteTarget(item)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -773,11 +779,10 @@ export default function HrEmployeeTrainingsPage() {
                     variant={pNum === safePage ? "default" : "outline"}
                     size="sm"
                     onClick={() => setPage(pNum)}
-                    className={`h-8 w-8 p-0 text-xs ${
-                      pNum === safePage
-                        ? "bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500"
-                        : ""
-                    }`}
+                    className={`h-8 w-8 p-0 text-xs ${pNum === safePage
+                      ? "bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500"
+                      : ""
+                      }`}
                   >
                     {pNum}
                   </Button>

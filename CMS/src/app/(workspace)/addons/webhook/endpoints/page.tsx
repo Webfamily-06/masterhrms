@@ -282,7 +282,7 @@ function WebhookEndpointsPage() {
                         >
                           {ep.name}
                         </Link>
-                        <Badge variant="outline" className="text-[10px] font-mono mt-0.5">
+                        <Badge variant="outline" className="text-[10px] tabular-nums mt-0.5">
                           {ep.module}
                         </Badge>
                       </td>
@@ -290,17 +290,17 @@ function WebhookEndpointsPage() {
                         <div className="flex items-center gap-1.5">
                           <Badge
                             variant={ep.method === "POST" ? "default" : ep.method === "PUT" ? "secondary" : "outline"}
-                            className="text-[10px] font-mono px-1.5 uppercase font-bold"
+                            className="text-[10px] tabular-nums px-1.5 uppercase font-bold"
                           >
                             {ep.method}
                           </Badge>
-                          <span className="font-mono text-[11px] text-foreground truncate max-w-[220px]" title={ep.url}>
+                          <span className="tabular-nums text-[11px] text-foreground truncate max-w-[220px]" title={ep.url}>
                             {ep.urlHostOnly || ep.url}
                           </span>
                         </div>
                       </td>
                       <td className="py-3 px-4">
-                        <Badge variant="secondary" className="text-[10px] font-mono">
+                        <Badge variant="secondary" className="text-[10px] tabular-nums">
                           {ep.eventKey || ep.events?.[0] || "*"}
                         </Badge>
                       </td>
@@ -340,7 +340,7 @@ function WebhookEndpointsPage() {
                         )}
                       </td>
                       <td className="py-3 px-4">
-                        <Badge variant="outline" className="text-[10px] font-mono text-emerald-600 bg-emerald-500/10">
+                        <Badge variant="outline" className="text-[10px] tabular-nums text-emerald-600 bg-emerald-500/10">
                           {ep.successRate7d ?? 100}%
                         </Badge>
                       </td>

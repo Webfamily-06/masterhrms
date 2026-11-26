@@ -61,7 +61,7 @@ export default function MeAssetDepreciationsPage() {
                         <Laptop className="h-4 w-4 text-primary" />
                         <div>
                           <div>{asset.name || asset.title || "Enterprise Hardware"}</div>
-                          <div className="text-xs text-muted-foreground font-mono">{asset.assetTag || asset.serialNumber || "--"}</div>
+                          <div className="text-xs text-muted-foreground tabular-nums">{asset.assetTag || asset.serialNumber || "--"}</div>
                         </div>
                       </TableCell>
                       <TableCell>{asset.category?.name || asset.category || "IT Equipment"}</TableCell>

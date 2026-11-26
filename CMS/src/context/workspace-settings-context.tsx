@@ -98,8 +98,8 @@ const DEFAULT_BRAND: WorkspaceBrandConfig = {
 
 const DEFAULT_SYSTEM: WorkspaceSystemConfig = {
   defaultLanguage: "en",
-  dateFormat: "Y-m-d",
-  timeFormat: "h:i a",
+  dateFormat: "YYYY-MM-DD",
+  timeFormat: "24h",
   defaultTimezone: "Asia/Kolkata",
   ipRestrictionEnabled: false,
 };

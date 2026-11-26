@@ -52,7 +52,7 @@ export default function MeLeaveBalancePage() {
   }, [balances, selectedTypeId]);
 
   return (
-    <div className="space-y-6 max-w-full overflow-x-hidden">
+    <div className="w-full space-y-6 overflow-x-hidden">
       <PageHeader
         title="Leave Balances & Ledger"
         description="Real-time leave entitlements, used days, pending holds, and immutable ledger history."
@@ -147,23 +147,23 @@ export default function MeLeaveBalancePage() {
                   <div className="grid grid-cols-4 gap-1.5 pt-2 border-t text-[11px]">
                     <div>
                       <span className="text-muted-foreground block">Total</span>
-                      <span className="font-mono font-semibold">{formatLeaveDays(total)}</span>
+                      <span className="tabular-nums font-semibold">{formatLeaveDays(total)}</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground block">Carry</span>
-                      <span className="font-mono font-semibold">
+                      <span className="tabular-nums font-semibold">
                         {formatLeaveDays(carryForward)}
                       </span>
                     </div>
                     <div>
                       <span className="text-muted-foreground block">Used</span>
-                      <span className="font-mono font-semibold text-amber-600">
+                      <span className="tabular-nums font-semibold text-amber-600">
                         {formatLeaveDays(used)}
                       </span>
                     </div>
                     <div>
                       <span className="text-muted-foreground block">Pending</span>
-                      <span className="font-mono font-semibold text-blue-600">
+                      <span className="tabular-nums font-semibold text-blue-600">
                         {formatLeaveDays(pending)}
                       </span>
                     </div>
@@ -226,7 +226,7 @@ export default function MeLeaveBalancePage() {
                         l.entryType === "CREDIT" || l.entryType === "ACCRUAL";
                       return (
                         <tr key={l.id} className="hover:bg-muted/30">
-                          <td className="py-3 px-4 font-mono text-xs whitespace-nowrap">
+                          <td className="py-3 px-4 tabular-nums text-xs whitespace-nowrap">
                             {String(l.effectiveAt || l.createdAt).slice(0, 10)}
                           </td>
                           <td className="py-3 px-4 font-medium">
@@ -247,20 +247,20 @@ export default function MeLeaveBalancePage() {
                                   ? "destructive"
                                   : "secondary"
                               }
-                              className="font-mono text-xs"
+                              className="tabular-nums text-xs"
                             >
                               {l.entryType}
                             </Badge>
                           </td>
                           <td
-                            className={`py-3 px-4 font-mono font-semibold ${
+                            className={`py-3 px-4 tabular-nums font-semibold ${
                               isCredit ? "text-emerald-600" : "text-rose-600"
                             }`}
                           >
                             {isCredit ? "+" : "-"}
                             {formatLeaveDays(l.days)}
                           </td>
-                          <td className="py-3 px-4 font-mono text-xs font-semibold text-primary">
+                          <td className="py-3 px-4 tabular-nums text-xs font-semibold text-primary">
                             {formatLeaveDays(l.balance)} days
                           </td>
                           <td className="py-3 px-4 text-xs text-muted-foreground">
@@ -290,13 +290,13 @@ export default function MeLeaveBalancePage() {
                         <span className="font-semibold text-sm">{l.leaveTypeName}</span>
                         <Badge
                           variant={isCredit ? "default" : "destructive"}
-                          className="font-mono text-[10px]"
+                          className="tabular-nums text-[10px]"
                         >
                           {l.entryType} {isCredit ? "+" : "-"}
                           {formatLeaveDays(l.days)}d
                         </Badge>
                       </div>
-                      <div className="flex items-center justify-between text-muted-foreground font-mono">
+                      <div className="flex items-center justify-between text-muted-foreground tabular-nums">
                         <span>{String(l.effectiveAt || l.createdAt).slice(0, 10)}</span>
                         <span className="font-semibold text-primary">
                           Balance: {formatLeaveDays(l.balance)}d

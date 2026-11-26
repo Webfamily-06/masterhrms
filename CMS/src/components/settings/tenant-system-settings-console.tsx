@@ -41,17 +41,22 @@ import {
   type BrandAssetType,
 } from "@/components/settings/brand-image-crop-dialog";
 import {
+  COUNTRY_OPTIONS,
   DATE_FORMAT_OPTIONS,
   GLOBAL_TIMEZONES,
   LANGUAGE_OPTIONS,
   TIME_FORMAT_OPTIONS,
   formatDateWithPattern,
   formatTimeWithPattern,
+  getCountryByCode,
+  normalizeDateFormat,
+  normalizeTimeFormat,
   resolveIanaTimezone,
 } from "@/src/lib/constants/system-locale";
 
 type SectionId =
   | "system"
+  | "company"
   | "brand"
   | "currency"
   | "email"
@@ -68,17 +73,18 @@ const NAV_ITEMS: Array<{
   icon: string;
   scope: "overall" | "hr" | "addon";
 }> = [
-  { id: "system", label: "System Settings", icon: "ph-gear", scope: "overall" },
-  { id: "brand", label: "Brand Settings", icon: "ph-palette", scope: "overall" },
-  { id: "currency", label: "Currency Settings", icon: "ph-currency-inr", scope: "overall" },
-  { id: "email", label: "Email Settings", icon: "ph-envelope-simple", scope: "overall" },
-  { id: "email_notifications", label: "Email Notification Settings", icon: "ph-bell", scope: "hr" },
-  { id: "working_days", label: "Working Days Settings", icon: "ph-clock", scope: "hr" },
-  { id: "ip_restriction", label: "IP Restriction Settings", icon: "ph-git-branch", scope: "overall" },
-  { id: "noc", label: "NOC Settings", icon: "ph-file-text", scope: "hr" },
-  { id: "experience_certificate", label: "Experience Certificate Settings", icon: "ph-briefcase", scope: "hr" },
-  { id: "joining_letter", label: "Joining Letter Settings", icon: "ph-file-doc", scope: "hr" },
-];
+    { id: "system", label: "System Settings", icon: "ph-gear", scope: "overall" },
+    { id: "company", label: "Company Settings", icon: "ph-buildings", scope: "overall" },
+    { id: "brand", label: "Brand Settings", icon: "ph-palette", scope: "overall" },
+    { id: "currency", label: "Currency Settings", icon: "ph-currency-inr", scope: "overall" },
+    { id: "email", label: "Email Settings", icon: "ph-envelope-simple", scope: "overall" },
+    { id: "email_notifications", label: "Email Notification Settings", icon: "ph-bell", scope: "hr" },
+    { id: "working_days", label: "Working Days Settings", icon: "ph-clock", scope: "hr" },
+    { id: "ip_restriction", label: "IP Restriction Settings", icon: "ph-git-branch", scope: "overall" },
+    { id: "noc", label: "NOC Settings", icon: "ph-file-text", scope: "hr" },
+    { id: "experience_certificate", label: "Experience Certificate Settings", icon: "ph-briefcase", scope: "hr" },
+    { id: "joining_letter", label: "Joining Letter Settings", icon: "ph-file-doc", scope: "hr" },
+  ];
 
 const CURRENCY_OPTIONS = [
   { code: "INR", symbol: "₹", name: "Indian Rupee" },
@@ -135,22 +141,30 @@ interface IpEntry {
   createdAt: string;
 }
 
+const HRM_SETUP_SECTION_IDS = new Set<SectionId>([
+  "noc",
+  "experience_certificate",
+  "joining_letter",
+]);
+
 export function TenantSystemSettingsConsole({
   mode = "tenant",
 }: {
-  mode?: "tenant" | "hr";
+  mode?: "tenant" | "hr" | "hrm-setup";
 }) {
   const { isWorkspaceAdmin, isSuperAdmin, loading } = usePermissions();
   const canEdit = isWorkspaceAdmin || isSuperAdmin;
   const queryClient = useQueryClient();
 
   const visibleNav =
-    mode === "hr"
-      ? NAV_ITEMS.filter((item) => item.scope === "hr")
-      : NAV_ITEMS;
+    mode === "hrm-setup"
+      ? NAV_ITEMS.filter((item) => HRM_SETUP_SECTION_IDS.has(item.id))
+      : mode === "hr"
+        ? NAV_ITEMS.filter((item) => item.scope === "hr")
+        : NAV_ITEMS.filter((item) => !HRM_SETUP_SECTION_IDS.has(item.id));
 
   const [activeSection, setActiveSection] = useState<SectionId>(
-    mode === "hr" ? "working_days" : "system"
+    mode === "hrm-setup" ? "noc" : mode === "hr" ? "working_days" : "system"
   );
   const [brandTab, setBrandTab] = useState<"logos" | "text" | "theme">("logos");
   const [sampleAmount, setSampleAmount] = useState("1234.56");
@@ -175,11 +189,31 @@ export function TenantSystemSettingsConsole({
   // Local state for all 14 sections
   const [system, setSystem] = useState({
     defaultLanguage: "en",
-    dateFormat: "Y-m-d",
-    timeFormat: "h:i a",
+    dateFormat: "YYYY-MM-DD",
+    timeFormat: "24h",
     defaultTimezone: "Asia/Kolkata",
     ipRestrictionEnabled: false,
   });
+
+  const [company, setCompany] = useState({
+    companyName: "MasterHRMS",
+    registrationNumber: "",
+    companyAddress: "",
+    country: "IN",
+    countryName: "India",
+    state: "",
+    city: "",
+    zipCode: "",
+    phoneCountryCode: "IN",
+    phoneDialCode: "+91",
+    telephone: "",
+    companyEmail: "",
+    emailFromName: "MasterHRMS",
+    taxNumberEnabled: false,
+    taxType: "GST" as "VAT" | "GST",
+    taxNumber: "",
+  });
+  const [companyErrors, setCompanyErrors] = useState<Record<string, string>>({});
 
   const [brand, setBrand] = useState({
     logoDark: "",
@@ -259,10 +293,28 @@ export function TenantSystemSettingsConsole({
     enabled: !loading && (mode === "hr" || canEdit),
   });
 
+  const { data: myIpData } = useQuery({
+    queryKey: ["tenant-my-ip"],
+    queryFn: async () => {
+      const res: any = await api.get("/workspace/system-settings/my-ip");
+      return res?.clientIp || res?.data?.clientIp || "";
+    },
+    enabled: !loading && mode === "tenant" && canEdit,
+  });
+  const currentClientIp = typeof myIpData === "string" ? myIpData : "";
+
   useEffect(() => {
     const s = data?.settings || data;
     if (!s) return;
-    if (s.system) setSystem((prev) => ({ ...prev, ...s.system }));
+    if (s.system) {
+      setSystem((prev) => ({
+        ...prev,
+        ...s.system,
+        dateFormat: normalizeDateFormat(s.system.dateFormat),
+        timeFormat: normalizeTimeFormat(s.system.timeFormat),
+      }));
+    }
+    if (s.company) setCompany((prev) => ({ ...prev, ...s.company }));
     if (s.brand) setBrand((prev) => ({ ...prev, ...s.brand }));
     if (s.currency) setCurrency((prev) => ({ ...prev, ...s.currency }));
     if (s.email) setEmail((prev) => ({ ...prev, ...s.email }));
@@ -290,7 +342,7 @@ export function TenantSystemSettingsConsole({
       queryClient.invalidateQueries({ queryKey: ["tenant-system-settings"] });
       queryClient.invalidateQueries({ queryKey: ["workspace-system-settings-public"] });
       queryClient.invalidateQueries({ queryKey: ["tenant-branding"] });
-      if (vars.section === "brand" || vars.section === "system") {
+      if (vars.section === "brand" || vars.section === "system" || vars.section === "company") {
         queryClient.invalidateQueries({ queryKey: ["auth-me-profile"] });
       }
     },
@@ -367,10 +419,18 @@ export function TenantSystemSettingsConsole({
     }
   };
 
+  const isValidIpOrCidrClient = (raw: string) => {
+    const val = raw.trim();
+    if (!val) return false;
+    const ipv4Re = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$/;
+    const ipv6Re = /^[0-9a-fA-F:]+(\/(\d{1,3}))?$/;
+    return ipv4Re.test(val) || (val.includes(":") && ipv6Re.test(val));
+  };
+
   const handleSaveIp = () => {
     const trimmed = ipValue.trim();
-    if (!trimmed) {
-      toast.error("Please enter a valid IP address.");
+    if (!isValidIpOrCidrClient(trimmed)) {
+      toast.error("Please enter a valid IPv4 (e.g. 203.0.113.10), CIDR (e.g. 192.168.1.0/24), or IPv6 address.");
       return;
     }
     let nextIps: IpEntry[];
@@ -379,6 +439,11 @@ export function TenantSystemSettingsConsole({
         item.id === editingIpId ? { ...item, ip: trimmed, label: ipLabel.trim() } : item
       );
     } else {
+      if (ipRestriction.allowedIps.some((item) => item.ip.trim().toLowerCase() === trimmed.toLowerCase())) {
+        toast.info("This IP address is already in your organization's allowed list.");
+        setIpModalOpen(false);
+        return;
+      }
       nextIps = [
         ...ipRestriction.allowedIps,
         {
@@ -395,6 +460,42 @@ export function TenantSystemSettingsConsole({
     setEditingIpId(null);
     setIpValue("");
     setIpLabel("");
+    saveSectionMutation.mutate({ section: "ip_restriction", payload: nextState });
+  };
+
+  const handleToggleIpRestriction = (enabled: boolean) => {
+    if (enabled && ipRestriction.allowedIps.length === 0) {
+      toast.error("Add at least one allowed IP address (such as your current IP) before enabling IP Restriction.");
+      return;
+    }
+    const nextState = { ...ipRestriction, enabled };
+    setIpRestriction(nextState);
+    setSystem((prev) => ({ ...prev, ipRestrictionEnabled: enabled }));
+    saveSectionMutation.mutate({ section: "ip_restriction", payload: nextState });
+  };
+
+  const handleAddCurrentIp = () => {
+    if (!currentClientIp) {
+      toast.error("Could not detect your current IP address.");
+      return;
+    }
+    if (ipRestriction.allowedIps.some((item) => item.ip.trim() === currentClientIp)) {
+      toast.info(`Your current IP (${currentClientIp}) is already allowed.`);
+      return;
+    }
+    const nextState = {
+      ...ipRestriction,
+      allowedIps: [
+        ...ipRestriction.allowedIps,
+        {
+          id: `ip-${Date.now()}`,
+          ip: currentClientIp,
+          label: "Current Admin IP",
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    };
+    setIpRestriction(nextState);
     saveSectionMutation.mutate({ section: "ip_restriction", payload: nextState });
   };
 
@@ -417,10 +518,10 @@ export function TenantSystemSettingsConsole({
     }));
   };
 
-  if (!loading && mode === "tenant" && !canEdit) {
+  if (!loading && (mode === "tenant" || mode === "hrm-setup") && !canEdit) {
     return (
       <AccessDenied
-        moduleName="Tenant System Settings"
+        moduleName={mode === "hrm-setup" ? "Tenant HRM Setup" : "Tenant System Settings"}
         requiredPermission="workspace.settings.manage"
       />
     );
@@ -431,6 +532,80 @@ export function TenantSystemSettingsConsole({
     updater: (prev: typeof brand) => typeof brand
   ) => {
     setBrand((prev) => updater(prev));
+  };
+
+  const selectedCountry = getCountryByCode(company.country);
+  const selectedPhoneCountry = getCountryByCode(company.phoneCountryCode || company.country);
+
+  const validateAndSaveCompany = () => {
+    const errs: Record<string, string> = {};
+    const name = company.companyName.trim();
+    const zip = company.zipCode.trim();
+    const phone = company.telephone.trim();
+    const emailVal = company.companyEmail.trim();
+    const taxVal = company.taxNumber.trim();
+
+    if (!name || name.length < 2) {
+      errs.companyName = "Company Name is required (at least 2 characters).";
+    }
+    if (zip) {
+      const minZ = selectedCountry.zipMin ?? 4;
+      const maxZ = selectedCountry.zipMax ?? 10;
+      if (!/^\d+$/.test(zip)) {
+        errs.zipCode = "Zip Code must contain numbers only.";
+      } else if (zip.length < minZ || zip.length > maxZ) {
+        errs.zipCode =
+          minZ === maxZ
+            ? `Zip Code for ${selectedCountry.name} must be exactly ${minZ} digits.`
+            : `Zip Code for ${selectedCountry.name} must be ${minZ}–${maxZ} digits.`;
+      }
+    }
+    if (phone) {
+      const minP = selectedPhoneCountry.phoneMin ?? 7;
+      const maxP = selectedPhoneCountry.phoneMax ?? 15;
+      if (!/^\d+$/.test(phone)) {
+        errs.telephone = "Mobile / Telephone must contain numbers only.";
+      } else if (phone.length < minP || phone.length > maxP) {
+        errs.telephone =
+          minP === maxP
+            ? `Phone number for ${selectedPhoneCountry.name} (${selectedPhoneCountry.dialCode}) must be ${minP} digits.`
+            : `Phone number for ${selectedPhoneCountry.name} (${selectedPhoneCountry.dialCode}) must be ${minP}–${maxP} digits.`;
+      }
+    }
+    if (emailVal && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+      errs.companyEmail = "Please enter a valid Company Email address.";
+    }
+    if (company.taxNumberEnabled) {
+      if (!taxVal) {
+        errs.taxNumber = `Please enter your ${company.taxType} Number.`;
+      } else if (company.taxType === "GST" && !/^[0-9A-Z]{15}$/.test(taxVal.toUpperCase())) {
+        errs.taxNumber = "GST Number must be a valid 15-character alphanumeric GSTIN.";
+      } else if (company.taxType === "VAT" && !/^[0-9A-Z-]{5,20}$/.test(taxVal.toUpperCase())) {
+        errs.taxNumber = "VAT Number must be 5–20 alphanumeric characters.";
+      }
+    }
+
+    setCompanyErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      toast.error(Object.values(errs)[0]);
+      return;
+    }
+
+    saveSectionMutation.mutate({
+      section: "company",
+      payload: {
+        ...company,
+        companyName: name,
+        country: selectedCountry.code,
+        countryName: selectedCountry.name,
+        phoneCountryCode: selectedPhoneCountry.code,
+        phoneDialCode: selectedPhoneCountry.dialCode,
+        zipCode: zip,
+        telephone: phone,
+        companyEmail: emailVal,
+        taxNumber: taxVal.toUpperCase(),
+      },
+    });
   };
 
   const SaveBtn = ({ section, payload }: { section: SectionId; payload: any }) =>
@@ -461,18 +636,33 @@ export function TenantSystemSettingsConsole({
   return (
     <div className="w-full px-3 sm:px-4 lg:px-5 py-4 space-y-5 font-sans">
       <PageHeader
-        title={mode === "hr" ? "HR & Letter Template Settings" : "Settings"}
+        title={
+          mode === "hrm-setup"
+            ? "HRM Setup"
+            : mode === "hr"
+              ? "HR & Letter Template Settings"
+              : "Settings"
+        }
         description={
-          mode === "hr"
-            ? "HR working days, HR email notifications, and employee document templates. Core workspace currency, timezone, and branding are locked to Tenant Settings."
-            : "Manage authoritative system-wide tenant settings, branding, currency, email, integrations, and HR templates."
+          mode === "hrm-setup"
+            ? "Dedicated HR setup for NOC Settings, Experience Certificate Settings, and Joining Letter Settings."
+            : mode === "hr"
+              ? "HR working days, HR email notifications, and employee document templates. Core workspace currency, timezone, and branding are locked to Tenant Settings."
+              : "Manage authoritative system-wide tenant settings, company profile, branding, currency, email, and access controls."
         }
         actions={
-          mode === "hr" && canEdit ? (
+          (mode === "hr" || mode === "hrm-setup") && canEdit ? (
             <Link href="/tenant/settings">
               <Button size="sm" variant="outline" className="gap-1.5">
                 <i className="ph ph-gear" />
-                Open Full Tenant Settings
+                Open Workspace Settings
+              </Button>
+            </Link>
+          ) : mode === "tenant" && canEdit ? (
+            <Link href="/tenant/hrm-setup">
+              <Button size="sm" variant="outline" className="gap-1.5">
+                <i className="ph ph-file-text" />
+                Open HRM Setup
               </Button>
             </Link>
           ) : undefined
@@ -667,7 +857,365 @@ export function TenantSystemSettingsConsole({
               </Card>
             )}
 
-            {/* 2. BRAND SETTINGS */}
+            {/* 2. COMPANY SETTINGS (Positioned before Brand Settings) */}
+            {mode === "tenant" && (
+              <Card id="settings-section-company" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
+                <CardContent className="p-6 space-y-5">
+                  <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
+                    <div className="flex items-start gap-2.5">
+                      <i className="ph ph-buildings text-xl text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <h2 className="text-base font-bold text-foreground">Company Settings</h2>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Configure your company information and details.
+                        </p>
+                      </div>
+                    </div>
+                    {canEdit ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={saveSectionMutation.isPending}
+                        onClick={validateAndSaveCompany}
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shrink-0"
+                      >
+                        <i
+                          className={
+                            saveSectionMutation.isPending && saveSectionMutation.variables?.section === "company"
+                              ? "ph ph-spinner-gap animate-spin"
+                              : "ph ph-floppy-disk"
+                          }
+                        />
+                        Save Changes
+                      </Button>
+                    ) : (
+                      <Badge variant="soft" className="text-[11px] gap-1">
+                        <i className="ph ph-lock" />
+                        Tenant Admin Only
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Row 1: Company Name & Registration Number */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">
+                        Company Name <span className="text-rose-500">*</span>
+                      </Label>
+                      <Input
+                        value={company.companyName}
+                        onChange={(e) => {
+                          setCompany((p) => ({ ...p, companyName: e.target.value }));
+                          if (companyErrors.companyName) setCompanyErrors((p) => ({ ...p, companyName: "" }));
+                        }}
+                        placeholder="Enter company legal or trade name"
+                        className={cn("h-9 text-xs", companyErrors.companyName && "border-rose-500")}
+                      />
+                      {companyErrors.companyName && (
+                        <p className="text-[11px] text-rose-600">{companyErrors.companyName}</p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Registration Number</Label>
+                      <Input
+                        value={company.registrationNumber}
+                        onChange={(e) =>
+                          setCompany((p) => ({ ...p, registrationNumber: e.target.value.toUpperCase() }))
+                        }
+                        placeholder="e.g., U72900TN2024PTC123456"
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row 2: Company Address */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Company Address</Label>
+                    <Input
+                      value={company.companyAddress}
+                      onChange={(e) => setCompany((p) => ({ ...p, companyAddress: e.target.value }))}
+                      placeholder="Building, street address, locality"
+                      className="h-9 text-xs"
+                    />
+                  </div>
+
+                  {/* Row 3: Country (with SVG Flag) & Cascading State Dropdown */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5" data-no-translate="true">
+                      <Label className="text-xs font-semibold">Country</Label>
+                      <Select
+                        value={selectedCountry.code}
+                        onValueChange={(code) => {
+                          const nextCountry = getCountryByCode(code);
+                          setCompany((p) => ({
+                            ...p,
+                            country: nextCountry.code,
+                            countryName: nextCountry.name,
+                            state: nextCountry.states.includes(p.state) ? p.state : "",
+                            phoneCountryCode: nextCountry.code,
+                            phoneDialCode: nextCountry.dialCode,
+                          }));
+                          setCompanyErrors((p) => ({ ...p, zipCode: "", telephone: "" }));
+                        }}
+                      >
+                        <SelectTrigger className="h-9 text-xs font-medium">
+                          <SelectValue>
+                            <span className="inline-flex items-center gap-2">
+                              <img
+                                src={`/assets/img/flags/${selectedCountry.code.toLowerCase()}.svg`}
+                                alt={selectedCountry.name}
+                                className="w-5 h-3.5 rounded-[2px] object-cover border border-border/50 shrink-0"
+                              />
+                              <span>{selectedCountry.name}</span>
+                            </span>
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="max-h-72">
+                          {COUNTRY_OPTIONS.map((c) => (
+                            <SelectItem key={c.code} value={c.code}>
+                              <span className="inline-flex items-center gap-2">
+                                <img
+                                  src={`/assets/img/flags/${c.code.toLowerCase()}.svg`}
+                                  alt={c.name}
+                                  className="w-5 h-3.5 rounded-[2px] object-cover border border-border/50 shrink-0"
+                                />
+                                <span className="font-medium">{c.name}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5" data-no-translate="true">
+                      <Label className="text-xs font-semibold">State</Label>
+                      {selectedCountry.states.length > 0 ? (
+                        <Select
+                          value={company.state || "__none__"}
+                          onValueChange={(v) => setCompany((p) => ({ ...p, state: v === "__none__" ? "" : v }))}
+                        >
+                          <SelectTrigger className="h-9 text-xs font-medium">
+                            <SelectValue placeholder={`Select state in ${selectedCountry.name}`} />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-72">
+                            <SelectItem value="__none__">Select State / Province</SelectItem>
+                            {selectedCountry.states.map((st) => (
+                              <SelectItem key={st} value={st}>
+                                {st}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          value={company.state}
+                          onChange={(e) => setCompany((p) => ({ ...p, state: e.target.value }))}
+                          placeholder="Enter state or province"
+                          className="h-9 text-xs"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Row 4: City & Zip Code (Numbers Only) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">City</Label>
+                      <Input
+                        value={company.city}
+                        onChange={(e) => setCompany((p) => ({ ...p, city: e.target.value }))}
+                        placeholder="e.g., Chennai, Ahmedabad, Bengaluru"
+                        className="h-9 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Zip Code</Label>
+                      <Input
+                        value={company.zipCode}
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={selectedCountry.zipMax ?? 10}
+                        onChange={(e) => {
+                          const digitsOnly = e.target.value.replace(/\D/g, "");
+                          setCompany((p) => ({ ...p, zipCode: digitsOnly }));
+                          if (companyErrors.zipCode) setCompanyErrors((p) => ({ ...p, zipCode: "" }));
+                        }}
+                        placeholder={
+                          selectedCountry.zipMin === selectedCountry.zipMax
+                            ? `Numbers only (${selectedCountry.zipMin} digits)`
+                            : "Numbers only (e.g., 600001)"
+                        }
+                        className={cn("h-9 text-xs", companyErrors.zipCode && "border-rose-500")}
+                      />
+                      {companyErrors.zipCode && (
+                        <p className="text-[11px] text-rose-600">{companyErrors.zipCode}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Row 5: Mobile / Telephone (Country Dial Code + Flag) & Company Email */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5" data-no-translate="true">
+                      <Label className="text-xs font-semibold">Telephone / Mobile Number</Label>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={selectedPhoneCountry.code}
+                          onValueChange={(code) => {
+                            const nextPhoneCountry = getCountryByCode(code);
+                            setCompany((p) => ({
+                              ...p,
+                              phoneCountryCode: nextPhoneCountry.code,
+                              phoneDialCode: nextPhoneCountry.dialCode,
+                            }));
+                            if (companyErrors.telephone) setCompanyErrors((p) => ({ ...p, telephone: "" }));
+                          }}
+                        >
+                          <SelectTrigger className="h-9 w-[124px] shrink-0 text-xs font-medium px-2.5">
+                            <SelectValue>
+                              <span className="inline-flex items-center gap-1.5">
+                                <img
+                                  src={`/assets/img/flags/${selectedPhoneCountry.code.toLowerCase()}.svg`}
+                                  alt={selectedPhoneCountry.name}
+                                  className="w-4 h-3 rounded-[2px] object-cover border border-border/50 shrink-0"
+                                />
+                                <span>{selectedPhoneCountry.dialCode}</span>
+                              </span>
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="max-h-72">
+                            {COUNTRY_OPTIONS.map((c) => (
+                              <SelectItem key={`dial-${c.code}`} value={c.code}>
+                                <span className="inline-flex items-center gap-2">
+                                  <img
+                                    src={`/assets/img/flags/${c.code.toLowerCase()}.svg`}
+                                    alt={c.name}
+                                    className="w-5 h-3.5 rounded-[2px] object-cover border border-border/50 shrink-0"
+                                  />
+                                  <span className="font-semibold">{c.dialCode}</span>
+                                  <span className="text-muted-foreground truncate max-w-[130px]">{c.name}</span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          value={company.telephone}
+                          inputMode="tel"
+                          pattern="[0-9]*"
+                          maxLength={selectedPhoneCountry.phoneMax ?? 15}
+                          onChange={(e) => {
+                            const digitsOnly = e.target.value.replace(/\D/g, "");
+                            setCompany((p) => ({ ...p, telephone: digitsOnly }));
+                            if (companyErrors.telephone) setCompanyErrors((p) => ({ ...p, telephone: "" }));
+                          }}
+                          placeholder={`Enter ${selectedPhoneCountry.phoneMin ?? 10}-digit number`}
+                          className={cn("h-9 text-xs flex-1", companyErrors.telephone && "border-rose-500")}
+                        />
+                      </div>
+                      {companyErrors.telephone && (
+                        <p className="text-[11px] text-rose-600">{companyErrors.telephone}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold">Company Email</Label>
+                      <Input
+                        type="email"
+                        value={company.companyEmail}
+                        onChange={(e) => {
+                          setCompany((p) => ({ ...p, companyEmail: e.target.value }));
+                          if (companyErrors.companyEmail) setCompanyErrors((p) => ({ ...p, companyEmail: "" }));
+                        }}
+                        placeholder="contact@company.com"
+                        className={cn("h-9 text-xs", companyErrors.companyEmail && "border-rose-500")}
+                      />
+                      {companyErrors.companyEmail && (
+                        <p className="text-[11px] text-rose-600">{companyErrors.companyEmail}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Row 6: Email From Name */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">Email From Name</Label>
+                    <Input
+                      value={company.emailFromName}
+                      onChange={(e) => setCompany((p) => ({ ...p, emailFromName: e.target.value }))}
+                      placeholder="e.g., MasterHRMS HR Team"
+                      className="h-9 text-xs"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Name that appears in the &quot;From&quot; field of emails sent by the system.
+                    </p>
+                  </div>
+
+                  {/* Row 7: Tax Number Toggle + VAT/GST Radio + Tax Input */}
+                  <div className="pt-2 border-t border-border/60 space-y-2">
+                    <div className="flex flex-wrap items-center gap-4">
+                      <div className="flex items-center gap-2.5">
+                        <Label className="text-xs font-semibold">Tax Number</Label>
+                        <Switch
+                          checked={company.taxNumberEnabled}
+                          onCheckedChange={(checked) => {
+                            setCompany((p) => ({ ...p, taxNumberEnabled: checked }));
+                            if (!checked && companyErrors.taxNumber) {
+                              setCompanyErrors((p) => ({ ...p, taxNumber: "" }));
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {company.taxNumberEnabled && (
+                        <>
+                          <div className="flex items-center gap-4">
+                            {(["VAT", "GST"] as const).map((tType) => (
+                              <label
+                                key={tType}
+                                className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground cursor-pointer select-none"
+                              >
+                                <input
+                                  type="radio"
+                                  name="company-tax-type"
+                                  checked={company.taxType === tType}
+                                  onChange={() => {
+                                    setCompany((p) => ({ ...p, taxType: tType }));
+                                    if (companyErrors.taxNumber) setCompanyErrors((p) => ({ ...p, taxNumber: "" }));
+                                  }}
+                                  className="accent-primary h-3.5 w-3.5 cursor-pointer"
+                                />
+                                <span>{tType} Number</span>
+                              </label>
+                            ))}
+                          </div>
+                          <div className="flex-1 min-w-[220px]">
+                            <Input
+                              value={company.taxNumber}
+                              onChange={(e) => {
+                                const cleaned = e.target.value.toUpperCase().replace(/[^0-9A-Z-]/g, "");
+                                setCompany((p) => ({ ...p, taxNumber: cleaned }));
+                                if (companyErrors.taxNumber) setCompanyErrors((p) => ({ ...p, taxNumber: "" }));
+                              }}
+                              maxLength={company.taxType === "GST" ? 15 : 20}
+                              placeholder={
+                                company.taxType === "GST"
+                                  ? "Enter 15-char GSTIN (e.g., 33AABCU9603R1ZM)"
+                                  : "Enter VAT Number (e.g., VAT123456789)"
+                              }
+                              className={cn("h-9 text-xs", companyErrors.taxNumber && "border-rose-500")}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {companyErrors.taxNumber && (
+                      <p className="text-[11px] text-rose-600">{companyErrors.taxNumber}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 3. BRAND SETTINGS */}
             {mode === "tenant" && (
               <Card id="settings-section-brand" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
                 <CardContent className="p-6 space-y-5">
@@ -851,52 +1399,20 @@ export function TenantSystemSettingsConsole({
                             </p>
                           </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                              <Label className="text-xs font-semibold">Company Mobile Number</Label>
-                              <Input
-                                value={brand.companyMobile}
-                                onChange={(e) => setBrand((p) => ({ ...p, companyMobile: e.target.value }))}
-                                placeholder="+91 98765 43210"
-                                className="h-9 text-xs"
-                              />
-                              <p className="text-[11px] text-muted-foreground">Company contact mobile number</p>
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label className="text-xs font-semibold">Company Email</Label>
-                              <Input
-                                type="email"
-                                value={brand.companyEmail}
-                                onChange={(e) => setBrand((p) => ({ ...p, companyEmail: e.target.value }))}
-                                placeholder="hr@company.com"
-                                className="h-9 text-xs"
-                              />
-                              <p className="text-[11px] text-muted-foreground">Official organization email</p>
-                            </div>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label className="text-xs font-semibold">GSTIN / Tax Registration No.</Label>
-                            <Input
-                              value={brand.taxNumber}
-                              onChange={(e) => setBrand((p) => ({ ...p, taxNumber: e.target.value }))}
-                              placeholder="33AABCP1234F1Z5"
-                              className="h-9 text-xs"
-                            />
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label className="text-xs font-semibold">Company Address</Label>
-                            <Textarea
-                              rows={3}
-                              value={brand.companyAddress}
-                              onChange={(e) => setBrand((p) => ({ ...p, companyAddress: e.target.value }))}
-                              placeholder="Registered company street address, city, state, postal code"
-                              className="text-xs"
-                            />
+                          <div className="rounded-lg border border-border/70 bg-muted/30 p-3 flex items-center justify-between gap-3">
                             <p className="text-[11px] text-muted-foreground">
-                              Used as the single source of truth across Payslips, Tax Invoices, and Offer Letters.
+                              Company Address, Mobile Number, Email, and Tax / GSTIN details are managed in{" "}
+                              <span className="font-semibold text-foreground">Company Settings</span>.
                             </p>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => scrollToSection("company")}
+                              className="h-7 px-2.5 text-[11px] shrink-0"
+                            >
+                              Go to Company Settings
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -1484,105 +2000,153 @@ export function TenantSystemSettingsConsole({
             )}
 
             {/* 5. EMAIL NOTIFICATION SETTINGS (HR FLOW ONLY) */}
-            <Card id="settings-section-email_notifications" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
-              <CardContent className="p-6 space-y-5">
-                <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-base font-bold text-foreground">Email Notification Settings</h2>
-                      <Badge variant="soft" className="text-[10px]">HR Flow</Badge>
+            {mode !== "hrm-setup" && (
+              <Card id="settings-section-email_notifications" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
+                <CardContent className="p-6 space-y-5">
+                  <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-base font-bold text-foreground">Email Notification Settings</h2>
+                        <Badge variant="soft" className="text-[10px]">HR Flow</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Configure which HR workflow email notifications are triggered automatically.
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Configure which HR workflow email notifications are triggered automatically.
-                    </p>
+                    <SaveBtn section="email_notifications" payload={emailNotifications} />
                   </div>
-                  <SaveBtn section="email_notifications" payload={emailNotifications} />
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {HR_NOTIFICATION_ITEMS.map((item) => (
-                    <div
-                      key={item.key}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-border/70 px-3.5 py-2.5 bg-background"
-                    >
-                      <span className="text-xs font-medium text-foreground">{item.label}</span>
-                      <Switch
-                        disabled={!canEdit}
-                        checked={Boolean(emailNotifications[item.key])}
-                        onCheckedChange={(v) =>
-                          setEmailNotifications((prev) => ({ ...prev, [item.key]: v }))
-                        }
-                      />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {HR_NOTIFICATION_ITEMS.map((item) => (
+                      <div
+                        key={item.key}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border/70 px-3.5 py-2.5 bg-background"
+                      >
+                        <span className="text-xs font-medium text-foreground">{item.label}</span>
+                        <Switch
+                          disabled={!canEdit}
+                          checked={Boolean(emailNotifications[item.key])}
+                          onCheckedChange={(v) =>
+                            setEmailNotifications((prev) => ({ ...prev, [item.key]: v }))
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Slack, Telegram, Twilio SMS, and Zoom Meeting Settings are managed in /tenant/integrations */}
 
             {/* 10. WORKING DAYS SETTINGS (HRMS) */}
-            <Card id="settings-section-working_days" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
-              <CardContent className="p-6 space-y-5">
-                <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-base font-bold text-foreground">Working Days Settings</h2>
-                      <Badge variant="soft" className="text-[10px]">HRMS</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Configure which days are official working days for attendance & payroll calculations.
-                    </p>
-                  </div>
-                  <SaveBtn section="working_days" payload={workingDays} />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {DAYS_OF_WEEK.map((day) => (
-                    <div
-                      key={day.key}
-                      className="flex items-center justify-between rounded-lg border border-border/70 px-4 py-3 bg-background"
-                    >
-                      <span className="text-xs font-medium text-foreground flex items-center gap-2">
-                        <i className="ph ph-clock text-muted-foreground" />
-                        {day.label}
-                      </span>
-                      <Switch
-                        disabled={!canEdit}
-                        checked={Boolean(workingDays[day.key])}
-                        onCheckedChange={(v) => setWorkingDays((p) => ({ ...p, [day.key]: v }))}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 11. IP RESTRICTION SETTINGS (OVERALL SYSTEM) */}
-            {mode === "tenant" && (
-              <Card id="settings-section-ip_restriction" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
+            {mode !== "hrm-setup" && (
+              <Card id="settings-section-working_days" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
                 <CardContent className="p-6 space-y-5">
                   <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
                     <div>
-                      <h2 className="text-base font-bold text-foreground">IP Restriction Settings</h2>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-base font-bold text-foreground">Working Days Settings</h2>
+                        <Badge variant="soft" className="text-[10px]">HRMS</Badge>
+                      </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Manage allowed IP addresses for company access.
+                        Configure which days are official working days for attendance & payroll calculations.
                       </p>
                     </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => {
-                        setEditingIpId(null);
-                        setIpValue("");
-                        setIpLabel("");
-                        setIpModalOpen(true);
-                      }}
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5"
-                    >
-                      <i className="ph ph-plus" />
-                      Add IP Address
-                    </Button>
+                    <SaveBtn section="working_days" payload={workingDays} />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {DAYS_OF_WEEK.map((day) => (
+                      <div
+                        key={day.key}
+                        className="flex items-center justify-between rounded-lg border border-border/70 px-4 py-3 bg-background"
+                      >
+                        <span className="text-xs font-medium text-foreground flex items-center gap-2">
+                          <i className="ph ph-clock text-muted-foreground" />
+                          {day.label}
+                        </span>
+                        <Switch
+                          disabled={!canEdit}
+                          checked={Boolean(workingDays[day.key])}
+                          onCheckedChange={(v) => setWorkingDays((p) => ({ ...p, [day.key]: v }))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 11. IP RESTRICTION SETTINGS (TENANT-SCOPED ONLY) */}
+            {mode === "tenant" && (
+              <Card id="settings-section-ip_restriction" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
+                <CardContent className="p-6 space-y-5">
+                  <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/60 pb-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-base font-bold text-foreground">IP Restriction Settings</h2>
+                        <Badge variant="soft" className="text-[10px]">
+                          This Tenant Only
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Manage allowed IP addresses for company access. Enforcement applies exclusively to users in your organization — other workspaces and platform admins are unaffected.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border/70 bg-muted/30">
+                        <span className="text-xs font-semibold text-foreground">
+                          {ipRestriction.enabled ? "Enforced" : "Disabled"}
+                        </span>
+                        <Switch
+                          checked={Boolean(ipRestriction.enabled)}
+                          onCheckedChange={handleToggleIpRestriction}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          setEditingIpId(null);
+                          setIpValue("");
+                          setIpLabel("");
+                          setIpModalOpen(true);
+                        }}
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5"
+                      >
+                        <i className="ph ph-plus" />
+                        Add IP Address
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Detected Client IP Banner + 1-Click Safe Add */}
+                  <div className="rounded-lg border border-border/70 bg-muted/25 p-3.5 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 text-xs">
+                      <i className="ph ph-shield-check text-primary text-lg shrink-0" />
+                      <div>
+                        <p className="font-semibold text-foreground">
+                          Your Current IP Address:{" "}
+                          <span className="text-primary">{currentClientIp || "Detecting..."}</span>
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Add your current IP or office CIDR range (e.g., 192.168.1.0/24) before turning on enforcement to avoid locking yourself out.
+                        </p>
+                      </div>
+                    </div>
+                    {currentClientIp && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleAddCurrentIp}
+                        className="h-8 text-xs gap-1.5 shrink-0"
+                      >
+                        <i className="ph ph-plus-circle" />
+                        Add My Current IP
+                      </Button>
+                    )}
                   </div>
 
                   <div className="overflow-x-auto border border-border/80 rounded-lg">
@@ -1644,189 +2208,193 @@ export function TenantSystemSettingsConsole({
               </Card>
             )}
 
-            {/* 12. NOC SETTINGS (HRMS) */}
-            <Card id="settings-section-noc" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
-              <CardContent className="p-6 space-y-5">
-                <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
-                  <div>
-                    <h2 className="text-base font-bold text-foreground">No Objection Certificate Settings</h2>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Configure NOC templates with dynamic employee placeholders.
-                    </p>
-                  </div>
-                  <SaveBtn section="noc" payload={noc} />
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex justify-end">
-                    <Select value={noc.language} onValueChange={(v) => setNoc((p) => ({ ...p, language: v }))}>
-                      <SelectTrigger className="w-40 h-9 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="en">English</SelectItem>
-                        <SelectItem value="ta">Tamil</SelectItem>
-                        <SelectItem value="hi">Hindi</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs font-semibold mb-2 block">Available Placeholders (Click to Insert)</Label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                      {[
-                        { label: "Date", token: "{date}" },
-                        { label: "Company Name", token: "{company_name}" },
-                        { label: "Employee Name", token: "{employee_name}" },
-                        { label: "Designation", token: "{designation}" },
-                      ].map((ph) => (
-                        <button
-                          key={ph.token}
-                          type="button"
-                          onClick={() => insertPlaceholder(setNoc, ph.token)}
-                          className="rounded-lg border border-border/70 p-2.5 text-left hover:border-primary/40 hover:bg-muted/30 transition-colors cursor-pointer"
-                        >
-                          <p className="text-xs font-semibold text-foreground">{ph.label}</p>
-                          <p className="text-[11px] text-primary mt-0.5">{ph.token}</p>
-                        </button>
-                      ))}
+            {/* 12. NOC SETTINGS (DEDICATED HRM SETUP) */}
+            {mode !== "tenant" && (
+              <>
+                <Card id="settings-section-noc" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
+                  <CardContent className="p-6 space-y-5">
+                    <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
+                      <div>
+                        <h2 className="text-base font-bold text-foreground">No Objection Certificate Settings</h2>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Configure NOC templates with dynamic employee placeholders.
+                        </p>
+                      </div>
+                      <SaveBtn section="noc" payload={noc} />
                     </div>
-                  </div>
 
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Template Content</Label>
-                    <Textarea
-                      rows={8}
-                      disabled={!canEdit}
-                      value={noc.content}
-                      onChange={(e) => setNoc((p) => ({ ...p, content: e.target.value }))}
-                      className="text-xs leading-relaxed"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                    <div className="space-y-3">
+                      <div className="flex justify-end">
+                        <Select value={noc.language} onValueChange={(v) => setNoc((p) => ({ ...p, language: v }))}>
+                          <SelectTrigger className="w-40 h-9 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="en">English</SelectItem>
+                            <SelectItem value="ta">Tamil</SelectItem>
+                            <SelectItem value="hi">Hindi</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-            {/* 13. EXPERIENCE CERTIFICATE SETTINGS (HR SETTINGS) */}
-            <Card id="settings-section-experience_certificate" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
-              <CardContent className="p-6 space-y-5">
-                <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
-                  <div>
-                    <h2 className="text-base font-bold text-foreground">Experience Certificate Settings</h2>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Configure Experience Certificate templates for exiting employees.
-                    </p>
-                  </div>
-                  <SaveBtn section="experience_certificate" payload={experienceCert} />
-                </div>
+                      <div>
+                        <Label className="text-xs font-semibold mb-2 block">Available Placeholders (Click to Insert)</Label>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                          {[
+                            { label: "Date", token: "{date}" },
+                            { label: "Company Name", token: "{company_name}" },
+                            { label: "Employee Name", token: "{employee_name}" },
+                            { label: "Designation", token: "{designation}" },
+                          ].map((ph) => (
+                            <button
+                              key={ph.token}
+                              type="button"
+                              onClick={() => insertPlaceholder(setNoc, ph.token)}
+                              className="rounded-lg border border-border/70 p-2.5 text-left hover:border-primary/40 hover:bg-muted/30 transition-colors cursor-pointer"
+                            >
+                              <p className="text-xs font-semibold text-foreground">{ph.label}</p>
+                              <p className="text-[11px] text-primary mt-0.5">{ph.token}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
 
-                <div className="space-y-3">
-                  <div>
-                    <Label className="text-xs font-semibold mb-2 block">Available Placeholders (Click to Insert)</Label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                      {[
-                        { label: "Date", token: "{date}" },
-                        { label: "Company Name", token: "{company_name}" },
-                        { label: "Employee Name", token: "{employee_name}" },
-                        { label: "Designation", token: "{designation}" },
-                        { label: "Joining Date", token: "{joining_date}" },
-                        { label: "Relieving Date", token: "{relieving_date}" },
-                      ].map((ph) => (
-                        <button
-                          key={ph.token}
-                          type="button"
-                          onClick={() => insertPlaceholder(setExperienceCert, ph.token)}
-                          className="rounded-lg border border-border/70 p-2.5 text-left hover:border-primary/40 hover:bg-muted/30 transition-colors cursor-pointer"
-                        >
-                          <p className="text-xs font-semibold text-foreground">{ph.label}</p>
-                          <p className="text-[11px] text-primary mt-0.5">{ph.token}</p>
-                        </button>
-                      ))}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold">Template Content</Label>
+                        <Textarea
+                          rows={8}
+                          disabled={!canEdit}
+                          value={noc.content}
+                          onChange={(e) => setNoc((p) => ({ ...p, content: e.target.value }))}
+                          className="text-xs leading-relaxed"
+                        />
+                      </div>
                     </div>
-                  </div>
+                  </CardContent>
+                </Card>
 
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Template Content</Label>
-                    <Textarea
-                      rows={8}
-                      disabled={!canEdit}
-                      value={experienceCert.content}
-                      onChange={(e) => setExperienceCert((p) => ({ ...p, content: e.target.value }))}
-                      className="text-xs leading-relaxed"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* 14. JOINING LETTER SETTINGS (HRMS) */}
-            <Card id="settings-section-joining_letter" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
-              <CardContent className="p-6 space-y-5">
-                <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
-                  <div>
-                    <h2 className="text-base font-bold text-foreground">Joining Letter Settings</h2>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Configure Joining Letter templates for newly onboarded employees.
-                    </p>
-                  </div>
-                  <SaveBtn section="joining_letter" payload={joiningLetter} />
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex justify-end">
-                    <Select
-                      value={joiningLetter.language}
-                      onValueChange={(v) => setJoiningLetter((p) => ({ ...p, language: v }))}
-                    >
-                      <SelectTrigger className="w-40 h-9 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="en">English</SelectItem>
-                        <SelectItem value="ta">Tamil</SelectItem>
-                        <SelectItem value="hi">Hindi</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs font-semibold mb-2 block">Available Placeholders (Click to Insert)</Label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                      {[
-                        { label: "Date", token: "{date}" },
-                        { label: "Company Name", token: "{company_name}" },
-                        { label: "Employee Name", token: "{employee_name}" },
-                        { label: "Designation", token: "{designation}" },
-                        { label: "Joining Date", token: "{joining_date}" },
-                        { label: "Salary", token: "{salary}" },
-                        { label: "Department", token: "{department}" },
-                      ].map((ph) => (
-                        <button
-                          key={ph.token}
-                          type="button"
-                          onClick={() => insertPlaceholder(setJoiningLetter, ph.token)}
-                          className="rounded-lg border border-border/70 p-2.5 text-left hover:border-primary/40 hover:bg-muted/30 transition-colors cursor-pointer"
-                        >
-                          <p className="text-xs font-semibold text-foreground">{ph.label}</p>
-                          <p className="text-[11px] text-primary mt-0.5">{ph.token}</p>
-                        </button>
-                      ))}
+                {/* 13. EXPERIENCE CERTIFICATE SETTINGS (HR SETTINGS) */}
+                <Card id="settings-section-experience_certificate" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
+                  <CardContent className="p-6 space-y-5">
+                    <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
+                      <div>
+                        <h2 className="text-base font-bold text-foreground">Experience Certificate Settings</h2>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Configure Experience Certificate templates for exiting employees.
+                        </p>
+                      </div>
+                      <SaveBtn section="experience_certificate" payload={experienceCert} />
                     </div>
-                  </div>
 
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Template Content</Label>
-                    <Textarea
-                      rows={9}
-                      disabled={!canEdit}
-                      value={joiningLetter.content}
-                      onChange={(e) => setJoiningLetter((p) => ({ ...p, content: e.target.value }))}
-                      className="text-xs leading-relaxed"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-xs font-semibold mb-2 block">Available Placeholders (Click to Insert)</Label>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                          {[
+                            { label: "Date", token: "{date}" },
+                            { label: "Company Name", token: "{company_name}" },
+                            { label: "Employee Name", token: "{employee_name}" },
+                            { label: "Designation", token: "{designation}" },
+                            { label: "Joining Date", token: "{joining_date}" },
+                            { label: "Relieving Date", token: "{relieving_date}" },
+                          ].map((ph) => (
+                            <button
+                              key={ph.token}
+                              type="button"
+                              onClick={() => insertPlaceholder(setExperienceCert, ph.token)}
+                              className="rounded-lg border border-border/70 p-2.5 text-left hover:border-primary/40 hover:bg-muted/30 transition-colors cursor-pointer"
+                            >
+                              <p className="text-xs font-semibold text-foreground">{ph.label}</p>
+                              <p className="text-[11px] text-primary mt-0.5">{ph.token}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold">Template Content</Label>
+                        <Textarea
+                          rows={8}
+                          disabled={!canEdit}
+                          value={experienceCert.content}
+                          onChange={(e) => setExperienceCert((p) => ({ ...p, content: e.target.value }))}
+                          className="text-xs leading-relaxed"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* 14. JOINING LETTER SETTINGS (HRMS) */}
+                <Card id="settings-section-joining_letter" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
+                  <CardContent className="p-6 space-y-5">
+                    <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
+                      <div>
+                        <h2 className="text-base font-bold text-foreground">Joining Letter Settings</h2>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Configure Joining Letter templates for newly onboarded employees.
+                        </p>
+                      </div>
+                      <SaveBtn section="joining_letter" payload={joiningLetter} />
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex justify-end">
+                        <Select
+                          value={joiningLetter.language}
+                          onValueChange={(v) => setJoiningLetter((p) => ({ ...p, language: v }))}
+                        >
+                          <SelectTrigger className="w-40 h-9 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="en">English</SelectItem>
+                            <SelectItem value="ta">Tamil</SelectItem>
+                            <SelectItem value="hi">Hindi</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label className="text-xs font-semibold mb-2 block">Available Placeholders (Click to Insert)</Label>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                          {[
+                            { label: "Date", token: "{date}" },
+                            { label: "Company Name", token: "{company_name}" },
+                            { label: "Employee Name", token: "{employee_name}" },
+                            { label: "Designation", token: "{designation}" },
+                            { label: "Joining Date", token: "{joining_date}" },
+                            { label: "Salary", token: "{salary}" },
+                            { label: "Department", token: "{department}" },
+                          ].map((ph) => (
+                            <button
+                              key={ph.token}
+                              type="button"
+                              onClick={() => insertPlaceholder(setJoiningLetter, ph.token)}
+                              className="rounded-lg border border-border/70 p-2.5 text-left hover:border-primary/40 hover:bg-muted/30 transition-colors cursor-pointer"
+                            >
+                              <p className="text-xs font-semibold text-foreground">{ph.label}</p>
+                              <p className="text-[11px] text-primary mt-0.5">{ph.token}</p>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold">Template Content</Label>
+                        <Textarea
+                          rows={9}
+                          disabled={!canEdit}
+                          value={joiningLetter.content}
+                          onChange={(e) => setJoiningLetter((p) => ({ ...p, content: e.target.value }))}
+                          className="text-xs leading-relaxed"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </div>
         </div>
       )}

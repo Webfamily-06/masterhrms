@@ -141,10 +141,10 @@ export default function HrAttendanceOvertimePage() {
                         <div className="font-medium">{r.employee?.firstName} {r.employee?.lastName}</div>
                         <div className="text-xs text-muted-foreground">{r.employee?.employeeCode} • {r.employee?.department?.name || "General"}</div>
                       </td>
-                      <td className="py-3 px-4 font-mono text-xs whitespace-nowrap">
+                      <td className="py-3 px-4 tabular-nums text-xs whitespace-nowrap">
                         {new Date(r.overtimeDate).toLocaleDateString()}
                       </td>
-                      <td className="py-3 px-4 font-mono font-semibold">
+                      <td className="py-3 px-4 tabular-nums font-semibold">
                         {r.hoursRequested} hrs
                       </td>
                       <td className="py-3 px-4">

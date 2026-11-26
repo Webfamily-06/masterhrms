@@ -117,7 +117,7 @@ export default function AiDocumentAnalyticsPage() {
                   <div className="space-y-3">
                     {analytics.daily.map((d: any, idx: number) => (
                       <div key={idx} className="flex items-center justify-between border-b pb-2 text-sm">
-                        <span className="font-mono text-xs">{d.day}</span>
+                        <span className="tabular-nums text-xs">{d.day}</span>
                         <div className="flex items-center gap-4 text-xs">
                           <span className="text-muted-foreground">{d.generations} runs</span>
                           <span className="font-semibold">{d.words?.toLocaleString()} words</span>

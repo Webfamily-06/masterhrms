@@ -166,14 +166,14 @@ export default function SetupStatusesPage() {
               <TableBody>
                 {statuses.map((sta) => (
                   <TableRow key={sta.id}>
-                    <TableCell className="font-mono text-xs">{sta.sortOrder}</TableCell>
+                    <TableCell className="tabular-nums text-xs">{sta.sortOrder}</TableCell>
                     <TableCell className="font-medium text-xs">
                       <div className="flex items-center gap-2">
                         <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: sta.color }} />
                         {sta.name}
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{sta.color}</TableCell>
+                    <TableCell className="tabular-nums text-xs">{sta.color}</TableCell>
                     <TableCell>
                       <span
                         className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${
@@ -236,7 +236,7 @@ export default function SetupStatusesPage() {
                 <Input
                   value={form.color}
                   onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))}
-                  className="font-mono text-xs"
+                  className="tabular-nums text-xs"
                 />
               </div>
             </div>

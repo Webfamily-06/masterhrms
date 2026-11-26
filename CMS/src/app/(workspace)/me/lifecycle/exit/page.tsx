@@ -19,7 +19,7 @@ export default function MeExitClearancePage() {
   });
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="w-full space-y-6">
       <PageHeader
         title="Exit Clearance & Offboarding Status"
         description="Monitor departmental sign-offs, asset handovers, exit interview scheduling, and final settlement preparation."

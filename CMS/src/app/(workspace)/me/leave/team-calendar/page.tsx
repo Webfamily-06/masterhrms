@@ -167,10 +167,10 @@ export default function MeLeaveTeamCalendarPage() {
                         <td className="py-3 px-4">
                           <Badge variant="outline">{l.leaveType?.name || "Leave"}</Badge>
                         </td>
-                        <td className="py-3 px-4 font-mono text-xs whitespace-nowrap">
+                        <td className="py-3 px-4 tabular-nums text-xs whitespace-nowrap">
                           {String(l.startDate).slice(0, 10)} → {String(l.endDate).slice(0, 10)}
                         </td>
-                        <td className="py-3 px-4 font-mono text-xs font-semibold">
+                        <td className="py-3 px-4 tabular-nums text-xs font-semibold">
                           {formatLeaveDays(l.days)} day(s)
                         </td>
                       </tr>
@@ -188,7 +188,7 @@ export default function MeLeaveTeamCalendarPage() {
                       </span>
                       <Badge variant="outline">{l.leaveType?.name || "Leave"}</Badge>
                     </div>
-                    <div className="flex items-center justify-between text-muted-foreground font-mono">
+                    <div className="flex items-center justify-between text-muted-foreground tabular-nums">
                       <span>
                         {String(l.startDate).slice(0, 10)} → {String(l.endDate).slice(0, 10)}
                       </span>

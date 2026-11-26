@@ -144,7 +144,7 @@ function CreateWebhookEndpointPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center gap-2 bg-card p-2.5 rounded-lg border font-mono text-xs">
+              <div className="flex items-center gap-2 bg-card p-2.5 rounded-lg border tabular-nums text-xs">
                 <span className="flex-1 select-all break-all">{createdSecret}</span>
                 <Button
                   size="sm"
@@ -228,7 +228,7 @@ function CreateWebhookEndpointPage() {
                     <div className="space-y-1">
                       <label className="font-semibold text-foreground">Trigger Event *</label>
                       <Select value={eventKey} onValueChange={setEventKey}>
-                        <SelectTrigger className="h-8 text-xs font-mono">
+                        <SelectTrigger className="h-8 text-xs tabular-nums">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -246,7 +246,7 @@ function CreateWebhookEndpointPage() {
                     <div className="sm:col-span-1 space-y-1">
                       <label className="font-semibold text-foreground">HTTP Method</label>
                       <Select value={method} onValueChange={(val: any) => setMethod(val)}>
-                        <SelectTrigger className="h-8 text-xs font-bold font-mono">
+                        <SelectTrigger className="h-8 text-xs font-bold tabular-nums">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -264,7 +264,7 @@ function CreateWebhookEndpointPage() {
                         placeholder="https://api.yourcompany.com/webhook"
                         value={url}
                         onChange={(e) => setUrl(e.target.value)}
-                        className="h-8 text-xs font-mono"
+                        className="h-8 text-xs tabular-nums"
                         required
                       />
                     </div>
@@ -279,13 +279,13 @@ function CreateWebhookEndpointPage() {
                         max={30000}
                         value={timeoutMs}
                         onChange={(e) => setTimeoutMs(e.target.value)}
-                        className="h-8 text-xs font-mono"
+                        className="h-8 text-xs tabular-nums"
                       />
                     </div>
                     <div className="space-y-1">
                       <label className="font-semibold text-foreground">Max Retries</label>
                       <Select value={maxRetries} onValueChange={setMaxRetries}>
-                        <SelectTrigger className="h-8 text-xs font-mono">
+                        <SelectTrigger className="h-8 text-xs tabular-nums">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -321,13 +321,13 @@ function CreateWebhookEndpointPage() {
                             placeholder="Header-Name"
                             value={hdr.key}
                             onChange={(e) => updateHeader(i, "key", e.target.value)}
-                            className="h-7 text-xs font-mono flex-1"
+                            className="h-7 text-xs tabular-nums flex-1"
                           />
                           <Input
                             placeholder="Value"
                             value={hdr.value}
                             onChange={(e) => updateHeader(i, "value", e.target.value)}
-                            className="h-7 text-xs font-mono flex-1"
+                            className="h-7 text-xs tabular-nums flex-1"
                           />
                           <Button
                             type="button"
@@ -385,8 +385,8 @@ function CreateWebhookEndpointPage() {
                 </div>
 
                 <div className="p-3 bg-muted/40 rounded-xl border space-y-1">
-                  <div className="text-[10px] uppercase font-mono text-muted-foreground font-bold">Headers Sent:</div>
-                  <pre className="text-[11px] font-mono text-foreground leading-relaxed whitespace-pre-wrap">
+                  <div className="text-[10px] uppercase tabular-nums text-muted-foreground font-bold">Headers Sent:</div>
+                  <pre className="text-[11px] tabular-nums text-foreground leading-relaxed whitespace-pre-wrap">
 {`Content-Type: application/json
 X-Webhook-Event: ${eventKey}
 X-Webhook-Delivery-Id: <uuid>
@@ -396,8 +396,8 @@ X-Webhook-Signature: t=...,v1=<hmac-sha256>`}
                 </div>
 
                 <div className="p-3 bg-muted/40 rounded-xl border space-y-1">
-                  <div className="text-[10px] uppercase font-mono text-muted-foreground font-bold">Sample Body:</div>
-                  <pre className="text-[11px] font-mono text-foreground leading-relaxed overflow-x-auto p-2 bg-card rounded border">
+                  <div className="text-[10px] uppercase tabular-nums text-muted-foreground font-bold">Sample Body:</div>
+                  <pre className="text-[11px] tabular-nums text-foreground leading-relaxed overflow-x-auto p-2 bg-card rounded border">
 {JSON.stringify(selectedEventDef?.payloadSchema || {}, null, 2)}
                   </pre>
                 </div>

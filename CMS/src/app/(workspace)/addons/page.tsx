@@ -14,7 +14,7 @@ export default function AddonsRedirect() {
   return (
     <div className="py-24 flex flex-col items-center justify-center gap-3">
       <Loader2 className="size-8 animate-spin text-emerald-600" />
-      <p className="text-xs text-muted-foreground font-mono">Redirecting to /tenant/addon...</p>
+      <p className="text-xs text-muted-foreground tabular-nums">Redirecting to /tenant/addon...</p>
     </div>
   );
 }

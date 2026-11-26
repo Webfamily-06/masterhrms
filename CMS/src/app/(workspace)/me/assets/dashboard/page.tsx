@@ -29,7 +29,7 @@ export default function MeAssetsDashboardPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="w-full space-y-6">
       <PageHeader
         title="My Assets & Equipment"
         description="View your currently assigned company hardware, peripherals, and submit new requests."
@@ -100,7 +100,7 @@ export default function MeAssetsDashboardPage() {
                 dashboard.recentAssignments.map((a: any) => (
                   <TableRow key={a.id}>
                     <TableCell className="font-medium">{a.asset?.name}</TableCell>
-                    <TableCell className="font-mono text-xs">{a.asset?.assetTag}</TableCell>
+                    <TableCell className="tabular-nums text-xs">{a.asset?.assetTag}</TableCell>
                     <TableCell className="text-sm">
                       {new Date(a.assignedAt).toLocaleDateString()}
                     </TableCell>

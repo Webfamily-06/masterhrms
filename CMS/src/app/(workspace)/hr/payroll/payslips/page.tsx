@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,6 +92,8 @@ const formatDateISO = (raw?: string | null) => {
 };
 
 export default function HrPayrollPayslipsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
   const now = new Date();
 
@@ -571,14 +574,16 @@ export default function HrPayrollPayslipsPage() {
                             >
                               <i className="ph ph-file-xls text-base" />
                             </button>
-                            <button
-                              type="button"
-                              title="Delete Payslip"
-                              onClick={() => setDeleteTarget(ps)}
-                              className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 transition-colors"
-                            >
-                              <i className="ph ph-trash text-base" />
-                            </button>
+                            {!isEmployeePortal && (
+                              <button
+                                type="button"
+                                title="Delete Payslip"
+                                onClick={() => setDeleteTarget(ps)}
+                                className="h-8 w-8 rounded-lg inline-flex items-center justify-center text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 transition-colors"
+                              >
+                                <i className="ph ph-trash text-base" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

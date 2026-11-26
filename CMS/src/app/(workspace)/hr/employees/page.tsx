@@ -1,6 +1,6 @@
 'use client';
 import { useState, useMemo } from "react";
-import { createFileRoute, Link } from "@/src/lib/router-compat";
+import { createFileRoute, Link, useRouterState } from "@/src/lib/router-compat";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -200,6 +200,8 @@ const employeeExportColumns: ExportColumn[] = [
 ];
 
 export default function EmployeesDirectoryPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [selectedBranch, setSelectedBranch] = useState("all");
@@ -364,8 +366,8 @@ export default function EmployeesDirectoryPage() {
     isError,
     refetch,
   } = useMasterList<EmployeeItem>({
-    endpoint: "/hr/employees",
-    queryKey: "hr-employees-list",
+    endpoint: isEmployeePortal ? "/me/employees" : "/hr/employees",
+    queryKey: isEmployeePortal ? "me-employees-list" : "hr-employees-list",
     defaultLimit: 10,
     defaultSortBy: "joinedAt",
     defaultSortOrder: "desc",
@@ -497,12 +499,14 @@ export default function EmployeesDirectoryPage() {
               onExportPdf={handleExportPdf}
               disabled={employees.length === 0}
             />
-            <Link to="/hr/employees/new">
-              <Button className="gap-2 h-9 text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs">
-                <UserPlus className="h-4 w-4" />
-                Add Employee
-              </Button>
-            </Link>
+            {!isEmployeePortal && (
+              <Link to="/hr/employees/new">
+                <Button className="gap-2 h-9 text-xs bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs">
+                  <UserPlus className="h-4 w-4" />
+                  Add Employee
+                </Button>
+              </Link>
+            )}
           </div>
         }
       />
@@ -750,7 +754,7 @@ export default function EmployeesDirectoryPage() {
       )}
 
       {/* ── Selection Action Bar ── */}
-      {selectedCount > 0 && (
+      {!isEmployeePortal && selectedCount > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-muted/60 border rounded-lg animate-in fade-in-50">
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-primary/10 text-primary">
@@ -953,60 +957,64 @@ export default function EmployeesDirectoryPage() {
                                 <Eye className="h-4 w-4" />
                               </Button>
                             </Link>
-                            <Link to="/hr/employees/$id/edit" params={{ id: emp.id }}>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
-                                aria-label={`Edit ${emp.firstName} ${emp.lastName}`}
-                                title="Edit Employee"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            </Link>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
-                              aria-label={`Change password for ${emp.firstName} ${emp.lastName}`}
-                              title="Change Password"
-                              onClick={() => handleOpenPasswordModal(emp)}
-                            >
-                              <KeyRound className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className={cn(
-                                "h-8 w-8 transition-colors",
-                                emp.loginStatus === "active"
-                                  ? "text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                                  : "text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                              )}
-                              aria-label={
-                                emp.loginStatus === "active"
-                                  ? `Deactivate login account for ${emp.firstName} ${emp.lastName}`
-                                  : `Activate login account for ${emp.firstName} ${emp.lastName}`
-                              }
-                              title={emp.loginStatus === "active" ? "Deactivate Account" : "Activate Account"}
-                              onClick={() => setStatusTargetEmployee(emp)}
-                            >
-                              {emp.loginStatus === "active" ? (
-                                <Lock className="h-4 w-4" />
-                              ) : (
-                                <Unlock className="h-4 w-4" />
-                              )}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                              aria-label={`Delete ${emp.firstName} ${emp.lastName}`}
-                              title="Delete Employee"
-                              onClick={() => setDeleteTargetEmployee(emp)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {!isEmployeePortal && (
+                              <>
+                                <Link to="/hr/employees/$id/edit" params={{ id: emp.id }}>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                    aria-label={`Edit ${emp.firstName} ${emp.lastName}`}
+                                    title="Edit Employee"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </Link>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                  aria-label={`Change password for ${emp.firstName} ${emp.lastName}`}
+                                  title="Change Password"
+                                  onClick={() => handleOpenPasswordModal(emp)}
+                                >
+                                  <KeyRound className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className={cn(
+                                    "h-8 w-8 transition-colors",
+                                    emp.loginStatus === "active"
+                                      ? "text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                                      : "text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                                  )}
+                                  aria-label={
+                                    emp.loginStatus === "active"
+                                      ? `Deactivate login account for ${emp.firstName} ${emp.lastName}`
+                                      : `Activate login account for ${emp.firstName} ${emp.lastName}`
+                                  }
+                                  title={emp.loginStatus === "active" ? "Deactivate Account" : "Activate Account"}
+                                  onClick={() => setStatusTargetEmployee(emp)}
+                                >
+                                  {emp.loginStatus === "active" ? (
+                                    <Lock className="h-4 w-4" />
+                                  ) : (
+                                    <Unlock className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                  aria-label={`Delete ${emp.firstName} ${emp.lastName}`}
+                                  title="Delete Employee"
+                                  onClick={() => setDeleteTargetEmployee(emp)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1106,60 +1114,64 @@ export default function EmployeesDirectoryPage() {
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
                       </Link>
-                      <Link to="/hr/employees/$id/edit" params={{ id: emp.id }}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
-                          aria-label={`Edit ${emp.firstName} ${emp.lastName}`}
-                          title="Edit Employee"
-                        >
-                          <Edit className="h-3.5 w-3.5" />
-                        </Button>
-                      </Link>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
-                        aria-label={`Change password for ${emp.firstName} ${emp.lastName}`}
-                        title="Change Password"
-                        onClick={() => handleOpenPasswordModal(emp)}
-                      >
-                        <KeyRound className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={cn(
-                          "h-7 w-7 transition-colors",
-                          emp.loginStatus === "active"
-                            ? "text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                            : "text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                        )}
-                        aria-label={
-                          emp.loginStatus === "active"
-                            ? `Deactivate login account for ${emp.firstName} ${emp.lastName}`
-                            : `Activate login account for ${emp.firstName} ${emp.lastName}`
-                        }
-                        title={emp.loginStatus === "active" ? "Deactivate Account" : "Activate Account"}
-                        onClick={() => setStatusTargetEmployee(emp)}
-                      >
-                        {emp.loginStatus === "active" ? (
-                          <Lock className="h-3.5 w-3.5" />
-                        ) : (
-                          <Unlock className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                        aria-label={`Delete ${emp.firstName} ${emp.lastName}`}
-                        title="Delete Employee"
-                        onClick={() => setDeleteTargetEmployee(emp)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {!isEmployeePortal && (
+                        <>
+                          <Link to="/hr/employees/$id/edit" params={{ id: emp.id }}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
+                              aria-label={`Edit ${emp.firstName} ${emp.lastName}`}
+                              title="Edit Employee"
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
+                            aria-label={`Change password for ${emp.firstName} ${emp.lastName}`}
+                            title="Change Password"
+                            onClick={() => handleOpenPasswordModal(emp)}
+                          >
+                            <KeyRound className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn(
+                              "h-7 w-7 transition-colors",
+                              emp.loginStatus === "active"
+                                ? "text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                                : "text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                            )}
+                            aria-label={
+                              emp.loginStatus === "active"
+                                ? `Deactivate login account for ${emp.firstName} ${emp.lastName}`
+                                : `Activate login account for ${emp.firstName} ${emp.lastName}`
+                            }
+                            title={emp.loginStatus === "active" ? "Deactivate Account" : "Activate Account"}
+                            onClick={() => setStatusTargetEmployee(emp)}
+                          >
+                            {emp.loginStatus === "active" ? (
+                              <Lock className="h-3.5 w-3.5" />
+                            ) : (
+                              <Unlock className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                            aria-label={`Delete ${emp.firstName} ${emp.lastName}`}
+                            title="Delete Employee"
+                            onClick={() => setDeleteTargetEmployee(emp)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </Card>

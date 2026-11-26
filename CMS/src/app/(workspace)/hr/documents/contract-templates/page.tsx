@@ -633,7 +633,7 @@ export default function HrContractTemplatesPage() {
           </DialogHeader>
           {previewItem && (
             <div className="space-y-4 pt-1">
-              <pre className="p-4 rounded-xl bg-muted/40 border border-border/80 text-sm font-mono whitespace-pre-wrap leading-relaxed text-foreground">
+              <pre className="p-4 rounded-xl bg-muted/40 border border-border/80 text-sm tabular-nums whitespace-pre-wrap leading-relaxed text-foreground">
                 {previewItem.content}
               </pre>
               <div className="space-y-2">
@@ -642,7 +642,7 @@ export default function HrContractTemplatesPage() {
                   {(previewItem.variables || []).map((v) => (
                     <span
                       key={v}
-                      className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-mono bg-sky-500/10 text-sky-700 border border-sky-500/20"
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs tabular-nums bg-sky-500/10 text-sky-700 border border-sky-500/20"
                     >
                       {`{{${v}}}`}
                     </span>

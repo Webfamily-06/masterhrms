@@ -334,7 +334,7 @@ export default function MeLeaveApplicationsPage() {
     (!Array.isArray(dryRunData.blockingIssues) || dryRunData.blockingIssues.length === 0);
 
   return (
-    <div className="space-y-6 max-w-full overflow-x-hidden">
+    <div className="w-full space-y-6 overflow-x-hidden">
       <PageHeader
         title="My Leave Applications"
         description="Submit leave requests against live HR leave policies and track real-time approval status."
@@ -473,10 +473,10 @@ export default function MeLeaveApplicationsPage() {
                             </Badge>
                           </div>
                         </td>
-                        <td className="py-3 px-4 font-mono text-xs whitespace-nowrap">
+                        <td className="py-3 px-4 tabular-nums text-xs whitespace-nowrap">
                           {String(a.startDate).slice(0, 10)} → {String(a.endDate).slice(0, 10)}
                         </td>
-                        <td className="py-3 px-4 font-mono text-xs font-semibold whitespace-nowrap">
+                        <td className="py-3 px-4 tabular-nums text-xs font-semibold whitespace-nowrap">
                           {formatLeaveDays(a.days)} {Number(a.days) === 1 ? "day" : "days"}
                           {(a.halfDay || a.isHalfDay) && (
                             <span className="block text-[10px] font-normal text-muted-foreground">
@@ -605,7 +605,7 @@ export default function MeLeaveApplicationsPage() {
                       </Badge>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-muted-foreground">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs tabular-nums text-muted-foreground">
                       <span>
                         {String(a.startDate).slice(0, 10)} → {String(a.endDate).slice(0, 10)}
                       </span>
@@ -1006,14 +1006,14 @@ export default function MeLeaveApplicationsPage() {
                 </div>
                 <div>
                   <span className="text-muted-foreground block">Dates</span>
-                  <span className="font-mono">
+                  <span className="tabular-nums">
                     {String(detailData.startDate).slice(0, 10)} →{" "}
                     {String(detailData.endDate).slice(0, 10)}
                   </span>
                 </div>
                 <div>
                   <span className="text-muted-foreground block">Duration</span>
-                  <span className="font-mono font-semibold">
+                  <span className="tabular-nums font-semibold">
                     {formatLeaveDays(detailData.days)} day(s)
                     {detailData.halfDay ? ` (${detailData.halfDaySession || "Half-Day"})` : ""}
                   </span>
@@ -1054,12 +1054,12 @@ export default function MeLeaveApplicationsPage() {
                       {detailData.ledgerTransactions.map((t: any) => (
                         <div key={t.id} className="p-2 flex items-center justify-between">
                           <div>
-                            <Badge variant="outline" className="font-mono text-[10px] mr-2">
+                            <Badge variant="outline" className="tabular-nums text-[10px] mr-2">
                               {t.entryType}
                             </Badge>
                             <span className="text-muted-foreground">{t.notes}</span>
                           </div>
-                          <span className="font-mono font-semibold">
+                          <span className="tabular-nums font-semibold">
                             {t.entryType === "DEBIT" ? "-" : "+"}
                             {formatLeaveDays(t.days)}d
                           </span>

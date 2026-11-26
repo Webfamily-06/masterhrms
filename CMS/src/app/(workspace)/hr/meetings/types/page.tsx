@@ -231,7 +231,7 @@ export default function HrMeetingTypesPage() {
                   value={color}
                   onChange={(e) => setColor(e.target.value)}
                   placeholder="#000000"
-                  className="font-mono text-xs"
+                  className="tabular-nums text-xs"
                 />
               </div>
             </div>

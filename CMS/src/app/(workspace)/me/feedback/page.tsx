@@ -115,7 +115,7 @@ export default function EmployeeFeedbackPage() {
   const acceptedTotal = suggestions.filter((s: any) => s.status === "Accepted" || s.status === "Complete").length;
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full space-y-6">
       {/* ── Page Header ── */}
       <PageHeader
         title="Feedback & Suggestions"

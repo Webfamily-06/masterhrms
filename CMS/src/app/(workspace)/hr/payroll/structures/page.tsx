@@ -400,10 +400,10 @@ export default function HrSalaryStructuresPage() {
                       <td className="p-3 text-muted-foreground max-w-xs truncate">
                         {s.description || "No description provided"}
                       </td>
-                      <td className="p-3 text-center font-mono">{s.baseCalculationDays || 26}</td>
+                      <td className="p-3 text-center tabular-nums">{s.baseCalculationDays || 26}</td>
                       <td className="p-3 text-center capitalize">{s.payFrequency || "monthly"}</td>
                       <td className="p-3 text-center">
-                        <Badge variant="outline" className="font-mono">
+                        <Badge variant="outline" className="tabular-nums">
                           {s.items?.length || 0} components
                         </Badge>
                       </td>
@@ -522,7 +522,7 @@ export default function HrSalaryStructuresPage() {
                   ) : (
                     selectedItems.map((item, idx) => (
                       <div key={item.componentId} className="flex items-center gap-2 bg-muted/40 p-2 rounded text-xs">
-                        <span className="font-mono font-bold w-20 truncate">{item.code}</span>
+                        <span className="tabular-nums font-bold w-20 truncate">{item.code}</span>
                         <select
                           value={item.calculationType}
                           onChange={(e) => handleUpdateItem(idx, "calculationType", e.target.value)}
@@ -536,7 +536,7 @@ export default function HrSalaryStructuresPage() {
                           type="number"
                           value={item.value}
                           onChange={(e) => handleUpdateItem(idx, "value", Number(e.target.value))}
-                          className="h-7 w-20 text-xs font-mono"
+                          className="h-7 w-20 text-xs tabular-nums"
                         />
                         <span className="text-muted-foreground">
                           {item.calculationType === "fixed" ? "₹/mo" : "%"}
@@ -594,7 +594,7 @@ export default function HrSalaryStructuresPage() {
                     type="number"
                     value={simCtcMonthly}
                     onChange={(e) => setSimCtcMonthly(Number(e.target.value))}
-                    className="h-8 text-sm font-mono"
+                    className="h-8 text-sm tabular-nums"
                   />
                 </div>
                 <div className="space-y-1">
@@ -627,31 +627,31 @@ export default function HrSalaryStructuresPage() {
                 <div className="rounded-md border p-3 bg-muted/20 space-y-2 text-xs">
                   <div className="flex justify-between border-b pb-1">
                     <span className="font-semibold text-muted-foreground">Earned Basic:</span>
-                    <span className="font-mono font-bold">₹{simResult.breakdown.earnings.basicSalary.toLocaleString("en-IN")}</span>
+                    <span className="tabular-nums font-bold">₹{simResult.breakdown.earnings.basicSalary.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="flex justify-between border-b pb-1">
                     <span className="font-semibold text-muted-foreground">Special Allowance:</span>
-                    <span className="font-mono font-bold">₹{simResult.breakdown.earnings.specialAllowance.toLocaleString("en-IN")}</span>
+                    <span className="tabular-nums font-bold">₹{simResult.breakdown.earnings.specialAllowance.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="flex justify-between border-b pb-1">
                     <span className="font-semibold text-muted-foreground">Total Gross Wages:</span>
-                    <span className="font-mono font-bold text-indigo-600">₹{simResult.breakdown.earnings.totalGross.toLocaleString("en-IN")}</span>
+                    <span className="tabular-nums font-bold text-indigo-600">₹{simResult.breakdown.earnings.totalGross.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="flex justify-between border-b pb-1 text-rose-600">
                     <span>EPF Employee (12%):</span>
-                    <span className="font-mono font-bold">-₹{simResult.breakdown.deductions.providentFund.toLocaleString("en-IN")}</span>
+                    <span className="tabular-nums font-bold">-₹{simResult.breakdown.deductions.providentFund.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="flex justify-between border-b pb-1 text-rose-600">
                     <span>ESI Employee:</span>
-                    <span className="font-mono font-bold">-₹{simResult.breakdown.deductions.esi.toLocaleString("en-IN")}</span>
+                    <span className="tabular-nums font-bold">-₹{simResult.breakdown.deductions.esi.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="flex justify-between border-b pb-1 text-rose-600">
                     <span>Professional Tax (PT):</span>
-                    <span className="font-mono font-bold">-₹{simResult.breakdown.deductions.professionalTax.toLocaleString("en-IN")}</span>
+                    <span className="tabular-nums font-bold">-₹{simResult.breakdown.deductions.professionalTax.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="flex justify-between pt-1 font-bold text-sm text-emerald-600">
                     <span>Estimated Net Pay:</span>
-                    <span className="font-mono">₹{simResult.breakdown.netPay.toLocaleString("en-IN")}</span>
+                    <span className="tabular-nums">₹{simResult.breakdown.netPay.toLocaleString("en-IN")}</span>
                   </div>
                 </div>
               )}

@@ -163,10 +163,10 @@ export default function MeAttendanceRequestsPage() {
                     ) : (
                       overtime.map((o: any) => (
                         <tr key={o.id} className="hover:bg-muted/30">
-                          <td className="py-3 px-4 font-mono text-xs font-semibold">
+                          <td className="py-3 px-4 tabular-nums text-xs font-semibold">
                             {new Date(o.overtimeDate).toLocaleDateString()}
                           </td>
-                          <td className="py-3 px-4 font-mono font-semibold">
+                          <td className="py-3 px-4 tabular-nums font-semibold">
                             {o.hoursRequested} hrs
                           </td>
                           <td className="py-3 px-4 text-xs text-muted-foreground max-w-sm truncate">
@@ -225,7 +225,7 @@ export default function MeAttendanceRequestsPage() {
                     ) : (
                       wfh.map((w: any) => (
                         <tr key={w.id} className="hover:bg-muted/30">
-                          <td className="py-3 px-4 font-mono text-xs font-semibold">
+                          <td className="py-3 px-4 tabular-nums text-xs font-semibold">
                             {new Date(w.fromDate).toLocaleDateString()} to {new Date(w.toDate).toLocaleDateString()}
                           </td>
                           <td className="py-3 px-4 text-xs text-muted-foreground max-w-sm truncate">
@@ -245,7 +245,7 @@ export default function MeAttendanceRequestsPage() {
                               {w.status}
                             </Badge>
                           </td>
-                          <td className="py-3 px-4 font-mono text-xs text-muted-foreground">
+                          <td className="py-3 px-4 tabular-nums text-xs text-muted-foreground">
                             {new Date(w.createdAt).toLocaleDateString()}
                           </td>
                         </tr>

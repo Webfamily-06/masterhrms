@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { Link } from "@/lib/router-compat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
@@ -108,6 +109,8 @@ function getAnnouncementLifecycle(ann: AnnouncementItem): "Active" | "Expired" {
 }
 
 export default function AnnouncementsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("all");
@@ -313,13 +316,15 @@ export default function AnnouncementsPage() {
         title="Announcements"
         description="Create and manage announcements for your organization."
         actions={
-          <Button
-            onClick={openCreate}
-            className="h-9 px-4 gap-1.5 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
-          >
-            <Plus className="h-4 w-4" />
-            Add Announcement
-          </Button>
+          !isEmployeePortal ? (
+            <Button
+              onClick={openCreate}
+              className="h-9 px-4 gap-1.5 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+            >
+              <Plus className="h-4 w-4" />
+              Add Announcement
+            </Button>
+          ) : undefined
         }
       />
 
@@ -566,36 +571,40 @@ export default function AnnouncementsPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
-                            title="Edit Announcement"
-                            onClick={() => openEdit(ann)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                            title="Response Analytics"
-                            onClick={() => setAnalyticsTarget(ann)}
-                          >
-                            <BarChart2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10"
-                            title="Delete Announcement"
-                            onClick={() => setDeleteTarget(ann)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {!isEmployeePortal && (
+                            <>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                title="Edit Announcement"
+                                onClick={() => openEdit(ann)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                title="Response Analytics"
+                                onClick={() => setAnalyticsTarget(ann)}
+                              >
+                                <BarChart2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10"
+                                title="Delete Announcement"
+                                onClick={() => setDeleteTarget(ann)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

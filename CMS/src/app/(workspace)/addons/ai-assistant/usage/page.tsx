@@ -90,7 +90,7 @@ function AiAssistantUsagePage() {
                   Resets on the 1st of every calendar month.
                 </CardDescription>
               </div>
-              <Badge variant={usagePercent > 90 ? "destructive" : "outline"} className="text-sm font-mono">
+              <Badge variant={usagePercent > 90 ? "destructive" : "outline"} className="text-sm tabular-nums">
                 {data.monthlyUsage.toLocaleString()} / {data.monthlyLimit.toLocaleString()} Tokens ({usagePercent}%)
               </Badge>
             </div>
@@ -114,7 +114,7 @@ function AiAssistantUsagePage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-mono">{data.totalGenerations}</div>
+              <div className="text-2xl font-bold tabular-nums">{data.totalGenerations}</div>
               <p className="text-xs text-muted-foreground mt-1">Total prompts executed</p>
             </CardContent>
           </Card>
@@ -126,7 +126,7 @@ function AiAssistantUsagePage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-mono text-blue-600">
+              <div className="text-2xl font-bold tabular-nums text-blue-600">
                 {data.totalTokensIn.toLocaleString()}
               </div>
               <p className="text-xs text-muted-foreground mt-1">Context & instructions input</p>
@@ -140,7 +140,7 @@ function AiAssistantUsagePage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold font-mono text-emerald-600">
+              <div className="text-2xl font-bold tabular-nums text-emerald-600">
                 {data.totalTokensOut.toLocaleString()}
               </div>
               <p className="text-xs text-muted-foreground mt-1">Generated output tokens</p>
@@ -201,9 +201,9 @@ function AiAssistantUsagePage() {
                 </div>
                 {data.dailyTrend.map((row) => (
                   <div key={row.date} className="px-4 py-2.5 grid grid-cols-3 items-center">
-                    <span className="font-mono">{row.date}</span>
+                    <span className="tabular-nums">{row.date}</span>
                     <span className="text-center font-semibold">{row.generations}</span>
-                    <span className="text-right font-mono text-muted-foreground">
+                    <span className="text-right tabular-nums text-muted-foreground">
                       {row.tokens.toLocaleString()}
                     </span>
                   </div>

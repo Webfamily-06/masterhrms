@@ -232,7 +232,7 @@ function AiAssistantSettingsPage() {
                 <div className="flex justify-between items-center">
                   <Label htmlFor="apiKey">Provider API Key</Label>
                   {maskedKey && (
-                    <span className="text-xs text-muted-foreground font-mono">
+                    <span className="text-xs text-muted-foreground tabular-nums">
                       Current: {maskedKey}
                     </span>
                   )}
@@ -244,7 +244,7 @@ function AiAssistantSettingsPage() {
                     placeholder={maskedKey ? "Enter new API key to replace..." : "sk-... or api key"}
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
-                    className="font-mono pr-10 text-xs"
+                    className="tabular-nums pr-10 text-xs"
                   />
                   <Button
                     type="button"

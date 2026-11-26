@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { api, unwrapArray } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +64,8 @@ interface ShiftItem {
 }
 
 export default function HrAttendanceShiftsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "day" | "night">("all");
@@ -238,13 +241,15 @@ export default function HrAttendanceShiftsPage() {
             Manage work shifts and schedules.
           </p>
         </div>
-        <Button
-          onClick={openCreate}
-          className="h-9 px-4 gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-        >
-          <Plus className="h-4 w-4" />
-          Add Shift
-        </Button>
+        {!isEmployeePortal && (
+          <Button
+            onClick={openCreate}
+            className="h-9 px-4 gap-1.5 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+          >
+            <Plus className="h-4 w-4" />
+            Add Shift
+          </Button>
+        )}
       </div>
 
       {/* ── 4 KPI Cards Row ── */}
@@ -446,41 +451,45 @@ export default function HrAttendanceShiftsPage() {
                     >
                       <Eye className="h-3.5 w-3.5" />
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                      title="Edit Shift"
-                      onClick={() => openEdit(shift)}
-                    >
-                      <Edit className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-amber-600"
-                      title={isActive ? "Deactivate Shift" : "Activate Shift"}
-                      onClick={() =>
-                        toggleStatusMutation.mutate({
-                          id: shift.id,
-                          status: isActive ? "inactive" : "active",
-                        })
-                      }
-                    >
-                      {isActive ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-rose-600"
-                      title="Delete Shift"
-                      onClick={() => setDeleteTarget(shift)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    {!isEmployeePortal && (
+                      <>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                          title="Edit Shift"
+                          onClick={() => openEdit(shift)}
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-amber-600"
+                          title={isActive ? "Deactivate Shift" : "Activate Shift"}
+                          onClick={() =>
+                            toggleStatusMutation.mutate({
+                              id: shift.id,
+                              status: isActive ? "inactive" : "active",
+                            })
+                          }
+                        >
+                          {isActive ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-rose-600"
+                          title="Delete Shift"
+                          onClick={() => setDeleteTarget(shift)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
 

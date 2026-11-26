@@ -202,7 +202,7 @@ export default function HrAssetRequestsMaintenancePage() {
                       <TableRow key={m.id}>
                         <TableCell className="font-medium">
                           <div>{m.asset?.name}</div>
-                          <div className="text-xs text-muted-foreground font-mono">{m.asset?.assetTag}</div>
+                          <div className="text-xs text-muted-foreground tabular-nums">{m.asset?.assetTag}</div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{m.serviceType}</Badge>

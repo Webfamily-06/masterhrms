@@ -130,7 +130,7 @@ function AiHistoryDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="font-semibold text-sm capitalize">{detail.moduleSlug}</p>
-              <p className="font-mono text-xs text-muted-foreground mt-0.5">{detail.fieldKey}</p>
+              <p className="tabular-nums text-xs text-muted-foreground mt-0.5">{detail.fieldKey}</p>
             </CardContent>
           </Card>
 
@@ -140,7 +140,7 @@ function AiHistoryDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="font-semibold text-sm capitalize">{detail.provider}</p>
-              <p className="font-mono text-xs text-muted-foreground mt-0.5">{detail.model}</p>
+              <p className="tabular-nums text-xs text-muted-foreground mt-0.5">{detail.model}</p>
             </CardContent>
           </Card>
 
@@ -159,7 +159,7 @@ function AiHistoryDetailPage() {
               <CardTitle className="text-xs text-muted-foreground uppercase font-semibold">Token Usage</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xl font-bold font-mono text-primary">
+              <p className="text-xl font-bold tabular-nums text-primary">
                 {detail.tokensIn + detail.tokensOut}
               </p>
               <p className="text-[11px] text-muted-foreground">
@@ -176,12 +176,12 @@ function AiHistoryDetailPage() {
               <Cpu className="w-4 h-4 mr-2 text-primary" />
               Prompt Context Excerpt
             </CardTitle>
-            <CardDescription className="text-xs font-mono">
+            <CardDescription className="text-xs tabular-nums">
               Hash: {detail.promptHash}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="p-3 bg-muted/50 rounded-md text-xs leading-relaxed font-mono whitespace-pre-wrap">
+            <p className="p-3 bg-muted/50 rounded-md text-xs leading-relaxed tabular-nums whitespace-pre-wrap">
               {detail.promptExcerpt}
             </p>
           </CardContent>
@@ -196,9 +196,9 @@ function AiHistoryDetailPage() {
             {detail.results?.map((res, idx) => (
               <Card key={idx} className="p-4 space-y-3">
                 <div className="flex justify-between items-start gap-3">
-                  <Badge variant="outline" className="font-mono text-xs">Option {idx + 1}</Badge>
+                  <Badge variant="outline" className="tabular-nums text-xs">Option {idx + 1}</Badge>
                   <div className="flex items-center space-x-2">
-                    <span className="text-xs font-mono text-muted-foreground">{res.chars} chars</span>
+                    <span className="text-xs tabular-nums text-muted-foreground">{res.chars} chars</span>
                     <Button
                       variant="ghost"
                       size="sm"

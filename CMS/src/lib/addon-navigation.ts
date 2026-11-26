@@ -468,7 +468,7 @@ export const MASTER_ADDON_REGISTRY: MasterAddonNavDefinition[] = [
     navigationIcon: "ph-shield-check",
     navigationGroup: "EXTENSIONS & ADD-ONS",
     navigationOrder: 4,
-    route: "/two-factor-auth",
+    route: "/profile",
     requiredAddonSlugs: ["two-factor-auth"],
   },
   {

@@ -551,7 +551,7 @@ export default function HrLeaveApplicationsPage() {
           <Button
             type="button"
             onClick={() => handleOpenAdd()}
-            className="bg-[#00a76f] hover:bg-[#008f5d] text-white font-medium rounded-lg px-4 h-9 text-xs shadow-xs flex items-center gap-1.5 transition-colors"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg px-4 h-9 text-xs shadow-xs flex items-center gap-1.5 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Add Leave Application
@@ -934,7 +934,7 @@ export default function HrLeaveApplicationsPage() {
                         <div className="font-semibold text-slate-900 dark:text-slate-100">
                           {app.employee?.firstName} {app.employee?.lastName}
                         </div>
-                        <div className="text-[11px] text-slate-400 font-mono">
+                        <div className="text-[11px] text-slate-400 tabular-nums">
                           {app.employee?.employeeCode}
                         </div>
                       </TableCell>
@@ -1025,7 +1025,7 @@ export default function HrLeaveApplicationsPage() {
         <button
           type="button"
           onClick={() => handleOpenAdd()}
-          className="w-12 h-12 rounded-full bg-[#00a76f] hover:bg-[#008f5d] text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all cursor-pointer"
+          className="w-12 h-12 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center shadow-lg hover:shadow-xl transition-all cursor-pointer"
           title="Create New Leave Request"
           aria-label="Create New Leave Request"
         >
@@ -1388,7 +1388,7 @@ export default function HrLeaveApplicationsPage() {
                   !formLeaveTypeId ||
                   (dryRunData && dryRunData.isValid === false)
                 }
-                className="bg-[#00a76f] hover:bg-[#008f5d] text-white"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 {saveApplicationMutation.isPending
                   ? "Saving..."
@@ -1528,7 +1528,7 @@ export default function HrLeaveApplicationsPage() {
                         key={tx.id}
                         className="flex items-center justify-between text-[11px] py-1 border-t first:border-t-0"
                       >
-                        <span className="font-mono font-semibold">{tx.entryType}</span>
+                        <span className="tabular-nums font-semibold">{tx.entryType}</span>
                         <span className="text-slate-500 truncate max-w-[220px]">{tx.notes}</span>
                         <span
                           className={
@@ -1611,7 +1611,7 @@ export default function HrLeaveApplicationsPage() {
                     <Button
                       type="button"
                       size="sm"
-                      className="bg-[#00a76f] hover:bg-[#008f5d] text-white"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
                       disabled={decisionMutation.isPending}
                       onClick={() =>
                         decisionMutation.mutate({

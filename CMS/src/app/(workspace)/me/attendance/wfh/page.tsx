@@ -113,7 +113,7 @@ export default function EmployeeWorkFromHomePage() {
   });
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full space-y-6">
       {/* ── Page Header ── */}
       <PageHeader
         title="Work From Home"
@@ -269,15 +269,15 @@ export default function EmployeeWorkFromHomePage() {
               ) : (
                 filtered.map((record: any) => (
                   <TableRow key={record.id} className="hover:bg-muted/40 transition-colors text-xs">
-                    <TableCell className="p-3 font-mono font-bold text-foreground">
+                    <TableCell className="p-3 tabular-nums font-bold text-foreground">
                       {record.fromDate ? format(new Date(record.fromDate), "dd MMM yyyy") : "—"}
                     </TableCell>
 
-                    <TableCell className="p-3 font-mono font-bold text-foreground">
+                    <TableCell className="p-3 tabular-nums font-bold text-foreground">
                       {record.toDate ? format(new Date(record.toDate), "dd MMM yyyy") : "—"}
                     </TableCell>
 
-                    <TableCell className="p-3 font-mono font-bold text-primary">
+                    <TableCell className="p-3 tabular-nums font-bold text-primary">
                       {days(record.fromDate, record.toDate)} day(s)
                     </TableCell>
 

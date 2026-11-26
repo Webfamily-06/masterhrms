@@ -229,7 +229,7 @@ export default function HrLeaveBalancesPage() {
           <Button
             type="button"
             onClick={() => openAdjustForEmployee()}
-            className="bg-[#00a76f] hover:bg-[#008f5d] text-white font-medium rounded-lg px-3.5 h-9 text-xs shadow-xs flex items-center gap-1.5 transition-colors"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg px-3.5 h-9 text-xs shadow-xs flex items-center gap-1.5 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Manual Adjustment
@@ -430,7 +430,7 @@ export default function HrLeaveBalancesPage() {
                         <h3 className="font-semibold text-sm text-slate-900 dark:text-slate-100 leading-tight truncate">
                           {emp.employeeName}
                         </h3>
-                        <p className="text-xs text-slate-400 font-mono mt-0.5 uppercase truncate">
+                        <p className="text-xs text-slate-400 tabular-nums mt-0.5 uppercase truncate">
                           {emp.employeeCode}
                         </p>
                       </div>
@@ -583,7 +583,7 @@ export default function HrLeaveBalancesPage() {
           type="button"
           onClick={() => syncMutation.mutate()}
           disabled={syncMutation.isPending}
-          className="w-12 h-12 rounded-full bg-[#00a76f] hover:bg-[#008f5d] text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all cursor-pointer"
+          className="w-12 h-12 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center shadow-lg hover:shadow-xl transition-all cursor-pointer"
           title={`Synchronize ${selectedYear} Balances`}
           aria-label={`Synchronize ${selectedYear} Balances`}
         >
@@ -633,7 +633,7 @@ export default function HrLeaveBalancesPage() {
                       const positive = isPositiveLedgerType(entry.entryType);
                       return (
                         <TableRow key={entry.id} className="text-xs border-b">
-                          <TableCell className="py-2 px-3 text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                          <TableCell className="py-2 px-3 text-slate-500 tabular-nums text-[11px] whitespace-nowrap">
                             {String(entry.effectiveAt || entry.createdAt || "").slice(0, 10)}
                           </TableCell>
                           <TableCell className="py-2 px-3 whitespace-nowrap">
@@ -657,7 +657,7 @@ export default function HrLeaveBalancesPage() {
                           >
                             {positive ? `+${formatLeaveDays(entry.days)}` : `-${formatLeaveDays(entry.days)}`}
                           </TableCell>
-                          <TableCell className="py-2 px-3 text-right font-mono font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                          <TableCell className="py-2 px-3 text-right tabular-nums font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                             {formatLeaveDays(entry.balance)}
                           </TableCell>
                           <TableCell className="py-2 px-3 text-[11px] text-slate-600 dark:text-slate-400 whitespace-nowrap">
@@ -682,7 +682,7 @@ export default function HrLeaveBalancesPage() {
             <Button
               type="button"
               size="sm"
-              className="bg-[#00a76f] hover:bg-[#008f5d] text-white"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
               onClick={() => {
                 const empId = ledgerModalEmployee?.employeeId || "";
                 setLedgerModalEmployee(null);
@@ -818,7 +818,7 @@ export default function HrLeaveBalancesPage() {
                 type="submit"
                 size="sm"
                 disabled={adjustMutation.isPending}
-                className="bg-[#00a76f] hover:bg-[#008f5d] text-white"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 {adjustMutation.isPending ? "Recording..." : "Apply Adjustment"}
               </Button>

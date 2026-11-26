@@ -171,10 +171,10 @@ export default function HrAttendanceDevicesPage() {
                         <div className="text-xs text-muted-foreground capitalize">{d.deviceType}</div>
                       </td>
                       <td className="py-3 px-4 text-xs">{d.location}</td>
-                      <td className="py-3 px-4 font-mono text-xs">
+                      <td className="py-3 px-4 tabular-nums text-xs">
                         {d.ipAddress}:{d.port}
                       </td>
-                      <td className="py-3 px-4 font-mono text-xs text-muted-foreground">
+                      <td className="py-3 px-4 tabular-nums text-xs text-muted-foreground">
                         {d.serialNumber}
                       </td>
                       <td className="py-3 px-4">

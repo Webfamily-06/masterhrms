@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { format } from "date-fns";
 import { api, unwrapArray } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
@@ -116,6 +117,8 @@ const emptyForm = {
 };
 
 export default function HrPromotionsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
 
   // Filter & Sort State
@@ -375,18 +378,20 @@ export default function HrPromotionsPage() {
         title="Promotions"
         description="Manage employee promotions and career advancements."
         breadcrumbs={[
-          { label: "Dashboard", href: "/hr/dashboard" },
-          { label: "Employee Lifecycle", href: "/hr/lifecycle" },
+          { label: "Dashboard", href: isEmployeePortal ? "/me/dashboard" : "/hr/dashboard" },
+          { label: "Employee Lifecycle", href: isEmployeePortal ? "/me/awards" : "/hr/lifecycle" },
           { label: "Promotions" },
         ]}
         actions={
-          <Button
-            onClick={handleOpenCreate}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 h-9"
-          >
-            <Plus className="h-4 w-4" />
-            Add Promotion
-          </Button>
+          !isEmployeePortal ? (
+            <Button
+              onClick={handleOpenCreate}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 h-9"
+            >
+              <Plus className="h-4 w-4" />
+              Add Promotion
+            </Button>
+          ) : undefined
         }
       />
 
@@ -620,36 +625,40 @@ export default function HrPromotionsPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-primary"
-                            title="Edit Promotion"
-                            onClick={() => handleOpenEdit(p)}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-emerald-600"
-                            title="Update Status"
-                            onClick={() => {
-                              setStatusModalItem(p);
-                              setNewStatusValue((p.status || "pending").toLowerCase());
-                            }}
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            title="Delete Promotion"
-                            onClick={() => setDeleteTarget(p)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {!isEmployeePortal && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                title="Edit Promotion"
+                                onClick={() => handleOpenEdit(p)}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-emerald-600"
+                                title="Update Status"
+                                onClick={() => {
+                                  setStatusModalItem(p);
+                                  setNewStatusValue((p.status || "pending").toLowerCase());
+                                }}
+                              >
+                                <RefreshCw className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                title="Delete Promotion"
+                                onClick={() => setDeleteTarget(p)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

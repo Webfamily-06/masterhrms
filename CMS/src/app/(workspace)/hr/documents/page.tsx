@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { api, unwrapArray } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -153,6 +154,8 @@ function DocStatusBadge({ status }: { status: string }) {
 }
 
 export default function HrDocumentsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -500,13 +503,15 @@ export default function HrDocumentsPage() {
         title="HR Documents"
         description="Store and manage official HR documents for employees."
         actions={
-          <Button
-            onClick={openUpload}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Upload Document
-          </Button>
+          !isEmployeePortal ? (
+            <Button
+              onClick={openUpload}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Upload Document
+            </Button>
+          ) : undefined
         }
       />
 
@@ -800,39 +805,41 @@ export default function HrDocumentsPage() {
                       >
                         <Download className="h-3.5 w-3.5" />
                       </button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            type="button"
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                          >
-                            <MoreVertical className="h-3.5 w-3.5" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40">
-                          <DropdownMenuItem onClick={() => openEdit(doc)}>
-                            <Edit className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setNextStatus(doc.status || "published");
-                              setStatusTarget(doc);
-                            }}
-                          >
-                            <RefreshCw className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                            Update Status
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => setDeleteTarget(doc)}
-                            className="text-rose-600 focus:text-rose-600"
-                          >
-                            <Trash2 className="h-3.5 w-3.5 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {!isEmployeePortal && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            >
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem onClick={() => openEdit(doc)}>
+                              <Edit className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setNextStatus(doc.status || "published");
+                                setStatusTarget(doc);
+                              }}
+                            >
+                              <RefreshCw className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                              Update Status
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => setDeleteTarget(doc)}
+                              className="text-rose-600 focus:text-rose-600"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </div>
                   </div>
                 </div>

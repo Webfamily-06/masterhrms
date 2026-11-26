@@ -420,7 +420,7 @@ export default function HrCertificationsPage() {
                         />
                       </TableCell>
 
-                      <TableCell className="p-3 font-mono font-bold text-muted-foreground">
+                      <TableCell className="p-3 tabular-nums font-bold text-muted-foreground">
                         {c.certificateId || `CERT-${c.id?.slice(0, 6) || "001"}`}
                       </TableCell>
 
@@ -433,7 +433,7 @@ export default function HrCertificationsPage() {
                           </Avatar>
                           <div>
                             <span className="font-bold text-foreground block">{fullName}</span>
-                            <span className="text-[10px] text-muted-foreground font-mono">{emp.employeeCode || "EMP"}</span>
+                            <span className="text-[10px] text-muted-foreground tabular-nums">{emp.employeeCode || "EMP"}</span>
                           </div>
                         </div>
                       </TableCell>
@@ -442,15 +442,15 @@ export default function HrCertificationsPage() {
                         {c.course?.title || c.course?.name || "Professional Certification"}
                       </TableCell>
 
-                      <TableCell className="p-3 font-mono text-muted-foreground">
+                      <TableCell className="p-3 tabular-nums text-muted-foreground">
                         {formatDate(c.certifiedAt)}
                       </TableCell>
 
-                      <TableCell className="p-3 font-mono text-muted-foreground">
+                      <TableCell className="p-3 tabular-nums text-muted-foreground">
                         {formatDate(c.expiryDate)}
                       </TableCell>
 
-                      <TableCell className="p-3 font-mono font-bold text-primary">
+                      <TableCell className="p-3 tabular-nums font-bold text-primary">
                         {c.score || "100"}%
                       </TableCell>
 
@@ -632,7 +632,7 @@ export default function HrCertificationsPage() {
             <i className="ph ph-certificate text-3xl" />
           </div>
           <div>
-            <span className="text-[11px] text-muted-foreground uppercase tracking-widest font-mono">Certificate of Completion</span>
+            <span className="text-[11px] text-muted-foreground uppercase tracking-widest tabular-nums">Certificate of Completion</span>
             <h3 className="text-lg font-bold text-foreground mt-1">
               {viewCertItem?.course?.title || viewCertItem?.course?.name || "Skill Certification"}
             </h3>
@@ -647,19 +647,19 @@ export default function HrCertificationsPage() {
           <div className="bg-muted/40 p-4 rounded-xl space-y-2 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Certificate ID:</span>
-              <span className="font-mono font-bold text-foreground">{viewCertItem?.certificateId || "—"}</span>
+              <span className="tabular-nums font-bold text-foreground">{viewCertItem?.certificateId || "—"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Issue Date:</span>
-              <span className="font-mono text-foreground">{formatDate(viewCertItem?.certifiedAt)}</span>
+              <span className="tabular-nums text-foreground">{formatDate(viewCertItem?.certifiedAt)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Valid Through:</span>
-              <span className="font-mono text-foreground">{formatDate(viewCertItem?.expiryDate)}</span>
+              <span className="tabular-nums text-foreground">{formatDate(viewCertItem?.expiryDate)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Score Achieved:</span>
-              <span className="font-mono font-bold text-primary">{viewCertItem?.score || "100"}%</span>
+              <span className="tabular-nums font-bold text-primary">{viewCertItem?.score || "100"}%</span>
             </div>
           </div>
 

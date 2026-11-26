@@ -252,7 +252,7 @@ export default function HrDocumentCategoriesPage() {
                   <Input
                     value={color}
                     onChange={(e) => setColor(e.target.value)}
-                    className="h-9 font-mono text-xs uppercase"
+                    className="h-9 tabular-nums text-xs uppercase"
                   />
                 </div>
               </div>

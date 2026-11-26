@@ -4,1217 +4,387 @@ import { useState, useEffect, lazy, Suspense, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { OrganizationAnnouncementsWidget } from "@/components/dashboard/organization-announcements-widget";
-import { toast } from "sonner";
 import { Link } from "@/src/lib/router-compat";
+import { format } from "date-fns";
 
 const Chart = lazy(() => import("react-apexcharts"));
 
+function formatCurrency(val: number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(Number(val) || 0);
+}
+
 export default function HrmDashboardPage() {
-
-  // Status Bar Chart (Single row height: 45)
-  const statusGaugeOptions: ApexCharts.ApexOptions = useMemo(() => ({
-    chart: { height: 45, type: 'bar', sparkline: { enabled: true } },
-    plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '50%' } },
-    colors: ['#03C95A'],
-    xaxis: { categories: ['Total'] }
-  }), []);
-  const statusGaugeSeries = useMemo(() => [{ name: 'Active', data: [80] }], []);
-
-  // Leave RadialBar (150x150)
-  const leaveRadialOptions: ApexCharts.ApexOptions = useMemo(() => ({
-    chart: { height: 150, width: 150, type: 'radialBar' },
-    colors: ['#03C95A'],
-    plotOptions: { radialBar: { hollow: { size: '60%' }, dataLabels: { name: { show: false }, value: { fontSize: '18px', fontWeight: 'bold' } } } }
-  }), []);
-  const leaveRadialSeries = useMemo(() => [70], []);
-
-  // Attendance Comparison Bar (height: 260)
-  const attendanceBarOptions: ApexCharts.ApexOptions = useMemo(() => ({
-    chart: { height: 260, type: 'bar', stacked: true, toolbar: { show: false } },
-    plotOptions: { bar: { columnWidth: '45%', borderRadius: 4 } },
-    colors: ['#03C95A', '#E70D0D'],
-    xaxis: { categories: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] }
-  }), []);
-  const attendanceBarSeries = useMemo(() => [
-    { name: 'Present', data: [80, 85, 90, 88, 92] },
-    { name: 'Absent', data: [20, 15, 10, 12, 8] }
-  ], []);
-
-  // Training Donut Chart (height: 180)
-  const trainingDonutOptions: ApexCharts.ApexOptions = useMemo(() => ({
-    chart: { height: 180, type: 'donut' },
-    colors: ['#664dc9', '#44c4fa'],
-    labels: ['Completed', 'In Progress'],
-    legend: { position: 'bottom' }
-  }), []);
-  const trainingDonutSeries = useMemo(() => [65, 35], []);
-
-  // Mini Sparkline Payroll Bar (height: 40)
-  const payrollSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
-    chart: { height: 40, type: 'bar', sparkline: { enabled: true } },
-    colors: ['#03C95A'],
-    plotOptions: { bar: { columnWidth: '50%', borderRadius: 2 } }
-  }), []);
-  const payrollSparkSeries = useMemo(() => [{ name: 'Payroll', data: [30, 45, 60, 75, 90, 80, 100] }], []);
-
-  // Mini Sparkline Deduction Bar (height: 70)
-  const deductionSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
-    chart: { height: 70, type: 'bar', sparkline: { enabled: true } },
-    colors: ['#E70D0D'],
-    plotOptions: { bar: { columnWidth: '50%', borderRadius: 2 } }
-  }), []);
-  const deductionSparkSeries = useMemo(() => [{ name: 'Deduction', data: [20, 35, 40, 30, 45, 50, 40] }], []);
-
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  
-  const empDistributionOptions: ApexCharts.ApexOptions = useMemo(
+  const { data: dash, isLoading, refetch } = useQuery<any>({
+    queryKey: ["hr-dashboard-realtime"],
+    queryFn: async () => {
+      const res = await api.get<any>("/hr/dashboard");
+      return res?.data || res || {};
+    },
+    refetchInterval: 30000,
+  });
+
+  const headcount = dash?.headcount || {
+    total: 0,
+    active: 0,
+    onLeave: 0,
+    terminated: 0,
+    presentToday: 0,
+    byEmploymentType: { full_time: 0, part_time: 0, contract: 0, intern: 0 },
+  };
+  const deptDist: Array<{ name: string; count: number }> = dash?.departmentDistribution || [];
+  const attendanceTrend = dash?.attendanceTrend || { labels: ["Mon", "Tue", "Wed", "Thu", "Fri"], present: [0, 0, 0, 0, 0], absent: [0, 0, 0, 0, 0] };
+  const lateArrivals: any[] = dash?.lateArrivalsToday || [];
+  const leaveSummary = dash?.leaveSummary || { totalRequests: 0, pendingCount: 0, approvedCount: 0, distribution: [] };
+  const pendingApprovals: any[] = dash?.pendingApprovals || [];
+  const recruitment = dash?.recruitment || { totalJobs: 0, openJobs: 0 };
+  const training = dash?.training || { totalCourses: 0, activeCourses: 0 };
+  const payroll = dash?.payroll || { latestNet: 0, latestDeductions: 0, runsCount: 0, history: [] };
+  const upcomingHolidays: any[] = dash?.upcomingHolidays || [];
+  const upcomingMeetings: any[] = dash?.upcomingMeetings || [];
+
+  const activePct = headcount.total > 0 ? Math.round((headcount.active / headcount.total) * 100) : 0;
+  const presentPct = headcount.active > 0 ? Math.round((headcount.presentToday / headcount.active) * 100) : 0;
+
+  const attendanceBarOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
-      chart: {
-        height: 340,
-        type: 'bar',
-        toolbar: { show: false },
-      },
-      colors: ['#FF7129'],
-      plotOptions: {
-        bar: {
-          borderRadius: 6,
-          columnWidth: '45%',
-          horizontal: false,
-        },
-      },
+      chart: { height: 260, type: "bar", stacked: true, toolbar: { show: false } },
+      plotOptions: { bar: { columnWidth: "45%", borderRadius: 4 } },
+      colors: ["#16a34a", "#e11d48"],
+      xaxis: { categories: attendanceTrend.labels },
       dataLabels: { enabled: false },
-      xaxis: {
-        categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-        labels: {
-          style: { colors: '#6B7280', fontSize: '12px' }
-        }
-      },
-      grid: {
-        borderColor: '#E5E7EB',
-        strokeDashArray: 4,
-      }
+      legend: { position: "top" },
     }),
-    []
+    [attendanceTrend.labels]
   );
 
-  const empDistributionSeries = useMemo(() => [{
-    name: 'Employees',
-    data: [40, 50, 60, 70, 80, 90, 100, 80, 70, 60, 50, 40]
-  }], []);
+  const attendanceBarSeries = useMemo(
+    () => [
+      { name: "Present", data: attendanceTrend.present },
+      { name: "Absent / Off", data: attendanceTrend.absent },
+    ],
+    [attendanceTrend.present, attendanceTrend.absent]
+  );
+
+  const deptBarOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: { height: 280, type: "bar", toolbar: { show: false } },
+      colors: ["#0d6efd"],
+      plotOptions: { bar: { borderRadius: 6, columnWidth: "45%" } },
+      dataLabels: { enabled: false },
+      xaxis: {
+        categories: deptDist.length > 0 ? deptDist.map((d) => d.name) : ["General"],
+        labels: { style: { fontSize: "12px" } },
+      },
+      grid: { strokeDashArray: 4 },
+    }),
+    [deptDist]
+  );
+
+  const deptBarSeries = useMemo(
+    () => [
+      {
+        name: "Employees",
+        data: deptDist.length > 0 ? deptDist.map((d) => d.count) : [0],
+      },
+    ],
+    [deptDist]
+  );
+
+  const leaveDonutOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: { height: 210, type: "donut", toolbar: { show: false } },
+      colors: ["#0d6efd", "#16a34a", "#f59e0b", "#0284c7", "#e11d48"],
+      labels:
+        leaveSummary.distribution?.length > 0
+          ? leaveSummary.distribution.map((d: any) => d.name)
+          : ["No Leaves"],
+      legend: { position: "bottom", fontSize: "12px" },
+      dataLabels: { enabled: false },
+    }),
+    [leaveSummary.distribution]
+  );
+
+  const leaveDonutSeries = useMemo(
+    () =>
+      leaveSummary.distribution?.length > 0
+        ? leaveSummary.distribution.map((d: any) => d.count)
+        : [1],
+    [leaveSummary.distribution]
+  );
 
   return (
     <div className="dashboard-scope w-full">
-      <OrganizationAnnouncementsWidget />
-      {/*  Breadcrumb  */}
-				<div className="d-flex align-items-center justify-content-between flex-wrap mb-3">
-					<div className="my-auto mb-2">
-						<h2 className="mb-1">HR Dashboard</h2>
-						<nav>
-							<ol className="breadcrumb mb-0">
-								<li className="breadcrumb-item">
-									<a href="#"><i className="ti ti-smart-home"></i></a>
-								</li>
-								<li className="breadcrumb-item">
-									Dashboard
-								</li>
-								<li className="breadcrumb-item active" aria-current="page">HR Dashboard</li>
-							</ol>
-						</nav>
-					</div>
-					<div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-3 mb-2">
-						<div className="avatar-list-stacked avatar-group-md">
-							<a href="#" className="avatar avatar-rounded">
-								<img className="border border-white" src="/assets/img/users/user-31.jpg" alt="user" />
-							</a>
-							<a href="#" className="avatar avatar-rounded">
-								<img className="border border-white" src="/assets/img/users/user-32.jpg" alt="user" />
-							</a>
-							<a href="#" className="avatar avatar-rounded">
-								<img className="border border-white" src="/assets/img/users/user-29.jpg" alt="user" />
-							</a>
-							<a href="#" className="avatar avatar-rounded">
-								<img className="border border-white" src="/assets/img/users/user-56.jpg" alt="user" />
-							</a>
-							<a className="avatar bg-dark avatar-rounded fs-20 text-fixed-white" href="#">
-								+
-							</a>
-						</div>
-						<div className="input-icon position-relative">
-							<span className="input-icon-addon">
-								<i className="ti ti-calendar text-gray-9"></i>
-							</span>
-							<input type="text" className="form-control date-range bookingrange"
-								placeholder="dd/mm/yyyy - dd/mm/yyyy" />
-						</div>
-						<div className="dropdown">
-							<a href="#" onClick={(e) => e.preventDefault()}
-								className="dropdown-toggle btn btn-white d-inline-flex align-items-center"
-								data-bs-toggle="dropdown">
-								<i className="ti ti-file-export me-1"></i>Yearly Report
-							</a>
-							<ul className="dropdown-menu  dropdown-menu-end p-3">
-								<li>
-									<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Monthly Report</a>
-								</li>
-								<li>
-									<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Yearly Report </a>
-								</li>
-							</ul>
-						</div>
-						<div className="dropdown">
-							<a href="#" onClick={(e) => e.preventDefault()}
-								className="dropdown-toggle btn btn-primary d-inline-flex align-items-center"
-								data-bs-toggle="dropdown">
-								Add New
-							</a>
-							<ul className="dropdown-menu  dropdown-menu-end p-3">
-								<li>
-									<a href="#" className="dropdown-item rounded-1">Employee</a>
-								</li>
-								<li>
-									<a href="#" className="dropdown-item rounded-1">Attendance</a>
-								</li>
-								<li>
-									<a href="#" className="dropdown-item rounded-1">Leave</a>
-								</li>
-							</ul>
-						</div>
-						<div className="head-icons mt-2">
-							<a href="#" onClick={(e) => e.preventDefault()} className="" data-bs-toggle="tooltip" data-bs-placement="top"
-								data-bs-original-title="Collapse" id="collapse-header">
-								<i className="ti ti-chevrons-up"></i>
-							</a>
-						</div>
-					</div>
-				</div>
-				{/*  /Breadcrumb  */}
+      {/* Breadcrumb & Actions */}
+      <div className="d-flex align-items-center justify-content-between flex-wrap mb-3">
+        <div className="my-auto mb-2">
+          <h2 className="mb-1">HR Dashboard</h2>
+          <nav>
+            <ol className="breadcrumb mb-0">
+              <li className="breadcrumb-item">
+                <Link to="/hr/dashboard"><i className="ti ti-smart-home"></i></Link>
+              </li>
+              <li className="breadcrumb-item">Dashboard</li>
+              <li className="breadcrumb-item active" aria-current="page">HR Dashboard</li>
+            </ol>
+          </nav>
+        </div>
+        <div className="d-flex align-items-center gap-2 mb-2">
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="btn btn-white d-inline-flex align-items-center"
+          >
+            <i className="ti ti-refresh me-1"></i>Refresh Live
+          </button>
+          <Link to="/hr/employees/new" className="btn btn-primary d-inline-flex align-items-center">
+            <i className="ti ti-user-plus me-1"></i>Add Employee
+          </Link>
+        </div>
+      </div>
 
-				{/*  start row  */}
-				<div className="row">
+      {/* Row 1: 4 Live KPI Cards */}
+      <div className="row">
+        <div className="col-xl-3 col-md-6 d-flex">
+          <div className="card flex-fill">
+            <div className="card-body">
+              <div className="d-flex align-items-center justify-content-between mb-2">
+                <span className="avatar avatar-md bg-primary-transparent text-primary rounded-circle d-inline-flex align-items-center justify-content-center">
+                  <i className="ti ti-users fs-20"></i>
+                </span>
+                <span className="badge bg-success-transparent text-success">{activePct}% Active</span>
+              </div>
+              <p className="fs-13 text-muted mb-1">Total Workforce</p>
+              <h3 className="mb-1 tabular-nums">{isLoading ? "..." : headcount.total}</h3>
+              <p className="fs-12 text-muted mb-0">
+                {headcount.active} active · {headcount.onLeave} on leave
+              </p>
+            </div>
+          </div>
+        </div>
 
-					<div className="col-xl-5 d-flex flex-column">
-						<div className="card flex-fill mb-3">
-							<div className="card-body">
-								<div
-									className="border rounded border-start border-start-primary d-flex align-items-center justify-content-between p-2 gap-2 flex-wrap mb-3">
-									<h2 className="card-title mb-0">Employee Status & Type</h2>
-									<a href="#" className="btn btn-md btn-light">View All</a>
-								</div>
-								<div id="status-chart" className="mb-3">
-  {isMounted && (
-    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={statusGaugeOptions} series={statusGaugeSeries} type="bar" height={45} width="100%" />
-    </Suspense>
-  )}
-</div>
-								<div className="row">
-									<div className="col-4">
-										<div className="text-center">
-											<h3 className="main-title mb-1">1054</h3>
-											<p className="d-inline-flex align-items-center mb-0"><span
-													className="chart-line bg-primary me-1"></span>Full-Time</p>
-										</div>
-									</div>
-									<div className="col-4">
-										<div className="text-center">
-											<h3 className="main-title mb-1">568</h3>
-											<p className="d-inline-flex align-items-center mb-0"><span
-													className="chart-line bg-secondary me-1"></span>Contract</p>
-										</div>
-									</div>
-									<div className="col-4">
-										<div className="text-center">
-											<h3 className="main-title mb-1">80</h3>
-											<p className="d-inline-flex align-items-center mb-0"><span
-													className="chart-line bg-light me-1"></span>Probation</p>
-										</div>
-									</div>
-								</div>
-							</div>
-						</div>
-						<div className="card flex-fill">
-							<div className="card-body pb-sm-2">
-								<div
-									className="border rounded border-start border-start-primary d-flex align-items-center justify-content-between p-2 gap-2 flex-wrap mb-3">
-									<h2 className="card-title mb-0">Leave Type Distribution</h2>
-									<div className="dropdown">
-										<a href="#" onClick={(e) => e.preventDefault()}
-											className="border btn btn-white btn-md d-inline-flex align-items-center"
-											data-bs-toggle="dropdown">
-											<i className="ti ti-calendar-due me-1 fs-14"></i>Monthly
-										</a>
-										<ul className="dropdown-menu mt-2 p-3">
-											<li>
-												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-													Monthly
-												</a>
-											</li>
-											<li>
-												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-													Weekly
-												</a>
-											</li>
-											<li>
-												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-													Today
-												</a>
-											</li>
-										</ul>
-									</div>
-								</div>
-								<div className="row">
-									<div className="col-sm-5">
-										<div id="leave-chart">
-  {isMounted && (
-    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={leaveRadialOptions} series={leaveRadialSeries} type="radialBar" height={150} width={150} />
-    </Suspense>
-  )}
-</div>
-									</div>
-									<div className="col-sm-7">
-										<div>
-											<div className="d-flex align-items-center justify-content-between mb-2">
-												<p className="d-inline-flex align-items-center text-dark mb-0"><i
-														className="ti ti-circle-filled text-primary-900 fs-7 me-1"></i>Sick
-													Leave</p>
-												<span
-													className="badge fw-normal bg-light text-dark border rounded-pill fs-13">45</span>
-											</div>
-											<div className="d-flex align-items-center justify-content-between mb-2">
-												<p className="d-inline-flex align-items-center text-dark mb-0"><i
-														className="ti ti-circle-filled text-primary-800 fs-7 me-1"></i>Casual
-													Leave</p>
-												<span
-													className="badge fw-normal bg-light text-dark border rounded-pill fs-13">68</span>
-											</div>
-											<div className="d-flex align-items-center justify-content-between mb-2">
-												<p className="d-inline-flex align-items-center text-dark mb-0"><i
-														className="ti ti-circle-filled text-primary-700 fs-7 me-1"></i>Unpaid
-												</p>
-												<span
-													className="badge fw-normal bg-light text-dark border rounded-pill fs-13">12</span>
-											</div>
-										</div>
-									</div>
-								</div>
-							</div> {/*  end card body  */}
-						</div> {/*  end card  */}
-					</div> {/*  end col  */}
+        <div className="col-xl-3 col-md-6 d-flex">
+          <div className="card flex-fill">
+            <div className="card-body">
+              <div className="d-flex align-items-center justify-content-between mb-2">
+                <span className="avatar avatar-md bg-success-transparent text-success rounded-circle d-inline-flex align-items-center justify-content-center">
+                  <i className="ti ti-clock-check fs-20"></i>
+                </span>
+                <span className="badge bg-primary-transparent text-primary">{presentPct}% Present</span>
+              </div>
+              <p className="fs-13 text-muted mb-1">Present Today</p>
+              <h3 className="mb-1 tabular-nums">{isLoading ? "..." : headcount.presentToday}</h3>
+              <p className="fs-12 text-muted mb-0">
+                {lateArrivals.length} late arrival(s) today
+              </p>
+            </div>
+          </div>
+        </div>
 
-					<div className="col-xl-7">
-						<div className="card">
-							<div className="card-body">
+        <div className="col-xl-3 col-md-6 d-flex">
+          <div className="card flex-fill">
+            <div className="card-body">
+              <div className="d-flex align-items-center justify-content-between mb-2">
+                <span className="avatar avatar-md bg-warning-transparent text-warning rounded-circle d-inline-flex align-items-center justify-content-center">
+                  <i className="ti ti-calendar-event fs-20"></i>
+                </span>
+                <Link to="/hr/leave/applications" className="fs-12 text-primary fw-semibold">Review</Link>
+              </div>
+              <p className="fs-13 text-muted mb-1">Pending Leave Requests</p>
+              <h3 className="mb-1 tabular-nums">{isLoading ? "..." : leaveSummary.pendingCount}</h3>
+              <p className="fs-12 text-muted mb-0">
+                {leaveSummary.approvedCount} approved this year
+              </p>
+            </div>
+          </div>
+        </div>
 
-								<div
-									className="border rounded border-start border-start-primary d-flex align-items-center justify-content-between p-2 gap-2 flex-wrap mb-3">
-									<h2 className="card-title mb-0">Overview Statistics</h2>
-									<div className="dropdown">
-										<a href="#" onClick={(e) => e.preventDefault()}
-											className="border btn btn-white btn-md d-inline-flex align-items-center"
-											data-bs-toggle="dropdown">
-											<i className="ti ti-calendar-due me-1 fs-14"></i>Monthly
-										</a>
-										<ul className="dropdown-menu mt-2 p-3">
-											<li>
-												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-													Monthly
-												</a>
-											</li>
-											<li>
-												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-													Weekly
-												</a>
-											</li>
-											<li>
-												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-													Today
-												</a>
-											</li>
-										</ul>
-									</div>
-								</div>
-								<div className="row g-3">
+        <div className="col-xl-3 col-md-6 d-flex">
+          <div className="card flex-fill">
+            <div className="card-body">
+              <div className="d-flex align-items-center justify-content-between mb-2">
+                <span className="avatar avatar-md bg-info-transparent text-info rounded-circle d-inline-flex align-items-center justify-content-center">
+                  <i className="ti ti-briefcase fs-20"></i>
+                </span>
+                <Link to="/hr/recruitment/job-postings" className="fs-12 text-primary fw-semibold">Jobs</Link>
+              </div>
+              <p className="fs-13 text-muted mb-1">Open Job Postings</p>
+              <h3 className="mb-1 tabular-nums">{isLoading ? "..." : recruitment.openJobs}</h3>
+              <p className="fs-12 text-muted mb-0">
+                {recruitment.totalJobs} total · {training.activeCourses} active trainings
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
-									<div className="col-md-6 d-flex">
-										<div className="card shadow-none mb-0 flex-fill">
-											<div className="card-body">
-												<div className="d-flex align-items-center mb-3">
-													<div
-														className="avatar avatar-lg bg-primary rounded-circle flex-shrink-0">
-														<i className="ti ti-users-group text-white fs-24"></i>
-													</div>
-													<div className="ms-2">
-														<p className="fw-semibold text-truncate mb-0">Total Employees</p>
-													</div>
-												</div>
-												<div className="d-flex align-items-center justify-content-between">
-													<div>
-														<h3 className="main-title mb-1">1,848</h3>
-														<p className="fs-13 mb-0">Headcount Overview</p>
-													</div>
-													<div
-														className="d-inline-flex align-items-center bg-light border rounded-pill text-dark p-1 ps-2">
-														+18%<span
-															className="bg-success btn-icon btn-sm rounded-circle d-flex align-items-center justify-content-center ms-1"><i
-																className="ti ti-arrow-up-right fs-20"></i></span></div>
-												</div>
-											</div> {/*  end card  */}
-										</div> {/*  end card body  */}
-									</div> {/*  end col  */}
+      {/* Row 2: Attendance Trend + Department Distribution + Leave Breakdown */}
+      <div className="row">
+        <div className="col-xl-4 d-flex">
+          <div className="card flex-fill">
+            <div className="card-header d-flex align-items-center justify-content-between">
+              <h5 className="card-title mb-0">Attendance Trend (5 Days)</h5>
+              <Link to="/hr/attendance/records" className="fs-12 text-primary fw-semibold">View All</Link>
+            </div>
+            <div className="card-body">
+              {isMounted && (
+                <Suspense fallback={<div className="p-4 text-center text-muted">Loading chart...</div>}>
+                  <Chart options={attendanceBarOptions} series={attendanceBarSeries} type="bar" height={260} width="100%" />
+                </Suspense>
+              )}
+            </div>
+          </div>
+        </div>
 
-									<div className="col-md-6 d-flex">
-										<div className="card shadow-none mb-0 flex-fill">
-											<div className="card-body">
-												<div className="d-flex avatar-lg align-items-center mb-3">
-													<div className="avatar bg-secondary rounded-circle flex-shrink-0">
-														<i className="ti ti-users-plus text-white fs-24"></i>
-													</div>
-													<div className="ms-2">
-														<p className="fw-semibold text-truncate mb-0">New Joinees</p>
-													</div>
-												</div>
-												<div className="d-flex align-items-center justify-content-between">
-													<div>
-														<h3 className="main-title mb-1">1,248</h3>
-														<p className="fs-13 mb-0">All Department</p>
-													</div>
-													<div
-														className="d-inline-flex align-items-center bg-light border rounded-pill text-dark p-1 ps-2">
-														+22%<span
-															className="bg-success btn-icon btn-sm rounded-circle d-flex align-items-center justify-content-center ms-1"><i
-																className="ti ti-arrow-up-right fs-20"></i></span></div>
-												</div>
-											</div> {/*  end card  */}
-										</div> {/*  end card body  */}
-									</div> {/*  end col  */}
+        <div className="col-xl-5 d-flex">
+          <div className="card flex-fill">
+            <div className="card-header d-flex align-items-center justify-content-between">
+              <h5 className="card-title mb-0">Department Distribution</h5>
+              <Link to="/hr/organization/departments" className="fs-12 text-primary fw-semibold">Departments</Link>
+            </div>
+            <div className="card-body">
+              {isMounted && (
+                <Suspense fallback={<div className="p-4 text-center text-muted">Loading chart...</div>}>
+                  <Chart options={deptBarOptions} series={deptBarSeries} type="bar" height={260} width="100%" />
+                </Suspense>
+              )}
+            </div>
+          </div>
+        </div>
 
-									<div className="col-md-6 d-flex">
-										<div className="card shadow-none mb-0 flex-fill">
-											<div className="card-body">
-												<div className="d-flex align-items-center mb-3">
-													<div className="avatar avatar-lg bg-dark rounded-circle flex-shrink-0">
-														<i className="ti ti-clock-x text-white fs-24"></i>
-													</div>
-													<div className="ms-2">
-														<p className="fw-semibold text-truncate mb-0">Late Arrivals Today
-														</p>
-													</div>
-												</div>
-												<div className="d-flex align-items-center justify-content-between">
-													<div>
-														<h3 className="main-title mb-1">12</h3>
-														<p className="fs-13 mb-0">Delayed Logins Today</p>
-													</div>
-													<div
-														className="d-inline-flex align-items-center bg-light border rounded-pill text-dark p-1 ps-2">
-														-16%<span
-															className="bg-danger btn-icon btn-sm rounded-circle d-flex align-items-center justify-content-center ms-1"><i
-																className="ti ti-arrow-down-right fs-20"></i></span></div>
-												</div>
-											</div> {/*  end card  */}
-										</div> {/*  end card body  */}
-									</div> {/*  end col  */}
+        <div className="col-xl-3 d-flex">
+          <div className="card flex-fill">
+            <div className="card-header d-flex align-items-center justify-content-between">
+              <h5 className="card-title mb-0">Leave Type Breakdown</h5>
+              <span className="badge bg-light text-dark border">{leaveSummary.totalRequests}</span>
+            </div>
+            <div className="card-body d-flex flex-column justify-content-center">
+              {isMounted && (
+                <Suspense fallback={<div className="p-4 text-center text-muted">Loading chart...</div>}>
+                  <Chart options={leaveDonutOptions} series={leaveDonutSeries} type="donut" height={210} width="100%" />
+                </Suspense>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
-									<div className="col-md-6 d-flex">
-										<div className="card shadow-none mb-0 flex-fill">
-											<div className="card-body">
-												<div className="d-flex align-items-center mb-3">
-													<div
-														className="avatar avatar-lg bg-purple rounded-circle flex-shrink-0">
-														<i className="ti ti-report-money text-white fs-24"></i>
-													</div>
-													<div className="ms-2">
-														<p className="fw-semibold text-truncate mb-0">Total Payroll Cost</p>
-													</div>
-												</div>
-												<div className="d-flex align-items-center justify-content-between">
-													<div>
-														<h3 className="main-title mb-1">$2.4M</h3>
-														<p className="fs-13 mb-0">Payroll Outflow</p>
-													</div>
-													<div
-														className="d-inline-flex align-items-center bg-light border rounded-pill text-dark p-1 ps-2">
-														+16%<span
-															className="bg-success btn-icon btn-sm rounded-circle d-flex align-items-center justify-content-center ms-1"><i
-																className="ti ti-arrow-up-right fs-20"></i></span></div>
-												</div>
-											</div> {/*  end card  */}
-										</div> {/*  end card body  */}
-									</div> {/*  end col  */}
+      {/* Row 3: Pending Approvals + Late Arrivals + Payroll & Holidays + Company Announcements (1/4 each) */}
+      <div className="row">
+        <div className="col-xl-3 col-md-6 d-flex">
+          <div className="card flex-fill">
+            <div className="card-header d-flex align-items-center justify-content-between">
+              <h5 className="card-title mb-0">Pending Approvals</h5>
+              <Link to="/hr/leave/applications" className="fs-12 text-primary fw-semibold">View All</Link>
+            </div>
+            <div className="card-body">
+              {pendingApprovals.length === 0 ? (
+                <p className="text-muted fs-13 text-center py-4 mb-0">No pending leave approvals.</p>
+              ) : (
+                pendingApprovals.map((item: any) => (
+                  <div key={item.id} className="d-flex align-items-center justify-content-between border-bottom pb-2 mb-2">
+                    <div className="min-w-0">
+                      <h6 className="fs-13 fw-semibold mb-0 text-truncate">{item.employeeName}</h6>
+                      <span className="fs-11 text-muted">
+                        {item.leaveType} · {item.days}d ({item.startDate ? format(new Date(item.startDate), "dd MMM") : "—"})
+                      </span>
+                    </div>
+                    <span className="badge bg-warning-transparent text-warning">Pending</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
 
-								</div>
+        <div className="col-xl-3 col-md-6 d-flex">
+          <div className="card flex-fill">
+            <div className="card-header d-flex align-items-center justify-content-between">
+              <h5 className="card-title mb-0">Late Arrivals Today</h5>
+              <span className="badge bg-danger-transparent text-danger">{lateArrivals.length}</span>
+            </div>
+            <div className="card-body">
+              {lateArrivals.length === 0 ? (
+                <p className="text-muted fs-13 text-center py-4 mb-0">No late arrivals recorded today.</p>
+              ) : (
+                lateArrivals.map((la: any) => (
+                  <div key={la.id} className="d-flex align-items-center justify-content-between border-bottom pb-2 mb-2">
+                    <div className="min-w-0">
+                      <h6 className="fs-13 fw-semibold mb-0 text-truncate">{la.employeeName}</h6>
+                      <span className="fs-11 text-muted">{la.department}</span>
+                    </div>
+                    <span className="badge bg-danger-transparent text-danger">+{la.lateMinutes}m</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
 
-							</div> {/*  end card body  */}
-						</div> {/*  end card  */}
-					</div> {/*  end col  */}
+        <div className="col-xl-3 col-md-6 d-flex">
+          <div className="card flex-fill">
+            <div className="card-header d-flex align-items-center justify-content-between">
+              <h5 className="card-title mb-0">Payroll &amp; Schedule</h5>
+              <Link to="/hr/payroll/runs" className="fs-12 text-primary fw-semibold">Payroll</Link>
+            </div>
+            <div className="card-body space-y-3">
+              <div className="p-3 rounded bg-light border">
+                <span className="fs-12 text-muted d-block">Latest Payroll Net</span>
+                <h4 className="mb-0 tabular-nums">{formatCurrency(payroll.latestNet)}</h4>
+                <span className="fs-11 text-muted">
+                  Deductions: {formatCurrency(payroll.latestDeductions)} · {payroll.runsCount} runs
+                </span>
+              </div>
+              <div>
+                <h6 className="fs-12 text-muted text-uppercase mb-2">Upcoming Holidays</h6>
+                {upcomingHolidays.length === 0 ? (
+                  <p className="fs-12 text-muted mb-0">No upcoming holidays.</p>
+                ) : (
+                  upcomingHolidays.slice(0, 3).map((h: any) => (
+                    <div key={h.id} className="d-flex align-items-center justify-content-between py-1">
+                      <span className="fs-12 fw-medium text-truncate">{h.name}</span>
+                      <span className="fs-11 text-muted">
+                        {h.date ? format(new Date(h.date), "dd MMM") : "—"}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div>
+                <h6 className="fs-12 text-muted text-uppercase mb-2">Upcoming Meetings</h6>
+                {upcomingMeetings.length === 0 ? (
+                  <p className="fs-12 text-muted mb-0">No scheduled meetings.</p>
+                ) : (
+                  upcomingMeetings.slice(0, 2).map((m: any) => (
+                    <div key={m.id} className="d-flex align-items-center justify-content-between py-1">
+                      <span className="fs-12 fw-medium text-truncate">{m.title}</span>
+                      <span className="fs-11 text-muted">
+                        {m.startTime ? format(new Date(m.startTime), "dd MMM") : "—"}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
 
-				</div>
-				{/*  end row  */}
-
-				{/*  start row  */}
-				<div className="row">
-
-					<div className="col-xl-8 d-flex">
-						<div className="card flex-fill">
-							<div className="card-body pb-0">
-								<div
-									className="border rounded border-start border-start-primary d-flex align-items-center justify-content-between p-2 gap-2 flex-wrap mb-3">
-									<h2 className="card-title mb-0">Attendance Trend</h2>
-									<div className="dropdown">
-										<a href="#" onClick={(e) => e.preventDefault()}
-											className="border btn btn-white btn-md d-inline-flex align-items-center"
-											data-bs-toggle="dropdown">
-											<i className="ti ti-calendar-due me-1 fs-14"></i>Weekly
-										</a>
-										<ul className="dropdown-menu mt-2 p-3">
-											<li>
-												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-													Monthly
-												</a>
-											</li>
-											<li>
-												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-													Weekly
-												</a>
-											</li>
-											<li>
-												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-													Today
-												</a>
-											</li>
-										</ul>
-									</div>
-								</div>
-								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
-									<div className="d-flex align-items-center flex-wrap gap-3">
-										<div className="d-flex align-items-center pe-3 border-end">
-											<h3 className="mb-0">82<span
-													className="ms-2 fw-normal fs-14 text-default">On-Time</span></h3>
-										</div>
-										<div className="d-flex align-items-center pe-3 border-end">
-											<h3 className="mb-0">11<span
-													className="ms-2 fw-normal fs-14 text-default">Late</span></h3>
-										</div>
-										<div className="d-flex align-items-center">
-											<h3 className="mb-0">6<span
-													className="ms-2 fw-normal fs-14 text-default">Absent</span></h3>
-										</div>
-									</div>
-									<div className="d-flex align-items-center gap-3">
-										<p className="mb-0"><i
-												className="ti ti-square-rounded-filled text-primary fs-15 me-1"></i>Present
-										</p>
-										<p className="mb-0"><i
-												className="ti ti-square-rounded-filled text-secondary fs-15 me-1"></i>Late
-										</p>
-										<p className="mb-0"><i
-												className="ti ti-square-rounded-filled text-warning fs-15 me-1"></i>Absent
-										</p>
-									</div>
-								</div>
-								<div className="d-sm-flex align-items-center flex-sm-row flex-column">
-									<div id="attendance-chart" className="w-100">
-  {isMounted && (
-    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={attendanceBarOptions} series={attendanceBarSeries} type="bar" height={260} width="100%" />
-    </Suspense>
-  )}
-</div>
-									<div className="flex-shrink-0">
-										<div className="border p-3 rounded text-center mb-3">
-											<p className="mb-1">Max Working Hours</p>
-											<h3 className="main-title mb-0">8.4 hrs</h3>
-										</div>
-										<div className="border p-3 rounded text-center mb-3">
-											<p className="mb-1">Missed Punches</p>
-											<h3 className="main-title mb-0">12</h3>
-										</div>
-										<div className="border p-3 rounded text-center mb-3">
-											<p className="mb-1">Weekly Avg</p>
-											<h3 className="main-title mb-0">97.2%</h3>
-										</div>
-									</div>
-								</div>
-
-							</div> {/*  end card body  */}
-						</div> {/*  end card  */}
-					</div> {/*  end col  */}
-
-					<div className="col-xl-4 d-flex">
-						<div className="card flex-fill">
-							<div className="card-body pb-0">
-								<div
-									className="border rounded border-start border-start-primary d-flex align-items-center justify-content-between p-2 gap-2 flex-wrap mb-0">
-									<h2 className="card-title mb-0">Top Employee Distribution</h2>
-									<a href="#" className="btn btn-md btn-light">View All</a>
-								</div>
-								<div id="employee-distribution">
-    {isMounted && (
-      <Suspense fallback={<div style={{ height: 340 }} className="d-flex align-items-center justify-content-center text-muted">Loading chart...</div>}>
-        <Chart options={empDistributionOptions} series={empDistributionSeries} type="bar" height={340} />
-      </Suspense>
-    )}
-  </div>
-							</div> {/*  end card body  */}
-						</div> {/*  end card  */}
-					</div> {/*  end col  */}
-
-				</div>
-				{/*  end row  */}
-
-				{/*  start row  */}
-				<div className="row">
-
-					<div className="col-xxl-4 col-xl-6 d-flex">
-						<div className="card flex-fill">
-							<div className="card-body">
-								<div
-									className="border rounded border-start border-start-primary d-flex align-items-center justify-content-between p-2 gap-2 flex-wrap mb-3">
-									<h2 className="card-title mb-0">Late Arrivals Today</h2>
-									<div className="dropdown">
-										<a href="#" onClick={(e) => e.preventDefault()}
-											className="border btn btn-white btn-md d-inline-flex align-items-center"
-											data-bs-toggle="dropdown">
-											<i className="ti ti-calendar-due me-1 fs-14"></i>Today
-										</a>
-										<ul className="dropdown-menu mt-2 p-3">
-											<li>
-												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-													Monthly
-												</a>
-											</li>
-											<li>
-												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-													Weekly
-												</a>
-											</li>
-											<li>
-												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-													Today
-												</a>
-											</li>
-										</ul>
-									</div>
-								</div>
-								<div
-									className="p-2 bg-light rounded border-bottom d-flex align-items-center justify-content-between mb-2">
-									<div className="d-flex align-items-center">
-										<a href="#" onClick={(e) => e.preventDefault()} className="avatar flex-shrink-0">
-											<img src="/assets/img/users/user-26.jpg" className="rounded-circle" alt="user" />
-										</a>
-										<div className="ms-2">
-											<p className="fs-14 fw-medium text-truncate mb-1"><a href="#">Jessica Brown</a>
-											</p>
-											<p className="fs-13">Customer Support</p>
-										</div>
-									</div>
-									<div>
-										<p className="fs-13 text-dark mb-1">10:15 AM</p>
-										<span className="badge badge-danger-transparent rounded-pill">+45 Min</span>
-									</div>
-								</div>
-								<div
-									className="p-2 bg-light rounded border-bottom d-flex align-items-center justify-content-between mb-2">
-									<div className="d-flex align-items-center">
-										<a href="#" onClick={(e) => e.preventDefault()} className="avatar flex-shrink-0">
-											<img src="/assets/img/users/user-31.jpg" className="rounded-circle" alt="user" />
-										</a>
-										<div className="ms-2">
-											<p className="fs-14 fw-medium text-truncate mb-1"><a href="#">Amanda Lewis</a>
-											</p>
-											<p className="fs-13">HR Admin</p>
-										</div>
-									</div>
-									<div>
-										<p className="fs-13 text-dark mb-1">10:25 AM</p>
-										<span className="badge badge-danger-transparent rounded-pill">+55 Min</span>
-									</div>
-								</div>
-								<div
-									className="p-2 bg-light rounded border-bottom d-flex align-items-center justify-content-between mb-2">
-									<div className="d-flex align-items-center">
-										<a href="#" onClick={(e) => e.preventDefault()} className="avatar flex-shrink-0">
-											<img src="/assets/img/users/user-27.jpg" className="rounded-circle" alt="user" />
-										</a>
-										<div className="ms-2">
-											<p className="fs-14 fw-medium text-truncate mb-1"><a href="#">James Clark</a>
-											</p>
-											<p className="fs-13">Sales</p>
-										</div>
-									</div>
-									<div>
-										<p className="fs-13 text-dark mb-1">10:00 AM</p>
-										<span className="badge badge-danger-transparent rounded-pill">+30 Min</span>
-									</div>
-								</div>
-								<div
-									className="p-2 bg-light rounded border-bottom d-flex align-items-center justify-content-between mb-2">
-									<div className="d-flex align-items-center">
-										<a href="#" onClick={(e) => e.preventDefault()} className="avatar flex-shrink-0">
-											<img src="/assets/img/users/user-56.jpg" className="rounded-circle" alt="user" />
-										</a>
-										<div className="ms-2">
-											<p className="fs-14 fw-medium text-truncate mb-1"><a href="#">Amanda Davis</a>
-											</p>
-											<p className="fs-13">Administration</p>
-										</div>
-									</div>
-									<div>
-										<p className="fs-13 text-dark mb-1">09:40 AM</p>
-										<span className="badge badge-danger-transparent rounded-pill">+20 Min</span>
-									</div>
-								</div>
-								<div
-									className="p-2 bg-light rounded border-bottom d-flex align-items-center justify-content-between mb-0">
-									<div className="d-flex align-items-center">
-										<a href="#" onClick={(e) => e.preventDefault()} className="avatar flex-shrink-0">
-											<img src="/assets/img/users/user-29.jpg" className="rounded-circle" alt="user" />
-										</a>
-										<div className="ms-2">
-											<p className="fs-14 fw-medium text-truncate mb-1"><a href="#">Lisa Anderson</a>
-											</p>
-											<p className="fs-13">Finance</p>
-										</div>
-									</div>
-									<div>
-										<p className="fs-13 text-dark mb-1">09:35 AM</p>
-										<span className="badge badge-danger-transparent rounded-pill">+05 Min</span>
-									</div>
-								</div>
-							</div> {/*  end card body  */}
-						</div> {/*  end card  */}
-					</div> {/*  end col  */}
-
-					<div className="col-xxl-4 col-xl-6 d-flex flex-column">
-						<div className="card mb-3">
-							<div className="card-body">
-								<div
-									className="border rounded border-start border-start-primary d-flex align-items-center justify-content-between p-2 gap-2 flex-wrap mb-3">
-									<h2 className="card-title mb-0">Recruitment Statistics</h2>
-									<div className="dropdown">
-										<a href="#" onClick={(e) => e.preventDefault()}
-											className="border btn btn-white btn-md d-inline-flex align-items-center"
-											data-bs-toggle="dropdown">
-											<i className="ti ti-calendar-due me-1 fs-14"></i>Weekly
-										</a>
-										<ul className="dropdown-menu mt-2 p-3">
-											<li>
-												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-													Monthly
-												</a>
-											</li>
-											<li>
-												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-													Weekly
-												</a>
-											</li>
-											<li>
-												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-													Today
-												</a>
-											</li>
-										</ul>
-									</div>
-								</div>
-								<div className="mb-4">
-									<div className="row g-3">
-										<div className="col-6 col-sm-4">
-											<div className="text-center">
-												<p className="mb-1">Applicants</p>
-												<h2 className="mb-0">487</h2>
-											</div>
-										</div>
-										<div className="col-6 col-sm-4">
-											<div className="text-center">
-												<p className="mb-1">Hired</p>
-												<h2 className="mb-0">24</h2>
-											</div>
-										</div>
-										<div className="col-6 col-sm-4">
-											<div className="text-center">
-												<p className="mb-1">Avg Time</p>
-												<h2 className="mb-0">28 days</h2>
-											</div>
-										</div>
-									</div>
-								</div>
-								<div className="progress-stacked bg-white statistic-progress mb-4">
-									<div className="progress overflow-hidden" role="progressbar" aria-label="Segment one"
-										aria-valuenow={15} aria-valuemin={0} aria-valuemax={100} style={{ width: "45%" }}>
-										<div className="progress-bar bg-primary"></div>
-									</div>
-									<div className="progress overflow-hidden" role="progressbar" aria-label="Segment two"
-										aria-valuenow={30} aria-valuemin={0} aria-valuemax={100} style={{ width: "25%" }}>
-										<div className="progress-bar bg-secondary"></div>
-									</div>
-									<div className="progress overflow-hidden" role="progressbar" aria-label="Segment three"
-										aria-valuenow={20} aria-valuemin={0} aria-valuemax={100} style={{ width: "23%" }}>
-										<div className="progress-bar bg-pink"></div>
-									</div>
-									<div className="progress overflow-hidden" role="progressbar" aria-label="Segment four"
-										aria-valuenow={20} aria-valuemin={0} aria-valuemax={100} style={{ width: "20%" }}>
-										<div className="progress-bar bg-success"></div>
-									</div>
-								</div>
-
-
-								<div className="row g-3">
-									<div className="col-sm-6">
-										<div>
-											<p className="d-inline-flex align-items-center text-dark fw-semibold mb-1"><span
-													className="chart-line bg-primary me-2"></span>Applications</p>
-											<p className="mb-0"><span className="text-dark fw-medium">40%</span> - 57 Employees
-											</p>
-										</div>
-									</div>
-									<div className="col-sm-6">
-										<div>
-											<p className="d-inline-flex align-items-center text-dark fw-semibold mb-1"><span
-													className="chart-line bg-secondary me-2"></span>Screening</p>
-											<p className="mb-0"><span className="text-dark fw-medium">20%</span> - 36 Employees
-											</p>
-										</div>
-									</div>
-									<div className="col-sm-6">
-										<div>
-											<p className="d-inline-flex align-items-center text-dark fw-semibold mb-1"><span
-													className="chart-line bg-pink me-2"></span>Interview</p>
-											<p className="mb-0"><span className="text-dark fw-medium">23%</span> - 64 Employees
-											</p>
-										</div>
-									</div>
-									<div className="col-sm-6">
-										<div>
-											<p className="d-inline-flex align-items-center text-dark fw-semibold mb-1"><span
-													className="chart-line bg-success me-2"></span>Hired</p>
-											<p className="mb-0"><span className="text-dark fw-medium">17%</span> - 18 Employees
-											</p>
-										</div>
-									</div>
-								</div>
-							</div> {/*  end card body  */}
-						</div> {/*  end card  */}
-
-						<div className="card bg-secondary shadow-none z-1 overflow-hidden">
-							<div className="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
-								<div>
-									<p className="text-white mb-1">Employees in Training</p>
-									<h2 className="text-white mb-0">80</h2>
-								</div>
-								<div className="d-inline-flex align-items-center gap-2">
-									<div className="avatar-list-stacked avatar-group-md">
-										<a href="#" className="avatar avatar-rounded">
-											<img className="border border-white" src="/assets/img/users/user-39.jpg"
-												alt="user" />
-										</a>
-										<a href="#" className="avatar avatar-rounded">
-											<img className="border border-white" src="/assets/img/users/user-41.jpg"
-												alt="user" />
-										</a>
-										<a href="#" className="avatar avatar-rounded">
-											<img className="border border-white" src="/assets/img/users/user-44.jpg"
-												alt="user" />
-										</a>
-									</div>
-									<div className="chartjs-wrapper-demo position-relative">
-										<div className="chart-canvas-wrapper" style={{ minHeight: "200px" }}>
-  {isMounted && (
-    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={trainingDonutOptions} series={trainingDonutSeries} type="donut" height={180} width="100%" />
-    </Suspense>
-  )}
-</div>
-									</div>
-								</div>
-							</div> {/*  end card body  */}
-							<img src="/assets/img/bg/emp-bg.png" alt="bg"
-								className="img-fluid position-absolute top-0 start-1 z-n1" />
-						</div> {/*  end card  */}
-					</div> {/*  end col  */}
-
-					<div className="col-xxl-4 col-xl-12 d-flex">
-						<div className="card flex-fill">
-							<div className="card-body d-flex justify-content-between flex-column">
-								<div>
-									<div
-										className="border rounded border-start border-start-primary d-flex align-items-center justify-content-between p-2 gap-2 flex-wrap mb-3">
-										<h2 className="card-title mb-0">Upcoming Interview</h2>
-										<div className="dropdown">
-											<a href="#" onClick={(e) => e.preventDefault()}
-												className="border btn btn-white btn-md d-inline-flex align-items-center"
-												data-bs-toggle="dropdown">
-												<i className="ti ti-calendar-due me-1 fs-14"></i>Today
-											</a>
-											<ul className="dropdown-menu mt-2 p-3">
-												<li>
-													<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-														Monthly
-													</a>
-												</li>
-												<li>
-													<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-														Weekly
-													</a>
-												</li>
-												<li>
-													<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
-														Today
-													</a>
-												</li>
-											</ul>
-										</div>
-									</div>
-									<div
-										className="p-3 rounded border border-start border-start-4 border-start-primary mb-3">
-										<div
-											className="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-3">
-											<div>
-												<p className="text-dark fw-semibold mb-1">UI/UX Design Interview</p>
-												<p className="fs-13 mb-0">12:00 PM - 01:50 PM</p>
-											</div>
-											<div className="avatar-list-stacked avatar-group-md">
-												<a href="#" className="avatar avatar-rounded">
-													<img className="border border-white" src="/assets/img/users/user-31.jpg"
-														alt="user" />
-												</a>
-												<a href="#" className="avatar avatar-rounded">
-													<img className="border border-white" src="/assets/img/users/user-32.jpg"
-														alt="user" />
-												</a>
-												<a href="#" className="avatar avatar-rounded">
-													<img className="border border-white" src="/assets/img/users/user-29.jpg"
-														alt="user" />
-												</a>
-												<a href="#" className="avatar avatar-rounded">
-													<img className="border border-white" src="/assets/img/users/user-56.jpg"
-														alt="user" />
-												</a>
-												<a className="avatar bg-light border avatar-rounded fs-16 text-dark fw-normal"
-													href="#">
-													+9
-												</a>
-											</div>
-										</div>
-										<div className="row g-2">
-											<div className="col-sm-7">
-												<a href="#"
-													className="btn btn-white d-flex align-items-center justify-content-center w-100"><i
-														className="ti ti-calendar-due me-1"></i>Add to Calendar</a>
-											</div>
-											<div className="col-sm-5">
-												<a href="#"
-													className="btn btn-light d-flex align-items-center justify-content-center w-100"><i
-														className="ti ti-video me-1"></i>Join Now</a>
-											</div>
-										</div>
-									</div>
-									<div
-										className="p-3 rounded border border-start border-start-4 border-start-secondary mb-3">
-										<div
-											className="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-3">
-											<div>
-												<p className="text-dark fw-semibold mb-1">Senior Developer React</p>
-												<p className="fs-13 mb-0">03:00 PM - 04:00 PM</p>
-											</div>
-											<div className="avatar-list-stacked avatar-group-md">
-												<a href="#" className="avatar avatar-rounded">
-													<img className="border border-white" src="/assets/img/users/user-39.jpg"
-														alt="user" />
-												</a>
-												<a href="#" className="avatar avatar-rounded">
-													<img className="border border-white" src="/assets/img/users/user-41.jpg"
-														alt="user" />
-												</a>
-												<a href="#" className="avatar avatar-rounded">
-													<img className="border border-white" src="/assets/img/users/user-44.jpg"
-														alt="user" />
-												</a>
-												<a className="avatar bg-light border avatar-rounded fs-16 text-dark fw-normal"
-													href="#">
-													+4
-												</a>
-											</div>
-										</div>
-										<div className="row g-2">
-											<div className="col-sm-7">
-												<a href="#"
-													className="btn btn-white d-flex align-items-center justify-content-center w-100"><i
-														className="ti ti-calendar-due me-1"></i>Add to Calendar</a>
-											</div>
-											<div className="col-sm-5">
-												<a href="#"
-													className="btn btn-light d-flex align-items-center justify-content-center w-100"><i
-														className="ti ti-video me-1"></i>Join Now</a>
-											</div>
-										</div>
-									</div>
-								</div>
-								<a href="#" className="btn btn-light w-100">View All<i
-										className="ti ti-arrow-right ms-1"></i></a>
-							</div> {/*  end card body  */}
-						</div> {/*  end card  */}
-					</div> {/*  end col  */}
-
-
-				</div>
-				{/*  end row  */}
-
-				{/*  start row  */}
-				<div className="row">
-
-					<div className="col-xl-7 d-flex flex-column">
-
-						{/*  start row  */}
-						<div className="row">
-
-							<div className="col-md-6 d-flex">
-								<div className="card flex-fill">
-									<div className="card-body">
-										<div className="d-flex align-items-center justify-content-between">
-											<div>
-												<p className="mb-1">Benefits Deductions</p>
-												<h2 className="mb-2">$56K</h2>
-												<p className="mb-0">Insurance + 401(k)</p>
-											</div>
-											<div>
-												<div id="deduction-chart">
-  {isMounted && (
-    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={deductionSparkOptions} series={deductionSparkSeries} type="bar" height={70} width="100%" />
-    </Suspense>
-  )}
-</div>
-											</div>
-										</div>
-									</div> {/*  end card body  */}
-								</div> {/*  end card  */}
-							</div> {/*  end col  */}
-
-							<div className="col-md-6 d-flex">
-								<div className="card flex-fill">
-									<div className="card-body">
-										<div className="d-flex align-items-center justify-content-between">
-											<div>
-												<p className="mb-1">Total Payroll</p>
-												<h2 className="mb-2">$2.4M</h2>
-												<p className="mb-0"><span className="text-success">
-														<i className="ti ti-arrow-wave-right-up me-1"></i>+55%</span>
-													Increased</p>
-											</div>
-											<div className="text-end">
-												<div className="dropdown mb-3">
-													<a href="#" onClick={(e) => e.preventDefault()}
-														className="border btn btn-white btn-md d-inline-flex align-items-center"
-														data-bs-toggle="dropdown">
-														<i className="ti ti-calendar-due me-1 fs-14"></i>Monthly
-													</a>
-													<ul className="dropdown-menu mt-2 p-3">
-														<li>
-															<a href="#" onClick={(e) => e.preventDefault()}
-																className="dropdown-item rounded-1">
-																Monthly
-															</a>
-														</li>
-														<li>
-															<a href="#" onClick={(e) => e.preventDefault()}
-																className="dropdown-item rounded-1">
-																Weekly
-															</a>
-														</li>
-														<li>
-															<a href="#" onClick={(e) => e.preventDefault()}
-																className="dropdown-item rounded-1">
-																Today
-															</a>
-														</li>
-													</ul>
-												</div>
-												<div id="payroll-chart">
-  {isMounted && (
-    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={payrollSparkOptions} series={payrollSparkSeries} type="bar" height={40} width="100%" />
-    </Suspense>
-  )}
-</div>
-											</div>
-										</div>
-									</div> {/*  end card body  */}
-								</div> {/*  end card  */}
-							</div> {/*  end col  */}
-						</div>
-						{/*  end row  */}
-
-						<div className="card flex-fill">
-							<div className="card-body">
-								<div
-									className="border rounded border-start border-start-primary d-flex align-items-center justify-content-between p-2 gap-2 flex-wrap mb-3">
-									<h2 className="card-title mb-0">Top Employees</h2>
-									<div>
-										<div className="border bg-light rounded p-1">
-											<nav className="nav nav-pills flex-row gap-1 custom-tab" role="tablist">
-												<a className="flex-fill text-center nav-link p-1 px-2 active">1D</a>
-												<a className="flex-fill text-sm-center nav-link p-1 px-2">7D</a>
-												<a className="flex-fill text-sm-center nav-link p-1 px-2">1M</a>
-												<a className="flex-fill text-sm-center nav-link p-1 px-2">1Y</a>
-											</nav>
-										</div>
-									</div>
-								</div>
-
-								<div className="tab-content">
-									<div className="tab-pane fade show active" id="day" role="tabpanel"
-										aria-labelledby="day-tab">
-										<div className="chart-container">
-											<div className="chart-canvas-wrapper" style={{ minHeight: "200px" }}>
-  {isMounted && (
-    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "imageChart", toolbar: { show: false } }, colors: ["#0d6efd", "#f59e0b", "#10b981", "#ef4444"], labels: ["A", "B", "C", "D"], dataLabels: { enabled: false } }} series={[44, 55, 13, 33]} type="donut" height={200} width="100%" />
-    </Suspense>
-  )}
-</div>
-										</div>
-									</div>
-									<div className="tab-pane fade" id="week" role="tabpanel" aria-labelledby="week-tab">
-										<div className="chart-container">
-											<div className="chart-canvas-wrapper" style={{ minHeight: "200px" }}>
-  {isMounted && (
-    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "imageChartWeek", toolbar: { show: false } }, colors: ["#0d6efd", "#f59e0b", "#10b981", "#ef4444"], labels: ["A", "B", "C", "D"], dataLabels: { enabled: false } }} series={[44, 55, 13, 33]} type="donut" height={200} width="100%" />
-    </Suspense>
-  )}
-</div>
-										</div>
-									</div>
-									<div className="tab-pane fade" id="month" role="tabpanel" aria-labelledby="month-tab">
-										<div className="chart-container">
-											<div className="chart-canvas-wrapper" style={{ minHeight: "200px" }}>
-  {isMounted && (
-    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "imageChartMonth", toolbar: { show: false } }, colors: ["#0d6efd", "#f59e0b", "#10b981", "#ef4444"], labels: ["A", "B", "C", "D"], dataLabels: { enabled: false } }} series={[44, 55, 13, 33]} type="donut" height={200} width="100%" />
-    </Suspense>
-  )}
-</div>
-										</div>
-									</div>
-									<div className="tab-pane fade" id="year" role="tabpanel" aria-labelledby="year-tab">
-										<div className="chart-container">
-											<div className="chart-canvas-wrapper" style={{ minHeight: "200px" }}>
-  {isMounted && (
-    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "imageChartYear", toolbar: { show: false } }, colors: ["#0d6efd", "#f59e0b", "#10b981", "#ef4444"], labels: ["A", "B", "C", "D"], dataLabels: { enabled: false } }} series={[44, 55, 13, 33]} type="donut" height={200} width="100%" />
-    </Suspense>
-  )}
-</div>
-										</div>
-									</div>
-								</div>
-							</div> {/*  end card body  */}
-						</div> {/*  end card  */}
-					</div> {/*  end col  */}
-
-					<div className="col-xl-5 d-flex">
-						<div className="card flex-fill">
-							<div className="card-body">
-								<div
-									className="border rounded border-start border-start-primary d-flex align-items-center justify-content-between p-2 gap-2 flex-wrap mb-3">
-									<h2 className="card-title mb-0">Pending Approvals</h2>
-									<a href="#" className="btn btn-md btn-light">View All</a>
-								</div>
-								<div
-									className="p-2 rounded border d-flex align-items-sm-center justify-content-between gap-2 flex-column flex-sm-row mb-2">
-									<div>
-										<div className="d-flex align-items-center mb-1">
-											<a href="#" className="avatar avatar-sm flex-shrink-0">
-												<img src="/assets/img/users/user-29.jpg" className="rounded-circle"
-													alt="user" />
-											</a>
-											<div className="ms-2">
-												<p className="fs-14 fw-semibold text-truncate mb-0"><a href="#">Hendrita
-														Merkel</a></p>
-											</div>
-										</div>
-										<div className="d-inline-flex align-items-center gap-1">
-											<p className="fs-13 d-inline-flex align-items-center mb-0"><i
-													className="ti ti-calendar-up me-1 fs-14"></i>Jan 10 - Jan 16</p>
-											<span><i className="ti ti-minus-vertical border-color fs-14"></i></span>
-											<p className="fs-13 d-inline-flex align-items-center mb-0"><i
-													className="ti ti-clock-hour-11 me-1 fs-14"></i>4 days</p>
-										</div>
-										<p className="fs-13 mb-0 mt-1">Reason: Family trip</p>
-									</div>
-									<div className="d-flex align-items-center gap-2">
-										<a href="#" className="btn btn-sm btn-primary">Approve</a>
-										<a href="#" className="btn btn-sm btn-outline-primary">Decline</a>
-									</div>
-								</div>
-								<div
-									className="p-2 rounded border d-flex align-items-sm-center justify-content-between gap-2 flex-column flex-sm-row  mb-2">
-									<div>
-										<div className="d-flex align-items-center mb-1">
-											<a href="#" className="avatar avatar-sm flex-shrink-0">
-												<img src="/assets/img/users/user-27.jpg" className="rounded-circle"
-													alt="user" />
-											</a>
-											<div className="ms-2">
-												<p className="fs-14 fw-semibold text-truncate mb-0"><a href="#">Michael
-														Brown</a></p>
-											</div>
-										</div>
-										<div className="d-inline-flex align-items-center gap-1">
-											<p className="fs-13 d-inline-flex align-items-center mb-0"><i
-													className="ti ti-calendar-up me-1"></i>Jan 3 - Jan 9</p>
-											<span><i className="ti ti-minus-vertical border-color fs-14"></i></span>
-											<p className="fs-13 d-inline-flex align-items-center mb-0"><i
-													className="ti ti-clock-hour-11 me-1"></i>2 days</p>
-										</div>
-										<p className="fs-13 mb-0 mt-1">Reason: Medical appointment</p>
-									</div>
-									<div className="d-flex align-items-center gap-2">
-										<a href="#" className="btn btn-sm btn-primary">Approve</a>
-										<a href="#" className="btn btn-sm btn-outline-primary">Decline</a>
-									</div>
-								</div>
-								<div
-									className="p-2 rounded border d-flex align-items-sm-center justify-content-between gap-2 flex-column flex-sm-row  mb-0">
-									<div>
-										<div className="d-flex align-items-center mb-1">
-											<a href="#" className="avatar avatar-sm flex-shrink-0">
-												<img src="/assets/img/users/user-30.jpg" className="rounded-circle"
-													alt="user" />
-											</a>
-											<div className="ms-2">
-												<p className="fs-14 fw-semibold text-truncate mb-0"><a href="#">Daniel
-														Martinez</a></p>
-											</div>
-										</div>
-										<div className="d-inline-flex align-items-center gap-1">
-											<p className="fs-13 d-inline-flex align-items-center mb-0"><i
-													className="ti ti-calendar-up me-1"></i>Jan 17 - Jan 23</p>
-											<span><i className="ti ti-minus-vertical border-color fs-14"></i></span>
-											<p className="fs-13 d-inline-flex align-items-center mb-0"><i
-													className="ti ti-clock-hour-11 me-1"></i>2 days</p>
-										</div>
-										<p className="fs-13 mb-0 mt-1">Reason: Personal Work</p>
-									</div>
-									<div className="d-flex align-items-center gap-2">
-										<a href="#" className="btn btn-sm btn-primary">Approve</a>
-										<a href="#" className="btn btn-sm btn-outline-primary">Decline</a>
-									</div>
-								</div>
-							</div> {/*  end card body  */}
-						</div> {/*  end card  */}
-					</div> {/*  end col  */}
-
-				</div>
-				{/*  end row  */}
-
-			
+        {/* Company Announcements (1/4 Container Widget) */}
+        <div className="col-xl-3 col-md-6 d-flex">
+          <div className="card flex-fill border-0 bg-transparent shadow-none">
+            <OrganizationAnnouncementsWidget compact className="flex-fill mb-0" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

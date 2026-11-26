@@ -120,7 +120,7 @@ function EmployeeNotificationsPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <PageHeader
         title="My Notifications"
         description="Your personal updates, meeting invitations, workflow alerts, and policy announcements"

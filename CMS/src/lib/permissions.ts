@@ -129,6 +129,7 @@ export function isPlatformOnlyRoute(pathname: string): boolean {
  * as well as authorized tenant roles.
  */
 export const EXPLICIT_SHARED_ROUTES = [
+  "/profile",
   "/clear-cache",
   "/system-states",
   "/ai-configuration",

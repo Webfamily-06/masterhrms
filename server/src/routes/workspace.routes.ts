@@ -10,6 +10,18 @@ import { ERP_MODULES } from "../lib/erp-modules";
 import { getWorkspacePolicy } from "../services/workspace-policy.service";
 import { SettingsService } from "../services/settings/settings.service";
 import { CompanyProfileService } from "../services/company-profile/company-profile.service";
+import { generateToken } from "../lib/jwt";
+import { createDeviceSession, revokeAllSessions } from "../services/device-session.service";
+import {
+  extractClientIp,
+  invalidateTenantIpCache,
+  isValidIpOrCidr,
+} from "../services/tenant-ip-restriction.service";
+import {
+  ensureHrmPermissionsSeeded,
+  HR_DEFAULT_PERMISSION_CODES,
+  syncHrRoleDefaultPermissions,
+} from "../lib/hrm-permissions-catalog";
 import { requireEntitlement } from "../middleware/entitlements";
 import { getUploadsRoot } from "../services/media/media.service";
 import {
@@ -95,13 +107,13 @@ workspaceRouter.post("/onboarding", async (req: AuthRequest, res: Response) => {
     await prisma.tenant.update({
       where: { id: tenantId },
       data: {
-        ...(orgName   ? { name: orgName }           : {}),
-        ...(timezone  ? { timezone }                : {}),
-        ...(currency  ? { currency }                : {}),
-        ...(industry  ? { industry }                : {}),
-        ...(companySize ? { companySize }           : {}),
-        ...(phone     ? { phone }                   : {}),
-        ...(address   ? { address }                 : {}),
+        ...(orgName ? { name: orgName } : {}),
+        ...(timezone ? { timezone } : {}),
+        ...(currency ? { currency } : {}),
+        ...(industry ? { industry } : {}),
+        ...(companySize ? { companySize } : {}),
+        ...(phone ? { phone } : {}),
+        ...(address ? { address } : {}),
         ...(effectiveLogo ? { logoUrl: effectiveLogo } : {}),
         isOnboarded: true,
       },
@@ -178,28 +190,28 @@ workspaceRouter.post("/onboarding", async (req: AuthRequest, res: Response) => {
     }
 
     // Create or update the first warehouse/branch
-    const effectiveBranchName    = branchName    || "Headquarters";
+    const effectiveBranchName = branchName || "Headquarters";
     const effectiveBranchAddress = branchAddress || address || "Main Branch";
-    const effectiveBranchPhone   = branchPhone   || phone   || "";
+    const effectiveBranchPhone = branchPhone || phone || "";
 
     const existingWh = await prisma.warehouse.findFirst({ where: { tenantId } });
     if (existingWh) {
       await prisma.warehouse.update({
         where: { id: existingWh.id },
         data: {
-          name:     effectiveBranchName,
+          name: effectiveBranchName,
           location: effectiveBranchAddress,
-          phone:    effectiveBranchPhone,
+          phone: effectiveBranchPhone,
         },
       });
     } else {
       await prisma.warehouse.create({
         data: {
           tenantId,
-          name:     effectiveBranchName,
+          name: effectiveBranchName,
           location: effectiveBranchAddress,
-          phone:    effectiveBranchPhone,
-          email:    "",
+          phone: effectiveBranchPhone,
+          email: "",
           isDefault: true,
         },
       });
@@ -324,6 +336,18 @@ workspaceRouter.get("/roles", requireWorkspaceAdminGuard, async (req: AuthReques
             permissions: true,
           },
         },
+        userAssignments: {
+          take: 10,
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                profile: { select: { fullName: true, avatarUrl: true } },
+              },
+            },
+          },
+        },
         permissions: {
           include: {
             permission: {
@@ -338,10 +362,17 @@ workspaceRouter.get("/roles", requireWorkspaceAdminGuard, async (req: AuthReques
     const formatted = roles.map((r) => ({
       id: r.id,
       name: r.name,
+      label: r.description || r.name,
       description: r.description,
       isActive: r.isActive,
       isSystem: r.isSystem,
       usersCount: r._count.userAssignments,
+      users: r.userAssignments.map((ua) => ({
+        id: ua.user.id,
+        name: ua.user.profile?.fullName || ua.user.email,
+        email: ua.user.email,
+        avatarUrl: ua.user.profile?.avatarUrl || null,
+      })),
       permissionsCount: r._count.permissions,
       permissionCodes: r.permissions.map((p) => p.permission.code),
       createdAt: r.createdAt,
@@ -626,10 +657,11 @@ workspaceRouter.delete("/roles/:id", requireWorkspaceAdminGuard, async (req: Aut
 });
 
 // -------------------------------------------------------------
-// 7. GET /api/workspace/permissions - Catalog of all permissions
+// 7. GET /api/workspace/permissions - Catalog of all permissions (auto-seeds HRM catalog)
 // -------------------------------------------------------------
 workspaceRouter.get("/permissions", requireWorkspaceAdminGuard, async (req: AuthRequest, res: Response) => {
   try {
+    await ensureHrmPermissionsSeeded();
     const permissions = await prisma.permission.findMany({
       orderBy: [{ module: "asc" }, { resource: "asc" }, { code: "asc" }],
     });
@@ -637,9 +669,31 @@ workspaceRouter.get("/permissions", requireWorkspaceAdminGuard, async (req: Auth
     return res.json({
       modules: ERP_MODULES,
       permissions,
+      hrDefaultPermissionCodes: HR_DEFAULT_PERMISSION_CODES,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to fetch permissions" });
+  }
+});
+
+// -------------------------------------------------------------
+// 7b. POST /api/workspace/roles/sync-hr-defaults - Sync HRM defaults to HR role(s)
+// -------------------------------------------------------------
+workspaceRouter.post("/roles/sync-hr-defaults", requireWorkspaceAdminGuard, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId!;
+    const result = await syncHrRoleDefaultPermissions(tenantId);
+    invalidateAuthCache(undefined, tenantId);
+    return res.json({
+      success: true,
+      message:
+        result.updatedRoles.length > 0
+          ? `Synced ${result.permissionsAssigned} HRM permissions to: ${result.updatedRoles.join(", ")}`
+          : "No HR role found in this workspace yet.",
+      ...result,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to sync HR default permissions" });
   }
 });
 
@@ -712,7 +766,7 @@ workspaceRouter.put("/modules", requireWorkspaceAdminGuard, async (req: AuthRequ
     try {
       const { RealtimeFactory } = await import("../services/factories/realtime.factory");
       RealtimeFactory.broadcastSettingsUpdate("TENANT", tenantId, "modules", [moduleKey], Date.now());
-    } catch {}
+    } catch { }
 
     return res.json({
       message: "Module " + moduleKey + " " + (isEnabled ? "enabled" : "disabled") + " for workspace",
@@ -738,7 +792,7 @@ workspaceRouter.get("/users", requireWorkspaceAdminGuard, async (req: AuthReques
             roles: true,
             employees: {
               where: { tenantId },
-              select: { id: true, employeeCode: true, position: true },
+              select: { id: true, employeeCode: true, position: true, phone: true, status: true },
             },
             workspaceRoleAssignments: {
               where: { tenantId },
@@ -754,27 +808,28 @@ workspaceRouter.get("/users", requireWorkspaceAdminGuard, async (req: AuthReques
       orderBy: { createdAt: "desc" },
     });
 
-    // Filter out any orphaned user accounts where employee was deleted and not super_admin
-    const validProfiles = profiles.filter((p: any) => {
-      const isSuperAdmin = p.user?.roles?.some((r: any) => r.role === "super_admin");
-      const hasEmployee = (p.user?.employees || []).length > 0;
-      return isSuperAdmin || hasEmployee;
-    });
-
-    const result = validProfiles.map((p: any) => {
+    const result = profiles.map((p: any) => {
       const assignment = p.user?.workspaceRoleAssignments?.[0];
+      const emp = p.user?.employees?.[0];
+      const tenantRoles = (p.user?.roles || []).filter((r: any) => r.tenantId === tenantId || r.role === "super_admin");
+      const hasActiveAccess =
+        tenantRoles.length > 0 || Boolean(assignment);
+      const loginStatus =
+        emp?.status === "terminated" || !hasActiveAccess ? "disabled" : "enabled";
       return {
         id: p.userId,
         fullName: p.fullName || p.user?.email?.split("@")[0] || "User",
         email: p.user?.email || p.email || "",
+        phone: p.phone || emp?.phone || "",
         avatarUrl: p.avatarUrl,
+        loginStatus,
         assignedRole: assignment
           ? {
-              id: assignment.role.id,
-              name: assignment.role.name,
-              description: assignment.role.description,
-              isActive: assignment.role.isActive,
-            }
+            id: assignment.role.id,
+            name: assignment.role.name,
+            description: assignment.role.description,
+            isActive: assignment.role.isActive,
+          }
           : null,
         twoFactorEnabled: p.user?.twoFactorEnabled ?? false,
         legacyRoles: (p.user?.roles || []).map((r: any) => r.role),
@@ -858,7 +913,7 @@ workspaceRouter.put("/users/:userId/role", requireWorkspaceAdminGuard, async (re
 workspaceRouter.post("/users", requireWorkspaceAdminGuard, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user!.tenantId!;
-    const { fullName, email, password, roleId, employeeId, legacyRole } = req.body;
+    const { fullName, email, phone, password, roleId, employeeId, legacyRole, loginStatus } = req.body;
 
     if (!email || typeof email !== "string" || !email.includes("@")) {
       return res.status(400).json({ error: "Valid email address is required" });
@@ -897,15 +952,20 @@ workspaceRouter.post("/users", requireWorkspaceAdminGuard, async (req: AuthReque
           create: {
             fullName: (fullName || cleanEmail.split("@")[0]).trim(),
             email: cleanEmail,
+            phone: phone ? String(phone).trim() : null,
             tenantId,
           },
         },
-        roles: {
-          create: {
-            role: (legacyRole === "hr_admin" || legacyRole === "manager") ? legacyRole : "employee",
-            tenantId,
-          },
-        },
+        ...(loginStatus === "disabled"
+          ? {}
+          : {
+              roles: {
+                create: {
+                  role: (legacyRole === "hr_admin" || legacyRole === "manager") ? legacyRole : "employee",
+                  tenantId,
+                },
+              },
+            }),
       },
       include: {
         profile: true,
@@ -959,7 +1019,7 @@ workspaceRouter.put("/users/:userId", requireWorkspaceAdminGuard, async (req: Au
   try {
     const tenantId = req.user!.tenantId!;
     const { userId } = req.params;
-    const { fullName, roleId, employeeId } = req.body;
+    const { fullName, email, phone, roleId, employeeId, loginStatus } = req.body;
 
     const profile = await prisma.profile.findFirst({
       where: { userId, tenantId },
@@ -976,14 +1036,52 @@ workspaceRouter.put("/users/:userId", requireWorkspaceAdminGuard, async (req: Au
       return res.status(403).json({ error: "Cannot modify Super-Admin account from workspace console" });
     }
 
+    const profileUpdates: Record<string, any> = {};
     if (fullName && typeof fullName === "string") {
+      profileUpdates.fullName = fullName.trim();
+    }
+    if (phone !== undefined) {
+      profileUpdates.phone = phone ? String(phone).trim() : null;
+    }
+    if (email && typeof email === "string" && email.trim().toLowerCase() !== profile.user?.email?.toLowerCase()) {
+      const nextEmail = email.trim().toLowerCase();
+      const dup = await prisma.user.findUnique({ where: { email: nextEmail } });
+      if (dup && dup.id !== userId) {
+        return res.status(400).json({ error: "Email address is already in use by another account" });
+      }
+      await prisma.user.update({ where: { id: userId }, data: { email: nextEmail } });
+      profileUpdates.email = nextEmail;
+    }
+
+    if (Object.keys(profileUpdates).length > 0) {
       await prisma.profile.update({
         where: { id: profile.id },
-        data: { fullName: fullName.trim() },
+        data: profileUpdates,
       });
     }
 
-    if (roleId) {
+    if (phone !== undefined) {
+      await prisma.employee.updateMany({
+        where: { userId, tenantId },
+        data: { phone: phone ? String(phone).trim() : null },
+      });
+    }
+
+    if (loginStatus === "disabled") {
+      if (userId === req.user!.userId || userId === req.user!.id) {
+        return res.status(400).json({ error: "Cannot disable your own administrator account" });
+      }
+      await prisma.userRole.deleteMany({ where: { userId, tenantId } });
+      await prisma.userRoleAssignment.deleteMany({ where: { userId, tenantId } });
+      await revokeAllSessions(userId).catch(() => {});
+    } else if (loginStatus === "enabled") {
+      const existingTenantRole = await prisma.userRole.findFirst({ where: { userId, tenantId } });
+      if (!existingTenantRole) {
+        await prisma.userRole.create({ data: { userId, tenantId, role: "employee" } });
+      }
+    }
+
+    if (roleId && loginStatus !== "disabled") {
       const role = await prisma.workspaceRole.findFirst({
         where: { id: roleId, tenantId },
       });
@@ -1056,11 +1154,125 @@ workspaceRouter.post("/users/:userId/reset-password", requireWorkspaceAdminGuard
     invalidateAuthCache(userId, tenantId);
 
     return res.json({
-      message: "Password reset successfully",
+      message: "Password updated successfully",
       temporaryPassword: tempPassword,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to reset user password" });
+  }
+});
+
+// -------------------------------------------------------------
+// 11.3b POST /api/workspace/users/:userId/login-as - Tenant Admin Login As User
+// -------------------------------------------------------------
+workspaceRouter.post("/users/:userId/login-as", requireWorkspaceAdminGuard, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId!;
+    const actorId = req.user!.userId || req.user!.id;
+    const { userId } = req.params;
+
+    if (userId === actorId) {
+      return res.status(400).json({ error: "You are already logged in as this user." });
+    }
+
+    const profile = await prisma.profile.findFirst({
+      where: { userId, tenantId },
+      include: {
+        user: {
+          include: {
+            roles: true,
+            workspaceRoleAssignments: {
+              where: { tenantId },
+              include: {
+                role: {
+                  include: {
+                    permissions: { include: { permission: { select: { code: true } } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!profile || !profile.user) {
+      return res.status(404).json({ error: "User not found in this workspace." });
+    }
+
+    const isSuper = profile.user.roles?.some((r: any) => r.role === "super_admin");
+    if (isSuper) {
+      return res.status(403).json({ error: "Cannot impersonate a Super Admin account." });
+    }
+
+    const tenantLegacyRoles = (profile.user.roles || [])
+      .filter((r: any) => r.tenantId === tenantId)
+      .map((r: any) => r.role);
+    const assignment = profile.user.workspaceRoleAssignments?.[0];
+    if (tenantLegacyRoles.length === 0 && !assignment) {
+      return res.status(403).json({ error: "This user's login account is currently disabled." });
+    }
+
+    const effectiveRoles = Array.from(
+      new Set([
+        ...tenantLegacyRoles,
+        ...(assignment?.role?.name ? [assignment.role.name] : []),
+      ])
+    );
+    const permissionCodes = assignment?.role?.permissions?.map((rp: any) => rp.permission.code) || [];
+
+    const session = await createDeviceSession({
+      userId: profile.user.id,
+      tenantId,
+      ipAddress: extractClientIp(req),
+      userAgent: req.get("user-agent") || "Tenant Admin Login-As",
+    });
+
+    const token = generateToken({
+      userId: profile.user.id,
+      email: profile.user.email,
+      tenantId,
+      roles: effectiveRoles as any,
+      permissions: permissionCodes,
+      sessionId: session.sessionId,
+      isImpersonating: true,
+    } as any);
+
+    await prisma.auditLog
+      .create({
+        data: {
+          tenantId,
+          actorId: actorId || null,
+          actorEmail: req.user?.email || null,
+          action: "TENANT_ADMIN_LOGIN_AS_USER",
+          entityType: "User",
+          entityId: profile.user.id,
+          ipAddress: extractClientIp(req),
+          afterJson: { targetEmail: profile.user.email, targetName: profile.fullName },
+        },
+      })
+      .catch(() => {});
+
+    const lowerRoles = effectiveRoles.map((r) => String(r).toLowerCase());
+    const redirectTo = lowerRoles.some((r) => r.includes("hr"))
+      ? "/hr/dashboard"
+      : lowerRoles.some((r) => r.includes("admin"))
+      ? "/tenant/dashboard"
+      : "/me/dashboard";
+
+    return res.json({
+      success: true,
+      token,
+      redirectTo,
+      user: {
+        id: profile.user.id,
+        fullName: profile.fullName || profile.user.email,
+        email: profile.user.email,
+        role: assignment?.role?.name || effectiveRoles[0] || "Employee",
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to login as user." });
   }
 });
 
@@ -1102,7 +1314,7 @@ workspaceRouter.delete("/users/:userId", requireWorkspaceAdminGuard, async (req:
     });
 
     // Remove profile for this tenant
-      await prisma.profile.delete({
+    await prisma.profile.delete({
       where: { id: profile.id },
     });
 
@@ -1110,7 +1322,7 @@ workspaceRouter.delete("/users/:userId", requireWorkspaceAdminGuard, async (req:
     const otherProfiles = await prisma.profile.count({ where: { userId } });
     if (otherProfiles === 0) {
       await prisma.userRole.deleteMany({ where: { userId } });
-      await prisma.user.delete({ where: { id: userId } }).catch(() => {});
+      await prisma.user.delete({ where: { id: userId } }).catch(() => { });
     }
 
     invalidateAuthCache(userId, tenantId);
@@ -1567,14 +1779,14 @@ workspaceRouter.post("/tally-import", requireEntitlement("tally-importer"), asyn
                 },
                 ...(primaryBank
                   ? [
-                      {
-                        accountId: primaryBank.id,
-                        type: isDebit ? "credit" : "debit",
-                        debit: isDebit ? 0 : amount,
-                        credit: isDebit ? amount : 0,
-                        notes: `Offset against ${primaryBank.accountName}`,
-                      },
-                    ]
+                    {
+                      accountId: primaryBank.id,
+                      type: isDebit ? "credit" : "debit",
+                      debit: isDebit ? 0 : amount,
+                      credit: isDebit ? amount : 0,
+                      notes: `Offset against ${primaryBank.accountName}`,
+                    },
+                  ]
                   : []),
               ],
             },
@@ -1941,15 +2153,15 @@ workspaceRouter.get("/dashboard-summary", async (req: AuthRequest, res: Response
         },
         subscription: subscription
           ? {
-              id: subscription.id,
-              status: subscription.status,
-              billingCycle: subscription.billingCycle,
-              currentPeriodEnd: subscription.currentPeriodEnd,
-              planName: subscription.plan?.name || "Enterprise",
-              priceMonthly: Number(subscription.plan?.priceMonthly || 0),
-              maxEmployees: subscription.plan?.maxEmployees ?? null,
-              maxUsers: subscription.plan?.maxUsers ?? null,
-            }
+            id: subscription.id,
+            status: subscription.status,
+            billingCycle: subscription.billingCycle,
+            currentPeriodEnd: subscription.currentPeriodEnd,
+            planName: subscription.plan?.name || "Enterprise",
+            priceMonthly: Number(subscription.plan?.priceMonthly || 0),
+            maxEmployees: subscription.plan?.maxEmployees ?? null,
+            maxUsers: subscription.plan?.maxUsers ?? null,
+          }
           : null,
         modules,
         recentAuditLogs,
@@ -2028,15 +2240,15 @@ workspaceRouter.get("/billing/invoices", async (req: AuthRequest, res: Response)
         })),
         subscription: subscription
           ? {
-              id: subscription.id,
-              status: subscription.status,
-              billingCycle: subscription.billingCycle,
-              currentPeriodStart: subscription.currentPeriodStart,
-              currentPeriodEnd: subscription.currentPeriodEnd,
-              planName: subscription.plan?.name || "Enterprise",
-              priceMonthly: Number(subscription.plan?.priceMonthly || 0),
-              priceAnnual: Number(subscription.plan?.priceAnnual || 0),
-            }
+            id: subscription.id,
+            status: subscription.status,
+            billingCycle: subscription.billingCycle,
+            currentPeriodStart: subscription.currentPeriodStart,
+            currentPeriodEnd: subscription.currentPeriodEnd,
+            planName: subscription.plan?.name || "Enterprise",
+            priceMonthly: Number(subscription.plan?.priceMonthly || 0),
+            priceAnnual: Number(subscription.plan?.priceAnnual || 0),
+          }
           : null,
       },
     });
@@ -2114,6 +2326,152 @@ workspaceRouter.get("/integrations/status", async (req: AuthRequest, res: Respon
   }
 });
 
+// GET /api/workspace/login-history (Real-time User Login History strictly scoped to current tenant)
+workspaceRouter.get("/login-history", requireWorkspaceAdminGuard, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required." });
+
+    const tenantProfiles = await prisma.profile.findMany({
+      where: { tenantId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            roles: { where: { tenantId }, select: { role: true } },
+            workspaceRoleAssignments: {
+              where: { tenantId },
+              include: { role: { select: { name: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    const userMap = new Map<string, { name: string; email: string; role: string }>();
+    const tenantUserIds: string[] = [];
+    for (const p of tenantProfiles as any[]) {
+      if (!p.userId) continue;
+      tenantUserIds.push(p.userId);
+      const wsRole = p.user?.workspaceRoleAssignments?.[0]?.role?.name;
+      const legacyRole = p.user?.roles?.[0]?.role;
+      const roleLabel =
+        wsRole ||
+        (legacyRole
+          ? String(legacyRole)
+              .replace(/_/g, " ")
+              .replace(/\b\w/g, (c) => c.toUpperCase())
+          : "Member");
+      userMap.set(p.userId, {
+        name: p.fullName || p.user?.email?.split("@")[0] || "User",
+        email: p.user?.email || p.email || "",
+        role: roleLabel,
+      });
+    }
+
+    if (tenantUserIds.length === 0) {
+      return res.json({ success: true, items: [], total: 0 });
+    }
+
+    const [historyRows, sessionRows] = await Promise.all([
+      prisma.loginHistory.findMany({
+        where: { userId: { in: tenantUserIds } },
+        orderBy: { date: "desc" },
+        take: 300,
+      }),
+      prisma.deviceSession.findMany({
+        where: { tenantId, userId: { in: tenantUserIds } },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+      }),
+    ]);
+
+    const normalized: Array<{
+      id: string;
+      userId: string;
+      userName: string;
+      userEmail: string;
+      ipAddress: string;
+      location: string;
+      browser: string;
+      os: string;
+      deviceType: string;
+      language: string;
+      role: string;
+      loginAt: string;
+    }> = [];
+
+    const seenKeys = new Set<string>();
+
+    for (const h of historyRows) {
+      const info = userMap.get(h.userId);
+      if (!info) continue;
+      let parsed: Record<string, any> = {};
+      try {
+        if (h.details) parsed = JSON.parse(h.details);
+      } catch {}
+      const ip = String(h.ip || "127.0.0.1").replace(/^::ffff:/, "").replace(/^::1$/, "127.0.0.1");
+      const ts = (h.date || h.createdAt).toISOString();
+      const dedupeKey = `${h.userId}:${ts.slice(0, 16)}`;
+      seenKeys.add(dedupeKey);
+
+      const rawDevice = String(parsed.device_type || "desktop").trim();
+      normalized.push({
+        id: h.id,
+        userId: h.userId,
+        userName: info.name,
+        userEmail: info.email,
+        ipAddress: ip,
+        location: parsed.location || "Unknown",
+        browser: parsed.browser_name || "Unknown Browser",
+        os: parsed.os_name || "Unknown OS",
+        deviceType: rawDevice.charAt(0).toUpperCase() + rawDevice.slice(1).toLowerCase(),
+        language: parsed.language || "en",
+        role: info.role,
+        loginAt: ts,
+      });
+    }
+
+    for (const s of sessionRows as any[]) {
+      const info = userMap.get(s.userId);
+      if (!info) continue;
+      const ts = (s.createdAt || new Date()).toISOString();
+      const dedupeKey = `${s.userId}:${ts.slice(0, 16)}`;
+      if (seenKeys.has(dedupeKey)) continue;
+      seenKeys.add(dedupeKey);
+
+      const ip = String(s.ipAddress || "127.0.0.1").replace(/^::ffff:/, "").replace(/^::1$/, "127.0.0.1");
+      const loc = [s.city, s.country].filter(Boolean).join(", ") || "Unknown";
+      const rawDevice = String(s.deviceType || "desktop").trim();
+      normalized.push({
+        id: `sess-${s.id}`,
+        userId: s.userId,
+        userName: info.name,
+        userEmail: info.email,
+        ipAddress: ip,
+        location: loc,
+        browser: s.browser || "Unknown Browser",
+        os: s.operatingSystem || "Unknown OS",
+        deviceType: rawDevice.charAt(0).toUpperCase() + rawDevice.slice(1).toLowerCase(),
+        language: "en",
+        role: info.role,
+        loginAt: ts,
+      });
+    }
+
+    normalized.sort((a, b) => new Date(b.loginAt).getTime() - new Date(a.loginAt).getTime());
+
+    return res.json({
+      success: true,
+      items: normalized,
+      total: normalized.length,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to load user login history." });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // AUTHORITATIVE TENANT SYSTEM SETTINGS (14 Sections — Single Source of Truth)
 // Locked to Tenant Admin / Workspace Admin / Super Admin on write.
@@ -2146,16 +2504,65 @@ const DEFAULT_HR_EMAIL_NOTIFICATIONS: Record<string, boolean> = {
   warningCreate: true,
 };
 
+const ALLOWED_DATE_FORMATS = new Set([
+  "YYYY-MM-DD",
+  "MM-DD-YYYY",
+  "DD-MM-YYYY",
+  "YYYY/MM/DD",
+  "MM/DD/YYYY",
+  "DD/MM/YYYY",
+]);
+
+function normalizeSystemDateFormat(input?: string | null): string {
+  const raw = String(input || "").trim();
+  if (ALLOWED_DATE_FORMATS.has(raw)) return raw;
+  const legacy: Record<string, string> = {
+    "Y-m-d": "YYYY-MM-DD",
+    "m-d-Y": "MM-DD-YYYY",
+    "d-m-Y": "DD-MM-YYYY",
+    "Y/m/d": "YYYY/MM/DD",
+    "m/d/Y": "MM/DD/YYYY",
+    "d/m/Y": "DD/MM/YYYY",
+  };
+  return legacy[raw] || "YYYY-MM-DD";
+}
+
+function normalizeSystemTimeFormat(input?: string | null): "24h" | "12h" {
+  const raw = String(input || "").trim();
+  if (raw === "24h" || raw === "12h") return raw;
+  if (raw.includes("H") || raw.includes("G")) return "24h";
+  if (raw.includes("h") || raw.includes("g") || raw.toLowerCase().includes("a")) return "12h";
+  return "24h";
+}
+
 function buildDefaultSystemSettings(tenant: { name?: string | null; logoUrl?: string | null; timezone?: string | null } | null) {
   const companyName = tenant?.name || "MasterHRMS";
   const logo = tenant?.logoUrl || "";
   return {
     system: {
       defaultLanguage: "en",
-      dateFormat: "Y-m-d",
-      timeFormat: "h:i a",
+      dateFormat: "YYYY-MM-DD",
+      timeFormat: "24h",
       defaultTimezone: tenant?.timezone || "Asia/Kolkata",
       ipRestrictionEnabled: false,
+    },
+    company: {
+      companyName,
+      registrationNumber: "",
+      companyAddress: "",
+      country: "IN",
+      countryName: "India",
+      state: "",
+      city: "",
+      zipCode: "",
+      phoneCountryCode: "IN",
+      phoneDialCode: "+91",
+      telephone: "",
+      companyEmail: "",
+      emailFromName: companyName,
+      taxNumberEnabled: false,
+      taxType: "GST",
+      taxNumber: "",
     },
     brand: {
       logoDark: logo,
@@ -2270,6 +2677,10 @@ async function loadTenantSystemSettings(tenantId: string) {
       merged[row.key] = { ...merged[row.key], ...(row.valueJson as Record<string, any>) };
     }
   }
+  if (merged.system) {
+    merged.system.dateFormat = normalizeSystemDateFormat(merged.system.dateFormat);
+    merged.system.timeFormat = normalizeSystemTimeFormat(merged.system.timeFormat);
+  }
   return { tenant, settings: merged };
 }
 
@@ -2285,6 +2696,7 @@ workspaceRouter.get("/system-settings/public", async (req: AuthRequest, res: Res
       data: {
         tenant,
         system: settings.system,
+        company: settings.company,
         brand: settings.brand,
         currency: settings.currency,
         working_days: settings.working_days,
@@ -2299,7 +2711,15 @@ workspaceRouter.get("/system-settings/public", async (req: AuthRequest, res: Res
   }
 });
 
-// GET /api/workspace/system-settings (Full 14-section Tenant Admin settings)
+// GET /api/workspace/system-settings/my-ip (Returns detected client IP for Tenant Admin allowlist setup)
+workspaceRouter.get("/system-settings/my-ip", requireWorkspaceAdminGuard, async (req: AuthRequest, res: Response) => {
+  return res.json({
+    success: true,
+    clientIp: extractClientIp(req) || "127.0.0.1",
+  });
+});
+
+// GET /api/workspace/system-settings (Full Tenant Admin settings)
 workspaceRouter.get("/system-settings", requireWorkspaceAdminGuard, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
@@ -2314,6 +2734,7 @@ workspaceRouter.get("/system-settings", requireWorkspaceAdminGuard, async (req: 
 
 const ALLOWED_SETTING_SECTIONS = new Set([
   "system",
+  "company",
   "brand",
   "currency",
   "email",
@@ -2341,6 +2762,47 @@ workspaceRouter.put("/system-settings/:section", requireWorkspaceAdminGuard, asy
     }
 
     const payload = req.body && typeof req.body === "object" ? req.body : {};
+
+    if (section === "system") {
+      if (payload.dateFormat !== undefined) {
+        payload.dateFormat = normalizeSystemDateFormat(payload.dateFormat);
+      }
+      if (payload.timeFormat !== undefined) {
+        payload.timeFormat = normalizeSystemTimeFormat(payload.timeFormat);
+      }
+    }
+
+    if (section === "ip_restriction") {
+      if (Array.isArray(payload.allowedIps)) {
+        for (const item of payload.allowedIps) {
+          const ipStr = String(item?.ip || "").trim();
+          if (!isValidIpOrCidr(ipStr)) {
+            return res.status(400).json({
+              error: `Invalid IP address or CIDR block: "${ipStr}". Use IPv4 (e.g., 203.0.113.10), IPv4 CIDR (e.g., 192.168.1.0/24), or IPv6.`,
+            });
+          }
+        }
+      }
+    }
+
+    if (section === "company") {
+      const cleanName = String(payload.companyName || "").trim();
+      const cleanZip = String(payload.zipCode || "").trim();
+      const cleanPhone = String(payload.telephone || "").trim();
+      const cleanEmail = String(payload.companyEmail || "").trim();
+      if (!cleanName) {
+        return res.status(400).json({ error: "Company Name is required." });
+      }
+      if (cleanZip && !/^\d{3,10}$/.test(cleanZip)) {
+        return res.status(400).json({ error: "Zip Code must contain numbers only (3–10 digits)." });
+      }
+      if (cleanPhone && !/^\d{6,15}$/.test(cleanPhone)) {
+        return res.status(400).json({ error: "Telephone / Mobile number must contain digits only (6–15 digits)." });
+      }
+      if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        return res.status(400).json({ error: "Please enter a valid Company Email address." });
+      }
+    }
 
     // Upsert into Setting table (PostgreSQL)
     const existing = await prisma.setting.findFirst({
@@ -2372,19 +2834,108 @@ workspaceRouter.put("/system-settings/:section", requireWorkspaceAdminGuard, asy
     }
 
     // Propagate authoritative fields to Tenant table & SettingsService
+    if (section === "company") {
+      const cleanName = String(payload.companyName || "").trim();
+      const cleanZip = String(payload.zipCode || "").trim();
+      const cleanPhone = String(payload.telephone || "").trim();
+      const cleanEmail = String(payload.companyEmail || "").trim();
+
+      await prisma.tenant.update({
+        where: { id: tenantId },
+        data: { name: cleanName },
+      });
+
+      const fullPhone = cleanPhone
+        ? `${String(payload.phoneDialCode || "+91").trim()} ${cleanPhone}`
+        : null;
+
+      const formattedAddress = [payload.companyAddress, payload.city, payload.state, payload.countryName, cleanZip]
+        .filter(Boolean)
+        .join(", ") || null;
+
+      await CompanyProfileService.upsertProfile(
+        tenantId,
+        {
+          legalName: cleanName,
+          tradeName: cleanName,
+          registrationNumber: payload.registrationNumber ? String(payload.registrationNumber).trim() : null,
+          email: cleanEmail || `contact@${tenantId}.masterhrms.com`,
+          phone: fullPhone,
+          registeredAddress: formattedAddress,
+          billingAddress: formattedAddress,
+          sameAsRegistered: true,
+          taxId: payload.taxNumberEnabled && payload.taxNumber ? String(payload.taxNumber).trim() : null,
+        } as any,
+        {
+          userId: req.user?.userId,
+          ipAddress: req.ip,
+          userAgent: req.get("user-agent"),
+        }
+      ).catch(() => { });
+    }
+
     if (section === "system" && payload.defaultTimezone) {
       await prisma.tenant.update({
         where: { id: tenantId },
         data: { timezone: String(payload.defaultTimezone) },
       });
     }
+    if (section === "system" && payload.ipRestrictionEnabled !== undefined) {
+      // Keep ip_restriction.enabled in sync with system.ipRestrictionEnabled (strictly for this tenant)
+      const ipExisting = await prisma.setting.findFirst({
+        where: { scope: "TENANT", scopeId: tenantId, group: "tenant_system_settings", key: "ip_restriction" },
+      });
+      const nextIpVal = {
+        ...((ipExisting?.valueJson as Record<string, any>) || { allowedIps: [] }),
+        enabled: Boolean(payload.ipRestrictionEnabled),
+      };
+      if (ipExisting) {
+        await prisma.setting.update({
+          where: { id: ipExisting.id },
+          data: { valueJson: nextIpVal, valueType: "json", updatedBy: req.user?.userId || null },
+        });
+      } else {
+        await prisma.setting.create({
+          data: {
+            scope: "TENANT",
+            scopeId: tenantId,
+            group: "tenant_system_settings",
+            key: "ip_restriction",
+            valueJson: nextIpVal,
+            valueType: "json",
+            updatedBy: req.user?.userId || null,
+          },
+        });
+      }
+      invalidateTenantIpCache(tenantId);
+    }
+    if (section === "ip_restriction") {
+      // Keep system.ipRestrictionEnabled in sync and bust this tenant's IP policy cache immediately
+      if (payload.enabled !== undefined) {
+        const sysExisting = await prisma.setting.findFirst({
+          where: { scope: "TENANT", scopeId: tenantId, group: "tenant_system_settings", key: "system" },
+        });
+        if (sysExisting) {
+          await prisma.setting.update({
+            where: { id: sysExisting.id },
+            data: {
+              valueJson: {
+                ...((sysExisting.valueJson as Record<string, any>) || {}),
+                ipRestrictionEnabled: Boolean(payload.enabled),
+              },
+              updatedBy: req.user?.userId || null,
+            },
+          });
+        }
+      }
+      invalidateTenantIpCache(tenantId);
+    }
     if (section === "brand") {
-      const nextName = payload.companyName || payload.titleText;
+      const nextName = payload.titleText || payload.companyName;
       const nextLogo = payload.logoDark || payload.logoLight;
       await prisma.tenant.update({
         where: { id: tenantId },
         data: {
-          ...(nextName ? { name: String(nextName).trim() } : {}),
           ...(nextLogo !== undefined ? { logoUrl: nextLogo || null } : {}),
         },
       });
@@ -2398,26 +2949,7 @@ workspaceRouter.put("/system-settings/:section", requireWorkspaceAdminGuard, asy
           ...(payload.footerText !== undefined ? { "branding.footer_text": payload.footerText } : {}),
         },
         { userId: req.user?.userId }
-      ).catch(() => {});
-
-      // Sync Company Profile fields directly from Brand Settings -> Text tab
-      await CompanyProfileService.upsertProfile(
-        tenantId,
-        {
-          legalName: nextName || "Company Legal Name",
-          tradeName: nextName || null,
-          email: payload.companyEmail || `contact@${tenantId}.masterhrms.com`,
-          phone: payload.companyMobile || null,
-          registeredAddress: payload.companyAddress || null,
-          billingAddress: payload.companyAddress || null,
-          sameAsRegistered: true,
-        },
-        {
-          userId: req.user?.userId,
-          ipAddress: req.ip,
-          userAgent: req.get("user-agent"),
-        }
-      ).catch(() => {});
+      ).catch(() => { });
     }
 
     // Audit log
@@ -2435,7 +2967,7 @@ workspaceRouter.put("/system-settings/:section", requireWorkspaceAdminGuard, asy
           userAgent: req.get("user-agent") || null,
         },
       })
-      .catch(() => {});
+      .catch(() => { });
 
     return res.json({
       success: true,
@@ -2469,10 +3001,10 @@ workspaceRouter.post("/system-settings/brand/upload", requireWorkspaceAdminGuard
     const mime = match[1].toLowerCase();
     const ext =
       mime.includes("png") ? "png" :
-      mime.includes("webp") ? "webp" :
-      mime.includes("svg") ? "svg" :
-      mime.includes("icon") ? "ico" :
-      mime.includes("gif") ? "gif" : "jpg";
+        mime.includes("webp") ? "webp" :
+          mime.includes("svg") ? "svg" :
+            mime.includes("icon") ? "ico" :
+              mime.includes("gif") ? "gif" : "jpg";
     const buffer = Buffer.from(match[2], "base64");
     if (buffer.length > 2 * 1024 * 1024) {
       return res.status(400).json({ error: "Image must be 2 MB or smaller." });
@@ -2511,7 +3043,7 @@ workspaceRouter.post("/system-settings/brand/upload", requireWorkspaceAdminGuard
       });
     }
     if (assetType === "logoDark") {
-      await prisma.tenant.update({ where: { id: tenantId }, data: { logoUrl: url } }).catch(() => {});
+      await prisma.tenant.update({ where: { id: tenantId }, data: { logoUrl: url } }).catch(() => { });
     }
 
     return res.json({ success: true, assetType, url, message: "Brand asset uploaded." });

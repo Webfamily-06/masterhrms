@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { api, API_BASE, unwrapArray } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -164,6 +165,8 @@ function MeetingStatusBadge({ status }: { status: string }) {
 const MINI_WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 export default function HrMeetingsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -392,13 +395,15 @@ export default function HrMeetingsPage() {
         title="Meetings"
         description="Schedule and manage meetings across teams."
         actions={
-          <Button
-            onClick={openSchedule}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Schedule Meeting
-          </Button>
+          !isEmployeePortal ? (
+            <Button
+              onClick={openSchedule}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Schedule Meeting
+            </Button>
+          ) : undefined
         }
       />
 
@@ -523,33 +528,37 @@ export default function HrMeetingsPage() {
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-                        <button
-                          type="button"
-                          title="Edit Meeting"
-                          onClick={() => openEdit(m)}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-amber-600 hover:bg-amber-500/10 transition-colors"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          title="Update Status"
-                          onClick={() => {
-                            setNextStatus(m.status || "scheduled");
-                            setStatusTarget(m);
-                          }}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-blue-600 hover:bg-blue-500/10 transition-colors"
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          title="Delete Meeting"
-                          onClick={() => setDeleteTarget(m)}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-rose-600 hover:bg-rose-500/10 transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {!isEmployeePortal && (
+                          <>
+                            <button
+                              type="button"
+                              title="Edit Meeting"
+                              onClick={() => openEdit(m)}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-amber-600 hover:bg-amber-500/10 transition-colors"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Update Status"
+                              onClick={() => {
+                                setNextStatus(m.status || "scheduled");
+                                setStatusTarget(m);
+                              }}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-blue-600 hover:bg-blue-500/10 transition-colors"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Delete Meeting"
+                              onClick={() => setDeleteTarget(m)}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-rose-600 hover:bg-rose-500/10 transition-colors"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2.5">

@@ -57,7 +57,13 @@ function formatYmd(d?: string | null) {
   }
 }
 
-export function OrganizationAnnouncementsWidget({ className }: { className?: string }) {
+export function OrganizationAnnouncementsWidget({
+  className,
+  compact = false,
+}: {
+  className?: string;
+  compact?: boolean;
+}) {
   const queryClient = useQueryClient();
   const [selectedAnn, setSelectedAnn] = useState<DashboardAnnouncement | null>(null);
   const [responseText, setResponseText] = useState("");
@@ -109,49 +115,62 @@ export function OrganizationAnnouncementsWidget({ className }: { className?: str
     viewMutation.mutate(ann.id);
   };
 
-  if (isLoading || announcements.length === 0) return null;
+  if (!compact && (isLoading || announcements.length === 0)) return null;
 
   return (
     <>
       <div
         data-testid="dashboard-announcements-widget"
         className={cn(
-          "rounded-xl border border-border/80 bg-card shadow-xs overflow-hidden mb-5",
+          "rounded-xl border border-border/80 bg-card shadow-xs overflow-hidden flex flex-col",
+          compact ? "w-full h-full mb-0" : "mb-5",
           className
         )}
       >
         {/* Header Bar */}
-        <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between gap-3 bg-muted/30">
+        <div className="px-4 py-3 border-b border-border/70 flex items-center justify-between gap-2 bg-muted/30">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
               <Megaphone className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm font-bold text-foreground leading-tight">
+              <h2 className="text-sm font-bold text-foreground leading-tight truncate">
                 Company Announcements
               </h2>
-              <p className="text-[11px] text-muted-foreground">
-                Organization-wide updates — click any notice to read and respond
-              </p>
+              {!compact && (
+                <p className="text-[11px] text-muted-foreground">
+                  Organization-wide updates — click any notice to read and respond
+                </p>
+              )}
             </div>
           </div>
           <Badge
             variant="outline"
-            className="text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 shrink-0"
+            className="text-[11px] bg-primary/10 text-primary border-primary/20 shrink-0"
           >
             {announcements.length} Active
           </Badge>
         </div>
 
         {/* Announcements List */}
-        <div className="divide-y divide-border/60">
+        {isLoading ? (
+          <div className="p-6 text-center text-xs text-muted-foreground">Loading announcements...</div>
+        ) : announcements.length === 0 ? (
+          <div className="p-6 text-center text-xs text-muted-foreground">
+            No active company announcements.
+          </div>
+        ) : (
+        <div className={cn("divide-y divide-border/60", compact && "flex-1 overflow-y-auto max-h-[360px]")}>
           {announcements.map((ann) => {
             const isHigh = ann.priority === "high" || ann.priority === "urgent";
             const isAcked = Boolean(ann.userAcknowledged || acknowledgedIds[ann.id]);
             return (
               <div
                 key={ann.id}
-                className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-muted/30 transition-colors"
+                className={cn(
+                  "px-4 py-3 flex justify-between gap-2.5 hover:bg-muted/30 transition-colors",
+                  compact ? "flex-col items-start" : "flex-col sm:flex-row sm:items-center"
+                )}
               >
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -238,6 +257,7 @@ export function OrganizationAnnouncementsWidget({ className }: { className?: str
             );
           })}
         </div>
+        )}
       </div>
 
       {/* Read & Respond Modal */}

@@ -1,7 +1,5 @@
-'use client';
+"use client";
 
-import { MyProfileView } from "@/components/profile/my-profile-view";
+import ProfileSettingsPage from "@/app/(workspace)/profile/page";
 
-export default function HrProfilePage() {
-  return <MyProfileView />;
-}
+export default ProfileSettingsPage;

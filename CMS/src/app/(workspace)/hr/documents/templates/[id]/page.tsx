@@ -153,7 +153,7 @@ export default function ViewDocumentTemplatePage() {
       {/* Template Content */}
       <div className="bg-card border border-border/80 rounded-xl shadow-xs p-6 space-y-3">
         <h2 className="text-base font-bold text-foreground">Template Content</h2>
-        <pre className="p-5 rounded-xl bg-muted/40 border border-border/80 text-sm font-mono whitespace-pre-wrap leading-relaxed text-foreground">
+        <pre className="p-5 rounded-xl bg-muted/40 border border-border/80 text-sm tabular-nums whitespace-pre-wrap leading-relaxed text-foreground">
           {template.content}
         </pre>
         <div className="text-xs text-muted-foreground">{template.contentLength} characters</div>
@@ -176,7 +176,7 @@ export default function ViewDocumentTemplatePage() {
             (template.placeholders || []).map((ph) => (
               <span
                 key={ph}
-                className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-mono bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20"
+                className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs tabular-nums bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20"
               >
                 {`{{${ph}}}`}
               </span>
@@ -186,7 +186,7 @@ export default function ViewDocumentTemplatePage() {
 
         <div className="space-y-1.5 pt-2">
           <div className="text-xs font-semibold text-muted-foreground">Default Values</div>
-          <pre className="p-4 rounded-xl bg-muted/40 border border-border/80 text-xs font-mono text-foreground overflow-x-auto">
+          <pre className="p-4 rounded-xl bg-muted/40 border border-border/80 text-xs tabular-nums text-foreground overflow-x-auto">
             {JSON.stringify(template.defaultValues || {}, null, 2)}
           </pre>
         </div>

@@ -340,7 +340,7 @@ function AiDocumentGeneratePage() {
                   <div className="space-y-2">
                     <div className="flex justify-between items-center text-xs">
                       <Label className="font-semibold">Creativity Level (1–10)</Label>
-                      <span className="font-mono text-muted-foreground">{creativity} / 10</span>
+                      <span className="tabular-nums text-muted-foreground">{creativity} / 10</span>
                     </div>
                     <Slider
                       value={[creativity]}
@@ -355,7 +355,7 @@ function AiDocumentGeneratePage() {
                   <div className="space-y-2">
                     <div className="flex justify-between items-center text-xs">
                       <Label className="font-semibold">Length Limit (100–10,000)</Label>
-                      <span className="font-mono text-muted-foreground">{charLimit} characters</span>
+                      <span className="tabular-nums text-muted-foreground">{charLimit} characters</span>
                     </div>
                     <Slider
                       value={[charLimit]}
@@ -412,10 +412,10 @@ function AiDocumentGeneratePage() {
                   </CardDescription>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Badge variant="outline" className="font-mono text-xs">
+                  <Badge variant="outline" className="tabular-nums text-xs">
                     {wordCount} words
                   </Badge>
-                  <Badge variant="outline" className="font-mono text-xs">
+                  <Badge variant="outline" className="tabular-nums text-xs">
                     {charCount} chars
                   </Badge>
                 </div>

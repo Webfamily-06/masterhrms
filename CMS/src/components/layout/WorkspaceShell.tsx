@@ -104,16 +104,56 @@ function isPathMatchingPrefixes(pathname: string, prefixes: string[]) {
 }
 
 const EMPLOYEE_SELF_SERVICE_SEARCH_ITEMS = [
-  { title: "My Dashboard", url: "/me/dashboard", group: "Employee Self-Service", icon: Home },
-  { title: "My Profile, Password & 2FA", url: "/profile", group: "Employee Self-Service", icon: User },
-  { title: "My Payslips", url: "/employee-payslips", group: "Employee Self-Service", icon: Receipt },
-  { title: "My Attendance & Clock", url: "/attendance-employee", group: "Employee Self-Service", icon: Clock },
-  { title: "My Leave Requests", url: "/me/leave", group: "Employee Self-Service", icon: CalendarCheck },
-  { title: "My Helpdesk & Tickets", url: "/me/helpdesk", group: "Employee Self-Service", icon: HelpCircle },
-  { title: "My Tasks", url: "/tasks", group: "Employee Self-Service", icon: Kanban },
-  { title: "Personal Settings & Theme", url: "/me/settings", group: "Employee Self-Service", icon: Settings },
-  { title: "Team Chat", url: "/me/chat", group: "Collaboration", icon: MessageSquare },
-  { title: "Company Notice Board", url: "/notice-board", group: "Collaboration", icon: Megaphone },
+  { title: "Dashboard", url: "/me/dashboard", group: "Overview", icon: Home },
+  { title: "Calendar", url: "/me/calendar", group: "Overview", icon: CalendarDays },
+  { title: "Todo", url: "/me/todo", group: "Overview", icon: Kanban },
+  { title: "Gantt", url: "/me/todo/gantt", group: "Overview", icon: BarChart3 },
+  { title: "My Notes", url: "/me/notes", group: "Overview", icon: FileText },
+  { title: "Chat", url: "/me/chat", group: "Overview", icon: MessageSquare },
+  { title: "My Reminders", url: "/me/notifications/reminders", group: "Overview", icon: Bell },
+  { title: "Notifications", url: "/me/notifications", group: "Overview", icon: Bell },
+  { title: "Employees", url: "/me/employees", group: "Workforce Management", icon: Users },
+  { title: "Holiday", url: "/me/organization/holidays", group: "Workforce Management", icon: CalendarDays },
+  { title: "Announcements", url: "/me/organization/announcements", group: "Workforce Management", icon: Megaphone },
+  { title: "Attendance Records", url: "/me/attendance/records", group: "Workforce Management", icon: Clock },
+  { title: "Timesheet", url: "/me/attendance/timesheet", group: "Workforce Management", icon: Clock },
+  { title: "Attendance Regularizations", url: "/me/attendance/regularizations", group: "Workforce Management", icon: Clock },
+  { title: "Shift", url: "/me/attendance/shifts", group: "Workforce Management", icon: Layers },
+  { title: "Attendance Policies", url: "/me/attendance/policies", group: "Workforce Management", icon: FileText },
+  { title: "Leave Applications", url: "/me/leave/applications", group: "Workforce Management", icon: CalendarCheck },
+  { title: "Leave Balance", url: "/me/leave/balance", group: "Workforce Management", icon: CalendarCheck },
+  { title: "Leave Policy", url: "/me/leave/policies", group: "Workforce Management", icon: ShieldCheck },
+  { title: "Job Postings", url: "/me/recruitment/job-postings", group: "Talent & Growth", icon: Briefcase },
+  { title: "Interviews", url: "/me/recruitment/interviews", group: "Talent & Growth", icon: MessageSquare },
+  { title: "Candidate Onboarding", url: "/me/recruitment/onboarding", group: "Talent & Growth", icon: UserCheck },
+  { title: "Candidate Assessments", url: "/me/recruitment/assessments", group: "Talent & Growth", icon: FileSpreadsheet },
+  { title: "Career", url: "/me/recruitment/career", group: "Talent & Growth", icon: Sparkles },
+  { title: "Awards", url: "/me/awards", group: "Talent & Growth", icon: Trophy },
+  { title: "Promotion", url: "/me/lifecycle/promotions", group: "Talent & Growth", icon: TrendingUp },
+  { title: "Transfers", url: "/me/lifecycle/transfers", group: "Talent & Growth", icon: ArrowRightLeft },
+  { title: "Warnings", url: "/me/lifecycle/warnings", group: "Talent & Growth", icon: ShieldAlert },
+  { title: "Resignations", url: "/me/lifecycle/resignation", group: "Talent & Growth", icon: LogOut },
+  { title: "Trips", url: "/me/lifecycle/trips", group: "Talent & Growth", icon: Globe },
+  { title: "Complaints", url: "/me/lifecycle/complaints", group: "Talent & Growth", icon: MessageSquare },
+  { title: "Employee Review", url: "/me/performance/reviews", group: "Talent & Growth", icon: Target },
+  { title: "Employee Goals", url: "/me/performance/goals", group: "Talent & Growth", icon: Target },
+  { title: "Employee Trainings", url: "/me/training/trainings", group: "Talent & Growth", icon: GraduationCap },
+  { title: "Training Sessions", url: "/me/training/sessions", group: "Talent & Growth", icon: GraduationCap },
+  { title: "Training Programs", url: "/me/training/programs", group: "Talent & Growth", icon: GraduationCap },
+  { title: "Payslips", url: "/me/payroll/payslips", group: "Finance & Assets", icon: Receipt },
+  { title: "Employee Salaries", url: "/me/payroll/salary", group: "Finance & Assets", icon: Wallet },
+  { title: "Assets", url: "/me/assets", group: "Finance & Assets", icon: HardDrive },
+  { title: "Asset Requests", url: "/me/assets/requests", group: "Finance & Assets", icon: Package },
+  { title: "Meetings", url: "/me/meetings", group: "Communication & Content", icon: CalendarDays },
+  { title: "Action Items", url: "/me/meetings/action-items", group: "Communication & Content", icon: Kanban },
+  { title: "Zoom Meeting", url: "/me/zoom-meetings", group: "Communication & Content", icon: Phone },
+  { title: "HR Documents", url: "/me/documents", group: "Communication & Content", icon: FolderLock },
+  { title: "Employee Contracts", url: "/me/documents/contracts", group: "Communication & Content", icon: FileText },
+  { title: "Acknowledgements", url: "/me/documents/acknowledgements", group: "Communication & Content", icon: ShieldCheck },
+  { title: "Helpdesk & Tickets", url: "/me/helpdesk", group: "Communication & Content", icon: HelpCircle },
+  { title: "File Manager", url: "/me/files", group: "File Manager", icon: FolderLock },
+  { title: "My Profile, Password & 2FA", url: "/profile", group: "Account", icon: User },
+  { title: "My Settings", url: "/me/settings", group: "Account", icon: Settings },
 ];
 
 const ALL_SEARCH_ITEMS = [
@@ -166,9 +206,9 @@ const ALL_SEARCH_ITEMS = [
   { title: "AI Copywriter", url: "/ai-writer", group: "Collaboration", icon: Sparkles },
   { title: "HRM Hub & Overview", url: "/hr/dashboard", group: "HRM Suite", icon: Users },
   { title: "Workspace Settings", url: "/tenant/settings", group: "Platform", icon: Settings },
+  { title: "HRM Setup (NOC, Experience & Joining Letters)", url: "/tenant/hrm-setup", group: "Platform", icon: FileText },
   { title: "Mail Templates", url: "/tenant/mail-templates", group: "Platform", icon: Mail },
   { title: "Roles & Permissions", url: "/tenant/roles", group: "Platform", icon: ShieldAlert },
-  { title: "Enabled Modules", url: "/tenant/modules", group: "Platform", icon: Layers },
   { title: "HR Administration Settings", url: "/hr/settings", group: "HRM Suite", icon: Settings },
   { title: "Personal Settings & Theme", url: "/me/settings", group: "Platform", icon: Settings },
   { title: "Employee Directory", url: "/hr/employees", group: "HRM Suite", icon: Users },
@@ -216,7 +256,7 @@ const ALL_SEARCH_ITEMS = [
   { title: "AI Invoice OCR Reader", url: "/ai-ocr", group: "Extensions", icon: ScanLine },
   { title: "Company Notice Board", url: "/notice-board", group: "HRM Suite", icon: Megaphone },
   { title: "Internal Reminders", url: "/internal-reminders", group: "Extensions", icon: Bell },
-  { title: "Two-Factor Authentication", url: "/two-factor-auth", group: "Platform", icon: ShieldCheck },
+  { title: "Two-Factor Authentication (Profile)", url: "/profile", group: "Platform", icon: ShieldCheck },
   { title: "Backup & Restore", url: "/backup-restore", group: "Platform", icon: Database },
   { title: "Activity Logs", url: "/activity-logs", group: "Platform", icon: History },
   { title: "Public REST API", url: "/public-api", group: "Extensions", icon: Code },
@@ -238,9 +278,7 @@ const ALL_SEARCH_ITEMS = [
   { title: "Tenant Administration", url: "/tenant/dashboard", group: "Platform", icon: Building2 },
   { title: "Tenant Users & Access", url: "/tenant/users", group: "Platform", icon: Users },
   { title: "Tenant Roles & Permissions", url: "/tenant/roles", group: "Platform", icon: ShieldCheck },
-  { title: "Tenant Modules & Subscriptions", url: "/tenant/modules", group: "Platform", icon: Layers },
   { title: "Tenant Invoices & Billing", url: "/tenant/billing", group: "Platform", icon: Receipt },
-  { title: "Tenant Branding & Customization", url: "/tenant/branding", group: "Platform", icon: Sparkles },
   { title: "Tenant Custom Domains", url: "/tenant/domain", group: "Platform", icon: Globe },
   { title: "Tenant Integrations Hub", url: "/tenant/integrations", group: "Platform", icon: Sparkles },
   { title: "Tenant Data & Backups", url: "/tenant/data", group: "Platform", icon: Database },
@@ -597,7 +635,10 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   }, [isChatRoute, path]);
 
   useEffect(() => {
-    const isImpersonating = typeof window !== "undefined" && localStorage.getItem("hrms_impersonation_active") === "true";
+    const isImpersonating =
+      typeof window !== "undefined" &&
+      (localStorage.getItem("hrms_impersonation_active") === "true" ||
+        localStorage.getItem("hrms_tenant_impersonation_active") === "true");
     if (!isImpersonating || !impersonationBannerRef.current) {
       document.documentElement.style.removeProperty("--impersonation-banner-height");
       return;
@@ -718,10 +759,41 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const roleLabel = (profile.roles?.[0] || "member").replace(/_/g, " ");
 
   const isImpersonating = typeof window !== "undefined" && localStorage.getItem("hrms_impersonation_active") === "true";
+  const isTenantImpersonating =
+    typeof window !== "undefined" &&
+    localStorage.getItem("hrms_tenant_impersonation_active") === "true" &&
+    Boolean(localStorage.getItem("hrms_tenant_admin_backup_token"));
+  const impersonatedUserName =
+    (typeof window !== "undefined" ? localStorage.getItem("hrms_tenant_impersonated_user_name") : null) ||
+    profile?.full_name ||
+    "User";
+  const impersonatedUserEmail =
+    (typeof window !== "undefined" ? localStorage.getItem("hrms_tenant_impersonated_user_email") : null) ||
+    profile?.email ||
+    "";
+  const anyImpersonating = isImpersonating || isTenantImpersonating;
   const impersonatedTenantName =
     (typeof window !== "undefined" ? localStorage.getItem("hrms_impersonated_tenant_name") : null) ||
     profile?.tenant?.name ||
     "Workspace";
+
+  function handleReturnToTenantPortal() {
+    const backup = localStorage.getItem("hrms_tenant_admin_backup_token");
+    if (!backup) {
+      toast.error("Tenant Admin return session not found. Please sign in again.");
+      return;
+    }
+    setToken(backup);
+    localStorage.setItem("auth_token", backup);
+    localStorage.setItem("token", backup);
+    localStorage.setItem("master_hrms_token", backup);
+    localStorage.removeItem("hrms_tenant_impersonation_active");
+    localStorage.removeItem("hrms_tenant_admin_backup_token");
+    localStorage.removeItem("hrms_tenant_impersonated_user_name");
+    localStorage.removeItem("hrms_tenant_impersonated_user_email");
+    toast.success("Returned to Tenant Portal.");
+    window.location.href = "/tenant/users";
+  }
 
 
   async function handleLeaveImpersonation() {
@@ -762,10 +834,10 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         mobileOpen && "slide-nav",
         !fullView && collapsed && "mini-sidebar",
         fullView && "full-view full-width",
-        isImpersonating && "has-impersonation-banner"
+        anyImpersonating && "has-impersonation-banner"
       )}
     >
-      {/* Impersonation Banner */}
+      {/* Super Admin Impersonation Banner */}
       {isImpersonating && (
         <div
           ref={impersonationBannerRef}
@@ -787,6 +859,31 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           >
             {leavingImpersonation ? <Loader2 className="size-3 animate-spin mr-1" /> : <LogOut className="size-3 mr-1" />}
             Exit Impersonation
+          </Button>
+        </div>
+      )}
+
+      {/* Tenant Admin Login-As-User Exit Banner */}
+      {!isImpersonating && isTenantImpersonating && (
+        <div
+          ref={impersonationBannerRef}
+          className="impersonation-top-banner bg-primary text-primary-foreground px-3 sm:px-4 py-2 flex items-center justify-between gap-3 text-xs font-semibold shadow-md"
+        >
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="size-2 rounded-full bg-white animate-pulse shrink-0" />
+            <span className="leading-snug truncate">
+              Logged in as <strong>{impersonatedUserName}</strong>
+              {impersonatedUserEmail ? ` (${impersonatedUserEmail})` : ""} — Viewing user portal as Tenant Admin.
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px] font-bold px-3 py-0 bg-white text-slate-900 hover:bg-slate-100 border-none shadow-xs shrink-0 cursor-pointer gap-1.5"
+            onClick={handleReturnToTenantPortal}
+          >
+            <i className="ph-bold ph-arrow-u-up-left text-xs" />
+            Back to Tenant Portal
           </Button>
         </div>
       )}
@@ -1071,13 +1168,13 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                       2FA Status
                     </span>
                     {profile.twoFactorEnabled ? (
-                      <Link to="/two-factor-auth">
+                      <Link to="/profile">
                         <Badge variant="outline" className="text-[10px] font-bold py-0 h-4 px-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 cursor-pointer">
                           ● Enabled
                         </Badge>
                       </Link>
                     ) : (
-                      <Link to="/two-factor-auth">
+                      <Link to="/profile">
                         <Badge variant="outline" className="text-[10px] font-bold py-0 h-4 px-1.5 border-amber-500/40 text-amber-600 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer">
                           ○ Setup Required
                         </Badge>
@@ -1087,18 +1184,17 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
                   <DropdownMenuItem asChild>
                     <Link
-                      to={isEmployeeOnly ? "/profile" : "/settings"}
-                      search={isEmployeeOnly ? undefined : { tab: "profile" }}
+                      to="/profile"
                       className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg hover:bg-muted/60 transition-colors"
                     >
                       <User className="size-3.5 text-muted-foreground" />
-                      <span>Profile</span>
+                      <span>Profile Settings</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/two-factor-auth" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg hover:bg-muted/60 transition-colors">
+                    <Link to="/profile" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg hover:bg-muted/60 transition-colors">
                       <ShieldCheck className="size-3.5 text-emerald-500" />
-                      <span>Security & 2FA</span>
+                      <span>Security &amp; 2FA</span>
                     </Link>
                   </DropdownMenuItem>
 
@@ -1106,13 +1202,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                   {isWorkspaceAdmin && (
                     <>
                       <DropdownMenuItem asChild>
-                        <Link to="/setup-notes" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg hover:bg-muted/60 transition-colors">
-                          <HelpCircle className="size-3.5 text-primary" />
-                          <span>Setup Notes & Guide</span>
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link to="/settings" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg hover:bg-muted/60 transition-colors">
+                        <Link to="/tenant/settings" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg hover:bg-muted/60 transition-colors">
                           <Settings className="size-3.5 text-muted-foreground" />
                           <span>Workspace Settings</span>
                         </Link>

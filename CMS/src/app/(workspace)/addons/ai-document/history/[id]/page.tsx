@@ -202,7 +202,7 @@ export default function AiDocumentViewPage() {
             </CardHeader>
             <CardContent className="pt-4">
               <Textarea
-                className="font-mono text-sm leading-relaxed min-h-[420px] resize-y"
+                className="tabular-nums text-sm leading-relaxed min-h-[420px] resize-y"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
               />
@@ -236,7 +236,7 @@ export default function AiDocumentViewPage() {
               </div>
               <div>
                 <span className="text-muted-foreground block mb-1">Keywords</span>
-                <p className="font-mono bg-muted p-2 rounded text-xs break-all">
+                <p className="tabular-nums bg-muted p-2 rounded text-xs break-all">
                   {doc?.keywords || "None"}
                 </p>
               </div>

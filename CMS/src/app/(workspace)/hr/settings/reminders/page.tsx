@@ -76,41 +76,7 @@ export default function HrSettingsRemindersPage() {
           status: r.status || (r.completed ? 'COMPLETED' : 'PENDING'),
         }));
       } catch {
-        return [
-          {
-            id: 'rem-1',
-            entityType: 'employee',
-            entityId: 'EMP-104',
-            reminderType: 'probation_review',
-            message: 'Probation review due for David Kim (Engineering Team).',
-            priority: 'HIGH',
-            status: 'PENDING',
-            dueAt: new Date(Date.now() + 86400000 * 2).toISOString(),
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 'rem-2',
-            entityType: 'contract',
-            entityId: 'CTR-2026-09',
-            reminderType: 'contract_renewal',
-            message: 'Renew health insurance annual carrier agreement.',
-            priority: 'URGENT',
-            status: 'PENDING',
-            dueAt: new Date(Date.now() + 86400000 * 1).toISOString(),
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 'rem-3',
-            entityType: 'invoice',
-            entityId: 'INV-4412',
-            reminderType: 'payment_due',
-            message: 'Approve vendor disbursement for monthly AWS & Cloudflare bill.',
-            priority: 'MEDIUM',
-            status: 'COMPLETED',
-            dueAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-            createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-          },
-        ];
+        return [];
       }
     },
     staleTime: 5000,
@@ -366,10 +332,10 @@ export default function HrSettingsRemindersPage() {
               <div className="space-y-1.5 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   {getPriorityBadge(r.priority)}
-                  <Badge variant="outline" className="text-[10px] font-mono capitalize">
+                  <Badge variant="outline" className="text-[10px] tabular-nums capitalize">
                     {r.entityType}: {r.entityId}
                   </Badge>
-                  <span className="text-[11px] text-muted-foreground font-mono flex items-center gap-1">
+                  <span className="text-[11px] text-muted-foreground tabular-nums flex items-center gap-1">
                     <i className="ph ph-clock text-primary text-xs" /> Due:{' '}
                     {new Date(r.dueAt).toLocaleDateString()}
                   </span>
@@ -454,7 +420,7 @@ export default function HrSettingsRemindersPage() {
                 placeholder="INV-1002"
                 value={formEntityId}
                 onChange={(e) => setFormEntityId(e.target.value)}
-                className="h-9 text-xs font-mono"
+                className="h-9 text-xs tabular-nums"
               />
             </div>
 

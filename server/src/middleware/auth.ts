@@ -34,6 +34,7 @@ import { verifyToken, JwtPayload } from "../lib/jwt";
 import { prisma, rawPrisma } from "../prisma";
 import { getWorkspacePolicy, assertWorkspaceActive } from "../services/workspace-policy.service";
 import { touchSession } from "../services/device-session.service";
+import { checkTenantIpAccess } from "../services/tenant-ip-restriction.service";
 
 export interface AuthRequest extends Request {
   tenantId?: string;
@@ -214,6 +215,19 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
     }
     if (!isSuper && !tenantId && !req.originalUrl.startsWith("/api/auth/")) {
       return res.status(403).json({ error: "Complete workspace onboarding first." });
+    }
+
+    // Tenant-Scoped IP Restriction Enforcement (Applies ONLY to this tenantId; Super Admins & other tenants unaffected)
+    const isLogoutRoute = req.originalUrl?.startsWith("/api/auth/logout");
+    if (!isSuper && tenantId && !isPreflight && !isLogoutRoute) {
+      const ipCheck = await checkTenantIpAccess(tenantId, req, isSuper);
+      if (!ipCheck.allowed) {
+        return res.status(403).json({
+          error: ipCheck.reason || "Access restricted by your organization's IP Restriction policy.",
+          code: "TENANT_IP_RESTRICTED",
+          clientIp: ipCheck.clientIp,
+        });
+      }
     }
 
     req.tenantId = tenantId ?? undefined;

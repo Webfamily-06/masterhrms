@@ -86,7 +86,7 @@ export default function EmployeeCertificationsPage() {
     : 100;
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full space-y-6">
       {/* ── Page Header ── */}
       <PageHeader
         title="My Certifications & Badges"
@@ -213,7 +213,7 @@ export default function EmployeeCertificationsPage() {
 
                   return (
                     <TableRow key={c.id} className="hover:bg-muted/40 transition-colors text-xs">
-                      <TableCell className="p-3 font-mono font-bold text-muted-foreground">
+                      <TableCell className="p-3 tabular-nums font-bold text-muted-foreground">
                         {c.certificateId || `CERT-${c.id?.slice(0, 6) || "001"}`}
                       </TableCell>
 
@@ -221,15 +221,15 @@ export default function EmployeeCertificationsPage() {
                         {c.course?.title || c.course?.name || "Professional Certification"}
                       </TableCell>
 
-                      <TableCell className="p-3 font-mono text-muted-foreground">
+                      <TableCell className="p-3 tabular-nums text-muted-foreground">
                         {formatDate(c.certifiedAt)}
                       </TableCell>
 
-                      <TableCell className="p-3 font-mono text-muted-foreground">
+                      <TableCell className="p-3 tabular-nums text-muted-foreground">
                         {formatDate(c.expiryDate)}
                       </TableCell>
 
-                      <TableCell className="p-3 font-mono font-bold text-primary">
+                      <TableCell className="p-3 tabular-nums font-bold text-primary">
                         {c.score || "100"}%
                       </TableCell>
 
@@ -273,7 +273,7 @@ export default function EmployeeCertificationsPage() {
             <i className="ph ph-certificate text-3xl" />
           </div>
           <div>
-            <span className="text-[11px] text-muted-foreground uppercase tracking-widest font-mono">Certificate of Completion</span>
+            <span className="text-[11px] text-muted-foreground uppercase tracking-widest tabular-nums">Certificate of Completion</span>
             <h3 className="text-lg font-bold text-foreground mt-1">
               {viewCertItem?.course?.title || viewCertItem?.course?.name || "Skill Certification"}
             </h3>
@@ -290,19 +290,19 @@ export default function EmployeeCertificationsPage() {
           <div className="bg-muted/40 p-4 rounded-xl space-y-2 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Certificate ID:</span>
-              <span className="font-mono font-bold text-foreground">{viewCertItem?.certificateId || "—"}</span>
+              <span className="tabular-nums font-bold text-foreground">{viewCertItem?.certificateId || "—"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Certified Date:</span>
-              <span className="font-mono text-foreground">{formatDate(viewCertItem?.certifiedAt)}</span>
+              <span className="tabular-nums text-foreground">{formatDate(viewCertItem?.certifiedAt)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Valid Through:</span>
-              <span className="font-mono text-foreground">{formatDate(viewCertItem?.expiryDate)}</span>
+              <span className="tabular-nums text-foreground">{formatDate(viewCertItem?.expiryDate)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Final Grade:</span>
-              <span className="font-mono font-bold text-primary">{viewCertItem?.score || "100"}%</span>
+              <span className="tabular-nums font-bold text-primary">{viewCertItem?.score || "100"}%</span>
             </div>
           </div>
 

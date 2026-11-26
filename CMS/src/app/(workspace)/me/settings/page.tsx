@@ -251,7 +251,7 @@ export default function EmployeeSettingsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="w-full space-y-6 pb-16">
       {/* Top Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
         <div>
@@ -440,7 +440,7 @@ export default function EmployeeSettingsPage() {
                       value={form["user.primary_color"] || ""}
                       placeholder={`Workspace Default (${workspaceDefaultColor})`}
                       onChange={(e) => updateField("user.primary_color", e.target.value || null)}
-                      className="text-xs h-9 font-mono flex-1"
+                      className="text-xs h-9 tabular-nums flex-1"
                     />
                     <Button type="button" size="sm" className="h-9 text-xs pointer-events-none shrink-0">
                       Live Button Preview
@@ -813,7 +813,7 @@ export default function EmployeeSettingsPage() {
                     </p>
                   </div>
                   <Button asChild size="sm" variant={profile?.twoFactorEnabled ? "outline" : "default"} className="h-8 text-xs font-semibold">
-                    <Link to="/two-factor-auth">
+                    <Link to="/profile">
                       {profile?.twoFactorEnabled ? "Manage 2FA" : "Set Up 2FA"}
                     </Link>
                   </Button>

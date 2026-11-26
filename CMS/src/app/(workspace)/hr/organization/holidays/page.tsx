@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
-import { Link } from "@/lib/router-compat";
+import { Link, useRouterState } from "@/lib/router-compat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useMasterList } from "@/hooks/use-master-list";
@@ -170,6 +170,8 @@ function generateIcsContent(holidays: HolidayRecord[], yearLabel: number | strin
 }
 
 export default function HolidaysPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -420,7 +422,7 @@ export default function HolidaysPage() {
         description="Manage public and company holidays."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Link to="/hr/calendar">
+            <Link to={isEmployeePortal ? "/me/calendar" : "/hr/calendar"}>
               <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs font-medium">
                 <CalendarDays className="h-3.5 w-3.5" />
                 Calendar View
@@ -446,14 +448,16 @@ export default function HolidaysPage() {
               Export iCal
             </Button>
 
-            <Button
-              type="button"
-              onClick={openCreate}
-              className="h-9 px-4 gap-1.5 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
-            >
-              <Plus className="h-4 w-4" />
-              Add Holiday
-            </Button>
+            {!isEmployeePortal && (
+              <Button
+                type="button"
+                onClick={openCreate}
+                className="h-9 px-4 gap-1.5 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+              >
+                <Plus className="h-4 w-4" />
+                Add Holiday
+              </Button>
+            )}
           </div>
         }
       />
@@ -684,26 +688,30 @@ export default function HolidaysPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
-                            title="Edit Holiday"
-                            onClick={() => openEdit(holiday)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10"
-                            title="Delete Holiday"
-                            onClick={() => setDeleteConfirmTarget(holiday)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {!isEmployeePortal && (
+                            <>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                title="Edit Holiday"
+                                onClick={() => openEdit(holiday)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10"
+                                title="Delete Holiday"
+                                onClick={() => setDeleteConfirmTarget(holiday)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

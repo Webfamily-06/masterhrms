@@ -15,7 +15,9 @@ import { employeeSidebar, filterEmployeeSidebar, EmployeeMenuItem, EmployeeMenuS
 import { cn } from "@/lib/utils";
 
 const EMPLOYEE_SUBMENU_KEY_MAP: Record<string, string> = {
+  "Todo & Tasks": "meTodo",
   Organization: "meOrg",
+  "Organization Structure": "meOrg",
   Attendance: "meAttendance",
   "Attendance & Time Management": "meAttendance",
   "Leave Management": "meLeave",
@@ -27,8 +29,10 @@ const EMPLOYEE_SUBMENU_KEY_MAP: Record<string, string> = {
   Training: "meTraining",
   "Training & Development": "meTraining",
   Payroll: "mePayroll",
+  "Payroll Management": "mePayroll",
   "Payroll & Finance": "mePayroll",
   Assets: "meAssets",
+  "Assets Management": "meAssets",
   Meetings: "meMeetings",
   "Meetings & Collaboration": "meMeetings",
   Documents: "meDocs",
@@ -233,8 +237,9 @@ export function DreamsSidebar({
     operations: false,
     ecommerce: false,
     extensions: false,
-    meOrg: true,
-    meAttendance: true,
+    meTodo: false,
+    meOrg: false,
+    meAttendance: false,
     meLeave: false,
     meRecruitment: false,
     meLifecycle: false,
@@ -264,6 +269,7 @@ export function DreamsSidebar({
     hrAppsChat: false,
     tenantChat: false,
     tenantWorkspace: true,
+    userManagement: false,
   });
 
   const toggleSubmenu = (menuKey: string) => {
@@ -285,19 +291,52 @@ export function DreamsSidebar({
     if (currentPath.startsWith("/leave-types") || currentPath === "/leave") {
       setOpenMenus((p) => ({ ...p, hrmLeave: true }));
     }
-    if (currentPath.startsWith("/me/organization")) setOpenMenus((p) => ({ ...p, meOrg: true }));
-    if (currentPath.startsWith("/me/attendance")) setOpenMenus((p) => ({ ...p, meAttendance: true }));
-    if (currentPath.startsWith("/me/leave")) setOpenMenus((p) => ({ ...p, meLeave: true }));
+    if (currentPath.startsWith("/me/todo")) setOpenMenus((p) => ({ ...p, meTodo: true }));
+    if (currentPath === "/me/organization/holidays" || currentPath === "/me/organization/announcements") {
+      setOpenMenus((p) => ({ ...p, meOrg: true }));
+    }
+    if (
+      currentPath === "/me/attendance/records" ||
+      currentPath === "/me/attendance/timesheet" ||
+      currentPath === "/me/attendance/regularizations" ||
+      currentPath === "/me/attendance/shifts" ||
+      currentPath === "/me/attendance/policies"
+    ) {
+      setOpenMenus((p) => ({ ...p, meAttendance: true }));
+    }
+    if (
+      currentPath === "/me/leave/applications" ||
+      currentPath === "/me/leave/balance" ||
+      currentPath === "/me/leave/policies"
+    ) {
+      setOpenMenus((p) => ({ ...p, meLeave: true }));
+    }
     if (currentPath.startsWith("/me/recruitment")) setOpenMenus((p) => ({ ...p, meRecruitment: true }));
-    if (currentPath.startsWith("/me/lifecycle")) setOpenMenus((p) => ({ ...p, meLifecycle: true }));
+    if (currentPath.startsWith("/me/lifecycle") || currentPath === "/me/awards") {
+      setOpenMenus((p) => ({ ...p, meLifecycle: true }));
+    }
     if (currentPath.startsWith("/me/performance")) setOpenMenus((p) => ({ ...p, mePerformance: true }));
-    if (currentPath.startsWith("/me/training")) setOpenMenus((p) => ({ ...p, meTraining: true }));
-    if (currentPath.startsWith("/me/payroll")) setOpenMenus((p) => ({ ...p, mePayroll: true }));
-    if (currentPath.startsWith("/me/assets")) setOpenMenus((p) => ({ ...p, meAssets: true }));
+    if (
+      currentPath === "/me/training/trainings" ||
+      currentPath === "/me/training/sessions" ||
+      currentPath === "/me/training/programs"
+    ) {
+      setOpenMenus((p) => ({ ...p, meTraining: true }));
+    }
+    if (currentPath === "/me/payroll/payslips" || currentPath === "/me/payroll/salary") {
+      setOpenMenus((p) => ({ ...p, mePayroll: true }));
+    }
+    if (currentPath === "/me/assets" || currentPath === "/me/assets/requests") {
+      setOpenMenus((p) => ({ ...p, meAssets: true }));
+    }
     if (currentPath.startsWith("/me/meetings")) setOpenMenus((p) => ({ ...p, meMeetings: true }));
-    if (currentPath.startsWith("/me/documents")) setOpenMenus((p) => ({ ...p, meDocs: true }));
-    if (currentPath.startsWith("/me/media")) setOpenMenus((p) => ({ ...p, meMedia: true }));
-    if (currentPath.startsWith("/me/chat")) setOpenMenus((p) => ({ ...p, meChat: true }));
+    if (
+      currentPath === "/me/documents" ||
+      currentPath === "/me/documents/contracts" ||
+      currentPath === "/me/documents/acknowledgements"
+    ) {
+      setOpenMenus((p) => ({ ...p, meDocs: true }));
+    }
     if (currentPath.startsWith("/hr/approvals") || currentPath.startsWith("/hr/requests/profile-changes")) setOpenMenus((p) => ({ ...p, hrApprovals: true }));
     if (currentPath.startsWith("/hr/organization")) setOpenMenus((p) => ({ ...p, hrOrg: true }));
     if (currentPath.startsWith("/hr/attendance")) setOpenMenus((p) => ({ ...p, hrAttendance: true }));
@@ -313,6 +352,9 @@ export function DreamsSidebar({
     if (currentPath.startsWith("/hr/chat")) setOpenMenus((p) => ({ ...p, hrAppsChat: true, apps: true }));
     if (currentPath.startsWith("/addons/planning")) setOpenMenus((p) => ({ ...p, hrPlanning: true }));
     if (currentPath.startsWith("/tenant/chat")) setOpenMenus((p) => ({ ...p, tenantChat: true, tenantWorkspace: true }));
+    if (currentPath === "/tenant/roles" || currentPath === "/tenant/users") {
+      setOpenMenus((p) => ({ ...p, userManagement: true }));
+    }
     if (currentPath.startsWith("/tenant")) setOpenMenus((p) => ({ ...p, tenantWorkspace: true }));
     if (currentPath === "/integrations" || currentPath === "/shopify") {
       setOpenMenus((p) => ({ ...p, ecommerce: true }));
@@ -2144,51 +2186,6 @@ export function DreamsSidebar({
                       </li>
                       <li>
                         <Link
-                          to="/tenant/company-profile"
-                          onClick={onCloseMobile}
-                          className={cn(currentPath === "/tenant/company-profile" && "active")}
-                        >
-                          Company Profile
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          to="/tenant/users"
-                          onClick={onCloseMobile}
-                          className={cn(currentPath === "/tenant/users" && "active")}
-                        >
-                          Users & Access
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          to="/tenant/roles"
-                          onClick={onCloseMobile}
-                          className={cn(currentPath === "/tenant/roles" && "active")}
-                        >
-                          Roles & Permissions
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          to="/tenant/modules"
-                          onClick={onCloseMobile}
-                          className={cn(currentPath === "/tenant/modules" && "active")}
-                        >
-                          Modules & Subscriptions
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          to="/tenant/branding"
-                          onClick={onCloseMobile}
-                          className={cn(currentPath === "/tenant/branding" && "active")}
-                        >
-                          Branding & White-label
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
                           to="/tenant/domain"
                           onClick={onCloseMobile}
                           className={cn(currentPath === "/tenant/domain" && "active")}
@@ -2238,16 +2235,53 @@ export function DreamsSidebar({
                   <span>Workspace Settings</span>
                 </Link>
               </li>
+              <li className="submenu">
+                <a
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggleSubmenu("userManagement");
+                  }}
+                  className={cn(
+                    openMenus.userManagement && "subdrop",
+                    (currentPath === "/tenant/roles" || currentPath === "/tenant/users") && "active"
+                  )}
+                >
+                  <i className="ph-duotone ph-users-three"></i>
+                  <span>User Management</span>
+                  <span className="menu-arrow"></span>
+                </a>
+                <ul style={{ display: !isMini && openMenus.userManagement ? "block" : "none" }}>
+                  <li>
+                    <Link
+                      to="/tenant/roles"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/tenant/roles" && "active")}
+                    >
+                      Roles
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/tenant/users"
+                      onClick={onCloseMobile}
+                      className={cn(currentPath === "/tenant/users" && "active")}
+                    >
+                      Users
+                    </Link>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <Link to="/tenant/hrm-setup" onClick={onCloseMobile} className={cn(currentPath === "/tenant/hrm-setup" && "active")}>
+                  <i className="ph-duotone ph-file-text"></i>
+                  <span>HRM Setup</span>
+                </Link>
+              </li>
               <li>
                 <Link to="/tenant/mail-templates" onClick={onCloseMobile} className={cn(currentPath === "/tenant/mail-templates" && "active")}>
                   <i className="ph-duotone ph-envelope-simple-open"></i>
                   <span>Mail Templates</span>
-                </Link>
-              </li>
-              <li>
-                <Link to="/two-factor-auth" onClick={onCloseMobile} className={cn(currentPath === "/two-factor-auth" && "active")}>
-                  <i className="ph-duotone ph-shield-check text-emerald-600"></i>
-                  <span>Two-Factor Auth (2FA)</span>
                 </Link>
               </li>
               <li>

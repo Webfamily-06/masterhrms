@@ -142,7 +142,7 @@ export default function ChartersTreePage() {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <Badge variant="secondary" className="text-xs font-mono">
+                    <Badge variant="secondary" className="text-xs tabular-nums">
                       {childCharters.length} charter{childCharters.length === 1 ? "" : "s"}
                     </Badge>
                   </div>
@@ -224,7 +224,7 @@ export default function ChartersTreePage() {
                     <div className="text-xs text-muted-foreground mt-0.5">Charters without a parent challenge</div>
                   </div>
                 </div>
-                <Badge variant="secondary" className="text-xs font-mono">
+                <Badge variant="secondary" className="text-xs tabular-nums">
                   {standaloneCharters.length}
                 </Badge>
               </div>

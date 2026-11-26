@@ -1,5 +1,5 @@
 'use client';
-import {  createFileRoute  } from "@/src/lib/router-compat";
+import { createFileRoute } from "@/src/lib/router-compat";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -69,7 +69,7 @@ export default function MeInterviewsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="w-full space-y-6">
       <PageHeader
         title="My Interview Panels & Evaluations"
         description="Candidate interviews where you are assigned as an interviewer. Access meeting links and submit structured evaluations."

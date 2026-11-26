@@ -130,7 +130,7 @@ export default function HrExitsPage() {
 
                   return (
                     <TableRow key={e.id}>
-                      <TableCell className="font-mono text-xs font-semibold">{e.exitCode}</TableCell>
+                      <TableCell className="tabular-nums text-xs font-semibold">{e.exitCode}</TableCell>
                       <TableCell className="font-medium">
                         {e.employee?.firstName} {e.employee?.lastName}
                         <span className="block text-xs text-muted-foreground">{e.employee?.employeeCode}</span>
@@ -146,7 +146,7 @@ export default function HrExitsPage() {
                           <div className="w-20 bg-muted rounded-full h-2 overflow-hidden">
                             <div className="bg-primary h-full rounded-full" style={{ width: `${progressPct}%` }} />
                           </div>
-                          <span className="text-xs font-mono">
+                          <span className="text-xs tabular-nums">
                             {completedTasks}/{totalTasks}
                           </span>
                         </div>

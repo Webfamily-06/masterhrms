@@ -518,7 +518,7 @@ export default function HrProbationPage() {
             </div>
             <div>
               <Label className="text-xs text-muted-foreground">Evaluation Notes & Audit Log</Label>
-              <div className="mt-1 p-3 bg-muted rounded-md text-xs whitespace-pre-wrap font-mono max-h-60 overflow-y-auto">
+              <div className="mt-1 p-3 bg-muted rounded-md text-xs whitespace-pre-wrap tabular-nums max-h-60 overflow-y-auto">
                 {viewRecord?.notes || "No additional evaluation notes recorded."}
               </div>
             </div>

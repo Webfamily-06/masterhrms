@@ -162,7 +162,7 @@ export default function ChartersKanbanPage() {
                       {stage.name}
                     </h3>
                   </div>
-                  <Badge variant="secondary" className="text-xs h-5 px-1.5 font-mono">
+                  <Badge variant="secondary" className="text-xs h-5 px-1.5 tabular-nums">
                     {stageCharters.length}
                   </Badge>
                 </div>

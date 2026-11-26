@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.server = exports.app = void 0;
 exports.getMissingRequiredEnvNames = getMissingRequiredEnvNames;
+exports.isOriginAllowed = isOriginAllowed;
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const crypto_1 = __importDefault(require("crypto"));
@@ -37,6 +38,7 @@ process.on("uncaughtException", (err) => {
     console.error("Uncaught Exception:", err?.message || err, err?.stack || "");
 });
 const crypto_config_1 = require("./lib/crypto-config");
+const tenant_models_config_1 = require("./config/tenant-models.config");
 const REQUIRED_ENV_VARS = ["DATABASE_URL", "JWT_SECRET"];
 function getMissingRequiredEnvNames() {
     return REQUIRED_ENV_VARS.filter((name) => !process.env[name] || process.env[name]?.trim() === "");
@@ -45,9 +47,23 @@ const missingOnStartup = getMissingRequiredEnvNames();
 if (missingOnStartup.length > 0) {
     console.error("⚠️ [CONFIG] Missing required environment variables on startup:", missingOnStartup.join(", "));
 }
+// SEC-006: Validate tenant model classifications have zero conflicts on startup
+const modelClassificationCheck = (0, tenant_models_config_1.validateTenantModelClassifications)();
+if (!modelClassificationCheck.valid) {
+    const msg = `🛑 [CRITICAL SECURITY] Tenant model classification conflicts: ${modelClassificationCheck.conflicts.join("; ")}`;
+    console.error(msg);
+    if (process.env.NODE_ENV === "production") {
+        throw new Error(msg);
+    }
+}
+// SEC-010: Fail closed in production when mandatory cryptographic secrets are missing or weak
 const cryptoStartupCheck = (0, crypto_config_1.validateStartupCryptoConfig)();
 if (!cryptoStartupCheck.valid) {
-    console.error("🛑 [CRITICAL SECURITY] Cryptographic configuration errors on startup:", cryptoStartupCheck.errors.join("; "));
+    const msg = `🛑 [CRITICAL SECURITY] Cryptographic configuration errors on startup: ${cryptoStartupCheck.errors.join("; ")}`;
+    console.error(msg);
+    if (process.env.NODE_ENV === "production") {
+        throw new Error(msg);
+    }
 }
 if (cryptoStartupCheck.warnings.length > 0 && process.env.NODE_ENV === "production") {
     for (const warning of cryptoStartupCheck.warnings) {
@@ -218,27 +234,37 @@ app.set("trust proxy", 1);
 // Serverless-safe realtime delivery: hold the response until tracked Pusher / Web Push work completes
 app.use(background_tasks_1.backgroundTaskMiddleware);
 app.use(security_hardening_middleware_1.securityHeadersMiddleware);
-// CORS setup
+// SEC-008: Strict CORS allowlist (no wildcard *.vercel.app trust)
 const defaultAllowedOrigins = process.env.NODE_ENV === "production"
     ? "https://masterhrms.com,https://staging.masterhrms.com,https://masterhrms.vercel.app,https://www.masterhrms.com"
     : "http://localhost:5173,http://localhost:3000,http://localhost:8080";
 const allowedOrigins = (process.env.CORS_ORIGIN || defaultAllowedOrigins)
     .split(",")
-    .map((s) => s.trim());
+    .map((s) => s.trim())
+    .filter(Boolean);
+const explicitPreviewOrigins = (process.env.ALLOWED_PREVIEW_ORIGINS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 function isOriginAllowed(origin) {
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (allowedOrigins.includes(origin) || explicitPreviewOrigins.includes(origin)) {
         return true;
     }
     try {
         const url = new URL(origin);
         const host = url.hostname.toLowerCase();
+        const protocol = url.protocol.toLowerCase();
         const baseDomain = (0, workspace_host_1.getBaseDomain)().toLowerCase();
         // Allow localhost and *.localhost only in non-production
         if (process.env.NODE_ENV !== "production" && (host === "localhost" || host.endsWith(".localhost") || host === "127.0.0.1")) {
             return true;
         }
-        // Allow Vercel preview and canonical production domains
-        if (host === "masterhrms.vercel.app" || host.endsWith(".vercel.app") || host === "www.masterhrms.com" || host === "masterhrms.com") {
+        // In production, require HTTPS for canonical and tenant subdomains
+        if (process.env.NODE_ENV === "production" && protocol !== "https:") {
+            return false;
+        }
+        // Allow ONLY canonical production domains (never arbitrary *.vercel.app)
+        if (host === "masterhrms.vercel.app" || host === "www.masterhrms.com" || host === "masterhrms.com") {
             return true;
         }
         // Allow configured BASE_DOMAIN and *.{BASE_DOMAIN}

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { api, unwrapArray } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -124,6 +125,8 @@ const EMPTY_FORM = {
 };
 
 export default function HrPerformanceGoalsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
 
   // Filter & table state
@@ -320,13 +323,15 @@ export default function HrPerformanceGoalsPage() {
         title="Employee Goals"
         description="Set and track performance goals for your employees."
         actions={
-          <Button
-            onClick={openAddModal}
-            className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-xs"
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Add Goal
-          </Button>
+          !isEmployeePortal ? (
+            <Button
+              onClick={openAddModal}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Add Goal
+            </Button>
+          ) : undefined
         }
       />
 
@@ -593,15 +598,17 @@ export default function HrPerformanceGoalsPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-sky-600"
-                            title="Edit Goal"
-                            onClick={() => openEditModal(goal)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          {!isEmployeePortal && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-sky-600"
+                              title="Edit Goal"
+                              onClick={() => openEditModal(goal)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -614,15 +621,17 @@ export default function HrPerformanceGoalsPage() {
                           >
                             <BarChart2 className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600"
-                            title="Delete Goal"
-                            onClick={() => setDeleteGoal(goal)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {!isEmployeePortal && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600"
+                              title="Delete Goal"
+                              onClick={() => setDeleteGoal(goal)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

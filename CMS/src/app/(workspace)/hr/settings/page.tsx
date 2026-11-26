@@ -1238,7 +1238,7 @@ function Settings() {
               <Building2 className="size-5" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Organization & System Settings</h1>
-            <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary bg-primary/5">
+            <Badge variant="outline" className="text-[10px] tabular-nums border-primary/30 text-primary bg-primary/5">
               Control Panel
             </Badge>
           </div>
@@ -1270,7 +1270,7 @@ function Settings() {
                 icon={activeNavInfo?.item?.icon}
                 badge={
                   activeNavInfo?.item?.badge ? (
-                    <Badge variant="outline" className={cn("text-[10px] font-mono", activeNavInfo.item.badgeColor)}>
+                    <Badge variant="outline" className={cn("text-[10px] tabular-nums", activeNavInfo.item.badgeColor)}>
                       {activeNavInfo.item.badge}
                     </Badge>
                   ) : null
@@ -1489,7 +1489,7 @@ function Settings() {
                     Set organization-wide official check-in time, check-out time, grace period, and half-day thresholds.
                   </CardDescription>
                 </div>
-                <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-600 bg-emerald-500/5 font-bold">
+                <Badge variant="outline" className="text-[10px] tabular-nums border-emerald-500/30 text-emerald-600 bg-emerald-500/5 font-bold">
                   Active Shift Rule
                 </Badge>
               </div>
@@ -1506,7 +1506,7 @@ function Settings() {
                     type="time"
                     value={shiftStartTime}
                     onChange={(e) => setShiftStartTime(e.target.value)}
-                    className="font-mono text-xs h-9 bg-background"
+                    className="tabular-nums text-xs h-9 bg-background"
                   />
                   <span className="text-[10px] text-muted-foreground block">
                     Official work commencement (e.g. 09:30 AM)
@@ -1522,7 +1522,7 @@ function Settings() {
                     type="time"
                     value={shiftEndTime}
                     onChange={(e) => setShiftEndTime(e.target.value)}
-                    className="font-mono text-xs h-9 bg-background"
+                    className="tabular-nums text-xs h-9 bg-background"
                   />
                   <span className="text-[10px] text-muted-foreground block">
                     Official departure time (e.g. 06:30 PM)
@@ -1662,7 +1662,7 @@ function Settings() {
                     Define leave categories, yearly quota days, and color badges. Click Edit to modify any existing leave type.
                   </CardDescription>
                 </div>
-                <Badge variant="outline" className="text-[10px] font-mono border-amber-500/30 text-amber-600 bg-amber-500/5 font-bold">
+                <Badge variant="outline" className="text-[10px] tabular-nums border-amber-500/30 text-amber-600 bg-amber-500/5 font-bold">
                   {leaveTypes.length} Configured Types
                 </Badge>
               </div>
@@ -1692,7 +1692,7 @@ function Settings() {
                       placeholder="12"
                       value={newLTDays}
                       onChange={(e) => setNewLTDays(Number(e.target.value))}
-                      className="text-xs h-9 w-28 font-mono bg-background"
+                      className="text-xs h-9 w-28 tabular-nums bg-background"
                     />
                   </div>
 
@@ -1705,7 +1705,7 @@ function Settings() {
                         onChange={(e) => setNewLTColor(e.target.value)}
                         className="size-6 rounded border-0 cursor-pointer p-0"
                       />
-                      <span className="font-mono text-[10px] uppercase text-muted-foreground">{newLTColor}</span>
+                      <span className="tabular-nums text-[10px] uppercase text-muted-foreground">{newLTColor}</span>
                     </div>
                   </div>
 
@@ -1739,7 +1739,7 @@ function Settings() {
                         />
                         <div>
                           <strong className="font-bold text-foreground text-xs block">{lt.name}</strong>
-                          <span className="text-[11px] text-muted-foreground font-mono">
+                          <span className="text-[11px] text-muted-foreground tabular-nums">
                             {lt.daysPerYear} days per year quota
                           </span>
                         </div>
@@ -1807,7 +1807,7 @@ function Settings() {
                   <Input
                     disabled
                     value={profile?.tenant?.slug || "tsvhomes"}
-                    className="text-xs h-9 bg-muted/40 font-mono"
+                    className="text-xs h-9 bg-muted/40 tabular-nums"
                   />
                 </div>
 
@@ -1945,7 +1945,7 @@ function Settings() {
                             {mod.title}
                           </strong>
                         </div>
-                        <Badge variant="outline" className={`text-[9px] font-mono font-bold px-1.5 py-0 border ${mod.badgeColor}`}>
+                        <Badge variant="outline" className={`text-[9px] tabular-nums font-bold px-1.5 py-0 border ${mod.badgeColor}`}>
                           {mod.badge}
                         </Badge>
                       </div>
@@ -1980,7 +1980,7 @@ function Settings() {
                       Configure PTO categories, annual day allocations, and color tags. Click Edit to change existing policies.
                     </CardDescription>
                   </div>
-                  <Badge variant="outline" className="text-[10px] font-mono border-amber-500/30 text-amber-600 bg-amber-500/5 font-bold">
+                  <Badge variant="outline" className="text-[10px] tabular-nums border-amber-500/30 text-amber-600 bg-amber-500/5 font-bold">
                     {leaveTypes.length} Total Types
                   </Badge>
                 </div>
@@ -2010,7 +2010,7 @@ function Settings() {
                         placeholder="12"
                         value={newLTDays}
                         onChange={(e) => setNewLTDays(Number(e.target.value))}
-                        className="text-xs h-9 w-28 font-mono bg-background"
+                        className="text-xs h-9 w-28 tabular-nums bg-background"
                       />
                     </div>
 
@@ -2023,7 +2023,7 @@ function Settings() {
                           onChange={(e) => setNewLTColor(e.target.value)}
                           className="size-6 rounded border-0 cursor-pointer p-0"
                         />
-                        <span className="font-mono text-[10px] uppercase text-muted-foreground">{newLTColor}</span>
+                        <span className="tabular-nums text-[10px] uppercase text-muted-foreground">{newLTColor}</span>
                       </div>
                     </div>
 
@@ -2057,7 +2057,7 @@ function Settings() {
                           />
                           <div>
                             <strong className="font-bold text-foreground text-xs block">{lt.name}</strong>
-                            <span className="text-[11px] text-muted-foreground font-mono">
+                            <span className="text-[11px] text-muted-foreground tabular-nums">
                               {lt.daysPerYear} days per year quota
                             </span>
                           </div>
@@ -2210,7 +2210,7 @@ function Settings() {
 
                 <Badge
                   variant="outline"
-                  className={`text-xs font-mono font-bold px-2.5 py-0.5 ${
+                  className={`text-xs tabular-nums font-bold px-2.5 py-0.5 ${
                     twoFactorStatus?.twoFactorEnabled
                       ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
                       : "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
@@ -2253,20 +2253,20 @@ function Settings() {
                       <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
                         Registered Email
                       </span>
-                      <div className="flex items-center gap-1.5 font-mono font-bold text-foreground text-xs">
+                      <div className="flex items-center gap-1.5 tabular-nums font-bold text-foreground text-xs">
                         <span>{twoFactorStatus?.maskedEmail || profile?.email || "••••@company.com"}</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="pt-2 flex items-center gap-3 flex-wrap">
-                    <Link to="/two-factor-auth">
+                    <Link to="/profile">
                       <Button size="sm" className="bg-primary text-primary-foreground font-bold text-xs h-8 gap-1.5">
                         <ShieldCheck className="size-3.5" />
                         <span>Manage Authenticator App (2FA)</span>
                       </Button>
                     </Link>
-                    <Link to="/setup-notes">
+                    <Link to="/tenant/settings">
                       <Button size="sm" variant="outline" className="text-xs font-bold gap-1.5 h-8">
                         <HelpCircle className="size-3.5 text-primary" />
                         <span>View 2FA Setup & Login Guide</span>
@@ -2294,20 +2294,20 @@ function Settings() {
                     <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
                       Registered Delivery Destination
                     </span>
-                    <div className="flex items-center gap-1.5 font-mono font-bold text-foreground text-xs">
+                    <div className="flex items-center gap-1.5 tabular-nums font-bold text-foreground text-xs">
                       <Mail className="size-3.5 text-primary" />
                       <span>{twoFactorStatus?.maskedEmail || profile?.email || "••••@company.com"}</span>
                     </div>
                   </div>
 
                   <div className="pt-1 flex items-center gap-2 flex-wrap">
-                    <Link to="/two-factor-auth">
+                    <Link to="/profile">
                       <Button size="sm" className="bg-primary text-primary-foreground font-bold text-xs h-8 gap-1.5">
                         <ShieldCheck className="size-3.5" />
                         <span>Configure Authenticator App (2FA)</span>
                       </Button>
                     </Link>
-                    <Link to="/setup-notes">
+                    <Link to="/tenant/settings">
                       <Button size="sm" variant="outline" className="font-bold text-xs h-8 gap-1.5">
                         <HelpCircle className="size-3.5" />
                         <span>Read 2FA Setup Guide</span>
@@ -2389,7 +2389,7 @@ function Settings() {
                       placeholder="sk-proj-..."
                       value={aiSettings.openaiKey}
                       onChange={(e) => setAiSettings({ ...aiSettings, openaiKey: e.target.value })}
-                      className="h-8 text-xs font-mono"
+                      className="h-8 text-xs tabular-nums"
                     />
                   </div>
                   <div className="space-y-1">
@@ -2436,7 +2436,7 @@ function Settings() {
                       placeholder="AIzaSy..."
                       value={aiSettings.geminiKey}
                       onChange={(e) => setAiSettings({ ...aiSettings, geminiKey: e.target.value })}
-                      className="h-8 text-xs font-mono"
+                      className="h-8 text-xs tabular-nums"
                     />
                   </div>
                   <div className="space-y-1">
@@ -2480,7 +2480,7 @@ function Settings() {
                       placeholder="sk-ant-api..."
                       value={aiSettings.claudeKey}
                       onChange={(e) => setAiSettings({ ...aiSettings, claudeKey: e.target.value })}
-                      className="h-8 text-xs font-mono"
+                      className="h-8 text-xs tabular-nums"
                     />
                   </div>
                   <div className="space-y-1">
@@ -2593,7 +2593,7 @@ function Settings() {
                             const val = parseInt(e.target.value) || 0;
                             setApprovalWorkflows(approvalWorkflows.map(item => item.id === w.id ? { ...item, autoApproveDays: val } : item));
                           }}
-                          className="h-7 text-xs font-mono font-bold"
+                          className="h-7 text-xs tabular-nums font-bold"
                         />
                       </div>
                       <div className="p-2 rounded border bg-background space-y-1">
@@ -2647,7 +2647,7 @@ function Settings() {
                     type="number"
                     value={salaryConfig.daPercent}
                     onChange={(e) => setSalaryConfig({ ...salaryConfig, daPercent: e.target.value })}
-                    className="h-9 text-xs font-mono font-bold"
+                    className="h-9 text-xs tabular-nums font-bold"
                   />
                   <span className="text-[10px] text-muted-foreground">Standard 10% - 15%</span>
                 </div>
@@ -2658,7 +2658,7 @@ function Settings() {
                     type="number"
                     value={salaryConfig.hraPercent}
                     onChange={(e) => setSalaryConfig({ ...salaryConfig, hraPercent: e.target.value })}
-                    className="h-9 text-xs font-mono font-bold"
+                    className="h-9 text-xs tabular-nums font-bold"
                   />
                   <span className="text-[10px] text-muted-foreground">Metro: 50%, Non-Metro: 40%</span>
                 </div>
@@ -2669,7 +2669,7 @@ function Settings() {
                     type="number"
                     value={salaryConfig.pfEmployeePercent}
                     onChange={(e) => setSalaryConfig({ ...salaryConfig, pfEmployeePercent: e.target.value })}
-                    className="h-9 text-xs font-mono font-bold"
+                    className="h-9 text-xs tabular-nums font-bold"
                   />
                   <span className="text-[10px] text-muted-foreground">Statutory PF Deduction (12.0%)</span>
                 </div>
@@ -2680,7 +2680,7 @@ function Settings() {
                     type="number"
                     value={salaryConfig.pfEmployerPercent}
                     onChange={(e) => setSalaryConfig({ ...salaryConfig, pfEmployerPercent: e.target.value })}
-                    className="h-9 text-xs font-mono font-bold"
+                    className="h-9 text-xs tabular-nums font-bold"
                   />
                   <span className="text-[10px] text-muted-foreground">Organization matching share (12.0%)</span>
                 </div>
@@ -2691,7 +2691,7 @@ function Settings() {
                     type="number"
                     value={salaryConfig.professionalTax}
                     onChange={(e) => setSalaryConfig({ ...salaryConfig, professionalTax: e.target.value })}
-                    className="h-9 text-xs font-mono font-bold"
+                    className="h-9 text-xs tabular-nums font-bold"
                   />
                   <span className="text-[10px] text-muted-foreground">Standard ₹200 / month</span>
                 </div>
@@ -2703,7 +2703,7 @@ function Settings() {
                     step="0.1"
                     value={salaryConfig.overtimeHourlyMultiplier}
                     onChange={(e) => setSalaryConfig({ ...salaryConfig, overtimeHourlyMultiplier: e.target.value })}
-                    className="h-9 text-xs font-mono font-bold"
+                    className="h-9 text-xs tabular-nums font-bold"
                   />
                   <span className="text-[10px] text-muted-foreground">1.5x regular hourly wage</span>
                 </div>
@@ -2743,7 +2743,7 @@ function Settings() {
                   <Input
                     value={invoiceConfig.invoicePrefix}
                     onChange={(e) => setInvoiceConfig({ ...invoiceConfig, invoicePrefix: e.target.value })}
-                    className="h-9 text-xs font-mono font-bold"
+                    className="h-9 text-xs tabular-nums font-bold"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -2751,7 +2751,7 @@ function Settings() {
                   <Input
                     value={invoiceConfig.estimatePrefix}
                     onChange={(e) => setInvoiceConfig({ ...invoiceConfig, estimatePrefix: e.target.value })}
-                    className="h-9 text-xs font-mono font-bold"
+                    className="h-9 text-xs tabular-nums font-bold"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -2760,7 +2760,7 @@ function Settings() {
                     type="number"
                     value={invoiceConfig.dueDays}
                     onChange={(e) => setInvoiceConfig({ ...invoiceConfig, dueDays: e.target.value })}
-                    className="h-9 text-xs font-mono"
+                    className="h-9 text-xs tabular-nums"
                   />
                 </div>
               </div>
@@ -2779,7 +2779,7 @@ function Settings() {
                   <Input
                     value={invoiceConfig.accountNumber}
                     onChange={(e) => setInvoiceConfig({ ...invoiceConfig, accountNumber: e.target.value })}
-                    className="h-9 text-xs font-mono font-bold"
+                    className="h-9 text-xs tabular-nums font-bold"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -2787,7 +2787,7 @@ function Settings() {
                   <Input
                     value={invoiceConfig.ifscSwift}
                     onChange={(e) => setInvoiceConfig({ ...invoiceConfig, ifscSwift: e.target.value })}
-                    className="h-9 text-xs font-mono"
+                    className="h-9 text-xs tabular-nums"
                   />
                 </div>
               </div>
@@ -2798,7 +2798,7 @@ function Settings() {
                   rows={3}
                   value={invoiceConfig.terms}
                   onChange={(e) => setInvoiceConfig({ ...invoiceConfig, terms: e.target.value })}
-                  className="text-xs font-mono"
+                  className="text-xs tabular-nums"
                 />
               </div>
 
@@ -2853,7 +2853,7 @@ function Settings() {
                         </Badge>
                       </td>
                       <td className="p-3 font-bold text-foreground">{cf.label}</td>
-                      <td className="p-3 font-mono text-muted-foreground">{cf.type}</td>
+                      <td className="p-3 tabular-nums text-muted-foreground">{cf.type}</td>
                       <td className="p-3 text-muted-foreground max-w-xs truncate">{cf.options || "—"}</td>
                       <td className="p-3">
                         {cf.required ? (
@@ -2924,7 +2924,7 @@ function Settings() {
                     type="number"
                     value={editingLT.daysPerYear}
                     onChange={(e) => setEditingLT({ ...editingLT, daysPerYear: Number(e.target.value) })}
-                    className="text-xs h-9 font-mono"
+                    className="text-xs h-9 tabular-nums"
                   />
                 </div>
 
@@ -2937,7 +2937,7 @@ function Settings() {
                       onChange={(e) => setEditingLT({ ...editingLT, color: e.target.value })}
                       className="size-6 rounded border-0 cursor-pointer p-0"
                     />
-                    <span className="font-mono text-[10px] uppercase text-muted-foreground">{editingLT.color || "#3B82F6"}</span>
+                    <span className="tabular-nums text-[10px] uppercase text-muted-foreground">{editingLT.color || "#3B82F6"}</span>
                   </div>
                 </div>
               </div>
@@ -2986,7 +2986,7 @@ function Settings() {
               <div className="p-3 bg-white rounded-xl border grid place-items-center w-fit mx-auto shadow-2xs">
                 <img src={qrData.qrCodeDataUrl} alt="2FA QR Code" className="size-44"  loading="lazy"/>
               </div>
-              <div className="p-2 rounded-lg bg-muted/40 font-mono text-[11px] flex items-center justify-between border">
+              <div className="p-2 rounded-lg bg-muted/40 tabular-nums text-[11px] flex items-center justify-between border">
                 <span className="truncate">{qrData.secret}</span>
                 <Button size="sm" variant="ghost" onClick={() => copyToClipboard(qrData.secret)} className="h-6 px-2 text-xs">
                   <Copy className="size-3" />
@@ -3020,7 +3020,7 @@ function Settings() {
                   value={confirmTotpToken}
                   onChange={(e) => setConfirmTotpToken(e.target.value)}
                   placeholder="000000"
-                  className="text-xs font-mono text-center tracking-widest text-base font-bold h-10"
+                  className="text-xs tabular-nums text-center tracking-widest text-base font-bold h-10"
                 />
               </div>
               <DialogFooter className="pt-2 flex justify-between">
@@ -3047,7 +3047,7 @@ function Settings() {
                 </strong>
                 <p className="text-[11px]">Save these emergency backup codes in a secure location.</p>
               </div>
-              <div className="grid grid-cols-2 gap-1.5 p-2.5 rounded-lg bg-muted/40 border font-mono text-[11px]">
+              <div className="grid grid-cols-2 gap-1.5 p-2.5 rounded-lg bg-muted/40 border tabular-nums text-[11px]">
                 {generatedBackupCodes.map((code, idx) => (
                   <div key={idx} className="p-1 bg-background rounded border text-center font-bold">
                     {code}

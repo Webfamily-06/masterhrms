@@ -156,17 +156,17 @@ function AiAssistantHistoryPage() {
                     className="px-4 py-3 grid grid-cols-12 gap-2 items-center hover:bg-muted/20 transition-colors"
                   >
                     <div className="col-span-2">
-                      <Badge variant="outline" className="text-[10px] font-mono">
+                      <Badge variant="outline" className="text-[10px] tabular-nums">
                         {item.moduleSlug}
                       </Badge>
                     </div>
-                    <div className="col-span-2 font-mono text-[11px] font-medium text-foreground">
+                    <div className="col-span-2 tabular-nums text-[11px] font-medium text-foreground">
                       {item.fieldKey}
                     </div>
                     <div className="col-span-4 text-muted-foreground truncate" title={item.promptExcerpt}>
                       {item.promptExcerpt}
                     </div>
-                    <div className="col-span-2 text-center font-mono text-muted-foreground">
+                    <div className="col-span-2 text-center tabular-nums text-muted-foreground">
                       {item.tokensIn + item.tokensOut}
                     </div>
                     <div className="col-span-2 flex justify-end">

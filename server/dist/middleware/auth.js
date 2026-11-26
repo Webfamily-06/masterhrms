@@ -374,23 +374,30 @@ function requirePermission(permissionCode) {
                     assignment = null;
                 }
             }
+            // SEC-009: Deny-by-default RBAC enforcement.
+            // Never bypass permission checks when role assignment is missing, inactive, or belongs to a different tenant.
             if (!assignment || !assignment.role || !assignment.role.isActive) {
-                if (req.user.roles?.includes("admin") || req.user.roles?.includes("hr_admin") || req.user.roles?.includes("Workspace Admin")) {
-                    return next();
-                }
                 return res.status(403).json({
                     error: "Forbidden: No active role assigned in this workspace",
+                    code: "RBAC_NO_ACTIVE_ROLE",
                 });
             }
-            // Workspace Admin role has full access
+            if (assignment.tenantId !== tenantId || (assignment.role.tenantId && assignment.role.tenantId !== tenantId)) {
+                return res.status(403).json({
+                    error: "Forbidden: Role assignment does not belong to the authenticated workspace",
+                    code: "RBAC_TENANT_MISMATCH",
+                });
+            }
+            // Workspace Admin role has full access within its own verified tenant
             if (assignment.role.name === "Workspace Admin") {
                 return next();
             }
             // 4. Verify permission exists on role
-            const hasPerm = assignment.role.permissions.some((rp) => rp.permission.code === permissionCode);
+            const hasPerm = Array.isArray(assignment.role.permissions) && assignment.role.permissions.some((rp) => rp.permission?.code === permissionCode);
             if (!hasPerm) {
                 return res.status(403).json({
                     error: "Forbidden: You do not have permission (" + permissionCode + ") to perform this action",
+                    code: "RBAC_PERMISSION_DENIED",
                 });
             }
             next();

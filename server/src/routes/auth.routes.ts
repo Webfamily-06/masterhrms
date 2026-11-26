@@ -23,6 +23,7 @@ import { rawPrisma, prisma as proxiedPrisma } from "../prisma";
 const prisma = rawPrisma || proxiedPrisma;
 import { generateToken, generateMfaToken, verifyMfaToken } from "../lib/jwt";
 import { recordLoginHistory } from "../services/login-history.service";
+import { checkTenantIpAccess } from "../services/tenant-ip-restriction.service";
 import { createDeviceSession, getActiveSessions, revokeSession, revokeAllSessions, hashRefreshToken, rotateRefreshToken } from "../services/device-session.service";
 import { provisionTenantWithTrial } from "../lib/tenant-provisioning";
 import {
@@ -729,6 +730,20 @@ const loginHandler = async (req: any, res: Response) => {
         return res.status(403).json({
           error: "Your login account for this workspace has been deactivated. Please contact your administrator.",
           code: "ACCOUNT_DEACTIVATED",
+        });
+      }
+    }
+
+    // Tenant-Scoped IP Restriction Check on Login (Applies ONLY to this user's tenant; Super Admins & other tenants unaffected)
+    const loginIsSuper = user.roles.some((r: any) => r.role === "super_admin");
+    const loginTenantId = (req as any).resolvedTenant?.id || user.profile?.tenantId || null;
+    if (!loginIsSuper && loginTenantId) {
+      const ipCheck = await checkTenantIpAccess(loginTenantId, req, loginIsSuper);
+      if (!ipCheck.allowed) {
+        return res.status(403).json({
+          error: ipCheck.reason || "Login blocked by your organization's IP Restriction policy.",
+          code: "TENANT_IP_RESTRICTED",
+          clientIp: ipCheck.clientIp,
         });
       }
     }
@@ -2394,28 +2409,108 @@ authRouter.post("/bootstrap-tenant", requireAuth, async (req: AuthRequest, res: 
 // PUT /api/auth/profile
 authRouter.put("/profile", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const { fullName, avatarUrl, password } = req.body;
+    const userId = req.user!.userId;
+    const { fullName, email, phone, avatarUrl, password } = req.body || {};
 
-    if (fullName !== undefined || avatarUrl !== undefined) {
-      await prisma.profile.update({
-        where: { userId: req.user!.userId },
-        data: {
-          ...(fullName !== undefined ? { fullName } : {}),
-          ...(avatarUrl !== undefined ? { avatarUrl } : {}),
-        },
-      });
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    });
+    if (!currentUser) {
+      return res.status(404).json({ error: "User account not found." });
     }
 
-    if (password) {
-      const passwordHash = await bcrypt.hash(password, 10);
+    let emailChanged = false;
+    let passwordChanged = false;
+    let nextEmail = currentUser.email;
+
+    if (email !== undefined && typeof email === "string") {
+      const cleanedEmail = email.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)) {
+        return res.status(400).json({ error: "Please enter a valid email address." });
+      }
+      if (cleanedEmail !== currentUser.email.toLowerCase()) {
+        const dup = await prisma.user.findUnique({ where: { email: cleanedEmail } });
+        if (dup && dup.id !== userId) {
+          return res.status(409).json({ error: "This email address is already registered to another account." });
+        }
+        await prisma.user.update({
+          where: { id: userId },
+          data: { email: cleanedEmail },
+        });
+        nextEmail = cleanedEmail;
+        emailChanged = true;
+      }
+    }
+
+    const profileUpdates: Record<string, any> = {};
+    if (fullName !== undefined && typeof fullName === "string" && fullName.trim()) {
+      profileUpdates.fullName = fullName.trim();
+    }
+    if (phone !== undefined) {
+      profileUpdates.phone = phone ? String(phone).trim() : null;
+    }
+    if (avatarUrl !== undefined) {
+      profileUpdates.avatarUrl = avatarUrl;
+    }
+    if (emailChanged) {
+      profileUpdates.email = nextEmail;
+    }
+
+    if (Object.keys(profileUpdates).length > 0) {
+      if (currentUser.profile) {
+        await prisma.profile.update({
+          where: { userId },
+          data: profileUpdates,
+        });
+      } else {
+        await prisma.profile.create({
+          data: {
+            userId,
+            fullName: profileUpdates.fullName || nextEmail.split("@")[0],
+            email: nextEmail,
+            phone: profileUpdates.phone ?? null,
+            avatarUrl: profileUpdates.avatarUrl ?? null,
+            tenantId: req.tenantId || null,
+          },
+        });
+      }
+    }
+
+    // Also sync name, email, and phone to linked Employee records in DB
+    const empUpdates: Record<string, any> = {};
+    if (profileUpdates.fullName) {
+      const parts = String(profileUpdates.fullName).trim().split(/\s+/);
+      empUpdates.firstName = parts[0] || profileUpdates.fullName;
+      empUpdates.lastName = parts.slice(1).join(" ") || "";
+    }
+    if (emailChanged) empUpdates.email = nextEmail;
+    if (phone !== undefined) empUpdates.phone = phone ? String(phone).trim() : null;
+    if (Object.keys(empUpdates).length > 0) {
+      await prisma.employee
+        .updateMany({
+          where: { userId },
+          data: empUpdates,
+        })
+        .catch(() => {});
+    }
+
+    if (password && typeof password === "string" && password.trim().length >= 6) {
+      const passwordHash = await bcrypt.hash(password.trim(), 10);
       await prisma.user.update({
-        where: { id: req.user!.userId },
+        where: { id: userId },
         data: { passwordHash },
       });
+      passwordChanged = true;
+    }
+
+    const requireRelogin = emailChanged || passwordChanged;
+    if (requireRelogin) {
+      await revokeAllSessions(userId).catch(() => {});
     }
 
     const updatedUser = await prisma.user.findUnique({
-      where: { id: req.user!.userId },
+      where: { id: userId },
       include: {
         profile: {
           include: {
@@ -2436,12 +2531,16 @@ authRouter.put("/profile", requireAuth, async (req: AuthRequest, res: Response) 
       },
     });
 
-    // Invalidate 60-second auth cache and 5-minute chat profile cache immediately on profile/password change
-    invalidateAuthCache(req.user!.userId, req.tenantId);
-    invalidateChatProfileCache(req.user!.userId, req.tenantId);
+    // Invalidate auth cache & chat profile cache immediately
+    invalidateAuthCache(userId, req.tenantId);
+    invalidateChatProfileCache(userId, req.tenantId);
 
     return res.json({
       success: true,
+      requireRelogin,
+      message: requireRelogin
+        ? "Account credentials updated. Please sign in again with your updated email/password."
+        : "Profile information updated successfully.",
       user: {
         id: updatedUser!.id,
         email: updatedUser!.email,
@@ -3286,7 +3385,8 @@ authRouter.post("/change-password", requireAuth, async (req: AuthRequest, res: R
   try {
     const userId = req.user!.userId;
     const tenantId = req.user!.tenantId || req.tenantId || undefined;
-    const { currentPassword, newPassword, otp } = req.body || {};
+    const { currentPassword, newPassword, otp, otpCode } = req.body || {};
+    const resolvedOtp = String(otp || otpCode || "").trim();
 
     if (!currentPassword) {
       return res.status(400).json({ error: "Current password is required." });
@@ -3294,7 +3394,7 @@ authRouter.post("/change-password", requireAuth, async (req: AuthRequest, res: R
     if (!newPassword || String(newPassword).length < 6) {
       return res.status(400).json({ error: "New password must be at least 6 characters long." });
     }
-    if (!otp || String(otp).trim().length !== 6) {
+    if (!resolvedOtp || resolvedOtp.length !== 6) {
       return res.status(400).json({ error: "A valid 6-digit confirmation OTP from your email is required." });
     }
 
@@ -3330,7 +3430,7 @@ authRouter.post("/change-password", requireAuth, async (req: AuthRequest, res: R
       return res.status(400).json({ error: "Confirmation OTP has expired. Please request a new OTP." });
     }
 
-    const providedHash = crypto.createHash("sha256").update(String(otp).trim()).digest("hex");
+    const providedHash = crypto.createHash("sha256").update(resolvedOtp).digest("hex");
     if (providedHash !== parsedOtp.otpHash) {
       return res.status(400).json({ error: "Invalid confirmation OTP. Please check your email and try again." });
     }
@@ -3342,6 +3442,8 @@ authRouter.post("/change-password", requireAuth, async (req: AuthRequest, res: R
     });
 
     await prisma.setting.delete({ where: { id: otpSetting.id } }).catch(() => {});
+    // Revoke all active sessions so user must re-login with the updated password
+    await revokeAllSessions(userId).catch(() => {});
     invalidateAuthCache(userId, tenantId);
 
     await sendPasswordChangedEmail({
@@ -3350,7 +3452,11 @@ authRouter.post("/change-password", requireAuth, async (req: AuthRequest, res: R
       tenantId,
     }).catch((mailErr) => console.warn("[Change Password] notification email warning:", mailErr?.message));
 
-    return res.json({ success: true, message: "Your password has been changed successfully." });
+    return res.json({
+      success: true,
+      requireRelogin: true,
+      message: "Your password has been changed successfully. Please sign in with your new password.",
+    });
   } catch (err: any) {
     return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to update password." });
   }

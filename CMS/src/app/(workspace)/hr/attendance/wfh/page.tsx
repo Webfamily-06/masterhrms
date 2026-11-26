@@ -316,7 +316,7 @@ export default function HrWorkFromHomePage() {
 
                   return (
                     <TableRow key={record.id} className="hover:bg-muted/40 transition-colors text-xs">
-                      <TableCell className="p-3 font-mono font-bold text-muted-foreground">
+                      <TableCell className="p-3 tabular-nums font-bold text-muted-foreground">
                         {emp?.employeeCode ?? "EMP-001"}
                       </TableCell>
 
@@ -338,12 +338,12 @@ export default function HrWorkFromHomePage() {
                         {emp?.department?.name ?? "—"}
                       </TableCell>
 
-                      <TableCell className="p-3 font-mono text-muted-foreground">
+                      <TableCell className="p-3 tabular-nums text-muted-foreground">
                         {record.fromDate ? format(new Date(record.fromDate), "dd MMM yyyy") : "—"} →{" "}
                         {record.toDate ? format(new Date(record.toDate), "dd MMM yyyy") : "—"}
                       </TableCell>
 
-                      <TableCell className="p-3 font-mono font-bold text-foreground">
+                      <TableCell className="p-3 tabular-nums font-bold text-foreground">
                         {days(record.fromDate, record.toDate)} day(s)
                       </TableCell>
 

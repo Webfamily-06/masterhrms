@@ -289,7 +289,7 @@ export default function MyNotesPage() {
   const trashCount = notes.filter((n) => n.isTrash).length;
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full space-y-6">
       {/* ─── PageHeader ─── */}
       <PageHeader
         title="My Notes"
@@ -299,7 +299,7 @@ export default function MyNotesPage() {
           { label: 'My Notes' },
         ]}
         badge={
-          <Badge variant="outline" className="text-[10px] font-mono border-border/80">
+          <Badge variant="outline" className="text-[10px] border-border/80">
             {filteredNotes.length} Notes Shown
           </Badge>
         }
@@ -514,7 +514,7 @@ export default function MyNotesPage() {
                 </div>
 
                 <div className="border-t border-border/60 pt-2.5 flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span className="font-mono text-[10px] flex items-center gap-1">
+                  <span className="text-[10px] flex items-center gap-1 tabular-nums">
                     <i className="ph ph-clock text-muted-foreground/70 text-xs" />{' '}
                     {note.updatedAt.slice(0, 10)}
                   </span>
@@ -655,7 +655,7 @@ export default function MyNotesPage() {
                 placeholder="Write your note here..."
                 value={form.content}
                 onChange={(e) => setForm({ ...form, content: e.target.value })}
-                className="mt-1 text-xs font-mono"
+                className="mt-1 text-xs"
               />
             </div>
           </div>

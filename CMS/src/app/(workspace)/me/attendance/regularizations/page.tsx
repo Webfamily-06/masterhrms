@@ -86,7 +86,7 @@ export default function MeAttendanceRegularizationsPage() {
   const rejectedCount = regularizations.filter((r: any) => r.status === "REJECTED").length;
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       <PageHeader
         title="My Regularization Requests"
         description="Submit punch adjustment requests for missed biometric scans or outdoor duties."
@@ -137,10 +137,10 @@ export default function MeAttendanceRegularizationsPage() {
                 ) : (
                   regularizations.map((r: any) => (
                     <tr key={r.id} className="hover:bg-muted/30">
-                      <td className="py-3 px-4 font-mono text-xs font-semibold whitespace-nowrap">
+                      <td className="py-3 px-4 tabular-nums text-xs font-semibold whitespace-nowrap">
                         {new Date(r.attendanceDate).toLocaleDateString()}
                       </td>
-                      <td className="py-3 px-4 font-mono text-xs whitespace-nowrap">
+                      <td className="py-3 px-4 tabular-nums text-xs whitespace-nowrap">
                         <div>In: {r.proposedIn ? new Date(r.proposedIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</div>
                         <div>Out: {r.proposedOut ? new Date(r.proposedOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</div>
                       </td>
@@ -164,7 +164,7 @@ export default function MeAttendanceRegularizationsPage() {
                       <td className="py-3 px-4 text-xs text-muted-foreground">
                         {r.reviewComments || "—"}
                       </td>
-                      <td className="py-3 px-4 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                      <td className="py-3 px-4 tabular-nums text-xs text-muted-foreground whitespace-nowrap">
                         {new Date(r.createdAt).toLocaleDateString()}
                       </td>
                     </tr>

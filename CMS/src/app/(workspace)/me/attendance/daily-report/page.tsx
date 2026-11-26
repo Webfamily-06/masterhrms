@@ -142,7 +142,7 @@ export default function MyDailyReportPage() {
   const todayReport = reportList.find((r) => r.date === format(new Date(), 'yyyy-MM-dd'));
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full space-y-6">
       {/* ─── PageHeader ──────────────────────────────────────────────────────── */}
       <PageHeader
         title="My Daily Work Report"
@@ -363,7 +363,7 @@ export default function MyDailyReportPage() {
                       <TableCell className="p-3 text-xs font-semibold text-foreground">
                         {format(new Date(entry.date), 'dd MMM yyyy')}
                       </TableCell>
-                      <TableCell className="p-3 text-xs font-mono text-muted-foreground">
+                      <TableCell className="p-3 text-xs tabular-nums text-muted-foreground">
                         {entry.hours} hrs
                       </TableCell>
                       <TableCell className="p-3 text-xs text-muted-foreground">

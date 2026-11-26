@@ -102,7 +102,7 @@ function WebhookEventCatalogPage() {
             </Select>
           </div>
 
-          <div className="text-xs text-muted-foreground font-mono">
+          <div className="text-xs text-muted-foreground tabular-nums">
             {filtered.length} event{filtered.length === 1 ? "" : "s"} available
           </div>
         </div>
@@ -125,7 +125,7 @@ function WebhookEventCatalogPage() {
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <Badge variant="outline" className="text-[10px] font-mono mb-1">
+                      <Badge variant="outline" className="text-[10px] tabular-nums mb-1">
                         {item.module}
                       </Badge>
                       <CardTitle className="text-sm font-bold text-foreground">
@@ -136,7 +136,7 @@ function WebhookEventCatalogPage() {
                       size="sm"
                       variant="ghost"
                       onClick={() => copyEventKey(item.key)}
-                      className="h-7 text-[10px] font-mono gap-1 text-muted-foreground hover:text-foreground"
+                      className="h-7 text-[10px] tabular-nums gap-1 text-muted-foreground hover:text-foreground"
                     >
                       {copiedKey === item.key ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
                       {item.key}
@@ -148,13 +148,13 @@ function WebhookEventCatalogPage() {
                 </CardHeader>
                 <CardContent className="space-y-3 pt-0">
                   <div className="p-3 bg-muted/40 rounded-xl border text-xs space-y-1">
-                    <div className="flex items-center justify-between text-[10px] font-mono font-bold text-muted-foreground uppercase">
+                    <div className="flex items-center justify-between text-[10px] tabular-nums font-bold text-muted-foreground uppercase">
                       <span className="flex items-center gap-1">
                         <Code className="size-3" /> Payload Schema
                       </span>
                       <span>JSON Object</span>
                     </div>
-                    <pre className="text-[11px] font-mono text-foreground leading-relaxed overflow-x-auto p-2 bg-card rounded border max-h-36">
+                    <pre className="text-[11px] tabular-nums text-foreground leading-relaxed overflow-x-auto p-2 bg-card rounded border max-h-36">
 {JSON.stringify(item.payloadSchema, null, 2)}
                     </pre>
                   </div>

@@ -68,7 +68,7 @@ export default function HrAttendanceLivePage() {
           />
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground tabular-nums">
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
@@ -130,7 +130,7 @@ export default function HrAttendanceLivePage() {
             <CardTitle className="text-base font-semibold">Today's Punch Stream</CardTitle>
             <CardDescription>Live log of punches recorded for today</CardDescription>
           </div>
-          <span className="text-xs text-muted-foreground font-mono">
+          <span className="text-xs text-muted-foreground tabular-nums">
             Updated: {lastRefreshed.toLocaleTimeString()}
           </span>
         </CardHeader>
@@ -166,20 +166,20 @@ export default function HrAttendanceLivePage() {
                     <tr key={p.id} className="hover:bg-muted/30">
                       <td className="px-6 py-3.5 font-medium">
                         {p.employee?.firstName} {p.employee?.lastName}
-                        <span className="block text-xs text-muted-foreground font-mono">
+                        <span className="block text-xs text-muted-foreground tabular-nums">
                           {p.employee?.employeeCode}
                         </span>
                       </td>
                       <td className="px-6 py-3.5 text-xs text-muted-foreground">
                         {p.employee?.department?.name || "General"}
                       </td>
-                      <td className="px-6 py-3.5 text-xs font-mono font-medium text-emerald-600">
+                      <td className="px-6 py-3.5 text-xs tabular-nums font-medium text-emerald-600">
                         {p.checkIn ? new Date(p.checkIn).toLocaleTimeString() : "--:--"}
                       </td>
-                      <td className="px-6 py-3.5 text-xs font-mono text-blue-600">
+                      <td className="px-6 py-3.5 text-xs tabular-nums text-blue-600">
                         {p.checkOut ? new Date(p.checkOut).toLocaleTimeString() : "--:--"}
                       </td>
-                      <td className="px-6 py-3.5 text-xs font-mono">
+                      <td className="px-6 py-3.5 text-xs tabular-nums">
                         {p.hours ? `${Number(p.hours).toFixed(2)}h` : "In Progress"}
                       </td>
                       <td className="px-6 py-3.5">

@@ -77,7 +77,7 @@ export default function MeReimbursementsLoansPage() {
     .reduce((acc: number, l: any) => acc + Number(l.monthlyEmi || 0), 0);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="w-full space-y-6">
       <PageHeader
         title="My Reimbursements & Loans"
         description="Track your approved expense claim payouts and active loan / advance EMI schedules."
@@ -355,7 +355,7 @@ export default function MeReimbursementsLoansPage() {
               <tbody className="divide-y">
                 {selectedLoan?.installments?.map((inst: any) => (
                   <tr key={inst.id} className="hover:bg-muted/20">
-                    <td className="p-2.5 font-mono">{inst.installmentNumber}</td>
+                    <td className="p-2.5 tabular-nums">{inst.installmentNumber}</td>
                     <td className="p-2.5 font-semibold">{inst.periodMonth}/{inst.periodYear}</td>
                     <td className="p-2.5 text-right font-bold text-destructive">
                       ₹{Number(inst.emiAmount).toLocaleString("en-IN")}

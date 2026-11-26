@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { api, unwrapArray } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,8 @@ interface PolicyItem {
 }
 
 export default function HrAttendancePoliciesPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
@@ -214,13 +217,15 @@ export default function HrAttendancePoliciesPage() {
             Manage attendance rules and policies for your organization.
           </p>
         </div>
-        <Button
-          onClick={openCreate}
-          className="h-9 px-4 gap-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-        >
-          <Plus className="h-4 w-4" />
-          Add Attendance Policy
-        </Button>
+        {!isEmployeePortal && (
+          <Button
+            onClick={openCreate}
+            className="h-9 px-4 gap-1.5 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+          >
+            <Plus className="h-4 w-4" />
+            Add Attendance Policy
+          </Button>
+        )}
       </div>
 
       {/* ── 4 KPI Cards Row ── */}
@@ -385,41 +390,45 @@ export default function HrAttendancePoliciesPage() {
                     >
                       <Eye className="h-3.5 w-3.5" />
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                      title="Edit Policy"
-                      onClick={() => openEdit(policy)}
-                    >
-                      <Edit className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-amber-600"
-                      title={isActive ? "Deactivate Policy" : "Activate Policy"}
-                      onClick={() =>
-                        toggleStatusMutation.mutate({
-                          id: policy.id,
-                          status: isActive ? "inactive" : "active",
-                        })
-                      }
-                    >
-                      {isActive ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-rose-600"
-                      title="Delete Policy"
-                      onClick={() => setDeleteTarget(policy)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    {!isEmployeePortal && (
+                      <>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                          title="Edit Policy"
+                          onClick={() => openEdit(policy)}
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-amber-600"
+                          title={isActive ? "Deactivate Policy" : "Activate Policy"}
+                          onClick={() =>
+                            toggleStatusMutation.mutate({
+                              id: policy.id,
+                              status: isActive ? "inactive" : "active",
+                            })
+                          }
+                        >
+                          {isActive ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-rose-600"
+                          title="Delete Policy"
+                          onClick={() => setDeleteTarget(policy)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
 

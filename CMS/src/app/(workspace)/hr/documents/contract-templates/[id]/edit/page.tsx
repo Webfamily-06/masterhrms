@@ -206,7 +206,7 @@ export default function EditContractTemplatePage() {
               rows={12}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              className="font-mono text-sm"
+              className="tabular-nums text-sm"
               required
             />
           </div>

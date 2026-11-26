@@ -69,41 +69,7 @@ export default function MyRemindersPage() {
           status: r.status || (r.completed ? 'COMPLETED' : 'PENDING'),
         }));
       } catch {
-        return [
-          {
-            id: 'rem-m1',
-            entityType: 'task',
-            entityId: 'TSK-102',
-            reminderType: 'task_deadline',
-            message: 'Submit self-appraisal form before quarterly performance review deadline.',
-            priority: 'HIGH',
-            status: 'PENDING',
-            dueAt: new Date(Date.now() + 86400000 * 2).toISOString(),
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 'rem-m2',
-            entityType: 'document',
-            entityId: 'DOC-55',
-            reminderType: 'document_renewal',
-            message: 'Upload updated passport / national ID copy for employee file verification.',
-            priority: 'MEDIUM',
-            status: 'PENDING',
-            dueAt: new Date(Date.now() + 86400000 * 5).toISOString(),
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 'rem-m3',
-            entityType: 'general',
-            entityId: 'GEN-22',
-            reminderType: 'timesheet_submission',
-            message: 'Submit weekly timesheet before Friday 5:00 PM cutoff.',
-            priority: 'LOW',
-            status: 'COMPLETED',
-            dueAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-            createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-          },
-        ];
+        return [];
       }
     },
   });
@@ -200,7 +166,7 @@ export default function MyRemindersPage() {
   };
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full space-y-6">
       {/* ─── PageHeader ─── */}
       <PageHeader
         title="My Reminders & Alerts"
@@ -299,7 +265,7 @@ export default function MyRemindersPage() {
               <div className="space-y-1.5 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   {getPriorityBadge(r.priority)}
-                  <span className="text-[11px] text-muted-foreground font-mono flex items-center gap-1">
+                  <span className="text-[11px] text-muted-foreground tabular-nums flex items-center gap-1">
                     <i className="ph ph-clock text-primary text-xs" /> Due:{' '}
                     {new Date(r.dueAt).toLocaleDateString()}
                   </span>

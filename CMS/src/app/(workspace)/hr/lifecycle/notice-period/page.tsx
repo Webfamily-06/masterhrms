@@ -317,7 +317,7 @@ export default function HrNoticePeriodTrackerPage() {
 
                   return (
                     <TableRow key={exit.id} className="hover:bg-muted/40 transition-colors text-xs">
-                      <TableCell className="p-3 font-mono font-bold text-muted-foreground">
+                      <TableCell className="p-3 tabular-nums font-bold text-muted-foreground">
                         {exit.exitCode || "EXT-001"}
                       </TableCell>
 
@@ -330,18 +330,18 @@ export default function HrNoticePeriodTrackerPage() {
                           </Avatar>
                           <div>
                             <span className="font-bold text-foreground block">{fullName}</span>
-                            <span className="text-[10px] text-muted-foreground font-mono">
+                            <span className="text-[10px] text-muted-foreground tabular-nums">
                               {emp.employeeCode || "EMP"} • {emp.department?.name || "Staff"}
                             </span>
                           </div>
                         </div>
                       </TableCell>
 
-                      <TableCell className="p-3 font-mono text-muted-foreground">
+                      <TableCell className="p-3 tabular-nums text-muted-foreground">
                         {exit.resignationDate ? format(new Date(exit.resignationDate), "dd MMM yyyy") : "—"}
                       </TableCell>
 
-                      <TableCell className="p-3 font-mono font-bold text-foreground">
+                      <TableCell className="p-3 tabular-nums font-bold text-foreground">
                         {exit.lastWorkingDay ? format(new Date(exit.lastWorkingDay), "dd MMM yyyy") : "—"}
                       </TableCell>
 
@@ -452,7 +452,7 @@ export default function HrNoticePeriodTrackerPage() {
                 type="date"
                 value={calculatedLastWorkingDay}
                 disabled
-                className="h-9 text-xs bg-muted/50 font-mono font-bold"
+                className="h-9 text-xs bg-muted/50 tabular-nums font-bold"
               />
             </div>
 

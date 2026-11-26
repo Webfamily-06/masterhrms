@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { api, unwrapArray } from "@/lib/api";
 import { useWorkspaceSettings } from "@/src/context/workspace-settings-context";
 import { PageHeader } from "@/components/ui/page-header";
@@ -118,6 +119,8 @@ function StatusBadge({ status }: { status: ProgramStatus }) {
 }
 
 export default function HrTrainingProgramsPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const router = useRouter();
   const queryClient = useQueryClient();
   const { formatCurrency } = useWorkspaceSettings();
@@ -277,13 +280,15 @@ export default function HrTrainingProgramsPage() {
         title="Training Programs"
         description="Manage training programs, materials, and enrollment settings."
         actions={
-          <Button
-            onClick={openAdd}
-            className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-xs"
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Add Training Program
-          </Button>
+          !isEmployeePortal ? (
+            <Button
+              onClick={openAdd}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Add Training Program
+            </Button>
+          ) : undefined
         }
       />
 
@@ -363,18 +368,16 @@ export default function HrTrainingProgramsPage() {
                   setActiveTab(key);
                   setPage(1);
                 }}
-                className={`py-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
-                  active
-                    ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
+                className={`py-3 text-sm font-medium flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${active
+                  ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 <Icon className="h-4 w-4" />
                 <span>{label}</span>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                    active ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground"
-                  }`}
+                  className={`px-2 py-0.5 rounded-full text-xs font-semibold ${active ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground"
+                    }`}
                 >
                   {count}
                 </span>
@@ -479,24 +482,28 @@ export default function HrTrainingProgramsPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-sky-600"
-                            title="Edit Training Program"
-                            onClick={() => openEdit(prog)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600"
-                            title="Delete Training Program"
-                            onClick={() => setDeleteTarget(prog)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {!isEmployeePortal && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-sky-600"
+                                title="Edit Training Program"
+                                onClick={() => openEdit(prog)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-600"
+                                title="Delete Training Program"
+                                onClick={() => setDeleteTarget(prog)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -559,11 +566,10 @@ export default function HrTrainingProgramsPage() {
                     variant={pNum === safePage ? "default" : "outline"}
                     size="sm"
                     onClick={() => setPage(pNum)}
-                    className={`h-8 w-8 p-0 text-xs ${
-                      pNum === safePage
-                        ? "bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500"
-                        : ""
-                    }`}
+                    className={`h-8 w-8 p-0 text-xs ${pNum === safePage
+                      ? "bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500"
+                      : ""
+                      }`}
                   >
                     {pNum}
                   </Button>

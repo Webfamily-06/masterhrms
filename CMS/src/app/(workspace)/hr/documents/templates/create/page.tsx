@@ -208,7 +208,7 @@ export default function CreateDocumentTemplatePage() {
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="Enter template content..."
-              className="font-mono text-sm"
+              className="tabular-nums text-sm"
               required
             />
           </div>
@@ -241,7 +241,7 @@ export default function CreateDocumentTemplatePage() {
               rows={4}
               value={defaultValuesText}
               onChange={(e) => setDefaultValuesText(e.target.value)}
-              className="font-mono text-xs"
+              className="tabular-nums text-xs"
             />
           </div>
 

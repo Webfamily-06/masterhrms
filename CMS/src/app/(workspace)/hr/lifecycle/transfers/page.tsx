@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRouterState } from "@/lib/router-compat";
 import { format } from "date-fns";
 import { api, unwrapArray } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
@@ -126,6 +127,8 @@ const emptyForm = {
 };
 
 export default function HrTransfersPage() {
+  const currentPath = useRouterState({ select: (r) => r.location.pathname });
+  const isEmployeePortal = currentPath.startsWith("/me");
   const queryClient = useQueryClient();
 
   // Filter & Sort State
@@ -388,17 +391,17 @@ export default function HrTransfersPage() {
         title="Employee Transfers"
         description="Manage employee transfers between departments and branches."
         breadcrumbs={[
-          { label: "Dashboard", href: "/hr/dashboard" },
-          { label: "Employee Lifecycle", href: "/hr/lifecycle" },
+          { label: "Dashboard", href: isEmployeePortal ? "/me/dashboard" : "/hr/dashboard" },
+          { label: "Employee Lifecycle", href: isEmployeePortal ? "/me/awards" : "/hr/lifecycle" },
           { label: "Employee Transfers" },
         ]}
         actions={
           <Button
             onClick={handleOpenCreate}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 h-9"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 h-9"
           >
             <Plus className="h-4 w-4" />
-            Add Transfer
+            {isEmployeePortal ? "Request Transfer" : "Add Transfer"}
           </Button>
         }
       />
@@ -659,7 +662,7 @@ export default function HrTransfersPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          {normalizedStatus === "PENDING" && (
+                          {!isEmployeePortal && normalizedStatus === "PENDING" && (
                             <>
                               <Button
                                 variant="ghost"

@@ -171,7 +171,7 @@ export default function ManagerHubPage() {
   });
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full space-y-6">
       {/* ── Page Header ── */}
       <PageHeader
         title="Manager Self-Service Hub"
@@ -321,7 +321,7 @@ export default function ManagerHubPage() {
                             <div className="font-bold text-foreground">
                               {leave.employee?.firstName} {leave.employee?.lastName}
                             </div>
-                            <div className="text-[10px] text-muted-foreground font-mono">
+                            <div className="text-[10px] text-muted-foreground tabular-nums">
                               {leave.employee?.employeeCode || "EMP"}
                             </div>
                           </TableCell>
@@ -334,10 +334,10 @@ export default function ManagerHubPage() {
                               {leave.leaveType?.name || "Leave"}
                             </Badge>
                           </TableCell>
-                          <TableCell className="p-3 font-mono text-muted-foreground">
+                          <TableCell className="p-3 tabular-nums text-muted-foreground">
                             {new Date(leave.startDate).toLocaleDateString()} → {new Date(leave.endDate).toLocaleDateString()}
                           </TableCell>
-                          <TableCell className="p-3 font-mono font-bold text-foreground">
+                          <TableCell className="p-3 tabular-nums font-bold text-foreground">
                             {leave.days} day(s)
                           </TableCell>
                           <TableCell className="p-3 max-w-[200px] truncate text-muted-foreground" title={leave.reason}>
@@ -414,14 +414,14 @@ export default function ManagerHubPage() {
                             <div className="font-bold text-foreground">
                               {reg.employee?.firstName} {reg.employee?.lastName}
                             </div>
-                            <div className="text-[10px] text-muted-foreground font-mono">
+                            <div className="text-[10px] text-muted-foreground tabular-nums">
                               {reg.employee?.employeeCode || "EMP"}
                             </div>
                           </TableCell>
-                          <TableCell className="p-3 font-mono font-bold text-foreground">
+                          <TableCell className="p-3 tabular-nums font-bold text-foreground">
                             {new Date(reg.attendanceDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
                           </TableCell>
-                          <TableCell className="p-3 font-mono text-muted-foreground">
+                          <TableCell className="p-3 tabular-nums text-muted-foreground">
                             {reg.proposedIn ? new Date(reg.proposedIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
                             {" → "}
                             {reg.proposedOut ? new Date(reg.proposedOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
@@ -500,17 +500,17 @@ export default function ManagerHubPage() {
                             <div className="font-bold text-foreground">
                               {req.employee?.firstName} {req.employee?.lastName}
                             </div>
-                            <div className="text-[10px] text-muted-foreground font-mono">
+                            <div className="text-[10px] text-muted-foreground tabular-nums">
                               {req.employee?.employeeCode || "EMP"}
                             </div>
                           </TableCell>
                           <TableCell className="p-3 font-semibold text-foreground">
                             {req.fieldName || req.category || "Profile Field"}
                           </TableCell>
-                          <TableCell className="p-3 font-mono text-muted-foreground">
+                          <TableCell className="p-3 tabular-nums text-muted-foreground">
                             {typeof req.newValue === "object" ? JSON.stringify(req.newValue) : String(req.newValue || "—")}
                           </TableCell>
-                          <TableCell className="p-3 font-mono text-muted-foreground">
+                          <TableCell className="p-3 tabular-nums text-muted-foreground">
                             {new Date(req.createdAt).toLocaleDateString()}
                           </TableCell>
                           <TableCell className="p-3 text-right space-x-1.5">
@@ -586,7 +586,7 @@ export default function ManagerHubPage() {
                       <div className="min-w-0 flex-1">
                         <h4 className="text-sm font-bold text-foreground truncate">{fullName}</h4>
                         <p className="text-[11px] text-muted-foreground truncate">{member.position || member.designation?.name || "Team Member"}</p>
-                        <Badge variant="soft" className="text-[10px] mt-1 font-mono">
+                        <Badge variant="soft" className="text-[10px] mt-1 tabular-nums">
                           {member.employeeCode || "EMP"}
                         </Badge>
                       </div>

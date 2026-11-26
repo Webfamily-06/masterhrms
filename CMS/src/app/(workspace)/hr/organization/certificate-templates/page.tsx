@@ -552,7 +552,7 @@ export default function CertificateTemplatesPage() {
                 placeholder="<div class='cert-box'><h1>{{organization.name}}</h1><h2>{{employee.name}}</h2></div>"
                 value={htmlContent}
                 onChange={(e) => setHtmlContent(e.target.value)}
-                className="font-mono text-xs"
+                className="tabular-nums text-xs"
               />
             </div>
 
@@ -563,7 +563,7 @@ export default function CertificateTemplatesPage() {
                 placeholder=".cert-box { padding: 40px; text-align: center; border: 2px solid gold; }"
                 value={cssContent}
                 onChange={(e) => setCssContent(e.target.value)}
-                className="font-mono text-xs"
+                className="tabular-nums text-xs"
               />
             </div>
           </div>

@@ -1,16 +1,10 @@
 "use strict";
-/**
- * MASTERHRMS — WebRTC ICE Service (100% free, zero third-party relay)
- *
- * Pure peer-to-peer WebRTC (1:1 calls & mesh group meetings) using only free public
- * Google STUN servers. No TURN relay, no paid provider, no credentials, no env configuration.
- *
- * STUN lets each browser discover its public address so peers can connect directly. This works
- * on the same Wi-Fi and on most home/office/mobile networks. Networks with strict symmetric NAT
- * or enterprise firewalls that block peer-to-peer UDP cannot be traversed without a relay.
- */
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WebRtcIceService = void 0;
+const crypto_1 = __importDefault(require("crypto"));
 const FREE_PUBLIC_STUN_SERVERS = [
     {
         urls: [
@@ -22,24 +16,60 @@ const FREE_PUBLIC_STUN_SERVERS = [
         ],
     },
 ];
+function buildTurnIceServer(userId, ttlSeconds = 3600) {
+    const rawUrls = (process.env.TURN_SERVER_URLS || "").trim();
+    if (!rawUrls)
+        return null;
+    const urls = rawUrls
+        .split(",")
+        .map((u) => u.trim())
+        .filter((u) => u.startsWith("turn:") || u.startsWith("turns:"));
+    if (urls.length === 0)
+        return null;
+    const sharedSecret = process.env.TURN_SHARED_SECRET?.trim();
+    if (sharedSecret) {
+        const expiry = Math.floor(Date.now() / 1000) + Math.max(60, ttlSeconds);
+        const username = `${expiry}:${userId || "anon"}`;
+        const credential = crypto_1.default
+            .createHmac("sha1", sharedSecret)
+            .update(username)
+            .digest("base64");
+        return { urls, username, credential };
+    }
+    const staticUser = process.env.TURN_USERNAME?.trim();
+    const staticCred = process.env.TURN_CREDENTIAL?.trim();
+    if (staticUser && staticCred) {
+        return { urls, username: staticUser, credential: staticCred };
+    }
+    return null;
+}
 class WebRtcIceService {
     /**
-     * Free public STUN servers for WebRTC 1:1 and mesh calls.
-     * (`userId` / `ttlSeconds` are accepted for call-site compatibility and intentionally unused.)
+     * Returns ICE servers for WebRTC 1:1 and mesh calls.
+     * Always includes STUN servers; appends TURN/TURNS relay when configured via env vars.
      */
-    static getIceServers(_userId, _ttlSeconds) {
-        return FREE_PUBLIC_STUN_SERVERS.map((s) => ({ urls: Array.isArray(s.urls) ? [...s.urls] : s.urls }));
+    static getIceServers(userId, ttlSeconds = 3600) {
+        const servers = FREE_PUBLIC_STUN_SERVERS.map((s) => ({
+            urls: Array.isArray(s.urls) ? [...s.urls] : s.urls,
+        }));
+        const turnServer = buildTurnIceServer(userId, ttlSeconds);
+        if (turnServer) {
+            servers.push(turnServer);
+        }
+        return servers;
     }
     /**
-     * Pure WebRTC mesh diagnostics (always ready, STUN-only, no relay).
+     * WebRTC mesh ICE diagnostics (indicates STUN-only vs TURN-enabled relay readiness).
      */
-    static getDiagnostics(_userId) {
+    static getDiagnostics(userId) {
+        const turnServer = buildTurnIceServer(userId);
+        const hasTurn = Boolean(turnServer);
         return {
             mode: "webrtc_mesh",
             configured: true,
-            relay: "none",
-            stunOnly: true,
-            iceServersCount: this.getIceServers().length,
+            relay: hasTurn ? "turn" : "none",
+            stunOnly: !hasTurn,
+            iceServersCount: this.getIceServers(userId).length,
         };
     }
 }
