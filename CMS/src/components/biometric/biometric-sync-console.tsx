@@ -27,7 +27,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
 import { PlanGuard } from "@/components/plan-guard";
 import { toast } from "sonner";
 import { useNavigationResolver } from "@/lib/navigation-resolver";
@@ -139,7 +138,8 @@ export function BiometricSyncConsole() {
   const [isSavingDevice, setIsSavingDevice] = useState(false);
 
   const [syncingDeviceId, setSyncingDeviceId] = useState<string | null>(null);
-  const [syncProgress, setSyncProgress] = useState<number>(0);
+  const [syncStage, setSyncStage] = useState<number>(0);
+  const [syncElapsedSec, setSyncElapsedSec] = useState<number>(0);
   const [testingPingId, setTestingPingId] = useState<string | null>(null);
 
   const [searchPunch, setSearchPunch] = useState("");
@@ -440,20 +440,33 @@ export function BiometricSyncConsole() {
   async function triggerSync(device: BiometricDevice) {
     if (syncingDeviceId) return;
     setSyncingDeviceId(device.id);
-    setSyncProgress(35);
+    setSyncStage(1);
+    setSyncElapsedSec(0);
+
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      const sec = (Date.now() - started) / 1000;
+      setSyncElapsedSec(sec);
+      if (sec > 1.8) setSyncStage(3);
+      else if (sec > 0.7) setSyncStage(2);
+    }, 150);
+
     try {
       const res = await api.post(`/biometric/devices/${device.id}/sync-now`);
-      setSyncProgress(100);
+      setSyncStage(3);
       toast.success(res?.message || `Sync completed for ${device.name}.`);
       qc.invalidateQueries({ queryKey: ["biometric-devices", tenantId] });
       qc.invalidateQueries({ queryKey: ["biometric-logs", tenantId] });
+      qc.invalidateQueries({ queryKey: ["biometric-hardware-users", activeMappingDeviceId] });
       qc.invalidateQueries({ queryKey: ["attendance-list"] });
       qc.invalidateQueries({ queryKey: ["attendance-today"] });
     } catch (err: any) {
       toast.error(err?.message || "Sync failed.");
     } finally {
+      window.clearInterval(timer);
       setSyncingDeviceId(null);
-      setSyncProgress(0);
+      setSyncStage(0);
+      setSyncElapsedSec(0);
     }
   }
 
@@ -743,19 +756,86 @@ export function BiometricSyncConsole() {
           ))}
         </div>
 
-        {/* Sync Progress Banner */}
-        {syncingDeviceId && (
-          <Card className="p-4 border-amber-500/40 bg-amber-500/5 space-y-2">
-            <div className="flex items-center justify-between text-xs font-semibold text-amber-700 dark:text-amber-400">
-              <span className="flex items-center gap-2">
-                <RefreshCw className="size-4 animate-spin text-amber-600" />
-                Syncing hardware terminal {devices.find((d) => d.id === syncingDeviceId)?.name}...
-              </span>
-              <span className="tabular-nums">{syncProgress}%</span>
-            </div>
-            <Progress value={syncProgress} className="h-2" />
-          </Card>
-        )}
+        {/* Modern Biometric Radar & 3-Stage Live Sync Animation */}
+        {syncingDeviceId && (() => {
+          const activeDev = devices.find((d) => d.id === syncingDeviceId);
+          const stages = [
+            { step: 1, label: "Hardware Handshake" },
+            { step: 2, label: "Reading Punch Logs" },
+            { step: 3, label: "Updating Attendance" },
+          ];
+          return (
+            <Card className="relative overflow-hidden border border-primary/25 bg-gradient-to-r from-primary/[0.06] via-card to-sky-500/[0.06] rounded-xl p-4 shadow-xs">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="relative size-11 shrink-0 grid place-items-center">
+                    <span className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                    <span className="absolute inset-1 rounded-full bg-primary/15 animate-pulse" />
+                    <div className="relative size-9 rounded-full bg-primary text-white grid place-items-center shadow-sm">
+                      <Fingerprint className="size-4" />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-foreground">
+                        Syncing {activeDev?.name || "Biometric Terminal"}
+                      </span>
+                      {activeDev?.serialNumber && (
+                        <Badge variant="soft" className="text-[10px] tabular-nums">
+                          {activeDev.serialNumber}
+                        </Badge>
+                      )}
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {syncElapsedSec.toFixed(1)}s
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Establishing live biometric session with {activeDev?.ip ? `${activeDev.ip}:${activeDev.port}` : "ADMS Cloud"}...
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3-Stage Step Pipeline */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {stages.map((st, idx) => {
+                    const isDone = syncStage > st.step;
+                    const isActive = syncStage === st.step;
+                    return (
+                      <div key={st.step} className="flex items-center gap-2">
+                        <div
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                            isDone
+                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/25"
+                              : isActive
+                                ? "bg-primary/10 text-primary border-primary/30 shadow-2xs"
+                                : "bg-muted/40 text-muted-foreground border-border/60"
+                          }`}
+                        >
+                          {isDone ? (
+                            <CheckCircle2 className="size-3.5 text-emerald-600" />
+                          ) : isActive ? (
+                            <span className="size-2 rounded-full bg-primary animate-pulse" />
+                          ) : (
+                            <span className="size-1.5 rounded-full bg-muted-foreground/40" />
+                          )}
+                          <span>{st.label}</span>
+                        </div>
+                        {idx < stages.length - 1 && (
+                          <span className={`h-px w-3 ${isDone ? "bg-emerald-500/50" : "bg-border"}`} />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Subtle Animated Bottom Scan Beam */}
+              <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-primary/10 overflow-hidden">
+                <div className="h-full w-1/2 bg-gradient-to-r from-transparent via-primary to-sky-500 animate-pulse rounded-full" />
+              </div>
+            </Card>
+          );
+        })()}
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="flex-wrap">
