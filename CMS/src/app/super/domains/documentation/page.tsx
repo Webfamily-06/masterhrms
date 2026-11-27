@@ -46,7 +46,7 @@ function CustomDomainDocumentationPage() {
   };
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="w-full min-w-0 space-y-5">
       {/* Header & Breadcrumb */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

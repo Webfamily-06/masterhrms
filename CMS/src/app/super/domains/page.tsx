@@ -409,7 +409,7 @@ export default function SuperDomainsPage() {
     bulkVerifyMutation.isPending || bulkApproveMutation.isPending || rejectMutation.isPending;
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-5">
       <PageHeader
         title="Custom Domains"
         description="Review, verify DNS, audit SSL issuance, and govern Flow 2 Primary Custom Domains across all tenant workspaces."

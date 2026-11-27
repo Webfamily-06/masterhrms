@@ -262,7 +262,7 @@ export default function SuperAnalyticsPage() {
     : [];
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-5">
       <PageHeader
         title="Platform Telemetry & Usage Analytics"
         description="Live multi-tenant counts, storage capacity growth trends, runtime configuration readiness, and GA4 measurement settings."

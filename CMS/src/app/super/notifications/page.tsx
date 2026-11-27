@@ -489,7 +489,7 @@ export default function SuperNotificationsPage() {
   const previewCfg = previewAlertProps(form.severity);
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-5">
       <PageHeader
         title="Platform Broadcasts & Notifications"
         description="Publish targeted platform-wide alert banners to workspaces and manage automated notification templates."

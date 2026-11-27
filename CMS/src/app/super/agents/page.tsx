@@ -257,7 +257,7 @@ export default function SuperAgentsPage() {
   };
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-5">
       <PageHeader
         title="Support Agents Directory"
         description="Manage platform support engineers, availability status, and cross-tenant ticket coverage."

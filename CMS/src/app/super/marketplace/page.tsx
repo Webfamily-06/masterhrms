@@ -749,7 +749,7 @@ function MarketplaceAdmin() {
   }
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto pb-20">
+    <div className="w-full min-w-0 space-y-5">
       <PageHeader
         title="Add-on Marketplace Catalog"
         description="Super Admin platform catalog for managing add-on modules, category taxonomy, availability toggles, and SemVer release history."

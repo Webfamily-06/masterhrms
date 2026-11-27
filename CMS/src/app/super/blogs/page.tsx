@@ -5,7 +5,7 @@ import { BlogManagerStudio } from "@/components/cms/blog-manager-studio";
 
 export default function SuperBlogsPage() {
   return (
-    <div className="space-y-6 w-full min-w-0 pb-16">
+    <div className="w-full min-w-0 space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">

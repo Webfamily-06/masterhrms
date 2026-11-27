@@ -541,7 +541,7 @@ function SuperAdminPlansPage() {
   });
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-5">
       <PageHeader
         title="Subscription Plans"
         description="Configure Standard and Custom SaaS pricing, per-user billing models, 3-day trials, default signup assignment, and authoritative server-side pricing simulation."

@@ -295,7 +295,7 @@ export default function SuperReferralsPage() {
   }
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-5">
       <PageHeader
         title="Referral Program & Payouts"
         description="Configure partner referral commission rules, track referred workspaces, and approve or reject payout disbursements."

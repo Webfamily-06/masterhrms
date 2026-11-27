@@ -477,7 +477,7 @@ export default function SuperDeveloperPortalPage() {
   };
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-5">
       <PageHeader
         title="Developer Portal"
         description="Unified API Reference, live authenticated Interactive Tester, and SHA-256 hashed Platform API Keys Vault."

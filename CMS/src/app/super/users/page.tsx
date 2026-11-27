@@ -268,7 +268,7 @@ function SuperUsersPage() {
   });
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-5">
       <PageHeader
         title="Platform Users"
         description="Manage system administrators, tenant workspace owners, 2FA locks, and cross-organization accounts."

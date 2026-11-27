@@ -781,7 +781,7 @@ function SuperPurchaseTransactionsPage() {
   }, [startDate, endDate, currentMonth.label]);
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-5">
       <PageHeader
         title="Purchase Transactions"
         description="Inspect platform billing invoices, preview canonical tax documents, verify offline payment proofs, and update transaction statuses."

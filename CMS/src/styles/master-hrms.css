@@ -899,6 +899,11 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
     box-sizing: border-box !important;
   }
 
+  /* Compact edge-to-edge padding for Super Admin console (zero excessive whitespace) */
+  .super-shell .content {
+    padding: 16px 20px !important;
+  }
+
   /* Controls visibility on desktop */
   #mobile_btn,
   .mobile-btn {

@@ -460,7 +460,7 @@ function SuperAdminComplianceControlCenter() {
   }, [rulesList, isLoadingRules]);
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-5">
       <PageHeader
         title="Statutory Compliance Control Center"
         description="Dynamic, versioned statutory rule registry, maker-checker governance, and payroll impact simulation."

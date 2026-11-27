@@ -500,11 +500,9 @@ export function SuperShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (fullView) {
       document.body.classList.add('full-view', 'full-width');
-      document.documentElement.setAttribute('data-layout', 'full-width');
       document.body.classList.remove('mini-sidebar', 'expand-menu');
     } else {
       document.body.classList.remove('full-view', 'full-width');
-      document.documentElement.removeAttribute('data-layout');
       if (collapsed) {
         document.body.classList.add('mini-sidebar');
       } else {
@@ -641,7 +639,7 @@ export function SuperShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       className={cn(
-        'main-wrapper min-h-screen w-full relative',
+        'main-wrapper super-shell min-h-screen w-full relative bg-background',
         mobileOpen && 'slide-nav',
         !fullView && collapsed && 'mini-sidebar',
         fullView && 'full-view full-width'
@@ -815,10 +813,10 @@ export function SuperShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <div className="page-wrapper flex flex-col justify-between">
-        <main className="content p-3 lg:p-6 min-w-0 flex-1">
+        <main className="content min-w-0 flex-1">
           {children}
         </main>
-        <footer className="mt-auto py-3 px-6 border-t border-border-color/60 text-xs text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-2" data-testid="super-footer">
+        <footer className="mt-auto py-2.5 px-5 border-t border-border/60 text-xs text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-2" data-testid="super-footer">
           <span data-testid="super-footer-text">
             {appConfig?.footerText
               ? appConfig.footerText

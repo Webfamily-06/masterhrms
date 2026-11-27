@@ -421,7 +421,7 @@ function RolesAdminStudio() {
   }
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-5">
       <PageHeader
         title="Roles & RBAC Matrix"
         description="Configure system-level administrator role blueprints and synchronize enterprise feature permission matrices."

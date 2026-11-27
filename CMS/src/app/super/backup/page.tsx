@@ -168,7 +168,7 @@ function BackupRestoreAdmin() {
   const latestSnapshot = snapshots[0] || null;
 
   return (
-    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-5">
       <PageHeader
         title="Database Backup & Recovery"
         description="Generate full SQL database archives, download encrypted dumps, and run non-destructive disposable-schema restore verifications."

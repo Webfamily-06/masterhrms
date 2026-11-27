@@ -181,7 +181,7 @@ export default function BlogTagsPage() {
   };
 
   return (
-    <div className="space-y-6 w-full min-w-0 pb-16">
+    <div className="w-full min-w-0 space-y-5">
       {/* Header & Breadcrumb */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
         <div>
