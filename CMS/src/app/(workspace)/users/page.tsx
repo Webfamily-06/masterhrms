@@ -137,7 +137,7 @@ function UsersPage() {
         u.fullName.toLowerCase().includes(search.toLowerCase()) ||
         u.email.toLowerCase().includes(search.toLowerCase());
 
-      const userRoleName = u.assignedRole?.name || "Unassigned";
+      const userRoleName = u.assignedRole?.name || "Employee";
       const matchesRole =
         selectedRoleFilter === "all" || userRoleName.toLowerCase() === selectedRoleFilter.toLowerCase();
 
@@ -145,12 +145,18 @@ function UsersPage() {
     });
   }, [users, search, selectedRoleFilter]);
 
+  const isAdminUser = (u: WorkspaceUser) =>
+    u.assignedRole?.name === "Workspace Admin" ||
+    (!u.assignedRole && (u.legacyRoles || []).some((r) => ["admin", "tenant_admin", "workspace_admin"].includes(r)));
+  const isManagerUser = (u: WorkspaceUser) =>
+    !isAdminUser(u) &&
+    ((Boolean(u.assignedRole) && u.assignedRole!.name !== "Employee") ||
+      (!u.assignedRole && (u.legacyRoles || []).some((r) => ["hr_admin", "hr_manager", "manager"].includes(r))));
+
   const activeCount = users.length;
-  const adminCount = users.filter((u) => u.assignedRole?.name === "Workspace Admin").length;
-  const employeeCount = users.filter((u) => u.assignedRole?.name === "Employee").length;
-  const managerCount = users.filter(
-    (u) => u.assignedRole && u.assignedRole.name !== "Workspace Admin" && u.assignedRole.name !== "Employee"
-  ).length;
+  const adminCount = users.filter(isAdminUser).length;
+  const managerCount = users.filter(isManagerUser).length;
+  const employeeCount = users.filter((u) => !isAdminUser(u) && !isManagerUser(u)).length;
 
   const selectedRoleInfo = useMemo(() => {
     return roles.find((r) => r.id === targetRoleId);

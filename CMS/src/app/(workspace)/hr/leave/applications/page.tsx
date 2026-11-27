@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, unwrapArray, unwrapData } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import {
   useDebouncedValue,
   formatLeaveDays,
@@ -548,6 +549,38 @@ export default function HrLeaveApplicationsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Matrix / List Queue View Switcher (DEFECT-026) */}
+          <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode("matrix")}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium transition-colors cursor-pointer",
+                viewMode === "matrix"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              )}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              Matrix
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode("list");
+                setListPage(1);
+              }}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-medium transition-colors cursor-pointer",
+                viewMode === "list"
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              )}
+            >
+              <ListFilter className="w-3.5 h-3.5" />
+              List View
+            </button>
+          </div>
           <Button
             type="button"
             onClick={() => handleOpenAdd()}
@@ -562,29 +595,61 @@ export default function HrLeaveApplicationsPage() {
       {/* 2. Controls & Filters Toolbar */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3.5 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handlePrevMonth}
-              className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
-              title="Previous Month"
-              aria-label="Previous Month"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 min-w-[130px] text-center">
-              {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
-            </span>
-            <button
-              type="button"
-              onClick={handleNextMonth}
-              className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
-              title="Next Month"
-              aria-label="Next Month"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+          {viewMode === "matrix" ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
+                title="Previous Month"
+                aria-label="Previous Month"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 min-w-[130px] text-center">
+                {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+              </span>
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
+                title="Next Month"
+                aria-label="Next Month"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setListPage(1);
+                }}
+                placeholder="Search employee or reason..."
+                className="w-full sm:w-56 h-9 text-xs"
+              />
+              <Select
+                value={statusFilter}
+                onValueChange={(val) => {
+                  setStatusFilter(val);
+                  setListPage(1);
+                }}
+              >
+                <SelectTrigger className="w-36 h-9 text-xs">
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Employee</span>

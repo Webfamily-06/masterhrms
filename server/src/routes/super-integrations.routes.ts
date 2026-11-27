@@ -170,25 +170,41 @@ superIntegrationsRouter.put("/:appId", requireAuth, requireSuperAdmin, async (re
       return res.status(404).json({ error: `Unsupported platform integration: ${appId}` });
     }
 
+    const rawBody = req.body || {};
     const {
-      environment = "production",
-      clientId = "",
-      clientSecret = "",
+      environment,
+      mode,
+      clientId,
+      keyId,
+      clientSecret,
+      keySecret,
       webhookUrl = "",
       events = [],
       connected = true,
-    } = req.body || {};
+    } = rawBody;
 
-    const cleanClientId = String(clientId || "").trim();
-    const cleanSecret = String(clientSecret || "").trim();
+    const cleanClientId = String(clientId ?? keyId ?? "").trim();
+    const cleanSecret = String(clientSecret ?? keySecret ?? "").trim();
     const cleanWebhook = String(webhookUrl || "").trim();
+    const rawEnv = String(environment ?? mode ?? (process.env.NODE_ENV !== "production" && appId === "razorpay" ? "sandbox" : "production")).trim().toLowerCase();
     const normalizedEnv: "production" | "sandbox" =
-      String(environment).toLowerCase() === "sandbox" ? "sandbox" : "production";
+      rawEnv === "sandbox" || rawEnv === "test" ? "sandbox" : "production";
 
+    if (
+      appId === "razorpay" &&
+      process.env.NODE_ENV !== "production" &&
+      (cleanClientId.startsWith("rzp_live_") || normalizedEnv === "production")
+    ) {
+      return res.status(400).json({
+        error: "Live Razorpay mode and live keys (rzp_live_*) are strictly prohibited in non-production environments. Use Razorpay Sandbox mode and test keys (rzp_test_*).",
+        code: "LIVE_KEYS_PROHIBITED_IN_NON_PRODUCTION",
+      });
+    }
     if (appId === "razorpay" && normalizedEnv === "sandbox" && cleanClientId.startsWith("rzp_live_")) {
       return res.status(400).json({
         error:
           "Live Razorpay key (rzp_live_*) cannot be saved under Sandbox mode. Switch Deployment Environment to Production Live Environment.",
+        code: "LIVE_KEYS_PROHIBITED_IN_SANDBOX",
       });
     }
 
@@ -223,8 +239,11 @@ superIntegrationsRouter.put("/:appId", requireAuth, requireSuperAdmin, async (re
       try {
         const paymentUpdates: Record<string, any> = {
           "payments.razorpay_enabled": Boolean(connected),
-          "payments.razorpay_key_id": cleanClientId,
+          "payments.razorpay_mode": normalizedEnv === "sandbox" ? "sandbox" : "live",
         };
+        if (cleanClientId) {
+          paymentUpdates["payments.razorpay_key_id"] = cleanClientId;
+        }
         if (cleanSecret && !cleanSecret.includes("••••")) {
           paymentUpdates["payments.razorpay_key_secret"] = cleanSecret;
         }
@@ -240,7 +259,7 @@ superIntegrationsRouter.put("/:appId", requireAuth, requireSuperAdmin, async (re
             content: {
               ...psContent,
               razorpayEnabled: Boolean(connected),
-              razorpayKeyId: cleanClientId,
+              ...(cleanClientId ? { razorpayKeyId: cleanClientId } : {}),
               razorpayMode: normalizedEnv === "sandbox" ? "sandbox" : "live",
               ...(cleanSecret && !cleanSecret.includes("••••") ? { razorpayKeySecret: cleanSecret } : {}),
             },

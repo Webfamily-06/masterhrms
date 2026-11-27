@@ -20,7 +20,7 @@ export function resolveWorkspacePolicy(subscription: any = {}, plans: any[] = []
     (subscription.expiresAt && new Date(subscription.expiresAt).getTime() <= Date.now())
   );
 
-  let maxEmployees = limit(subscription.maxEmployees !== undefined ? subscription.maxEmployees : planLimit("maxEmployees", "max_employees"));
+  let maxEmployees = limit(subscription.maxEmployees != null ? subscription.maxEmployees : planLimit("maxEmployees", "max_employees"));
   // Sovereign tier hard capacity limit is 100 employees per Product Owner policy CP-02
   if (maxEmployees === null) {
     const planSlug = String(subscription.planId || plan?.slug || plan?.name || "").toLowerCase().trim();
@@ -40,7 +40,7 @@ export function resolveWorkspacePolicy(subscription: any = {}, plans: any[] = []
     isExpired,
     expiresAt: subscription.expiresAt || null,
     maxEmployees,
-    maxUsers: limit(subscription.maxUsers !== undefined ? subscription.maxUsers : planLimit("maxUsers", "max_users")),
+    maxUsers: limit(subscription.maxUsers != null ? subscription.maxUsers : planLimit("maxUsers", "max_users")),
     billingCycle: subscription.billingCycle === "annual" ? "annual" : "monthly",
     monthlyRevenue: plan ? (subscription.billingCycle === "annual" ? planPrice("priceAnnual", "price_annual") / 12 : planPrice("priceMonthly", "price_monthly")) : 0,
   };
@@ -54,6 +54,13 @@ export function assertWorkspaceActive(policy: ReturnType<typeof resolveWorkspace
 }
 
 export const workspacePolicyCache = new Map<string, { policy: any; expiresAt: number }>();
+export function invalidateWorkspacePolicyCache(tenantId?: string | null) {
+  if (tenantId) {
+    workspacePolicyCache.delete(tenantId);
+  } else {
+    workspacePolicyCache.clear();
+  }
+}
 export async function getWorkspacePolicy(tenantId: string, db: any = prisma) {
   const now = Date.now();
   const cached = workspacePolicyCache.get(tenantId);

@@ -481,28 +481,31 @@ textarea,
   background: rgba(150, 150, 150, 0.55) !important;
 }
 
-/* Base Transitions */
+/* Base Surface Transitions (never animate layout width/margin-left to prevent Chromium collapse) */
+:is(.main-wrapper, .workspace-shell, .super-layout) {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  display: block !important;
+}
+
 :is(.main-wrapper, .workspace-shell, .super-layout) .sidebar {
-  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.25s ease !important;
+  transition: background-color 0.2s ease,
+              border-color 0.2s ease,
+              box-shadow 0.2s ease !important;
 }
 
 :is(.main-wrapper, .workspace-shell, .super-layout) .navbar-header {
-  transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              background-color 0.2s ease,
+  transition: background-color 0.2s ease,
               border-color 0.2s ease !important;
 }
 
 :is(.main-wrapper, .workspace-shell, .super-layout) .impersonation-top-banner {
-  transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              width 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition: background-color 0.2s ease !important;
 }
 
 :is(.main-wrapper, .workspace-shell, .super-layout) .page-wrapper {
-  transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-              width 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition: background-color 0.2s ease !important;
 }
 
 /* ------------------------------------------------------------
@@ -876,13 +879,14 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
     z-index: 840 !important;
   }
 
-  /* Main Page Wrapper (Docked flush beside sidebar, 0 extra space) */
+  /* Main Page Wrapper (Docked flush beside sidebar, 0 extra space, width: auto prevents transition collapse) */
   :is(.main-wrapper, .workspace-shell, .super-layout) .page-wrapper {
     margin-left: var(--sidebar-width) !important;
     margin-right: 0 !important;
     margin-top: 0 !important;
     margin-bottom: 0 !important;
-    width: calc(100% - var(--sidebar-width)) !important;
+    width: auto !important;
+    max-width: none !important;
     min-height: calc(100vh - var(--topbar-height)) !important;
     min-width: 0 !important;
     display: flex !important;
@@ -895,7 +899,7 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
-    flex: 1 0 auto !important;
+    flex: 1 1 auto !important;
     box-sizing: border-box !important;
   }
 
@@ -926,10 +930,8 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
   .main-wrapper.mini-sidebar:not(.expand-menu) .sidebar {
     width: var(--sidebar-mini-width) !important; /* 72px */
     overflow: hidden !important;
-    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.22s ease !important;
+    transition: background-color 0.2s ease,
+                box-shadow 0.2s ease !important;
   }
 
   /* Mini sidebar centered icon buttons */
@@ -1004,7 +1006,7 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
   body.mini-sidebar .page-wrapper,
   .main-wrapper.mini-sidebar .page-wrapper {
     margin-left: var(--sidebar-mini-width) !important;
-    width: calc(100% - var(--sidebar-mini-width)) !important;
+    width: auto !important;
   }
 
   /* Hover Expand while in Mini Sidebar */
@@ -1015,10 +1017,8 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
     overflow: hidden !important;
     box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.3),
                 0 4px 12px -2px rgba(0, 0, 0, 0.12) !important;
-    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.22s ease !important;
+    transition: background-color 0.2s ease,
+                box-shadow 0.2s ease !important;
   }
   body.mini-sidebar.expand-menu .sidebar .sidebar-logo .brand-logo,
   body.mini-sidebar.expand-menu .sidebar .sidebar-logo .logo {
@@ -1060,6 +1060,8 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
   /* ------------------------------------------------------------
      1.4 DESKTOP FULL-VIEW / FULL-WIDTH DASHBOARD (>= 1024px)
      Sidebar slides off-canvas, Topbar and Page-wrapper span 100% full width
+     (Note: data-layout="full-width" is the standard desktop sidebar layout;
+     off-canvas hiding uses .full-view or data-layout="hidden")
      ------------------------------------------------------------ */
   body.full-view .sidebar,
   .main-wrapper.full-view .sidebar {
@@ -1068,44 +1070,37 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
     opacity: 0 !important;
     pointer-events: none !important;
     visibility: hidden !important;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
   }
 
   body.full-view .navbar-header,
   body.full-width .navbar-header,
   .main-wrapper.full-view .navbar-header,
   .main-wrapper.full-width .navbar-header,
-  .main-wrapper.full-view-mode .navbar-header,
-  [data-layout="full-width"] .navbar-header {
+  .main-wrapper.full-view-mode .navbar-header {
     margin-left: 0 !important;
     margin-right: 0 !important;
     width: 100% !important;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
   }
 
   body.full-view .impersonation-top-banner,
   body.full-width .impersonation-top-banner,
   .main-wrapper.full-view .impersonation-top-banner,
   .main-wrapper.full-width .impersonation-top-banner,
-  .main-wrapper.full-view-mode .impersonation-top-banner,
-  [data-layout="full-width"] .impersonation-top-banner {
+  .main-wrapper.full-view-mode .impersonation-top-banner {
     margin-left: 0 !important;
     margin-right: 0 !important;
     width: 100% !important;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
   }
 
   body.full-view .page-wrapper,
   body.full-width .page-wrapper,
   .main-wrapper.full-view .page-wrapper,
   .main-wrapper.full-width .page-wrapper,
-  .main-wrapper.full-view-mode .page-wrapper,
-  [data-layout="full-width"] .page-wrapper {
+  .main-wrapper.full-view-mode .page-wrapper {
     margin-left: 0 !important;
     margin-right: 0 !important;
     width: 100% !important;
-    max-width: 100vw !important;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    max-width: 100% !important;
   }
 }
 
@@ -1352,33 +1347,36 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
   /* Default full sidebar — stable 250px (when NOT in mini-sidebar state) */
   body:not(.mini-sidebar):not(.full-view):not(.full-width) .sidebar,
   .main-wrapper:not(.mini-sidebar):not(.full-view):not(.full-width) .sidebar {
+    left: 0 !important;
+    margin-left: 0 !important;
+    transform: none !important;
     width: var(--sidebar-width, 250px) !important;
     min-width: var(--sidebar-width, 250px) !important;
     max-width: var(--sidebar-width, 250px) !important;
-    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                opacity 0.22s ease,
-                box-shadow 0.22s ease !important;
+    transition: background-color 0.2s ease,
+                box-shadow 0.2s ease !important;
   }
 
   /* Mini rail — stable 72px */
   body.mini-sidebar:not(.expand-menu) .sidebar,
   .main-wrapper.mini-sidebar:not(.expand-menu) .sidebar {
+    left: 0 !important;
+    margin-left: 0 !important;
+    transform: none !important;
     width: var(--sidebar-mini-width, 72px) !important;
     min-width: var(--sidebar-mini-width, 72px) !important;
     max-width: var(--sidebar-mini-width, 72px) !important;
     overflow: hidden !important;
-    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.22s ease !important;
+    transition: background-color 0.2s ease,
+                box-shadow 0.2s ease !important;
   }
 
-  /* Hover-expand from mini — animate smoothly to 250px */
+  /* Hover-expand from mini */
   body.mini-sidebar.expand-menu .sidebar,
   .main-wrapper.mini-sidebar.expand-menu .sidebar {
+    left: 0 !important;
+    margin-left: 0 !important;
+    transform: none !important;
     width: var(--sidebar-width, 250px) !important;
     min-width: var(--sidebar-width, 250px) !important;
     max-width: var(--sidebar-width, 250px) !important;
@@ -1386,10 +1384,8 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
     z-index: 1200 !important;
     box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.28),
                 0 4px 12px -2px rgba(0, 0, 0, 0.12) !important;
-    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                max-width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.22s ease !important;
+    transition: background-color 0.2s ease,
+                box-shadow 0.2s ease !important;
   }
 
   /* Sidebar logo buttons row: ensure logo gets all remaining space */
@@ -1947,13 +1943,12 @@ html.sidebar-no-transition .impersonation-top-banner {
 }
 
 html body :is(.main-wrapper, .workspace-shell, .super-layout) .sidebar {
-  transition: width 0.24s cubic-bezier(0.22, 1, 0.36, 1),
-              background-color 0.2s ease,
+  transition: background-color 0.2s ease,
               box-shadow 0.2s ease !important;
 }
 
-/* FULL WIDTH MODE: Standard 250px sidebar visible on desktop (only when NOT collapsed/mini or full-view) */
-@media (min-width: 992px) {
+/* FULL WIDTH MODE: Standard 250px sidebar visible on desktop (>= 1024px, aligned with mobile < 1024px) */
+@media (min-width: 1024px) {
   html[data-layout="full-width"]:not([dir="rtl"]) body:not(.mini-sidebar):not(.full-view):not(.full-width) #sidebar.sidebar {
     left: 0 !important;
     margin-left: 0 !important;
@@ -1965,9 +1960,14 @@ html body :is(.main-wrapper, .workspace-shell, .super-layout) .sidebar {
     visibility: visible !important;
     opacity: 1 !important;
   }
-  html[data-layout="full-width"]:not([dir="rtl"]) body:not(.mini-sidebar):not(.full-view):not(.full-width) :is(.main-wrapper, .workspace-shell, .super-layout):not(.mini-sidebar):not(.full-view):not(.full-width) :is(.page-wrapper, .navbar-header, .impersonation-top-banner) {
+  html[data-layout="full-width"]:not([dir="rtl"]) body:not(.mini-sidebar):not(.full-view):not(.full-width) :is(.main-wrapper, .workspace-shell, .super-layout):not(.mini-sidebar):not(.full-view):not(.full-width) :is(.navbar-header, .impersonation-top-banner) {
     margin-left: var(--sidebar-width, 250px) !important;
     width: calc(100% - var(--sidebar-width, 250px)) !important;
+  }
+  html[data-layout="full-width"]:not([dir="rtl"]) body:not(.mini-sidebar):not(.full-view):not(.full-width) :is(.main-wrapper, .workspace-shell, .super-layout):not(.mini-sidebar):not(.full-view):not(.full-width) .page-wrapper {
+    margin-left: var(--sidebar-width, 250px) !important;
+    width: auto !important;
+    max-width: none !important;
   }
 
   /* AUTHORITATIVE COLLAPSED / MINI-SIDEBAR OVERRIDE (beats data-layout="full-width" so collapsed rail is strictly 72px with zero excess whitespace) */
@@ -1981,10 +1981,16 @@ html body :is(.main-wrapper, .workspace-shell, .super-layout) .sidebar {
     max-width: var(--sidebar-mini-width, 72px) !important;
     overflow: hidden !important;
   }
-  html:not([dir="rtl"]) body.mini-sidebar :is(.main-wrapper, .workspace-shell, .super-layout) :is(.page-wrapper, .navbar-header, .impersonation-top-banner),
-  html:not([dir="rtl"]) body .main-wrapper.mini-sidebar :is(.page-wrapper, .navbar-header, .impersonation-top-banner) {
+  html:not([dir="rtl"]) body.mini-sidebar :is(.main-wrapper, .workspace-shell, .super-layout) :is(.navbar-header, .impersonation-top-banner),
+  html:not([dir="rtl"]) body .main-wrapper.mini-sidebar :is(.navbar-header, .impersonation-top-banner) {
     margin-left: var(--sidebar-mini-width, 72px) !important;
     width: calc(100% - var(--sidebar-mini-width, 72px)) !important;
+  }
+  html:not([dir="rtl"]) body.mini-sidebar :is(.main-wrapper, .workspace-shell, .super-layout) .page-wrapper,
+  html:not([dir="rtl"]) body .main-wrapper.mini-sidebar .page-wrapper {
+    margin-left: var(--sidebar-mini-width, 72px) !important;
+    width: auto !important;
+    max-width: none !important;
   }
   html:not([dir="rtl"]) body.mini-sidebar.expand-menu #sidebar.sidebar,
   html:not([dir="rtl"]) body .main-wrapper.mini-sidebar.expand-menu #sidebar.sidebar {
@@ -2014,7 +2020,7 @@ html body :is(.main-wrapper, .workspace-shell, .super-layout) .sidebar {
 }
 
 /* MINI MODE: Exact 76px icon rail at rest; auto-expands smoothly to 256px on hover (zero text blending) */
-@media (min-width: 992px) {
+@media (min-width: 1024px) {
   html[data-layout="mini"] body #sidebar.sidebar {
     left: 0 !important;
     top: 0 !important;
@@ -2058,7 +2064,7 @@ html body :is(.main-wrapper, .workspace-shell, .super-layout) .sidebar {
 }
 
 /* HOVER VIEW MODE: Exact 76px icon rail at rest; expands smoothly to 256px on hover above topbar (zero blending) */
-@media (min-width: 992px) {
+@media (min-width: 1024px) {
   html[data-layout="hoverview"] body #sidebar.sidebar {
     left: 0 !important;
     top: 0 !important;
@@ -2107,7 +2113,7 @@ html[data-layout="hidden"] body :is(.main-wrapper, .workspace-shell, .super-layo
 }
 
 /* RTL LAYOUT MIRRORING */
-@media (min-width: 992px) {
+@media (min-width: 1024px) {
   html[dir="rtl"] body :is(.main-wrapper, .workspace-shell, .super-layout) .sidebar {
     left: auto !important;
     right: 0 !important;

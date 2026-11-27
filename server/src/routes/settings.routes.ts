@@ -285,6 +285,15 @@ settingsRouter.post("/:scope/:group/test", requireAuth, async (req: AuthRequest,
         });
       }
 
+      if (process.env.NODE_ENV !== "production" && rzpKey.startsWith("rzp_live_")) {
+        return res.status(400).json({
+          success: false,
+          code: "LIVE_KEYS_PROHIBITED_IN_NON_PRODUCTION",
+          error: "Live Razorpay keys (rzp_live_*) are strictly prohibited outside production environments. Use Sandbox (rzp_test_*) keys.",
+          latencyMs: Date.now() - startTime,
+        });
+      }
+
       if ((requestedMode === "sandbox" || requestedMode === "test") && rzpKey.startsWith("rzp_live_")) {
         return res.status(400).json({
           success: false,

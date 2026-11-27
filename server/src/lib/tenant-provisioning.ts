@@ -144,14 +144,12 @@ export async function provisionTenantWithTrial(input: ProvisionTenantInput) {
     },
   });
 
-  // 7. Find or create Workspace Admin WorkspaceRole and assign
+  // 7. Create strictly tenant-scoped WorkspaceRoles (Workspace Admin, HR Manager, Employee) & assign owner
   try {
     let wsAdminRole = await db.workspaceRole.findFirst({
       where: {
-        OR: [
-          { tenantId: tenant.id, name: "Workspace Admin" },
-          { name: "Workspace Admin" },
-        ],
+        tenantId: tenant.id,
+        name: "Workspace Admin",
       },
     });
 
@@ -162,8 +160,32 @@ export async function provisionTenantWithTrial(input: ProvisionTenantInput) {
           tenantId: tenant.id,
           name: "Workspace Admin",
           description: "Full administrator privileges for tenant workspace",
+          isSystem: true,
+          isActive: true,
         },
       });
+    }
+
+    // Ensure standard HR Manager and Employee workspace roles exist for this tenant
+    for (const defaultRole of [
+      { name: "HR Manager", description: "Human Resources manager with full HRM access" },
+      { name: "Employee", description: "Standard employee self-service access" },
+    ]) {
+      const existingRole = await db.workspaceRole.findFirst({
+        where: { tenantId: tenant.id, name: defaultRole.name },
+      });
+      if (!existingRole) {
+        await db.workspaceRole.create({
+          data: {
+            id: crypto.randomUUID(),
+            tenantId: tenant.id,
+            name: defaultRole.name,
+            description: defaultRole.description,
+            isSystem: true,
+            isActive: true,
+          },
+        });
+      }
     }
 
     if (wsAdminRole) {

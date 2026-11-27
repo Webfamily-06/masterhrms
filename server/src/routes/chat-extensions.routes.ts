@@ -370,15 +370,24 @@ chatExtensionsRouter.post("/messages/:id/transcribe", async (req: AuthRequest, r
 // =========================================================================
 chatExtensionsRouter.get("/push/status", async (req: AuthRequest, res: Response) => {
   try {
-    const tenantId = req.user?.tenantId!;
-    const userId = req.user?.userId!;
+    const tenantId = req.user?.tenantId;
+    const userId = req.user?.userId;
+    if (!tenantId || !userId) {
+      return res.json({ enabled: false, configured: false, count: 0, subscriptions: [] });
+    }
+    const configured = Boolean(
+      process.env.VAPID_PUBLIC_KEY ||
+      process.env.FIREBASE_SERVER_KEY ||
+      process.env.FIREBASE_PROJECT_ID
+    );
     const subs = await prisma.chatPushSubscription.findMany({
       where: { tenantId, userId, isActive: true },
       orderBy: { createdAt: "desc" },
     });
-    return res.json({ enabled: subs.length > 0, count: subs.length, subscriptions: subs });
+    return res.json({ enabled: subs.length > 0, configured, count: subs.length, subscriptions: subs });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    console.warn("[chat/push/status] Returning disabled status fallback:", err?.message || err);
+    return res.json({ enabled: false, configured: false, count: 0, subscriptions: [] });
   }
 });
 

@@ -627,6 +627,25 @@ const loginHandler = async (req: any, res: Response) => {
       return res.status(401).json({ error: "Invalid email or password." });
     }
 
+    // DEFECT-016: Block unverified self-registered users (unconsumed verify:* token and no provisioned tenant)
+    const isSuperUser = user.roles.some((r: any) => r.role === "super_admin");
+    if (!isSuperUser && !user.profile?.tenantId) {
+      try {
+        const pendingVerify: any[] = await prisma.$queryRawUnsafe(
+          `SELECT id FROM password_reset_tokens WHERE user_id = $1 AND token_hash LIKE 'verify:%' AND used_at IS NULL LIMIT 1`,
+          user.id
+        );
+        if (pendingVerify && pendingVerify.length > 0) {
+          return res.status(403).json({
+            error: "Please verify your email address before signing in.",
+            code: "EMAIL_NOT_VERIFIED",
+            requiresVerification: true,
+            email: user.email,
+          });
+        }
+      } catch {}
+    }
+
     // ── Mobile App Persona Restriction ────────────────────────────
     // The mobile application is exclusively for Employee, HR, and Tenant Administrator roles.
     // Super Administrator accounts are strictly forbidden from logging in via the mobile application.
@@ -1268,6 +1287,10 @@ authRouter.post("/verify-email", async (req, res) => {
       const verification = await verifyOtpCode(user.id, code);
       if (verification.valid) {
         isVerified = true;
+        await prisma.$executeRawUnsafe(
+          `UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND token_hash LIKE 'verify:%' AND used_at IS NULL`,
+          user.id
+        ).catch(() => {});
       } else if (!token) {
         return res.status(400).json({ error: verification.error || "Invalid or expired verification code." });
       }
@@ -2110,7 +2133,8 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const tenantId = user!.profile?.tenantId;
+    const isImpersonating = Boolean(req.user?.isImpersonating);
+    const tenantId = isImpersonating && req.user?.tenantId ? req.user.tenantId : user!.profile?.tenantId;
     let roles = await resolveEffectiveUserRoles(user!, tenantId);
 
     let workspaceRole: any = null;
@@ -2119,7 +2143,16 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
     let activeAddons: string[] = [];
     let allowedDashboards: string[] = [];
 
-    const isSuper = roles.includes("super_admin");
+    const isSuper = roles.includes("super_admin") && !isImpersonating;
+
+    if (isImpersonating && tenantId) {
+      const impersonatedTenant = await db.tenant.findUnique({ where: { id: tenantId } });
+      if (impersonatedTenant && user!.profile) {
+        (user!.profile as any).tenantId = impersonatedTenant.id;
+        (user!.profile as any).tenant = impersonatedTenant;
+      }
+      roles = ["tenant_admin", "admin", "workspace_admin", "hr_admin"];
+    }
 
     if (isSuper) {
       const allPerms = await db.permission.findMany({ select: { code: true } });
@@ -2265,7 +2298,17 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
         }
       }
 
-      if (assignment?.role && assignment.role.isActive) {
+      if (isImpersonating && tenantId) {
+        const allPerms = await db.permission.findMany({ select: { code: true } });
+        permissions = allPerms.map((p) => p.code);
+        workspaceRole = {
+          id: "impersonated_workspace_admin",
+          name: "Workspace Admin",
+          description: "Super Admin impersonating Workspace Admin",
+          isActive: true,
+          isSystem: true,
+        };
+      } else if (assignment?.role && assignment.role.isActive) {
         workspaceRole = {
           id: assignment.role.id,
           name: assignment.role.name,
@@ -2346,6 +2389,12 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       activeAddons,
       allowedDashboards,
       twoFactorEnabled: user!.twoFactorEnabled,
+      ...(isImpersonating
+        ? {
+            isImpersonating: true,
+            impersonatorEmail: req.user?.impersonatorEmail || null,
+          }
+        : {}),
     });
   } catch (err: any) {
     console.error("[/auth/me] Workspace initialization error:", err);
@@ -2402,8 +2451,48 @@ authRouter.post("/bootstrap-tenant", requireAuth, async (req: AuthRequest, res: 
         update: { tenantId: created.id },
       });
       await tx.userRole.create({ data: { userId: req.user!.userId, tenantId: created.id, role: "hr_admin" } });
-      const role = await tx.workspaceRole.create({ data: { tenantId: created.id, name: "Workspace Admin", isSystem: true, isActive: true } });
+      const role = await tx.workspaceRole.create({
+        data: { tenantId: created.id, name: "Workspace Admin", description: "Full access to workspace", isSystem: true, isActive: true },
+      });
+      const allPermissions = await tx.permission.findMany({ select: { id: true, key: true } });
+      if (allPermissions.length > 0) {
+        await tx.rolePermission.createMany({
+          data: allPermissions.map((p) => ({ roleId: role.id, permissionId: p.id })),
+          skipDuplicates: true,
+        });
+      }
+      const hrRole = await tx.workspaceRole.create({
+        data: { tenantId: created.id, name: "HR Manager", description: "Manages employees, attendance, leave and payroll", isSystem: true, isActive: true },
+      });
+      const hrPerms = allPermissions.filter((p) =>
+        p.key.startsWith("hrm.") || p.key.startsWith("analytics.") || p.key.startsWith("assets.") || p.key.startsWith("documents.")
+      );
+      if (hrPerms.length > 0) {
+        await tx.rolePermission.createMany({
+          data: hrPerms.map((p) => ({ roleId: hrRole.id, permissionId: p.id })),
+          skipDuplicates: true,
+        });
+      }
+      await tx.workspaceRole.create({
+        data: { tenantId: created.id, name: "Employee", description: "Standard employee self-service access", isSystem: true, isActive: true },
+      });
       await tx.userRoleAssignment.create({ data: { tenantId: created.id, userId: req.user!.userId, roleId: role.id } });
+      const defaultPlan = await tx.subscriptionPlan.findFirst({
+        where: { status: "active" },
+        orderBy: [{ isTrial: "desc" }, { priceMonthly: "asc" }],
+      });
+      if (defaultPlan) {
+        const trialDays = defaultPlan.trialDays || 14;
+        await tx.tenantSubscription.create({
+          data: {
+            tenantId: created.id,
+            planId: defaultPlan.id,
+            status: "trial",
+            billingCycle: "monthly",
+            expiresAt: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000),
+          },
+        });
+      }
       return created;
     });
     const token = generateToken({

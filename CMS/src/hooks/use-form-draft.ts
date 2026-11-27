@@ -30,11 +30,20 @@ export function useFormDraft<T extends Record<string, any>>(
   const { excludeKeys = [], debounceMs = 250, enabled = true } = options || {};
   const fullKey = `hrms_form_draft_hook_v1::${storageKey}`;
 
-  const [state, setState] = useState<T>(initialValue);
+  const [state, rawSetState] = useState<T>(initialValue);
   const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const hydratedRef = useRef(false);
+  const isDirtyRef = useRef(false);
+  const saveTimerRef = useRef<number | null>(null);
   const initialRef = useRef(initialValue);
+  const excludeKeysRef = useRef(excludeKeys);
+  excludeKeysRef.current = excludeKeys;
+
+  const setState = useCallback<React.Dispatch<React.SetStateAction<T>>>((updater) => {
+    isDirtyRef.current = true;
+    rawSetState(updater);
+  }, []);
 
   // Restore saved draft once on client mount (avoids SSR hydration mismatch)
   useEffect(() => {
@@ -44,7 +53,14 @@ export function useFormDraft<T extends Record<string, any>>(
       if (raw) {
         const parsed: StoredDraft<Partial<T>> = JSON.parse(raw);
         if (parsed?.updatedAt && Date.now() - parsed.updatedAt < DRAFT_TTL_MS && parsed.data) {
-          setState((prev) => ({ ...prev, ...parsed.data }));
+          rawSetState((prev) => {
+            const restored: Record<string, any> = { ...parsed.data };
+            // Never overwrite sensitive excluded keys (e.g. password) with undefined/stale values (DEFECT-028)
+            for (const k of excludeKeysRef.current) {
+              delete restored[String(k)];
+            }
+            return { ...prev, ...restored };
+          });
           setHasRestoredDraft(true);
           setLastSavedAt(parsed.updatedAt);
         } else {
@@ -58,14 +74,20 @@ export function useFormDraft<T extends Record<string, any>>(
     }
   }, [fullKey, enabled]);
 
-  // Persist changes (debounced) after initial hydration
+  // Persist changes (debounced) ONLY after user interaction marks form dirty (DEFECT-028)
   useEffect(() => {
-    if (!enabled || !hydratedRef.current || typeof window === "undefined") return;
+    if (!enabled || !hydratedRef.current || !isDirtyRef.current || typeof window === "undefined") return;
 
-    const timer = window.setTimeout(() => {
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = null;
+      if (!isDirtyRef.current) return;
       try {
         const sanitized: Record<string, any> = { ...state };
-        for (const k of excludeKeys) {
+        for (const k of excludeKeysRef.current) {
           delete sanitized[String(k)];
         }
         const now = Date.now();
@@ -80,11 +102,21 @@ export function useFormDraft<T extends Record<string, any>>(
       }
     }, debounceMs);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
   }, [state, fullKey, debounceMs, enabled]);
 
   const clearDraft = useCallback(
     (resetToInitial = false) => {
+      isDirtyRef.current = false;
+      if (saveTimerRef.current !== null && typeof window !== "undefined") {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
       if (typeof window !== "undefined") {
         try {
           window.localStorage.removeItem(fullKey);
@@ -95,7 +127,7 @@ export function useFormDraft<T extends Record<string, any>>(
       setHasRestoredDraft(false);
       setLastSavedAt(null);
       if (resetToInitial) {
-        setState(initialRef.current);
+        rawSetState(initialRef.current);
       }
     },
     [fullKey]

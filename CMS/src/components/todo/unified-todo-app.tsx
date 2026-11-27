@@ -769,6 +769,17 @@ export function UnifiedTodoApp({
 
   // Selection & Modal State
   const [selectedTodo, setSelectedTodo] = useState<TodoItem | null>(null);
+  const [isDesktopViewport, setIsDesktopViewport] = useState<boolean>(() =>
+    typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)").matches : true
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsDesktopViewport(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
@@ -2274,19 +2285,16 @@ export function UnifiedTodoApp({
         </div>
       )}
 
-      {/* Mobile & Tablet Slide-Over Sheet (and Gantt task inspector) */}
+      {/* Mobile & Tablet Slide-Over Sheet (and Gantt task inspector — never mount overlay on desktop List view where inline side panel is active) */}
       <Sheet
-        open={Boolean(selectedTodo)}
+        open={Boolean(selectedTodo) && (viewMode === "gantt" || !isDesktopViewport)}
         onOpenChange={(open) => {
           if (!open) setSelectedTodo(null);
         }}
       >
         <SheetContent
           side="right"
-          className={cn(
-            "w-full sm:max-w-md p-4 sm:p-6 overflow-y-auto",
-            viewMode === "list" && "lg:hidden"
-          )}
+          className="w-full sm:max-w-md p-4 sm:p-6 overflow-y-auto"
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Task Details</SheetTitle>

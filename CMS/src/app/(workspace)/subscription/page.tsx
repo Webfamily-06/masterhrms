@@ -343,8 +343,18 @@ function SubscriptionPage() {
     window.print();
   }
 
-  const activePlan =
-    plansData.find((p) => p.id === currentPlanId) || { name: liveSubscription?.planName || "Unassigned", price_monthly: 0, max_employees: liveSubscription?.maxEmployees };
+  const matchedPlan: any = plansData.find((p) => p.id === currentPlanId);
+  const activePlan = matchedPlan || {
+    name: liveSubscription?.planName || "Unassigned",
+    priceMonthly: 0,
+    price_monthly: 0,
+    maxEmployees: liveSubscription?.maxEmployees,
+    max_employees: liveSubscription?.maxEmployees,
+    maxUsers: liveSubscription?.maxUsers,
+  };
+  const resolvedMonthlyPrice = Number(activePlan.priceMonthly ?? activePlan.price_monthly ?? 0);
+  const resolvedMaxEmployees =
+    subscription?.maxEmployees ?? liveSubscription?.maxEmployees ?? activePlan.maxEmployees ?? activePlan.max_employees ?? null;
 
   return (
     <div className="space-y-8 max-w-full pb-12">
@@ -455,11 +465,11 @@ function SubscriptionPage() {
           </div>
           <div className="text-right shrink-0">
             <div className="text-3xl font-black font-mono text-primary">
-              {formatSystemAmount(activePlan.price_monthly, sysConfig)}
+              {formatSystemAmount(resolvedMonthlyPrice, sysConfig)}
               <span className="text-xs font-normal text-muted-foreground">/mo</span>
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              Capacity: {activePlan.max_employees || 25} Employees
+              Capacity: {resolvedMaxEmployees ?? "Unlimited"} Employees
             </div>
           </div>
         </div>

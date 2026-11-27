@@ -1,49 +1,40 @@
-import RevealAnimation from '@/src/components/animation/reveal-animation';
-import { TextReveal } from '@/src/components/animation/text-reveal';
-import { ButtonPrimary } from '@/src/components/shared/ui/button';
-import Link from 'next/link';
+"use client";
+
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 const NotFound = () => {
   return (
-    <section className="pt-20 md:pt-25 lg:pt-39">
-      <div className="main-container">
-        <RevealAnimation
-          delay={0.1}
-          className="relative w-full overflow-hidden rounded-2xl bg-[url('/images/opai-img-138.jpg')] bg-cover bg-center bg-no-repeat p-8"
-        >
-          <div className="flex flex-col items-center gap-14 rounded-xl bg-white/5 px-8 py-20 backdrop-blur-[60px] md:gap-16 md:px-20 md:py-28 lg:px-39 lg:py-39">
-            <div className="flex flex-col items-center gap-4 text-center">
-              <TextReveal delay={0.2}>
-                <h2 className="text-secondary/90 text-[100px] leading-[1.2] md:text-[150px] lg:text-[175px] xl:text-[200px]">
-                  404
-                </h2>
-              </TextReveal>
+    <section className="min-h-[80vh] w-full flex items-center justify-center bg-background px-4 py-16">
+      <div className="w-full max-w-lg rounded-2xl border border-border/80 bg-card p-8 sm:p-10 shadow-sm text-center space-y-6">
+        <div className="mx-auto size-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+          <i className="ph-duotone ph-compass text-3xl" aria-hidden="true" />
+        </div>
 
-              <div className="flex flex-col items-center gap-3">
-                <TextReveal delay={0.3}>
-                  <h3>Oops! Page not found</h3>
-                </TextReveal>
-                <TextReveal delay={0.4}>
-                  <p className="text-tagline-1 text-secondary/60 max-w-[420px] text-center">
-                    The page does not exist or was moved. Use the button below to get back to the
-                    homepage.
-                  </p>
-                </TextReveal>
-              </div>
-            </div>
+        <div className="space-y-2">
+          <p className="text-xs font-bold uppercase tracking-widest text-primary">Error 404</p>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
+            Page not found
+          </h1>
+          <p className="text-sm text-muted-foreground leading-relaxed max-w-md mx-auto">
+            The route you requested does not exist or has been moved. Return to your workspace dashboard or home page.
+          </p>
+        </div>
 
-            <RevealAnimation delay={0.5} className="inline-flex">
-              <Link href="/">
-                <ButtonPrimary
-                  className="w-full md:w-auto"
-                  textClassName="text-center text-nowrap max-sm:flex-1 max-sm:pr-8!"
-                >
-                  Go back home
-                </ButtonPrimary>
-              </Link>
-            </RevealAnimation>
-          </div>
-        </RevealAnimation>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          <Button asChild variant="primary" size="default" className="w-full sm:w-auto gap-2">
+            <Link href="/">
+              <i className="ph-duotone ph-house text-base" aria-hidden="true" />
+              <span>Go Back Home</span>
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="default" className="w-full sm:w-auto gap-2">
+            <Link href="/auth">
+              <i className="ph-duotone ph-sign-in text-base" aria-hidden="true" />
+              <span>Sign In</span>
+            </Link>
+          </Button>
+        </div>
       </div>
     </section>
   );

@@ -496,9 +496,9 @@ export const hrSidebar: HRMenuItem[] = [
     ],
   },
 
-  // ─── 09. Undefined (Unassigned / Secondary Pages) ─────────────────────────
+  // ─── 09. Additional HR Tools (Secondary Pages) ───────────────────────────
   {
-    label: "Undefined",
+    label: "Additional HR Tools",
     icon: "ph-dots-three-circle",
     permission: "hrm.dashboard.view",
     children: [

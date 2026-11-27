@@ -174,7 +174,8 @@ export function useTenantBranding() {
     staleTime: 60 * 1000,
   });
 
-  const wsBrand = ws?.brand;
+  const hasLoadedWsBrand = hasAuthToken && Boolean(ws?.tenant);
+  const wsBrand = hasLoadedWsBrand ? ws?.brand : null;
   const resolvedLightLogo = wsBrand?.logoDark || rawBranding.logoUrl || DEFAULT_BRANDING.logoUrl;
   const resolvedDarkLogo = wsBrand?.logoLight || wsBrand?.logoDark || rawBranding.logoDark || DEFAULT_BRANDING.logoDark;
   const resolvedFavicon = wsBrand?.favicon || rawBranding.faviconUrl || DEFAULT_BRANDING.faviconUrl;

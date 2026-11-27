@@ -122,8 +122,8 @@ export default function HrLeavePoliciesPage() {
 
   const [form, setForm] = useState<PolicyFormState>(getInitialPolicyForm);
 
-  // 1. Fetch Policies with server counts, sorting, and pagination
-  const { data: policyPayload, isLoading, refetch } = useQuery({
+  // 1. Fetch Policies (HR admin endpoint for HR portal; ESS /api/v1/me/leave/catalog for /me portal — DEFECT-034)
+  const { data: hrPolicyPayload, isLoading: isHrLoading, refetch: refetchHr } = useQuery({
     queryKey: [
       "hr-leave-policies",
       statusFilter,
@@ -134,6 +134,7 @@ export default function HrLeavePoliciesPage() {
       currentPage,
       pageSize,
     ],
+    enabled: !isEmployeePortal,
     queryFn: async () => {
       return await api.get("/api/v1/hr/leave/policies", {
         params: {
@@ -151,9 +152,10 @@ export default function HrLeavePoliciesPage() {
     staleTime: 30_000,
   });
 
-  // 2. Fetch Tenant Leave Types for filter & form
-  const { data: leaveTypes = [] } = useQuery({
+  // 2. Fetch Tenant Leave Types for filter & form (HR portal only)
+  const { data: hrLeaveTypes = [] } = useQuery({
     queryKey: ["hr-leave-types", "all-for-policies"],
+    enabled: !isEmployeePortal,
     queryFn: async () => {
       const res = await api.get("/api/v1/hr/leave/types", { params: { status: "all" } });
       return unwrapArray(res);
@@ -161,15 +163,82 @@ export default function HrLeavePoliciesPage() {
     staleTime: 30_000,
   });
 
-  const policies: any[] = Array.isArray(policyPayload?.data)
+  // 2b. Employee Self-Service Leave Catalog (no HR admin permissions required)
+  const { data: meCatalogPayload, isLoading: isMeLoading, refetch: refetchMe } = useQuery({
+    queryKey: ["me-leave-catalog-policies"],
+    enabled: isEmployeePortal,
+    queryFn: async () => {
+      const res = await api.get("/api/v1/me/leave/catalog");
+      return res?.data ?? res ?? {};
+    },
+    staleTime: 30_000,
+  });
+
+  const isLoading = isEmployeePortal ? isMeLoading : isHrLoading;
+  const refetch = isEmployeePortal ? refetchMe : refetchHr;
+
+  const meLeaveTypesRaw: any[] = Array.isArray(meCatalogPayload?.leaveTypes) ? meCatalogPayload.leaveTypes : [];
+  const leaveTypes: any[] = isEmployeePortal ? meLeaveTypesRaw : hrLeaveTypes;
+
+  const allMePolicies: any[] = meLeaveTypesRaw.map((item: any) => ({
+    id: item.policy?.id || item.id,
+    name: item.policy?.name || `${item.name} Policy`,
+    code: item.policy?.code || item.code || "STD",
+    description: item.policy?.description || item.description || "",
+    leaveTypeId: item.id,
+    leaveType: { id: item.id, name: item.name, color: item.color },
+    leaveTypeName: item.name,
+    color: item.color || "#3b82f6",
+    minDays: item.policy?.minDays ?? 0.5,
+    maxConsecutiveDays: item.policy?.maxConsecutiveDays ?? 14,
+    noticeDays: item.policy?.noticeDays ?? 0,
+    carryForwardEnabled: Boolean(item.policy?.carryForwardEnabled),
+    maxCarryForwardDays: item.policy?.maxCarryForwardDays ?? 0,
+    requiresApproval: item.policy?.requiresApproval ?? true,
+    probationAllowed: item.policy?.probationAllowed ?? true,
+    halfDayAllowed: Boolean(item.policy?.halfDayAllowed),
+    sandwichRule: Boolean(item.policy?.sandwichRule || item.sandwichRule),
+    accrualFrequency: item.policy?.accrualFrequency || "yearly",
+    effectiveFrom: item.policy?.effectiveFrom || null,
+    effectiveTo: item.policy?.effectiveTo || null,
+    isDefault: Boolean(item.policy?.isDefault),
+    status: item.status || "active",
+  }));
+
+  const filteredMePolicies = allMePolicies.filter((p) => {
+    if (statusFilter !== "all" && p.status !== statusFilter) return false;
+    if (selectedTypeFilter !== "all" && p.leaveTypeId !== selectedTypeFilter) return false;
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      return (
+        String(p.name || "").toLowerCase().includes(q) ||
+        String(p.leaveTypeName || "").toLowerCase().includes(q) ||
+        String(p.description || "").toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
+  const policyPayload = isEmployeePortal ? null : hrPolicyPayload;
+  const policies: any[] = isEmployeePortal
+    ? filteredMePolicies.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    : Array.isArray(policyPayload?.data)
     ? policyPayload.data
     : unwrapArray(policyPayload);
-  const counts = policyPayload?.counts || {
-    all: policies.length,
-    active: policies.filter((p) => p.status === "active").length,
-    inactive: policies.filter((p) => p.status === "inactive").length,
-  };
-  const totalFilteredCount = Number(policyPayload?.meta?.total ?? policies.length);
+  const counts = isEmployeePortal
+    ? {
+        all: allMePolicies.length,
+        active: allMePolicies.filter((p) => p.status === "active").length,
+        inactive: allMePolicies.filter((p) => p.status === "inactive").length,
+      }
+    : policyPayload?.counts || {
+        all: policies.length,
+        active: policies.filter((p) => p.status === "active").length,
+        inactive: policies.filter((p) => p.status === "inactive").length,
+      };
+  const totalFilteredCount = isEmployeePortal
+    ? filteredMePolicies.length
+    : Number(policyPayload?.meta?.total ?? policies.length);
 
   const handleSort = (column: "createdAt" | "name" | "maxCarryForwardDays") => {
     if (sortBy === column) {

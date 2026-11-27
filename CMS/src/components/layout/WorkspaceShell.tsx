@@ -310,7 +310,6 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     ["admin", "super_admin", "tenant_admin", "hr_admin"].includes(r)
   );
   const isManager = userRoles.includes("manager");
-  const canAccessPos = isModuleAllowed("pos", profile) || hasPermission("pos.terminal.view", profile) || hasPermission("pos.dashboard.view", profile);
   const isClientOnly = userRoles.includes("client") && !isAdminOrSuper;
   const isEmployeeOnly = (userRoles.includes("employee") || isManager) && !isAdminOrSuper;
   const isHrAdmin = userRoles.some((r) => ["hr_admin", "hr"].includes(r));
@@ -321,6 +320,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     enabledModules.includes("pos") ||
     enabledModules.includes("product_pos") ||
     enabledModules.includes("inventory");
+  const canAccessPos = isPosEntitled && (isModuleAllowed("pos", profile) || hasPermission("pos.terminal.view", profile) || hasPermission("pos.dashboard.view", profile));
 
   const isFinanceEntitled = isSuperAdmin ||
     enabledModules.includes("accounting") ||
@@ -362,18 +362,18 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     : isTenantAdmin
       ? "/tenant/dashboard"
       : isClientOnly
-      ? "/client-dashboard"
-      : isEmployeeOnly
-        ? "/me/dashboard"
-        : isHrmsEntitled
-          ? (isHrAdmin ? "/hr/dashboard" : "/hrm-dashboard")
-          : isPosEntitled
-            ? "/pos-dashboard"
-            : isCrmEntitled
-              ? "/crm-dashboard"
-              : isFinanceEntitled
-                ? "/finance-dashboard"
-                : "/hrm-dashboard";
+        ? "/client-dashboard"
+        : isEmployeeOnly
+          ? "/me/dashboard"
+          : isHrmsEntitled
+            ? (isHrAdmin ? "/hr/dashboard" : "/hrm-dashboard")
+            : isPosEntitled
+              ? "/pos-dashboard"
+              : isCrmEntitled
+                ? "/crm-dashboard"
+                : isFinanceEntitled
+                  ? "/finance-dashboard"
+                  : "/hrm-dashboard";
   const isPlatformOrShared = isPlatformOnlyRoute(path) || isSharedRoute(path);
 
   const { data: subscription, isLoading: isSubLoading, refetch: reloadSubscription } = useQuery({
@@ -477,12 +477,13 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       window.location.href = "/login";
       return;
     }
+    const isOnboardingRoute = path === "/onboarding" || path.startsWith("/onboarding/");
     if (!loading && !isLoading && profile && !profile.tenant_id) {
       if (isSuperAdmin) {
         if (!isPlatformOrShared && (path === "/hrm-dashboard" || path === "/dashboard" || path === "/")) {
           navigate({ to: "/super" });
         }
-      } else {
+      } else if (!isOnboardingRoute) {
         navigate({ to: "/onboarding" });
       }
       return;
@@ -544,10 +545,10 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   const toggleBrowserFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().catch(() => { });
     } else {
       if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
+        document.exitFullscreen().catch(() => { });
       }
     }
   };
@@ -573,7 +574,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem("master_hrms_full_view", String(fullView));
       localStorage.setItem("master_hrms_sidebar_collapsed", String(collapsed));
-    } catch {}
+    } catch { }
   }, [fullView, collapsed]);
 
   // Synchronize mobile slide-nav on document.body and html
@@ -690,7 +691,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   }, [profile]);
 
   async function handleSignOut() {
-    try { await api.post("/auth/logout"); } catch {}
+    try { await api.post("/auth/logout"); } catch { }
     clearToken();
     localStorage.removeItem("auth_token");
     localStorage.removeItem("hrms_auth_token");
@@ -723,6 +724,9 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   }
 
   if (!profile.tenant_id && !profile.roles?.includes("super_admin")) {
+    if (path === "/onboarding" || path.startsWith("/onboarding/")) {
+      return <div className="min-h-screen w-full bg-background">{children}</div>;
+    }
     return (
       <div className="min-h-screen grid place-items-center bg-background p-6">
         <div className="flex flex-col items-center gap-3 text-center max-w-sm">
@@ -1391,8 +1395,8 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
               {branding.footerText && !branding.footerText.includes("Apex HRMS") && !branding.footerText.includes("Persisted Forever")
                 ? branding.footerText
                 : (appConfig.footerText && !appConfig.footerText.includes("Apex HRMS") && !appConfig.footerText.includes("Persisted Forever")
-                    ? appConfig.footerText
-                    : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`)}
+                  ? appConfig.footerText
+                  : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`)}
             </span>
             <span>{branding.name || appConfig.appName}</span>
           </footer>
@@ -1429,11 +1433,11 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             const sourceList = isEmployeeOnly
               ? EMPLOYEE_SELF_SERVICE_SEARCH_ITEMS
               : isClientOnly
-              ? [
+                ? [
                   { title: "Client Dashboard", url: "/client-dashboard", group: "Employee Self-Service", icon: Home },
                   { title: "My Profile & 2FA", url: "/profile", group: "Employee Self-Service", icon: User },
                 ]
-              : [...EMPLOYEE_SELF_SERVICE_SEARCH_ITEMS, ...filterSearchItems(ALL_SEARCH_ITEMS)];
+                : [...EMPLOYEE_SELF_SERVICE_SEARCH_ITEMS, ...filterSearchItems(ALL_SEARCH_ITEMS)];
 
             const seenUrls = new Set<string>();
             const roleScopedItems = sourceList.filter((i) => {
@@ -1582,14 +1586,14 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             const groups = isEmployeeOnly
               ? ["Employee Self-Service", "Collaboration"]
               : [
-                  "Employee Self-Service",
-                  "HRM Suite",
-                  "ERP Core",
-                  "Sales & Finance",
-                  "Collaboration",
-                  "Extensions",
-                  "Platform",
-                ];
+                "Employee Self-Service",
+                "HRM Suite",
+                "ERP Core",
+                "Sales & Finance",
+                "Collaboration",
+                "Extensions",
+                "Platform",
+              ];
 
             return groups.map((group) => {
               const items = roleScopedItems.filter((i) => i.group === group);

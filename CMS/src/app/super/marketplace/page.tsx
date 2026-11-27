@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { usePermissions } from "@/lib/permissions";
+import { AccessDenied } from "@/components/access-denied";
 import { useState, useMemo, useRef } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
@@ -863,17 +865,15 @@ function MarketplaceAdmin() {
                           const el = document.getElementById(targetId);
                           if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
                         }}
-                        className={`flex-1 flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left ${
-                          isSelected
-                            ? "bg-primary text-primary-foreground shadow-xs"
-                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                        }`}
+                        className={`flex-1 flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left ${isSelected
+                          ? "bg-primary text-primary-foreground shadow-xs"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          }`}
                       >
                         <span className="truncate pr-2">{cat.name}</span>
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[11px] shrink-0 ${
-                            isSelected ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
-                          }`}
+                          className={`px-2 py-0.5 rounded-full text-[11px] shrink-0 ${isSelected ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                            }`}
                         >
                           {cat.count}
                         </span>
@@ -1163,7 +1163,7 @@ function MarketplaceAdmin() {
                   <Rocket className="size-3.5 text-primary" />
                   Publish New SemVer Release
                 </h4>
-                <Badge variant="outline"className="text-[10px]">
+                <Badge variant="outline" className="text-[10px]">
                   Immutable History
                 </Badge>
               </div>
@@ -1290,11 +1290,10 @@ function MarketplaceAdmin() {
                           )}
                           <Badge
                             variant="outline"
-                            className={`text-[10px] ${
-                              rel.isPublic
-                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                                : "bg-muted text-muted-foreground"
-                            }`}
+                            className={`text-[10px] ${rel.isPublic
+                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                              : "bg-muted text-muted-foreground"
+                              }`}
                           >
                             {rel.isPublic ? "Public" : "Internal"}
                           </Badge>
@@ -1739,9 +1738,8 @@ function AddonCatalogCard({
 
   return (
     <Card
-      className={`border border-border/80 rounded-xl bg-card p-4 text-center flex flex-col items-center justify-between transition-all duration-200 group relative hover:shadow-md hover:border-primary/50 ${
-        !isEnabled ? "opacity-75 bg-muted/20 border-dashed" : ""
-      }`}
+      className={`border border-border/80 rounded-xl bg-card p-4 text-center flex flex-col items-center justify-between transition-all duration-200 group relative hover:shadow-md hover:border-primary/50 ${!isEnabled ? "opacity-75 bg-muted/20 border-dashed" : ""
+        }`}
     >
       {/* Top Super Admin Controls */}
       <div className="w-full flex items-center justify-between mb-2">
@@ -1803,7 +1801,7 @@ function AddonCatalogCard({
           {addon.name}
         </h4>
         <div className="flex items-center justify-center gap-1.5 text-[10px]">
-          <Badge variant="secondary"className="tabular-nums text-[10px] px-1.5 py-0">
+          <Badge variant="secondary" className="tabular-nums text-[10px] px-1.5 py-0">
             v{addon.version || "1.0.0"}
           </Badge>
           <span className="font-semibold text-emerald-600 tabular-nums">{priceDisplay}</span>
@@ -1842,4 +1840,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-export default MarketplaceAdmin;
+function GuardedMarketplaceAdmin() {
+  const { isSuperAdmin, loading } = usePermissions();
+  if (!loading && !isSuperAdmin) {
+    return <AccessDenied moduleName="Super Admin Add-on Marketplace Catalog" requiredPermission="platform.super_admin" />;
+  }
+  return <MarketplaceAdmin />;
+}
+
+export default GuardedMarketplaceAdmin;

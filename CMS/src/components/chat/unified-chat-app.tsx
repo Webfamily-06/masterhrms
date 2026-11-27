@@ -7211,7 +7211,10 @@ export function UnifiedChatApp({
             ? {
                 ...c,
                 lastMessage: canonicalMsg.content || (canonicalMsg.attachments?.length ? "Shared attachment" : (canonicalMsg.voiceNote ? "Voice message" : "Message")),
-                lastMessageTime: canonicalMsg.createdAt || new Date().toISOString(),
+                lastMessageTime: new Date(canonicalMsg.createdAt || Date.now()).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
               }
             : c
         );
@@ -10273,6 +10276,7 @@ export function UnifiedChatApp({
 
                 {/* Input Field */}
                 <Input
+                  data-no-autosave="true"
                   value={messageInput}
                   onChange={(e) => {
                     const val = e.target.value;

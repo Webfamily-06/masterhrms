@@ -15,6 +15,11 @@ const EXCLUDED_ROUTES = [
   "/verify-email",
   "/2fa",
   "/auth/",
+  "/hr/chat",
+  "/me/chat",
+  "/tenant/chat",
+  "/chat",
+  "/apps/chat",
 ];
 
 const SENSITIVE_PATTERN =
@@ -35,6 +40,7 @@ type FormFieldElement = HTMLInputElement | HTMLTextAreaElement | HTMLSelectEleme
 
 function isExcludedRoute(pathname: string): boolean {
   const lower = (pathname || "/").toLowerCase();
+  if (lower.endsWith("/chat") || lower.includes("/chat/")) return true;
   return EXCLUDED_ROUTES.some((prefix) => lower === prefix || lower.startsWith(prefix));
 }
 

@@ -305,21 +305,21 @@ export default function SuperDashboard() {
       const isApprove = payload.mode === "approve";
       const body = isApprove
         ? {
-            action: payload.targetAddonSlug ? "activate_addon" : "approved",
-            status: "resolved",
-            adminNotes: payload.note.trim() || "Approved from Super Admin Dashboard",
-            replyMessage:
-              payload.note.trim() ||
-              "Your upgrade/addon request has been reviewed and approved by Platform Administration.",
-          }
+          action: payload.targetAddonSlug ? "activate_addon" : "approved",
+          status: "resolved",
+          adminNotes: payload.note.trim() || "Approved from Super Admin Dashboard",
+          replyMessage:
+            payload.note.trim() ||
+            "Your upgrade/addon request has been reviewed and approved by Platform Administration.",
+        }
         : {
-            action: "rejected",
-            status: "closed",
-            adminNotes: payload.note.trim() || "Rejected from Super Admin Dashboard",
-            replyMessage:
-              payload.note.trim() ||
-              "Your request could not be approved at this time. Please contact platform support for details.",
-          };
+          action: "rejected",
+          status: "closed",
+          adminNotes: payload.note.trim() || "Rejected from Super Admin Dashboard",
+          replyMessage:
+            payload.note.trim() ||
+            "Your request could not be approved at this time. Please contact platform support for details.",
+        };
 
       const res = await api.post(`/support/platform/tickets/${encodeURIComponent(payload.ticketId)}/action`, body);
       return res?.data || res || {};
@@ -717,7 +717,7 @@ export default function SuperDashboard() {
       {/* ─── ROW 2: Live Charts (Companies, Revenue, Plan Distribution) ───── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
         {/* Companies Registered Chart */}
-        <Card className="lg:col-span-3 border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col justify-between min-w-0">
+        <Card className="lg:col-span-3 border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col justify-between min-w-0 overflow-hidden">
           <div className="flex items-center justify-between gap-2 pb-3 border-b border-border/60">
             <h3 className="text-sm font-semibold text-foreground">Companies</h3>
             <Select
@@ -735,11 +735,11 @@ export default function SuperDashboard() {
             </Select>
           </div>
 
-          <div className="my-2 min-h-[250px] flex items-center justify-center">
+          <div className="my-2 min-h-[250px] flex items-center justify-center min-w-0 overflow-hidden">
             {isLoading ? (
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
             ) : isMounted && (companiesReg?.counts?.some((c) => c > 0) ?? false) ? (
-              <div className="w-full">
+              <div className="w-full min-w-0 overflow-hidden">
                 <Suspense fallback={<div className="text-xs text-muted-foreground text-center">Loading chart...</div>}>
                   <Chart
                     options={companyChartOptions}
@@ -767,7 +767,7 @@ export default function SuperDashboard() {
         </Card>
 
         {/* Monthly Revenue Chart */}
-        <Card className="lg:col-span-6 border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col justify-between min-w-0">
+        <Card className="lg:col-span-6 border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col justify-between min-w-0 overflow-hidden">
           <div className="flex items-center justify-between gap-2 pb-3 border-b border-border/60">
             <h3 className="text-sm font-semibold text-foreground">Revenue</h3>
             <Select value={revenueYear} onValueChange={setRevenueYear}>
@@ -797,11 +797,11 @@ export default function SuperDashboard() {
             <DeltaBadge delta={revenue?.yearDeltaPercent} />
           </div>
 
-          <div className="my-1 min-h-[250px] flex items-center justify-center">
+          <div className="my-1 min-h-[250px] flex items-center justify-center min-w-0 overflow-hidden">
             {isLoading ? (
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
             ) : isMounted && (revenue?.yearTotal ?? 0) > 0 ? (
-              <div className="w-full">
+              <div className="w-full min-w-0 overflow-hidden">
                 <Suspense fallback={<div className="text-xs text-muted-foreground text-center">Loading chart...</div>}>
                   <Chart
                     options={revenueChartOptions}
@@ -824,7 +824,7 @@ export default function SuperDashboard() {
         </Card>
 
         {/* Top Plans Donut */}
-        <Card className="lg:col-span-3 border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col justify-between min-w-0">
+        <Card className="lg:col-span-3 border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col justify-between min-w-0 overflow-hidden">
           <div className="flex items-center justify-between gap-2 pb-3 border-b border-border/60">
             <h3 className="text-sm font-semibold text-foreground">Plan Distribution</h3>
             <Select value={plansRange} onValueChange={(v) => setPlansRange(v as "month" | "year")}>
@@ -838,11 +838,11 @@ export default function SuperDashboard() {
             </Select>
           </div>
 
-          <div className="my-2 min-h-[210px] flex items-center justify-center">
+          <div className="my-2 min-h-[210px] flex items-center justify-center min-w-0 overflow-hidden">
             {isLoading ? (
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
             ) : isMounted && activePlanItems.length > 0 ? (
-              <div className="w-full">
+              <div className="w-full min-w-0 overflow-hidden">
                 <Suspense fallback={<div className="text-xs text-muted-foreground text-center">Loading chart...</div>}>
                   <Chart
                     options={planChartOptions}
@@ -932,8 +932,8 @@ export default function SuperDashboard() {
                         tx.status === "Paid"
                           ? "success"
                           : tx.status === "Failed"
-                          ? "destructive"
-                          : "warning"
+                            ? "destructive"
+                            : "warning"
                       }
                       className="text-[10px] px-1.5 py-0 mt-0.5"
                     >
@@ -1009,22 +1009,20 @@ export default function SuperDashboard() {
               <button
                 type="button"
                 onClick={() => setExpiredTab("expired")}
-                className={`px-2 py-0.5 text-xs font-semibold rounded transition-colors cursor-pointer ${
-                  expiredTab === "expired"
-                    ? "bg-background text-foreground shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`px-2 py-0.5 text-xs font-semibold rounded transition-colors cursor-pointer ${expiredTab === "expired"
+                  ? "bg-background text-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 Expired ({overview?.recentlyExpired?.length ?? 0})
               </button>
               <button
                 type="button"
                 onClick={() => setExpiredTab("request")}
-                className={`px-2 py-0.5 text-xs font-semibold rounded transition-colors cursor-pointer ${
-                  expiredTab === "request"
-                    ? "bg-background text-foreground shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`px-2 py-0.5 text-xs font-semibold rounded transition-colors cursor-pointer ${expiredTab === "request"
+                  ? "bg-background text-foreground shadow-2xs"
+                  : "text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 Requests ({overview?.pendingRequests?.length ?? 0})
               </button>
@@ -1165,11 +1163,10 @@ export default function SuperDashboard() {
         }
         description={
           ticketActionDialog.ticket
-            ? `Ticket ${ticketActionDialog.ticket.ticketCode}: ${ticketActionDialog.ticket.subject}${
-                ticketActionDialog.mode === "approve" && ticketActionDialog.ticket.targetAddonSlug
-                  ? ` — This will automatically activate add-on "${ticketActionDialog.ticket.targetAddonSlug}".`
-                  : ""
-              }`
+            ? `Ticket ${ticketActionDialog.ticket.ticketCode}: ${ticketActionDialog.ticket.subject}${ticketActionDialog.mode === "approve" && ticketActionDialog.ticket.targetAddonSlug
+              ? ` — This will automatically activate add-on "${ticketActionDialog.ticket.targetAddonSlug}".`
+              : ""
+            }`
             : ""
         }
         confirmLabel={ticketActionDialog.mode === "approve" ? "Approve Request" : "Reject Request"}

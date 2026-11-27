@@ -1,21 +1,18 @@
 'use client';
-import {  createFileRoute  } from "@/src/lib/router-compat";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Boxes, Laptop, ShieldCheck } from "lucide-react";
-
-
+import { Boxes } from "lucide-react";
 
 export default function MeAssetTypesPage() {
   const { data: assetTypes = [], isLoading } = useQuery({
     queryKey: ["me-asset-types"],
     queryFn: async () => {
-      const res = await api.get("/api/v1/hr/assets/types");
-      return Array.isArray(res.data) ? res.data : [];
+      const res = await api.get("/api/v1/me/assets/types");
+      return Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
     },
   });
 

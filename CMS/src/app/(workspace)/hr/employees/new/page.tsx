@@ -375,8 +375,8 @@ function NewEmployeeWizardPage() {
       return await api.post("/hr/employees", payload);
     },
     onSuccess: () => {
-      clearFormDraft(false);
-      clearWizardMetaDraft(false);
+      clearFormDraft(true);
+      clearWizardMetaDraft(true);
       toast.success("Employee created successfully.");
       navigate({ to: "/hr/employees" as any });
     },
@@ -560,9 +560,22 @@ function NewEmployeeWizardPage() {
   };
 
   const handleSubmit = () => {
-    if (!validateStep(currentStep)) return;
+    // Re-validate all wizard steps before submit so excluded fields (e.g. password) are never silently empty (DEFECT-028)
+    for (const step of [1, 2, 3, 4, 5]) {
+      if (!validateStep(step)) {
+        setCurrentStep(step);
+        return;
+      }
+    }
+    if (formData.createLoginAccount && (!formData.password || formData.password.trim().length < 6)) {
+      setErrors((prev) => ({ ...prev, password: "Login password (min 6 characters) is required." }));
+      setCurrentStep(1);
+      toast.error("Please enter an initial login password (minimum 6 characters) in Step 1.");
+      return;
+    }
 
     const { firstName, lastName } = splitFullName(formData.fullName);
+    const selectedDesig = designations.find((d: any) => d.id === formData.designationId);
     const payload = {
       firstName,
       lastName,
@@ -576,6 +589,7 @@ function NewEmployeeWizardPage() {
       branchId: formData.branchId || undefined,
       departmentId: formData.departmentId || undefined,
       designationId: formData.designationId || undefined,
+      position: selectedDesig?.name || undefined,
       managerId: formData.managerId || undefined,
       shiftId: formData.shiftId || undefined,
       attendancePolicyId: formData.attendancePolicyId || undefined,

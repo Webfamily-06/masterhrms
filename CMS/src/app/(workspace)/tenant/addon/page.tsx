@@ -1,7 +1,7 @@
 'use client';
 
-import MarketplaceAdmin from "@/app/super/marketplace/page";
+import TenantAddonStorefront from "@/components/addons/tenant-addon-storefront";
 
 export default function TenantAddonPage() {
-  return <MarketplaceAdmin />;
+  return <TenantAddonStorefront />;
 }

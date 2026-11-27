@@ -141,19 +141,36 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
     staleTime: 60 * 1000,
   });
 
-  const tenantAdminCreds = tenantCredsData?.credentials?.tenantAdmin || { email: 'tenantadmin@masterhrms.com', name: 'Organization Admin', role: 'Tenant Admin' };
-  const hrAdminCreds = tenantCredsData?.credentials?.hrAdmin || { email: 'hr@masterhrms.com', name: 'Sarah HR Lead', role: 'HR Admin' };
-  const employeeCreds = tenantCredsData?.credentials?.employee || { email: 'employee@masterhrms.com', name: 'Alex Rivera', role: 'Employee' };
-  const hasWorkspaceCreds = true;
+  const tenantAdminCreds = tenantCredsData?.credentials?.tenantAdmin || null;
+  const hrAdminCreds = tenantCredsData?.credentials?.hrAdmin || null;
+  const employeeCreds = tenantCredsData?.credentials?.employee || null;
+  const isResolvedTenantHost = Boolean(
+    tenantCredsData?.tenant?.name ||
+    (branding?.resolved && branding?.slug && branding.slug !== 'default')
+  );
+  const resolvedTenantName =
+    tenantCredsData?.tenant?.name ||
+    (branding?.resolved && branding?.slug && branding.slug !== 'default' ? branding.name : '');
+  const hasWorkspaceCreds =
+    process.env.NEXT_PUBLIC_ENABLE_DEMO_CREDENTIALS === 'true' &&
+    Boolean(tenantAdminCreds || hrAdminCreds || employeeCreds);
 
-  const logoLightUrl = appConfig?.logoLightUrl || branding?.logoUrl || '/logo.webp';
-  const logoDarkUrl = appConfig?.logoDarkUrl || branding?.logoDark || '/white-logo.webp';
-  const appName = appConfig?.appName || branding?.name || 'Master Workspace ERP';
-  const rawFooter = appConfig?.footerText || branding?.footerText;
+  const logoLightUrl =
+    (isResolvedTenantHost && branding?.isWhiteLabeled && branding?.logoUrl ? branding.logoUrl : null) ||
+    appConfig?.logoLightUrl ||
+    branding?.logoUrl ||
+    '/logo.webp';
+  const logoDarkUrl =
+    (isResolvedTenantHost && branding?.isWhiteLabeled && branding?.logoDark ? branding.logoDark : null) ||
+    appConfig?.logoDarkUrl ||
+    branding?.logoDark ||
+    '/white-logo.webp';
+  const appName = resolvedTenantName || appConfig?.appName || branding?.name || 'Master Workspace ERP';
+  const rawFooter = (isResolvedTenantHost ? branding?.footerText : null) || appConfig?.footerText || branding?.footerText;
   const footerText =
     rawFooter && !rawFooter.includes("Apex HRMS") && !rawFooter.includes("Persisted Forever")
       ? rawFooter
-      : `Â© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`;
+      : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`;
 
   const googleVisible = Boolean(oauthConfig?.google?.enabled);
   const githubVisible = Boolean(oauthConfig?.github?.enabled);
@@ -187,7 +204,7 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
     appleVisible && {
       id: 'apple' as const,
       name: 'Apple',
-      icon: <span className="font-bold">ï£¿</span>,
+      icon: <i className="fa-brands fa-apple text-sm" aria-hidden="true" />,
     },
     linkedinVisible && {
       id: 'linkedin' as const,
@@ -538,6 +555,14 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
               }}
             />
           </Link>
+          {resolvedTenantName && (
+            <div className="mb-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/20 px-3 py-0.5 text-xs font-semibold text-primary">
+                <i className="ph-duotone ph-buildings text-xs" aria-hidden="true" />
+                <span>{resolvedTenantName}</span>
+              </span>
+            </div>
+          )}
           <h1 className="text-xl font-bold text-title mb-1">
             {isMfaStep
               ? 'Two-Factor Authentication'
@@ -549,6 +574,8 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
               ? 'Verify Email'
               : mode === 'signup'
               ? 'Create Account'
+              : resolvedTenantName
+              ? `Welcome to ${resolvedTenantName}`
               : 'Welcome Back!'}
           </h1>
           <p className="text-sm text-default mb-0">
@@ -562,6 +589,8 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
               ? 'Enter the 6-digit confirmation code'
               : mode === 'signup'
               ? 'Sign up for your workspace account'
+              : resolvedTenantName
+              ? `Sign in to your ${resolvedTenantName} workspace`
               : 'Sign in to your account'}
           </p>
         </div>
@@ -853,8 +882,8 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
         ) : (
           /* Main Sign In / Sign Up Form */
           <form className="space-y-4" onSubmit={handleSubmit}>
-            {/* Workspace Credentials Switcher (Development / Demo only) */}
-            {mode === 'signin' && hasWorkspaceCreds && (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ENABLE_DEMO_CREDENTIALS === 'true') && (
+            {/* Workspace Credentials Switcher (Explicit Demo Mode Only) */}
+            {mode === 'signin' && hasWorkspaceCreds && (
               <div className="rounded-md border border-border-color bg-light dark:bg-slate-800/50 p-2.5 space-y-1.5 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-title flex items-center gap-1.5 text-[11px]">

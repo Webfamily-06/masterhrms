@@ -478,9 +478,6 @@ export default function EmployeesDirectoryPage() {
 
   return (
     <div className="space-y-6">
-      {/* ── Breadcrumb Navigation ── */}
-      <BreadcrumbNav />
-
       <PageHeader
         title="Employees"
         description="Manage employees and their information."
@@ -821,7 +818,7 @@ export default function EmployeesDirectoryPage() {
                       aria-label="Select all visible employees"
                     />
                   </TableHead>
-                  <TableHead className="min-w-[220px]">
+                  <TableHead className="min-w-[180px] px-2.5">
                     <button
                       type="button"
                       onClick={() => {
@@ -838,15 +835,15 @@ export default function EmployeesDirectoryPage() {
                       <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                     </button>
                   </TableHead>
-                  <TableHead className="text-xs font-semibold">Employee ID</TableHead>
-                  <TableHead className="text-xs font-semibold">Department</TableHead>
-                  <TableHead className="text-xs font-semibold">Designation</TableHead>
-                  <TableHead className="text-xs font-semibold">Employee Type</TableHead>
-                  <TableHead className="text-xs font-semibold">Branch</TableHead>
-                  <TableHead className="text-xs font-semibold">Employee Status</TableHead>
-                  <TableHead className="text-xs font-semibold">Joined</TableHead>
-                  <TableHead className="text-xs font-semibold">Login Status</TableHead>
-                  <TableHead className="text-right text-xs font-semibold">Actions</TableHead>
+                  <TableHead className="text-xs font-semibold px-2.5 whitespace-nowrap">Employee ID</TableHead>
+                  <TableHead className="text-xs font-semibold px-2.5">Department</TableHead>
+                  <TableHead className="text-xs font-semibold px-2.5">Designation</TableHead>
+                  <TableHead className="text-xs font-semibold px-2.5 whitespace-nowrap">Type</TableHead>
+                  <TableHead className="text-xs font-semibold px-2.5">Branch</TableHead>
+                  <TableHead className="text-xs font-semibold px-2.5 whitespace-nowrap">Status</TableHead>
+                  <TableHead className="text-xs font-semibold px-2.5 whitespace-nowrap">Joined</TableHead>
+                  <TableHead className="text-xs font-semibold px-2.5 whitespace-nowrap">Login</TableHead>
+                  <TableHead className="sticky right-0 z-10 bg-muted/95 backdrop-blur-xs text-right text-xs font-semibold px-3 shadow-[-6px_0_10px_-6px_rgba(0,0,0,0.1)] whitespace-nowrap">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -935,18 +932,18 @@ export default function EmployeesDirectoryPage() {
                             "—"
                           )}
                         </TableCell>
-                        <TableCell>{getLoginStatusBadge(emp.loginStatus, emp.userId)}</TableCell>
-                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1">
+                        <TableCell className="px-2.5">{getLoginStatusBadge(emp.loginStatus, emp.userId)}</TableCell>
+                        <TableCell className="sticky right-0 z-10 bg-card/95 backdrop-blur-xs text-right px-2.5 shadow-[-6px_0_10px_-6px_rgba(0,0,0,0.1)]" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-0.5">
                             <Link to="/hr/employees/$id" params={{ id: emp.id }}>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
                                 aria-label={`View 360 profile for ${emp.firstName} ${emp.lastName}`}
                                 title="View 360 Profile"
                               >
-                                <Eye className="h-4 w-4" />
+                                <Eye className="h-3.5 w-3.5" />
                               </Button>
                             </Link>
                             {!isEmployeePortal && (
@@ -955,28 +952,28 @@ export default function EmployeesDirectoryPage() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                    className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
                                     aria-label={`Edit ${emp.firstName} ${emp.lastName}`}
                                     title="Edit Employee"
                                   >
-                                    <Edit className="h-4 w-4" />
+                                    <Edit className="h-3.5 w-3.5" />
                                   </Button>
                                 </Link>
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                                  className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
                                   aria-label={`Change password for ${emp.firstName} ${emp.lastName}`}
                                   title="Change Password"
                                   onClick={() => handleOpenPasswordModal(emp)}
                                 >
-                                  <KeyRound className="h-4 w-4" />
+                                  <KeyRound className="h-3.5 w-3.5" />
                                 </Button>
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   className={cn(
-                                    "h-8 w-8 transition-colors",
+                                    "h-7 w-7 transition-colors",
                                     emp.loginStatus === "active"
                                       ? "text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
                                       : "text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
@@ -990,20 +987,20 @@ export default function EmployeesDirectoryPage() {
                                   onClick={() => setStatusTargetEmployee(emp)}
                                 >
                                   {emp.loginStatus === "active" ? (
-                                    <Lock className="h-4 w-4" />
+                                    <Lock className="h-3.5 w-3.5" />
                                   ) : (
-                                    <Unlock className="h-4 w-4" />
+                                    <Unlock className="h-3.5 w-3.5" />
                                   )}
                                 </Button>
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                  className="h-7 w-7 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                                   aria-label={`Delete ${emp.firstName} ${emp.lastName}`}
                                   title="Delete Employee"
                                   onClick={() => setDeleteTargetEmployee(emp)}
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
                               </>
                             )}

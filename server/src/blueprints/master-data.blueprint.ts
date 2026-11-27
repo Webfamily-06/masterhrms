@@ -315,9 +315,12 @@ export function createMasterDataRouter(config: MasterBlueprintConfig): Router {
       if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
 
       const roles = req.user?.roles || [];
-      const isAuthorizedHR = roles.some((r: string) =>
-        ["hr_admin", "super_admin", "tenant_admin"].includes(r)
-      );
+      const wsRole = String((req.user as any)?.workspaceRole || "").toLowerCase().trim();
+      const isAuthorizedHR =
+        roles.some((r: string) =>
+          ["hr_admin", "hr_manager", "super_admin", "tenant_admin", "admin", "workspace_admin", "Workspace Admin", "HR Manager"].includes(r)
+        ) ||
+        ["workspace admin", "tenant admin", "hr manager", "hr admin", "hr administrator"].includes(wsRole);
       if (!isAuthorizedHR) {
         return res.status(403).json({ error: "Access denied. HR Administrator privileges required." });
       }
@@ -399,9 +402,12 @@ export function createMasterDataRouter(config: MasterBlueprintConfig): Router {
       if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
 
       const roles = req.user?.roles || [];
-      const isAuthorizedHR = roles.some((r: string) =>
-        ["hr_admin", "super_admin", "tenant_admin"].includes(r)
-      );
+      const wsRole = String((req.user as any)?.workspaceRole || "").toLowerCase().trim();
+      const isAuthorizedHR =
+        roles.some((r: string) =>
+          ["hr_admin", "hr_manager", "super_admin", "tenant_admin", "admin", "workspace_admin", "Workspace Admin", "HR Manager"].includes(r)
+        ) ||
+        ["workspace admin", "tenant admin", "hr manager", "hr admin", "hr administrator"].includes(wsRole);
       if (!isAuthorizedHR) {
         return res.status(403).json({ error: "Access denied. HR Administrator privileges required." });
       }
@@ -493,9 +499,12 @@ export function createMasterDataRouter(config: MasterBlueprintConfig): Router {
       if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
 
       const roles = req.user?.roles || [];
-      const isAuthorizedHR = roles.some((r: string) =>
-        ["hr_admin", "super_admin", "tenant_admin"].includes(r)
-      );
+      const wsRole = String((req.user as any)?.workspaceRole || "").toLowerCase().trim();
+      const isAuthorizedHR =
+        roles.some((r: string) =>
+          ["hr_admin", "hr_manager", "super_admin", "tenant_admin", "admin", "workspace_admin", "Workspace Admin", "HR Manager"].includes(r)
+        ) ||
+        ["workspace admin", "tenant admin", "hr manager", "hr admin", "hr administrator"].includes(wsRole);
       if (!isAuthorizedHR) {
         return res.status(403).json({ error: "Access denied. HR Administrator privileges required." });
       }
@@ -566,9 +575,12 @@ export function createMasterDataRouter(config: MasterBlueprintConfig): Router {
       if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
 
       const roles = req.user?.roles || [];
-      const isAuthorizedHR = roles.some((r: string) =>
-        ["hr_admin", "super_admin", "tenant_admin"].includes(r)
-      );
+      const wsRole = String((req.user as any)?.workspaceRole || "").toLowerCase().trim();
+      const isAuthorizedHR =
+        roles.some((r: string) =>
+          ["hr_admin", "hr_manager", "super_admin", "tenant_admin", "admin", "workspace_admin", "Workspace Admin", "HR Manager"].includes(r)
+        ) ||
+        ["workspace admin", "tenant admin", "hr manager", "hr admin", "hr administrator"].includes(wsRole);
       if (!isAuthorizedHR) {
         return res.status(403).json({ error: "Access denied. HR Administrator privileges required." });
       }
@@ -604,9 +616,12 @@ export function createMasterDataRouter(config: MasterBlueprintConfig): Router {
       if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
 
       const roles = req.user?.roles || [];
-      const isAuthorizedHR = roles.some((r: string) =>
-        ["hr_admin", "super_admin", "tenant_admin"].includes(r)
-      );
+      const wsRole = String((req.user as any)?.workspaceRole || "").toLowerCase().trim();
+      const isAuthorizedHR =
+        roles.some((r: string) =>
+          ["hr_admin", "hr_manager", "super_admin", "tenant_admin", "admin", "workspace_admin", "Workspace Admin", "HR Manager"].includes(r)
+        ) ||
+        ["workspace admin", "tenant admin", "hr manager", "hr admin", "hr administrator"].includes(wsRole);
       if (!isAuthorizedHR) {
         return res.status(403).json({ error: "Access denied. HR Administrator privileges required." });
       }

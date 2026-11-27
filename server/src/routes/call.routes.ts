@@ -36,7 +36,10 @@ async function resolveTargetUserId(tenantId: string, targetId: string): Promise<
 callRouter.get("/pending", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId || (req.user as any).id;
-    const tenantId = req.user!.tenantId!;
+    const tenantId = req.user!.tenantId;
+    if (!tenantId) {
+      return res.json({ success: true, hasPendingCall: false, data: null });
+    }
     const db = rawPrisma || prisma;
     const now = Date.now();
 
@@ -802,7 +805,7 @@ callRouter.post("/:callId/accept", requireAuth, async (req: AuthRequest, res: Re
         await db.callHistoryRecord
           .update({ where: { id: hist.id }, data: { status: "connected", answeredAt } as any })
           .catch(() =>
-            db.callHistoryRecord.update({ where: { id: hist.id }, data: { status: "connected" } }).catch(() => {})
+            db.callHistoryRecord.update({ where: { id: hist.id }, data: { status: "connected" } }).catch(() => { })
           );
         acceptResult = { call: { startedBy: hist.callerId, answeredAt, threadId: hist.groupId } };
       } else {
@@ -923,7 +926,10 @@ callRouter.post("/:callId/reject", requireAuth, async (req: AuthRequest, res: Re
     const { callId } = req.params;
     const { reason } = req.body || {};
     const userId = req.user!.userId || (req.user as any).id;
-    const tenantId = req.user!.tenantId!;
+    const tenantId = req.user!.tenantId;
+    if (!tenantId) {
+      return res.status(403).json({ error: "Tenant context required." });
+    }
     const db = rawPrisma || prisma;
 
     // Check if rejecting an in-call 3rd+ invitation on an ACTIVE call (do NOT terminate the active call!)
@@ -1041,7 +1047,7 @@ callRouter.post("/:callId/cancel", requireAuth, async (req: AuthRequest, res: Re
         if (hist.status === "ringing" || hist.status === "connected") {
           await db.callHistoryRecord
             .update({ where: { id: hist.id }, data: { status: "cancelled", endedAt: new Date() } })
-            .catch(() => {});
+            .catch(() => { });
         }
       }
     }
@@ -1155,7 +1161,10 @@ callRouter.post("/:callId/end", requireAuth, async (req: AuthRequest, res: Respo
     const { callId } = req.params;
     const { reason, durationSeconds: reqDuration } = req.body || {};
     const userId = req.user!.userId || (req.user as any).id;
-    const tenantId = req.user!.tenantId!;
+    const tenantId = req.user!.tenantId;
+    if (!tenantId) {
+      return res.status(403).json({ error: "Tenant context required." });
+    }
     const db = rawPrisma || prisma;
 
     const actorUser = await db.user.findUnique({
@@ -1375,7 +1384,10 @@ callRouter.post("/:callId/invite-colleague", requireAuth, async (req: AuthReques
     const { callId } = req.params;
     const { targetUserId } = req.body;
     const userId = req.user!.userId || (req.user as any).id;
-    const tenantId = req.user!.tenantId!;
+    const tenantId = req.user!.tenantId;
+    if (!tenantId) {
+      return res.status(403).json({ error: "Tenant context required." });
+    }
     const db = rawPrisma || prisma;
 
     if (!targetUserId) {

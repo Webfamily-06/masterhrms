@@ -68,7 +68,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
   try {
     const decoded = verifyToken(token);
     if ((decoded as any).mfaPending) return res.status(401).json({ error: "Complete two-factor verification first." });
-    
+
     // Authoritative session verification
     if (!decoded.sessionId || typeof decoded.sessionId !== "string") {
       return res.status(401).json({
@@ -122,7 +122,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
       });
     }
 
-    touchSession(session.id).catch(() => {});
+    touchSession(session.id).catch(() => { });
 
     const cacheKey = `${userId}:${decoded.tenantId || "default"}`;
     const cachedEntry = authAccountCache.get(cacheKey);
@@ -199,7 +199,13 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
       }
     }
 
-    const roles = account.roles.filter((r: any) => r.role === "super_admin" || r.tenantId === tenantId).map((r: any) => r.role);
+    const baseRoles: string[] = account.roles
+      .filter((r: any) => r.role === "super_admin" || r.tenantId === tenantId)
+      .map((r: any) => r.role);
+    const roles: string[] =
+      isSuper && isImpersonating && tenantId
+        ? Array.from(new Set([...baseRoles, "admin", "tenant_admin", "workspace_admin", "hr_admin"]))
+        : [...baseRoles];
     const isSafeRoute =
       req.originalUrl?.startsWith("/api/billing") ||
       req.originalUrl?.startsWith("/api/commerce") ||
@@ -260,12 +266,38 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
           const roleCodes = assignment.role.permissions.map((rp: any) => rp.permission.code);
           userPermissions = Array.from(new Set([...userPermissions, ...roleCodes]));
         }
-      } catch {}
+      } catch { }
+    }
+
+    // Unify effective roles from active WorkspaceRole assignment (prevents dual-role split-brain — DEFECT-019)
+    if (resolvedAssignment?.role?.isActive) {
+      const wsName = String(resolvedAssignment.role.name || "").toLowerCase().trim();
+      if (["workspace admin", "tenant admin", "administrator", "owner"].includes(wsName)) {
+        for (const r of ["admin", "tenant_admin", "workspace_admin", "hr_admin"]) {
+          if (!roles.includes(r)) roles.push(r);
+        }
+      } else if (
+        ["hr manager", "hr admin", "hr administrator", "human resources"].includes(wsName) ||
+        userPermissions.includes("hrm.employees.create") ||
+        userPermissions.includes("hrm.leave.approve")
+      ) {
+        for (const r of ["hr_admin", "hr_manager"]) {
+          if (!roles.includes(r)) roles.push(r);
+        }
+      } else if (["manager", "team lead", "department head"].includes(wsName)) {
+        if (!roles.includes("manager")) roles.push("manager");
+      }
     }
 
     // Default system role administrative permissions
     const rawRoleNames: string[] = roles as any[];
-    if (rawRoleNames.includes("super_admin") || rawRoleNames.includes("Workspace Admin") || rawRoleNames.includes("admin") || rawRoleNames.includes("hr_admin")) {
+    if (
+      rawRoleNames.includes("super_admin") ||
+      rawRoleNames.includes("Workspace Admin") ||
+      rawRoleNames.includes("admin") ||
+      rawRoleNames.includes("hr_admin") ||
+      rawRoleNames.includes("hr_manager")
+    ) {
       userPermissions = Array.from(new Set([
         ...userPermissions,
         "hr:employee:sensitive:write",
@@ -301,14 +333,17 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
       userId,
       tenantId: tenantId ?? null,
       roles,
-      workspaceRole: resolvedAssignment?.role?.name || (decoded as any).workspaceRole,
+      workspaceRole:
+        isSuper && isImpersonating && tenantId
+          ? "Workspace Admin"
+          : resolvedAssignment?.role?.name || (decoded as any).workspaceRole,
       permissions: userPermissions,
       isImpersonating,
       profile: account.profile
         ? {
-            fullName: account.profile.fullName || account.email?.split("@")[0] || "User",
-            avatarUrl: account.profile.avatarUrl || null,
-          }
+          fullName: account.profile.fullName || account.email?.split("@")[0] || "User",
+          avatarUrl: account.profile.avatarUrl || null,
+        }
         : undefined,
     };
     (req.user as any).id = userId;
@@ -383,6 +418,11 @@ export function requirePermission(permissionCode: string) {
         return res.status(403).json({
           error: "Forbidden: The " + moduleKey.toUpperCase() + " module is currently disabled for this workspace",
         });
+      }
+
+      // Super Admin actively impersonating a verified tenant acts with full Workspace Admin authority
+      if (req.user.isImpersonating && req.user.roles.includes("super_admin") && tenantId) {
+        return next();
       }
 
       // 3. Resolve User Role Assignment (reuse cached assignment from requireAuth when fresh)

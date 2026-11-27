@@ -602,7 +602,7 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     navigationIcon: "ph-shield-check",
     navigationGroup: "EXTENSIONS & ADD-ONS",
     navigationOrder: 4,
-    navigationRoute: "/two-factor-auth",
+    navigationRoute: "/addons/two-factor-auth",
     features: [
       "Time-based One-Time Password (TOTP) verification",
       "Authenticator app support (Google/Microsoft Authenticator)",
@@ -1159,7 +1159,7 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     navigationIcon: "ph-sparkles",
     navigationGroup: "EXTENSIONS & ADD-ONS",
     navigationOrder: 19,
-    navigationRoute: "/documents",
+    navigationRoute: "/addons/ai-document/generate",
     features: [
       "AI-assisted contract and policy drafting",
       "Variable merge tags and document templates",
@@ -1184,7 +1184,7 @@ export const CANONICAL_CATALOG_REGISTRY: CanonicalProductTemplate[] = [
     navigationIcon: "ph-robot",
     navigationGroup: "EXTENSIONS & ADD-ONS",
     navigationOrder: 20,
-    navigationRoute: "/ai",
+    navigationRoute: "/addons/ai-assistant/settings",
     features: [
       "Natural language HR policy Q&A",
       "Automated employee self-service responses",

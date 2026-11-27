@@ -45,10 +45,12 @@ async function resolveWorkspaceBillingContext(tenantId?: string | null) {
       : workspaceCurrency.toUpperCase();
   const currencySymbol =
     branding?.locale?.currencySymbol || (currency === "USD" ? "$" : currency === "EUR" ? "€" : "₹");
-  const keyId =
+  const rawKeyId =
     pv["payments.razorpay_key_id"] ||
     process.env.RAZORPAY_KEY_ID ||
     "rzp_test_MasterHRMSKey";
+  const isNonProd = process.env.NODE_ENV !== "production";
+  const keyId = isNonProd && String(rawKeyId).startsWith("rzp_live_") ? "rzp_test_MasterHRMSKey" : rawKeyId;
   const appName = branding?.appName || "Master HRMS & ERP";
 
   return { currency, currencySymbol, keyId, appName };
@@ -227,9 +229,9 @@ billingRouter.get("/plans", requireAuth, async (req: AuthRequest, res: Response)
       }),
       tenantId
         ? db.tenantSubscription.findFirst({
-            where: { tenantId },
-            include: { plan: true },
-          })
+          where: { tenantId },
+          include: { plan: true },
+        })
         : null,
     ]);
 
@@ -259,24 +261,24 @@ billingRouter.get("/plans", requireAuth, async (req: AuthRequest, res: Response)
       plans: plansWithDurations,
       subscription: subscription
         ? {
-            id: subscription.id,
-            planId: subscription.planId,
-            planName: subscription.plan?.name || "Trial / Custom",
-            status: subscription.status,
-            billingCycle: subscription.billingCycle,
-            billingInterval: subscription.billingInterval,
-            billingIntervalCount: subscription.billingIntervalCount,
-            billingStartedAt: subscription.billingStartedAt,
-            currentPeriodStart: subscription.currentPeriodStart,
-            currentPeriodEnd: subscription.currentPeriodEnd,
-            maxEmployees: subscription.maxEmployees ?? subscription.plan?.maxEmployees,
-            maxUsers: subscription.maxUsers ?? subscription.plan?.maxUsers,
-            trialStartedAt: subscription.trialStartedAt,
-            trialEndsAt: subscription.trialEndsAt,
-            trialDaysRemaining,
-            expiresAt: subscription.expiresAt,
-            remainingDays: calculateRemainingDays(subscription.expiresAt),
-          }
+          id: subscription.id,
+          planId: subscription.planId,
+          planName: subscription.plan?.name || "Trial / Custom",
+          status: subscription.status,
+          billingCycle: subscription.billingCycle,
+          billingInterval: subscription.billingInterval,
+          billingIntervalCount: subscription.billingIntervalCount,
+          billingStartedAt: subscription.billingStartedAt,
+          currentPeriodStart: subscription.currentPeriodStart,
+          currentPeriodEnd: subscription.currentPeriodEnd,
+          maxEmployees: subscription.maxEmployees ?? subscription.plan?.maxEmployees,
+          maxUsers: subscription.maxUsers ?? subscription.plan?.maxUsers,
+          trialStartedAt: subscription.trialStartedAt,
+          trialEndsAt: subscription.trialEndsAt,
+          trialDaysRemaining,
+          expiresAt: subscription.expiresAt,
+          remainingDays: calculateRemainingDays(subscription.expiresAt),
+        }
         : null,
     });
   } catch (err: any) {
@@ -346,10 +348,10 @@ billingRouter.get("/preview", requireAuth, async (req: AuthRequest, res: Respons
     return res.json({
       currentPlan: currentSub?.plan
         ? {
-            id: currentSub.plan.id,
-            name: currentSub.plan.name,
-            expiresAt: currentSub.expiresAt,
-          }
+          id: currentSub.plan.id,
+          name: currentSub.plan.name,
+          expiresAt: currentSub.expiresAt,
+        }
         : null,
       targetPlan: {
         id: targetPlan.id,
@@ -726,7 +728,7 @@ billingRouter.post("/verify", requireAuth, async (req: AuthRequest, res: Respons
       if (!result.verified) {
         const statusCode = result.code === "PAYMENT_VERIFICATION_UNAVAILABLE" ? 503
           : result.code === "VERIFICATION_MISMATCH" ? 422
-          : 400;
+            : 400;
         return res.status(statusCode).json({
           error: result.error || "PayPal server-side verification failed.",
           code: result.code || "PAYMENT_VERIFICATION_FAILED",
@@ -747,7 +749,7 @@ billingRouter.post("/verify", requireAuth, async (req: AuthRequest, res: Respons
       if (!result.verified) {
         const statusCode = result.code === "PAYMENT_VERIFICATION_UNAVAILABLE" ? 503
           : result.code === "VERIFICATION_MISMATCH" ? 422
-          : 400;
+            : 400;
         return res.status(statusCode).json({
           error: result.error || "Stripe server-side verification failed.",
           code: result.code || "PAYMENT_VERIFICATION_FAILED",
@@ -774,7 +776,7 @@ billingRouter.post("/verify", requireAuth, async (req: AuthRequest, res: Respons
       if (!result.verified) {
         const statusCode = result.code === "PAYMENT_VERIFICATION_UNAVAILABLE" ? 503
           : result.code === "VERIFICATION_MISMATCH" ? 422
-          : 400;
+            : 400;
         return res.status(statusCode).json({
           error: result.error || "Razorpay server-side verification failed.",
           code: result.code || "PAYMENT_VERIFICATION_FAILED",
@@ -1553,7 +1555,7 @@ export async function handleRazorpayWebhook(req: any, res: Response) {
                 payload: payment,
               },
             });
-          } catch (e) {}
+          } catch (e) { }
         }
       }
     }

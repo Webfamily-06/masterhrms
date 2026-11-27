@@ -179,9 +179,9 @@ function Super06AuthContent() {
         setMfaCode('');
         toast.info(
           res.message ||
-            (res.twoFactorMethod === 'TOTP'
-              ? 'Enter the 6-digit code from your authenticator app.'
-              : 'A 6-digit verification code has been sent to your email.')
+          (res.twoFactorMethod === 'TOTP'
+            ? 'Enter the 6-digit code from your authenticator app.'
+            : 'A 6-digit verification code has been sent to your email.')
         );
         setLoading(false);
         return;
@@ -320,20 +320,20 @@ function Super06AuthContent() {
   const headerTitle = isMfaStep
     ? 'Two-Factor Verification'
     : mode === 'forgot'
-    ? 'Recover Root Access'
-    : mode === 'reset'
-    ? 'Reset Root Password'
-    : 'Super Admin Console';
+      ? 'Recover Root Access'
+      : mode === 'reset'
+        ? 'Reset Root Password'
+        : 'Super Admin Console';
 
   const headerSubtitle = isMfaStep
     ? mfaMethod === 'TOTP'
       ? 'Enter the 6-digit code from your authenticator app'
       : `Enter the 6-digit code sent to ${mfaMaskedEmail || email}`
     : mode === 'forgot'
-    ? 'Enter your platform administrator email to receive a reset code'
-    : mode === 'reset'
-    ? 'Verify your recovery code and choose a new password'
-    : 'Sign in to Master HRMS platform control plane';
+      ? 'Enter your platform administrator email to receive a reset code'
+      : mode === 'reset'
+        ? 'Verify your recovery code and choose a new password'
+        : 'Sign in to Master HRMS platform control plane';
 
   return (
     <div className="min-h-screen bg-light dark:bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6">

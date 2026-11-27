@@ -196,11 +196,11 @@ export default function HrAssetsListPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<AssetRecord | null>(null);
 
-  // Queries
+  // Queries (gate HR-admin endpoints away from /me Employee Self-Service portal — DEFECT-035)
   const { data: assetTypes = [] } = useQuery<AssetTypeOption[]>({
-    queryKey: ["hr-asset-types-dropdown"],
+    queryKey: ["hr-asset-types-dropdown", isEmployeePortal],
     queryFn: async () => {
-      const res = await api.get("/hr/assets/types");
+      const res = await api.get(isEmployeePortal ? "/v1/me/assets/types" : "/hr/assets/types");
       if (Array.isArray(res)) return res;
       if (Array.isArray(res?.data)) return res.data;
       return [];
@@ -209,6 +209,7 @@ export default function HrAssetsListPage() {
 
   const { data: employees = [] } = useQuery<EmployeeOption[]>({
     queryKey: ["hr-employees-dropdown"],
+    enabled: !isEmployeePortal,
     queryFn: async () => {
       const res = await api.get("/employees", { params: { limit: 200 } });
       const raw = res?.employees ?? res?.data?.employees ?? res?.data ?? res;
@@ -217,8 +218,44 @@ export default function HrAssetsListPage() {
   });
 
   const { data: assetsResponse, isLoading } = useQuery<AssetsListResponse>({
-    queryKey: ["hr-assets-list", activeTab, appliedFilters],
+    queryKey: ["hr-assets-list", isEmployeePortal, activeTab, appliedFilters],
     queryFn: async () => {
+      if (isEmployeePortal) {
+        const res = await api.get("/v1/me/assets");
+        const raw = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+        const normalized: AssetRecord[] = raw.map((row: any) =>
+          row?.asset
+            ? {
+                ...row.asset,
+                status: row.asset.status || "assigned",
+              }
+            : row
+        );
+        const filtered = normalized.filter((a) => {
+          if (activeTab !== "all" && a.status !== activeTab) return false;
+          if (appliedFilters.condition !== "all" && a.condition !== appliedFilters.condition) return false;
+          if (appliedFilters.search) {
+            const q = appliedFilters.search.toLowerCase();
+            return (
+              String(a.name || "").toLowerCase().includes(q) ||
+              String(a.assetCode || "").toLowerCase().includes(q) ||
+              String(a.serialNumber || "").toLowerCase().includes(q)
+            );
+          }
+          return true;
+        });
+        return {
+          assets: filtered,
+          counts: {
+            all: normalized.length,
+            available: normalized.filter((a) => a.status === "available").length,
+            assigned: normalized.filter((a) => a.status === "assigned").length,
+            maintenance: normalized.filter((a) => a.status === "maintenance").length,
+            disposed: normalized.filter((a) => a.status === "disposed").length,
+          },
+        };
+      }
+
       const res = await api.get("/hr/assets", {
         params: {
           ...(activeTab !== "all" ? { status: activeTab } : {}),

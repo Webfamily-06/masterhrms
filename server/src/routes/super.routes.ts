@@ -8,14 +8,15 @@ import {
 } from "../lib/email";
 import { Router, Response } from "express";
 import { rawPrisma as prisma } from "../prisma";
-import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
+import { requireAuth, requireSuperAdmin, AuthRequest, invalidateAuthCache } from "../middleware/auth";
 import { generateToken } from "../lib/jwt";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { getIO, broadcastToTenant } from "../socket";
-import { getWorkspacePolicy, getWorkspacePoliciesBatch, resolveWorkspacePolicy, syncSubscriptionPlans } from "../services/workspace-policy.service";
+import { getWorkspacePolicy, getWorkspacePoliciesBatch, resolveWorkspacePolicy, syncSubscriptionPlans, invalidateWorkspacePolicyCache } from "../services/workspace-policy.service";
 import { generateDatabaseBackup, listBackupSnapshots, getBackupFilePath, deleteBackupSnapshot, verifyBackupIntegrityAndDisposableRestore } from "../services/backup.service";
 import { ConfigAuditService } from "../services/config-audit.service";
 import { getLanguagesList, getLanguagePhrases, saveLanguagePhrases, createLanguagePack, deleteLanguagePack, toggleLanguagePackStatus } from "../services/language.service";
@@ -142,6 +143,7 @@ superRouter.put("/tenants/:id/policy", requireAuth, requireSuperAdmin, async (re
       } });
       return resolveWorkspacePolicy(content, plans);
     });
+    invalidateWorkspacePolicyCache(req.params.id);
     if (result.status === "suspended" || (result.expiresAt && new Date(result.expiresAt) <= new Date())) {
       getIO()?.in(`tenant:${req.params.id}`).disconnectSockets(true);
     }
@@ -212,6 +214,8 @@ superRouter.put("/tenants/:id/quota", requireAuth, requireSuperAdmin, async (req
         data: subUpdateData,
       });
     }
+
+    invalidateWorkspacePolicyCache(id);
 
     // Fetch refreshed governance summary
     const summary = await QuotaGovernanceService.getTenantQuotaGovernanceSummary(id);
@@ -1087,7 +1091,7 @@ superRouter.get("/tenants/:id", requireAuth, requireSuperAdmin, async (req: Auth
 // POST /api/super/tenants
 superRouter.post("/tenants", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const { name, slug, logoUrl, logo_url, planId, email, contactEmail } = req.body;
+    const { name, slug, logoUrl, logo_url, planId, email, contactEmail, ownerEmail: rawOwnerEmail, ownerPassword, password, ownerName } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ error: "Company name is required." });
     }
@@ -1115,9 +1119,24 @@ superRouter.post("/tenants", requireAuth, requireSuperAdmin, async (req: AuthReq
       resolvedPlan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } });
     }
 
-    const ownerEmail = (email || contactEmail || "").trim() || `${finalSlug}.admin@${getBaseDomain()}`;
+    // DEFECT-006: Never synthesize un-loginable *@localhost email; ensure valid TLD domain
+    const rawBaseDomain = getBaseDomain();
+    const safeEmailDomain = rawBaseDomain.includes(".") ? rawBaseDomain : `${finalSlug}.local`;
+    const ownerEmail = String(rawOwnerEmail || email || contactEmail || "").trim().toLowerCase() || `admin@${safeEmailDomain}`;
+    if (!z.string().email().safeParse(ownerEmail).success) {
+      return res.status(400).json({ error: "A valid owner email address is required." });
+    }
 
-    const tenant = await prisma.$transaction(async (tx: any) => {
+    // DEFECT-004: Support explicit ownerPassword or return generated temporaryPassword once
+    const explicitPassword = String(ownerPassword || password || "").trim();
+    if (explicitPassword && explicitPassword.length < 8) {
+      return res.status(400).json({ error: "Owner password must be at least 8 characters long." });
+    }
+    const generatedPassword = explicitPassword || `Admin#${crypto.randomBytes(4).toString("hex")}!`;
+
+    const allDbPerms = await prisma.permission.findMany({ select: { id: true, code: true, module: true } });
+
+    const { createdTenant, createdOwnerUser } = await prisma.$transaction(async (tx: any) => {
       const createdTenant = await tx.tenant.create({
         data: {
           name: name.trim(),
@@ -1137,11 +1156,63 @@ superRouter.post("/tenants", requireAuth, requireSuperAdmin, async (req: AuthReq
         },
       });
 
-      // Create initial workspace owner account if not already created
+      // DEFECT-013 & DEFECT-014: Seed tenant-scoped WorkspaceRoles (Workspace Admin, HR Manager, Employee) & RolePermissions
+      const adminRole = await tx.workspaceRole.create({
+        data: {
+          tenantId: createdTenant.id,
+          name: "Workspace Admin",
+          description: "Full administrative access to workspace settings, users, roles, and HRMS modules",
+          isSystem: true,
+          isActive: true,
+        },
+      });
+      if (allDbPerms.length > 0) {
+        await tx.rolePermission.createMany({
+          data: allDbPerms.map((p: any) => ({ roleId: adminRole.id, permissionId: p.id })),
+          skipDuplicates: true,
+        });
+      }
+
+      const hrRole = await tx.workspaceRole.create({
+        data: {
+          tenantId: createdTenant.id,
+          name: "HR Manager",
+          description: "Full access to Human Resources, Employees, Attendance, Leaves and Payroll",
+          isSystem: true,
+          isActive: true,
+        },
+      });
+      const hrPermIds = allDbPerms.filter((p: any) => p.module === "hrm" || p.code === "analytics.dashboard.view" || p.code === "analytics.reports.view");
+      if (hrPermIds.length > 0) {
+        await tx.rolePermission.createMany({
+          data: hrPermIds.map((p: any) => ({ roleId: hrRole.id, permissionId: p.id })),
+          skipDuplicates: true,
+        });
+      }
+
+      const empRole = await tx.workspaceRole.create({
+        data: {
+          tenantId: createdTenant.id,
+          name: "Employee",
+          description: "Standard employee self-service access",
+          isSystem: true,
+          isActive: true,
+        },
+      });
+      const empPermCodes = new Set(["hrm.dashboard.view", "hrm.attendance.view", "hrm.attendance.create", "hrm.leave.view", "hrm.leave.create"]);
+      const empPermIds = allDbPerms.filter((p: any) => empPermCodes.has(p.code));
+      if (empPermIds.length > 0) {
+        await tx.rolePermission.createMany({
+          data: empPermIds.map((p: any) => ({ roleId: empRole.id, permissionId: p.id })),
+          skipDuplicates: true,
+        });
+      }
+
+      // Create initial workspace owner account & assign Workspace Admin RBAC role
       const existingUser = await tx.user.findUnique({ where: { email: ownerEmail } });
+      let createdOwnerUser: any = null;
       if (!existingUser) {
-        const tempPassword = `Admin#${Math.random().toString(36).slice(2, 8)}!`;
-        const passwordHash = await bcrypt.hash(tempPassword, 10);
+        const passwordHash = await bcrypt.hash(generatedPassword, 10);
         const ownerUser = await tx.user.create({
           data: {
             email: ownerEmail,
@@ -1152,7 +1223,7 @@ superRouter.post("/tenants", requireAuth, requireSuperAdmin, async (req: AuthReq
           data: {
             userId: ownerUser.id,
             email: ownerEmail,
-            fullName: `${name.trim()} Administrator`,
+            fullName: String(ownerName || "").trim() || `${name.trim()} Administrator`,
             tenantId: createdTenant.id,
           },
         });
@@ -1163,12 +1234,29 @@ superRouter.post("/tenants", requireAuth, requireSuperAdmin, async (req: AuthReq
             role: "hr_admin",
           },
         });
+        await tx.userRoleAssignment.create({
+          data: {
+            userId: ownerUser.id,
+            tenantId: createdTenant.id,
+            roleId: adminRole.id,
+          },
+        });
+        createdOwnerUser = ownerUser;
       }
 
-      return createdTenant;
+      return { createdTenant, createdOwnerUser };
     });
 
-    return res.status(201).json(tenant);
+    return res.status(201).json({
+      ...createdTenant,
+      ownerCredentials: createdOwnerUser
+        ? {
+            email: ownerEmail,
+            temporaryPassword: explicitPassword ? undefined : generatedPassword,
+            passwordAutoGenerated: !explicitPassword,
+          }
+        : undefined,
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to create company" });
   }
@@ -1320,8 +1408,10 @@ superRouter.post("/tenants/:id/reset-password", requireAuth, requireSuperAdmin, 
         data: { passwordHash },
       });
     } else {
-      // If tenant has no user yet, create the owner user
-      const ownerEmail = `${tenant.slug}.admin@${getBaseDomain()}`;
+      // If tenant has no user yet, create the owner user with valid email TLD & Workspace Admin role
+      const rawDomain = getBaseDomain();
+      const safeDomain = rawDomain.includes(".") ? rawDomain : `${tenant.slug}.local`;
+      const ownerEmail = `admin@${safeDomain}`;
       targetUser = await prisma.$transaction(async (tx: any) => {
         const createdUser = await tx.user.create({
           data: {
@@ -1344,6 +1434,16 @@ superRouter.post("/tenants/:id/reset-password", requireAuth, requireSuperAdmin, 
             role: "hr_admin",
           },
         });
+        const wsAdminRole = await tx.workspaceRole.findFirst({
+          where: { tenantId: tenant.id, name: "Workspace Admin" },
+        });
+        if (wsAdminRole) {
+          await tx.userRoleAssignment.upsert({
+            where: { userId_tenantId: { userId: createdUser.id, tenantId: tenant.id } },
+            create: { userId: createdUser.id, tenantId: tenant.id, roleId: wsAdminRole.id },
+            update: { roleId: wsAdminRole.id },
+          });
+        }
         return createdUser;
       });
     }
@@ -1400,18 +1500,53 @@ superRouter.delete("/tenants/:id", requireAuth, requireSuperAdmin, async (req: A
     };
 
     await prisma.$transaction(async (tx: any) => {
-      // Disconnect user profiles referencing this tenant
+      // DEFECT-015: Collect tenant-exclusive users BEFORE detaching so no orphaned accounts remain
+      const [tenantProfiles, tenantRoles] = await Promise.all([
+        tx.profile.findMany({ where: { tenantId: id }, select: { userId: true } }),
+        tx.userRole.findMany({ where: { tenantId: id }, select: { userId: true } }),
+      ]);
+      const candidateUserIds = Array.from(
+        new Set([...tenantProfiles.map((p: any) => p.userId), ...tenantRoles.map((r: any) => r.userId)].filter(Boolean))
+      );
+
+      let exclusiveUserIds: string[] = [];
+      if (candidateUserIds.length > 0) {
+        const [superOrOtherRoles, otherAssignments] = await Promise.all([
+          tx.userRole.findMany({
+            where: {
+              userId: { in: candidateUserIds },
+              OR: [{ role: "super_admin" }, { tenantId: { not: id } }],
+            },
+            select: { userId: true },
+          }),
+          tx.userRoleAssignment.findMany({
+            where: { userId: { in: candidateUserIds }, tenantId: { not: id } },
+            select: { userId: true },
+          }),
+        ]);
+        const protectedSet = new Set([
+          ...superOrOtherRoles.map((r: any) => r.userId),
+          ...otherAssignments.map((a: any) => a.userId),
+        ]);
+        exclusiveUserIds = candidateUserIds.filter((uid) => !protectedSet.has(uid));
+      }
+
+      // Disconnect any remaining multi-tenant user profiles referencing this tenant
       await tx.profile.updateMany({
         where: { tenantId: id },
         data: { tenantId: null },
       });
-      // Delete user roles referencing this tenant
-      await tx.userRole.deleteMany({
-        where: { tenantId: id },
-      });
+      await tx.userRole.deleteMany({ where: { tenantId: id } });
+      await tx.userRoleAssignment.deleteMany({ where: { tenantId: id } });
       // Delete tenant (cascades to all tenant children: subscription, domains, employees, departments, etc.)
       await tx.tenant.delete({ where: { id } });
+
+      // Cleanly remove tenant-exclusive owner/employee User accounts (cascades Profile, sessions, etc.)
+      if (exclusiveUserIds.length > 0) {
+        await tx.user.deleteMany({ where: { id: { in: exclusiveUserIds } } });
+      }
     });
+    invalidateWorkspacePolicyCache(id);
 
     getIO()?.in(`tenant:${id}`).disconnectSockets(true);
     return res.json({ success: true, message: `Company '${existing.name}' deleted successfully.` });
@@ -1467,6 +1602,196 @@ superRouter.get("/users", requireAuth, requireSuperAdmin, async (req: AuthReques
     return res.json(formatted);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// POST /api/super/users — Create platform or tenant user (DEFECT-008)
+superRouter.post("/users", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { firstName, lastName, fullName, email, password, role, tenantId } = req.body || {};
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    if (!z.string().email().safeParse(cleanEmail).success) {
+      return res.status(400).json({ error: "A valid email address is required." });
+    }
+    const rawPassword = String(password || "").trim();
+    if (rawPassword.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters long." });
+    }
+
+    const existing = await prisma.user.findUnique({ where: { email: cleanEmail } });
+    if (existing) {
+      return res.status(409).json({ error: "An account with this email already exists.", code: "EMAIL_TAKEN" });
+    }
+
+    const normalizedRoleInput = String(role || "employee").toLowerCase().trim();
+    const isSuperTarget = normalizedRoleInput === "super_admin";
+    const resolvedTenantId = isSuperTarget ? null : (tenantId && tenantId !== "none" ? String(tenantId) : null);
+    if (!isSuperTarget && resolvedTenantId) {
+      const targetTenant = await prisma.tenant.findUnique({ where: { id: resolvedTenantId }, select: { id: true } });
+      if (!targetTenant) return res.status(404).json({ error: "Selected company workspace was not found." });
+    }
+
+    const legacyRole: "super_admin" | "hr_admin" | "manager" | "employee" = isSuperTarget
+      ? "super_admin"
+      : ["admin", "tenant_admin", "workspace_admin", "hr_admin", "hr_manager"].includes(normalizedRoleInput)
+      ? "hr_admin"
+      : normalizedRoleInput === "manager"
+      ? "manager"
+      : "employee";
+
+    const displayName =
+      String(fullName || "").trim() ||
+      `${String(firstName || "").trim()} ${String(lastName || "").trim()}`.trim() ||
+      cleanEmail.split("@")[0];
+    const passwordHash = await bcrypt.hash(rawPassword, 10);
+
+    const created = await prisma.$transaction(async (tx: any) => {
+      const user = await tx.user.create({
+        data: { email: cleanEmail, passwordHash },
+      });
+      const profile = await tx.profile.create({
+        data: {
+          userId: user.id,
+          email: cleanEmail,
+          fullName: displayName,
+          tenantId: resolvedTenantId,
+        },
+      });
+      await tx.userRole.create({
+        data: { userId: user.id, tenantId: resolvedTenantId, role: legacyRole },
+      });
+
+      if (resolvedTenantId) {
+        const wsRoleTarget = ["admin", "tenant_admin", "workspace_admin"].includes(normalizedRoleInput)
+          ? "Workspace Admin"
+          : ["hr_admin", "hr_manager"].includes(normalizedRoleInput)
+          ? "HR Manager"
+          : "Employee";
+        const wsRole = await tx.workspaceRole.findFirst({
+          where: { tenantId: resolvedTenantId, name: { equals: wsRoleTarget, mode: "insensitive" }, isActive: true },
+        });
+        if (wsRole) {
+          await tx.userRoleAssignment.upsert({
+            where: { userId_tenantId: { userId: user.id, tenantId: resolvedTenantId } },
+            create: { userId: user.id, tenantId: resolvedTenantId, roleId: wsRole.id },
+            update: { roleId: wsRole.id },
+          });
+        }
+      }
+      return { user, profile };
+    });
+
+    return res.status(201).json({
+      success: true,
+      id: created.profile.id,
+      user_id: created.user.id,
+      full_name: created.profile.fullName,
+      email: created.user.email,
+      tenant_id: created.profile.tenantId,
+      roles: [legacyRole],
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to create user." });
+  }
+});
+
+// PUT /api/super/users/:id — Update platform or tenant user (DEFECT-008; accepts User.id or Profile.id)
+superRouter.put("/users/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { firstName, lastName, fullName, role, tenantId } = req.body || {};
+
+    const targetUser = await prisma.user.findFirst({
+      where: { OR: [{ id }, { profile: { id } }] },
+      include: { profile: true, roles: true },
+    });
+    if (!targetUser) {
+      return res.status(404).json({ error: "User account not found." });
+    }
+
+    const normalizedRoleInput = role ? String(role).toLowerCase().trim() : null;
+    const isSuperTarget = normalizedRoleInput === "super_admin";
+    const nextTenantId =
+      isSuperTarget
+        ? null
+        : tenantId !== undefined
+        ? (tenantId && tenantId !== "none" ? String(tenantId) : null)
+        : (targetUser.profile?.tenantId ?? null);
+
+    const nextFullName =
+      String(fullName || "").trim() ||
+      `${String(firstName || "").trim()} ${String(lastName || "").trim()}`.trim() ||
+      targetUser.profile?.fullName ||
+      targetUser.email.split("@")[0];
+
+    await prisma.$transaction(async (tx: any) => {
+      if (targetUser.profile) {
+        await tx.profile.update({
+          where: { id: targetUser.profile.id },
+          data: { fullName: nextFullName, tenantId: nextTenantId },
+        });
+      }
+      if (normalizedRoleInput) {
+        const legacyRole: "super_admin" | "hr_admin" | "manager" | "employee" = isSuperTarget
+          ? "super_admin"
+          : ["admin", "tenant_admin", "workspace_admin", "hr_admin", "hr_manager"].includes(normalizedRoleInput)
+          ? "hr_admin"
+          : normalizedRoleInput === "manager"
+          ? "manager"
+          : "employee";
+        if (targetUser.id === req.user?.userId && legacyRole !== "super_admin") {
+          throw Object.assign(new Error("You cannot demote your own Super Admin account."), { status: 400 });
+        }
+        await tx.userRole.deleteMany({ where: { userId: targetUser.id } });
+        await tx.userRole.create({
+          data: { userId: targetUser.id, tenantId: nextTenantId, role: legacyRole },
+        });
+
+        if (nextTenantId) {
+          const wsRoleTarget = ["admin", "tenant_admin", "workspace_admin"].includes(normalizedRoleInput)
+            ? "Workspace Admin"
+            : ["hr_admin", "hr_manager"].includes(normalizedRoleInput)
+            ? "HR Manager"
+            : "Employee";
+          const wsRole = await tx.workspaceRole.findFirst({
+            where: { tenantId: nextTenantId, name: { equals: wsRoleTarget, mode: "insensitive" }, isActive: true },
+          });
+          if (wsRole) {
+            await tx.userRoleAssignment.upsert({
+              where: { userId_tenantId: { userId: targetUser.id, tenantId: nextTenantId } },
+              create: { userId: targetUser.id, tenantId: nextTenantId, roleId: wsRole.id },
+              update: { roleId: wsRole.id },
+            });
+          }
+        }
+      }
+    });
+
+    invalidateAuthCache(targetUser.id, nextTenantId || undefined);
+    return res.json({ success: true, message: "User updated successfully.", id: targetUser.profile?.id || targetUser.id, user_id: targetUser.id });
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || "Failed to update user." });
+  }
+});
+
+// DELETE /api/super/users/:id — Delete user (accepts User.id or Profile.id)
+superRouter.delete("/users/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const targetUser = await prisma.user.findFirst({
+      where: { OR: [{ id }, { profile: { id } }] },
+      include: { roles: true },
+    });
+    if (!targetUser) {
+      return res.status(404).json({ error: "User account not found." });
+    }
+    if (targetUser.id === req.user?.userId) {
+      return res.status(400).json({ error: "You cannot delete your own active Super Admin account." });
+    }
+    await prisma.user.delete({ where: { id: targetUser.id } });
+    return res.json({ success: true, message: "User deleted successfully." });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to delete user." });
   }
 });
 
@@ -2939,6 +3264,7 @@ superRouter.get("/tenants/:id/addons", requireAuth, requireSuperAdmin, async (re
         developer: true,
         version: true,
         features: true,
+        installUrl: true,
         createdAt: true,
       },
     });
@@ -2971,6 +3297,7 @@ superRouter.get("/tenants/:id/addons", requireAuth, requireSuperAdmin, async (re
         name: catalogItem?.name || e.addonSlug,
         category: catalogItem?.category || "General",
         icon: catalogItem?.icon || null,
+        route: catalogItem?.installUrl || `/addons/${e.addonSlug}`,
         status: e.status,
         plan: e.plan,
         source,
@@ -2996,6 +3323,7 @@ superRouter.get("/tenants/:id/addons", requireAuth, requireSuperAdmin, async (re
       },
       catalogAddons: catalogAddons.map((a) => ({
         ...a,
+        route: a.installUrl || `/addons/${a.slug}`,
         priceMonthly: Number(a.priceMonthly) || 0,
         features: Array.isArray(a.features) ? a.features : [],
       })),
@@ -5620,14 +5948,16 @@ superRouter.put(["/users/:id/reset-password", "/users/:id/password"], requireAut
       return res.status(400).json({ error: "Password confirmation does not match." });
     }
 
-    const user = await prisma.user.findUnique({ where: { id } });
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ id }, { profile: { id } }] },
+    });
     if (!user) {
       return res.status(404).json({ error: "User account not found." });
     }
 
     const passwordHash = await bcrypt.hash(body.password, 10);
     await prisma.user.update({
-      where: { id },
+      where: { id: user.id },
       data: { passwordHash },
     });
 
@@ -6030,6 +6360,11 @@ superRouter.patch("/languages/:code/toggle", requireAuth, requireSuperAdmin, asy
   } catch (err: any) {
     return res.status(400).json({ error: err.message || "Failed to toggle language status." });
   }
+});
+
+// Catch-all for unmatched /api/super/* endpoints so they never fall through to tenant-scoped routers (DEFECT-008)
+superRouter.use((_req, res: Response) => {
+  return res.status(404).json({ error: "Super Admin endpoint not found.", code: "SUPER_ROUTE_NOT_FOUND" });
 });
 
 

@@ -43,6 +43,33 @@ import {
 
 export const workspaceRouter = Router();
 
+// Allow Super Admin (tenantId: null) to read platform-default public settings without 403 (DEFECT-003)
+workspaceRouter.get("/system-settings/public", requireAuth, async (req: AuthRequest, res: Response, next) => {
+  if (!req.user?.tenantId && req.user?.roles?.includes("super_admin")) {
+    try {
+      const defaults = buildDefaultSystemSettings(null);
+      return res.json({
+        success: true,
+        data: {
+          tenant: null,
+          system: defaults.system,
+          company: defaults.company,
+          brand: defaults.brand,
+          currency: defaults.currency,
+          working_days: defaults.working_days,
+          noc: defaults.noc,
+          experience_certificate: defaults.experience_certificate,
+          joining_letter: defaults.joining_letter,
+          email_notifications: defaults.email_notifications,
+        },
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || "Failed to load platform default settings." });
+    }
+  }
+  return next();
+});
+
 // All workspace routes require valid authentication and resolved tenant context
 workspaceRouter.use(requireAuth, resolveTenantContext);
 
@@ -891,6 +918,25 @@ workspaceRouter.put("/users/:userId/role", requireWorkspaceAdminGuard, async (re
         role: { select: { id: true, name: true } },
       },
     });
+
+    // Synchronize legacy UserRole to prevent dual-role split-brain (DEFECT-019)
+    try {
+      const roleNameLower = String(assignment.role?.name || "").toLowerCase().trim();
+      const syncedLegacyRole: "hr_admin" | "manager" | "employee" =
+        ["workspace admin", "tenant admin", "administrator", "owner", "hr manager", "hr admin", "hr administrator"].includes(roleNameLower)
+          ? "hr_admin"
+          : ["manager", "team lead", "department head"].includes(roleNameLower)
+          ? "manager"
+          : "employee";
+      await prisma.userRole.deleteMany({
+        where: { userId, tenantId, role: { not: "super_admin" } },
+      });
+      await prisma.userRole.create({
+        data: { userId, tenantId, role: syncedLegacyRole },
+      });
+    } catch (legacySyncErr: any) {
+      console.warn("[workspace/users/role] Legacy role sync warning:", legacySyncErr?.message || legacySyncErr);
+    }
 
     // Invalidate auth cache for this user so updated role takes effect immediately
     invalidateAuthCache(userId, tenantId);

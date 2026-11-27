@@ -181,6 +181,7 @@ export const DIRECT_TENANT_MODELS = new Set<string>([
   "ChatConversationPin",
   "ChatConversationPreference",
   "ChatUserPresence",
+  "ChatPushSubscription",
   "WorkspaceRole",
   "UserRoleAssignment",
   "TenantModule",

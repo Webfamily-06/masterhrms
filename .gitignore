@@ -125,3 +125,13 @@ chrome-devtools-mcp/
 design_draft.md
 .expo/
 mobile-app/.expo/
+
+# Playwright & QA artifacts
+playwright-report/
+playwright-artifacts/
+test-results/
+
+# Local biometric runtime config & duplicate build archive
+MasterHRMS-Device-Manager-CrossPlatform/config.json
+MasterHRMS-Device-Manager/*.zip
+SMARTHR/.vscode/

@@ -49,7 +49,7 @@ const HR_SUBMENU_KEY_MAP: Record<string, string> = {
   "Organization Structure": "hrOrg",
   Attendance: "hrAttendance",
   "Leave Management": "hrLeave",
-  Undefined: "hrUndefined",
+  "Additional HR Tools": "hrAdditional",
   Recruitment: "hrRecruitment",
   "Employee Lifecycle": "hrLifecycle",
   Performance: "hrPerformance",
@@ -99,7 +99,7 @@ const HR_ICON_MAP: Record<string, string> = {
   "Organization Structure": "ph-tree-structure",
   Attendance: "ph-clock",
   "Leave Management": "ph-calendar-blank",
-  Undefined: "ph-dots-three-circle",
+  "Additional HR Tools": "ph-dots-three-circle",
 
   // 03. Talent & Growth
   Recruitment: "ph-user-plus",
@@ -434,6 +434,10 @@ export function DreamsSidebar({
 
   const isHrmsUnlocked = isSuperAdmin ||
     ((isEntitled("hrm") || isEntitled("hrms") || isEntitled("product_hrms") || isEntitled("core_platform")) && isModuleAllowed("hrm", profile));
+
+  const isAiUnlocked = isSuperAdmin || isEntitled("ai-assistant") || isEntitled("ai-document") || isEntitled("ai-business-advisor");
+  const isProjectsUnlocked = isSuperAdmin || isEntitled("projects") || isCrmUnlocked;
+  const isSupportUnlocked = isSuperAdmin || isEntitled("support") || isCrmUnlocked;
 
   const homeRoute = isSuperAdmin
     ? "/super"
@@ -1125,78 +1129,79 @@ export function DreamsSidebar({
                       Employee Dashboard
                     </Link>
                   </li>
-                  <li>
-                    <Link
-                      to="/deals-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/deals-dashboard" && "active")}
-                    >
-                      Deals Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/leads-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/leads-dashboard" && "active")}
-                    >
-                      Leads Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/hrm-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn((currentPath === "/hrm-dashboard" || currentPath === "/dashboard") && "active")}
-                    >
-                      HR Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/payroll-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/payroll-dashboard" && "active")}
-                    >
-                      Payroll Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/recruitment-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/recruitment-dashboard" && "active")}
-                    >
-                      Recruitment Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/attendance-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/attendance-dashboard" && "active")}
-                    >
-                      Attendance Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/finance-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/finance-dashboard" && "active")}
-                    >
-                      Finance Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/it-admin-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/it-admin-dashboard" && "active")}
-                    >
-                      IT Admin Dashboard
-                    </Link>
-                  </li>
+                  {isCrmUnlocked && (
+                    <>
+                      <li>
+                        <Link
+                          to="/deals-dashboard"
+                          onClick={onCloseMobile}
+                          className={cn(currentPath === "/deals-dashboard" && "active")}
+                        >
+                          Deals Dashboard
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to="/leads-dashboard"
+                          onClick={onCloseMobile}
+                          className={cn(currentPath === "/leads-dashboard" && "active")}
+                        >
+                          Leads Dashboard
+                        </Link>
+                      </li>
+                    </>
+                  )}
+                  {isHrmsUnlocked && (
+                    <>
+                      <li>
+                        <Link
+                          to="/hr/dashboard"
+                          onClick={onCloseMobile}
+                          className={cn((currentPath === "/hr/dashboard" || currentPath === "/hrm-dashboard" || currentPath === "/dashboard") && "active")}
+                        >
+                          HR Dashboard
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to="/payroll-dashboard"
+                          onClick={onCloseMobile}
+                          className={cn(currentPath === "/payroll-dashboard" && "active")}
+                        >
+                          Payroll Dashboard
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to="/recruitment-dashboard"
+                          onClick={onCloseMobile}
+                          className={cn(currentPath === "/recruitment-dashboard" && "active")}
+                        >
+                          Recruitment Dashboard
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to="/attendance-dashboard"
+                          onClick={onCloseMobile}
+                          className={cn(currentPath === "/attendance-dashboard" && "active")}
+                        >
+                          Attendance Dashboard
+                        </Link>
+                      </li>
+                    </>
+                  )}
+                  {isFinanceUnlocked && (
+                    <li>
+                      <Link
+                        to="/finance-dashboard"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/finance-dashboard" && "active")}
+                      >
+                        Finance Dashboard
+                      </Link>
+                    </li>
+                  )}
                   <li>
                     <Link
                       to="/asset-dashboard"
@@ -1206,69 +1211,79 @@ export function DreamsSidebar({
                       Asset Dashboard
                     </Link>
                   </li>
-                  <li>
-                    <Link
-                      to="/support-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn((currentPath === "/support-dashboard" || currentPath === "/help-desk-dashboard") && "active")}
-                    >
-                      Help Desk Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/inventory-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/inventory-dashboard" && "active")}
-                    >
-                      Inventory Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/crm-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/crm-dashboard" && "active")}
-                    >
-                      CRM Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/pos-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/pos-dashboard" && "active")}
-                    >
-                      POS Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/sales-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/sales-dashboard" && "active")}
-                    >
-                      Sales Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/procurement-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/procurement-dashboard" && "active")}
-                    >
-                      Procurement Dashboard
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      to="/project-dashboard"
-                      onClick={onCloseMobile}
-                      className={cn(currentPath === "/project-dashboard" && "active")}
-                    >
-                      Project Dashboard
-                    </Link>
-                  </li>
+                  {isSupportUnlocked && (
+                    <li>
+                      <Link
+                        to="/support-dashboard"
+                        onClick={onCloseMobile}
+                        className={cn((currentPath === "/support-dashboard" || currentPath === "/help-desk-dashboard") && "active")}
+                      >
+                        Help Desk Dashboard
+                      </Link>
+                    </li>
+                  )}
+                  {isPosUnlocked && (
+                    <>
+                      <li>
+                        <Link
+                          to="/inventory-dashboard"
+                          onClick={onCloseMobile}
+                          className={cn(currentPath === "/inventory-dashboard" && "active")}
+                        >
+                          Inventory Dashboard
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to="/pos-dashboard"
+                          onClick={onCloseMobile}
+                          className={cn(currentPath === "/pos-dashboard" && "active")}
+                        >
+                          POS Dashboard
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to="/sales-dashboard"
+                          onClick={onCloseMobile}
+                          className={cn(currentPath === "/sales-dashboard" && "active")}
+                        >
+                          Sales Dashboard
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          to="/procurement-dashboard"
+                          onClick={onCloseMobile}
+                          className={cn(currentPath === "/procurement-dashboard" && "active")}
+                        >
+                          Procurement Dashboard
+                        </Link>
+                      </li>
+                    </>
+                  )}
+                  {isCrmUnlocked && (
+                    <li>
+                      <Link
+                        to="/crm-dashboard"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/crm-dashboard" && "active")}
+                      >
+                        CRM Dashboard
+                      </Link>
+                    </li>
+                  )}
+                  {isProjectsUnlocked && (
+                    <li>
+                      <Link
+                        to="/project-dashboard"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/project-dashboard" && "active")}
+                      >
+                        Project Dashboard
+                      </Link>
+                    </li>
+                  )}
                   <li>
                     <Link
                       to="/analytics"
@@ -1340,7 +1355,8 @@ export function DreamsSidebar({
                 </ul>
               </li>
 
-              {/* AI Center Submenu */}
+              {/* AI Center Submenu (Entitled workspaces only) */}
+              {isAiUnlocked && (
               <li className="submenu">
                 <a
                   href="#"
@@ -1368,7 +1384,7 @@ export function DreamsSidebar({
                 </a>
                 <ul style={{ display: !isMini && openMenus.aiCenter ? "block" : "none" }}>
                   <li>
-                    <Link to="/ai" onClick={onCloseMobile} className={cn(currentPath === "/ai" && "active")}>
+                    <Link to="/addons/ai-assistant/settings" onClick={onCloseMobile} className={cn(currentPath.startsWith("/addons/ai-assistant") && "active")}>
                       AI Copilot & Hub
                     </Link>
                   </li>
@@ -1399,8 +1415,11 @@ export function DreamsSidebar({
                   </li>
                 </ul>
               </li>
+              )}
 
-              {/* ===================== 2. INVENTORY ===================== */}
+              {/* ===================== 2. INVENTORY (Entitled POS/Inventory plans only) ===================== */}
+              {isPosUnlocked && (
+              <>
               <li className="menu-title">
                 <span>INVENTORY</span>
               </li>
@@ -1598,8 +1617,12 @@ export function DreamsSidebar({
                   <span>Procurement Analytics</span>
                 </Link>
               </li>
+              </>
+              )}
 
-              {/* ===================== 5. FINANCE ===================== */}
+              {/* ===================== 5. FINANCE (Entitled Finance plans only) ===================== */}
+              {isFinanceUnlocked && (
+              <>
               <li className="menu-title">
                 <span>FINANCE</span>
               </li>
@@ -1695,6 +1718,8 @@ export function DreamsSidebar({
                   <span>Ledgers & Accounting</span>
                 </Link>
               </li>
+              </>
+              )}
 
               {/* ===================== 6. HRM ===================== */}
               <li className="menu-title">
@@ -1837,7 +1862,9 @@ export function DreamsSidebar({
                 </Link>
               </li>
 
-              {/* ===================== 7. CRM ===================== */}
+              {/* ===================== 7. CRM (Entitled CRM plans only) ===================== */}
+              {isCrmUnlocked && (
+              <>
               <li className="menu-title">
                 <span>CRM</span>
               </li>
@@ -1883,8 +1910,12 @@ export function DreamsSidebar({
                   <span>Customer Feedback</span>
                 </Link>
               </li>
+              </>
+              )}
 
-              {/* ===================== 8. PROJECTS ===================== */}
+              {/* ===================== 8. PROJECTS (Entitled Projects plans only) ===================== */}
+              {isProjectsUnlocked && (
+              <>
               <li className="menu-title">
                 <span>PROJECTS</span>
               </li>
@@ -1924,8 +1955,12 @@ export function DreamsSidebar({
                   <span>Project Analytics</span>
                 </Link>
               </li>
+              </>
+              )}
 
-              {/* ===================== 9. POS ===================== */}
+              {/* ===================== 9. POS (Entitled POS plans only) ===================== */}
+              {isPosUnlocked && (
+              <>
               <li className="menu-title">
                 <span>POS</span>
               </li>
@@ -1941,6 +1976,8 @@ export function DreamsSidebar({
                   <span>POS Orders</span>
                 </Link>
               </li>
+              </>
+              )}
 
               {/* ===================== 10. ASSETS ===================== */}
               <li className="menu-title">
@@ -1988,7 +2025,9 @@ export function DreamsSidebar({
                 </Link>
               </li>
 
-              {/* ===================== 12. SUPPORT ===================== */}
+              {/* ===================== 12. SUPPORT (Entitled Support plans only) ===================== */}
+              {isSupportUnlocked && (
+              <>
               <li className="menu-title">
                 <span>SUPPORT</span>
               </li>
@@ -2010,6 +2049,8 @@ export function DreamsSidebar({
                   <span>SLA Management</span>
                 </Link>
               </li>
+              </>
+              )}
 
               {/* ===================== 13. MEMBERSHIP & ADD-ONS ===================== */}
               <li className="menu-title">

@@ -705,7 +705,7 @@ export default function MeLeaveApplicationsPage() {
                 {leaveTypes.map((t: any) => {
                   const id = t.id || t.leaveTypeId;
                   const name = t.name || t.leaveTypeName;
-                  const avail = t.balance?.available ?? t.available ?? 0;
+                  const avail = t.availableBalance ?? t.balance?.available ?? t.available ?? 0;
                   const isUnpaidZero = t.isPaid === false && Number(t.daysPerYear ?? 0) === 0;
                   const eligible = t.eligible !== false;
                   return (
