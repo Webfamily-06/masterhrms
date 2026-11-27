@@ -613,9 +613,9 @@ const loginHandler = async (req: any, res: Response) => {
 
     if (isSuperPortal) {
       const isSuper = user.roles.some((r: any) => r.role === "super_admin");
-      if (!isSuper || user.email !== "admin@masterhrms.com") {
+      if (!isSuper) {
         return res.status(403).json({
-          error: "Access denied. Only the designated Super Administrator can log in through this portal.",
+          error: "Access denied. Only Super Administrators can log in through this portal.",
           code: "SUPER_ADMIN_ONLY",
         });
       }
@@ -1563,9 +1563,9 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
 
     if (isSuperPortal) {
       const isSuper = user.roles.some((r: any) => r.role === "super_admin");
-      if (!isSuper || user.email !== "admin@masterhrms.com") {
+      if (!isSuper) {
         return res.status(403).json({
-          error: "Access denied. Only the designated Super Administrator can log in through this portal.",
+          error: "Access denied. Only Super Administrators can log in through this portal.",
           code: "SUPER_ADMIN_ONLY",
         });
       }
