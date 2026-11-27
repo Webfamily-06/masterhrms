@@ -784,7 +784,7 @@ export default function SuperDomainsPage() {
                           <button
                             type="button"
                             onClick={() => setDetailDomain(d)}
-                            className="font-mono font-bold text-foreground hover:text-primary transition-colors text-left cursor-pointer"
+                            className="font-bold text-foreground hover:text-primary transition-colors text-left cursor-pointer"
                           >
                             {d.domain}
                           </button>
@@ -794,7 +794,7 @@ export default function SuperDomainsPage() {
                             </Badge>
                           )}
                         </div>
-                        <span className="text-[10px] text-muted-foreground font-mono block">
+                        <span className="text-[10px] text-muted-foreground block">
                           CNAME → {d.targetCname}
                         </span>
                       </td>
@@ -807,7 +807,7 @@ export default function SuperDomainsPage() {
                           </div>
                           <div>
                             <span className="font-semibold text-foreground block">{d.tenantName}</span>
-                            <span className="text-[10px] text-muted-foreground font-mono">{d.subdomain}</span>
+                            <span className="text-[10px] text-muted-foreground">{d.subdomain}</span>
                           </div>
                         </div>
                       </td>
@@ -960,7 +960,7 @@ export default function SuperDomainsPage() {
                   <Globe className="size-5 text-primary" />
                   <span>Custom Domain Details</span>
                 </DialogTitle>
-                <DialogDescription className="text-xs font-mono">
+                <DialogDescription className="text-xs">
                   {detailDomain.domain}
                 </DialogDescription>
               </DialogHeader>
@@ -971,7 +971,7 @@ export default function SuperDomainsPage() {
                   <div>
                     <span className="text-[10px] uppercase font-bold text-muted-foreground block">Tenant Workspace</span>
                     <span className="font-bold text-foreground text-sm">{detailDomain.tenantName}</span>
-                    <span className="text-muted-foreground font-mono block text-[11px]">{detailDomain.subdomain}</span>
+                    <span className="text-muted-foreground block text-[11px]">{detailDomain.subdomain}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Governance</span>
@@ -1037,7 +1037,7 @@ export default function SuperDomainsPage() {
                     </Button>
                   </div>
 
-                  <div className="border rounded-xl divide-y text-[11px] font-mono bg-muted/20">
+                  <div className="border rounded-xl divide-y text-[11px] tabular-nums bg-muted/20">
                     <div className="p-2.5 flex items-center justify-between gap-2">
                       <div>
                         <Badge className="bg-blue-600 text-white text-[9px] mr-1.5 font-sans">CNAME</Badge>
@@ -1184,7 +1184,7 @@ export default function SuperDomainsPage() {
               {targetRejectDomains.length === 1 ? (
                 <>
                   State the reason for rejecting{" "}
-                  <strong className="text-foreground font-mono">{targetRejectDomains[0]?.domain}</strong>. The tenant admin will see this reason in their workspace settings.
+                  <strong className="text-foreground">{targetRejectDomains[0]?.domain}</strong>. The tenant admin will see this reason in their workspace settings.
                 </>
               ) : (
                 <>
@@ -1198,7 +1198,7 @@ export default function SuperDomainsPage() {
           {targetRejectDomains.length > 1 && (
             <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-2 rounded-lg bg-muted/30 border">
               {targetRejectDomains.map((d) => (
-                <Badge key={d.id} variant="outline" className="font-mono text-[10px]">
+                <Badge key={d.id} variant="outline"className="text-[10px]">
                   {d.domain}
                 </Badge>
               ))}
@@ -1260,7 +1260,7 @@ export default function SuperDomainsPage() {
       >
         <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
           {pendingSelectedDomains.map((d) => (
-            <Badge key={d.id} variant="outline" className="font-mono text-[10px]">
+            <Badge key={d.id} variant="outline"className="text-[10px]">
               {d.domain}
             </Badge>
           ))}
@@ -1277,7 +1277,7 @@ export default function SuperDomainsPage() {
           deleteDomain ? (
             <>
               Are you sure you want to remove{" "}
-              <strong className="text-foreground font-mono">{deleteDomain.domain}</strong>? Vanity routing will be detached while the tenant&apos;s default Flow 1 workspace remains active.
+              <strong className="text-foreground">{deleteDomain.domain}</strong>? Vanity routing will be detached while the tenant&apos;s default Flow 1 workspace remains active.
             </>
           ) : undefined
         }

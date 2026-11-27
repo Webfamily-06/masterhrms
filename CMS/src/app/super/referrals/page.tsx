@@ -454,7 +454,7 @@ export default function SuperReferralsPage() {
                       <tr key={req.id} className="hover:bg-muted/40 transition-colors">
                         <td className="p-3">
                           <p className="font-semibold text-foreground">{req.tenantName}</p>
-                          <p className="text-[11px] text-muted-foreground font-mono">{req.tenantSlug}</p>
+                          <p className="text-[11px] text-muted-foreground">{req.tenantSlug}</p>
                         </td>
                         <td className="p-3 font-bold text-foreground whitespace-nowrap">
                           {formatCurrency(req.amount, req.currency)}
@@ -611,7 +611,7 @@ export default function SuperReferralsPage() {
                       <tr key={rec.id} className="hover:bg-muted/40 transition-colors">
                         <td className="p-3">
                           <p className="font-semibold text-foreground">{rec.referrerTenantName}</p>
-                          <p className="text-[11px] text-muted-foreground font-mono">
+                          <p className="text-[11px] text-muted-foreground">
                             {rec.referrerTenantSlug}
                           </p>
                         </td>

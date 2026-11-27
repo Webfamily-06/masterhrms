@@ -265,7 +265,7 @@ export default function BlogTagsPage() {
                       <span className="text-xs font-bold text-foreground truncate">{tag.name}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono text-muted-foreground truncate">{tag.slug}</span>
+                      <span className="text-[10px] tabular-nums text-muted-foreground truncate">{tag.slug}</span>
                       <span className="text-[10px] text-muted-foreground/80">• {count} {count === 1 ? 'post' : 'posts'}</span>
                     </div>
                   </div>
@@ -330,7 +330,7 @@ export default function BlogTagsPage() {
                 value={formSlug}
                 onChange={(e) => setFormSlug(e.target.value)}
                 placeholder="e.g. productivity"
-                className="text-xs font-mono"
+                className="text-xs"
               />
             </div>
           </div>

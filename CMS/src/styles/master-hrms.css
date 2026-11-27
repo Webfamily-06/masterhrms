@@ -1643,6 +1643,12 @@ option,
   font-family: var(--font-sans) !important;
 }
 
+/* Authoritative Root Font Lock across Super Admin Console (preserves vector icons & genuine code blocks) */
+.super-shell,
+.super-shell *:not(.ph):not(.ph-duotone):not(.ph-fill):not(.ti):not(.fa):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.icon):not([class^="ns-"]):not([class*=" ns-"]):not(pre):not(pre *):not(code):not(code *):not(kbd):not(samp):not(.font-mono) {
+  font-family: var(--font-sans) !important;
+}
+
 .font-mono {
   font-family: var(--font-mono) !important;
 }

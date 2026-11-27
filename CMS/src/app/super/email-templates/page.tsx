@@ -1361,7 +1361,7 @@ function EmailTemplatesAdmin() {
           <Card className="p-2 border shadow-xs">
             <div className="p-3 text-xs font-bold text-muted-foreground uppercase border-b mb-2 flex items-center justify-between">
               <span>Templates</span>
-              <span className="text-[10px] font-mono text-muted-foreground">{list.length} Total</span>
+              <span className="text-[10px] tabular-nums text-muted-foreground">{list.length} Total</span>
             </div>
 
             {/* Category Filter Pills */}
@@ -1409,7 +1409,7 @@ function EmailTemplatesAdmin() {
                   <div className="truncate font-medium">{t.name}</div>
                   <div className="flex items-center justify-between mt-1">
                     <span
-                      className={`text-[10px] font-mono ${
+                      className={`text-[10px] ${
                         current.id === t.id ? "text-primary-foreground/80" : "text-muted-foreground"
                       }`}
                     >
@@ -1470,7 +1470,7 @@ function EmailTemplatesAdmin() {
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
                 {(current.variables ?? []).map((v) => (
-                  <Badge key={v} variant="outline" className="font-mono text-[11px] bg-background">
+                  <Badge key={v} variant="outline"className="text-[11px] bg-background">
                     {v}
                   </Badge>
                 ))}
@@ -1504,7 +1504,7 @@ function EmailTemplatesAdmin() {
                   value={current.html_body}
                   onChange={(e) => updateCurrent("html_body", e.target.value)}
                   rows={20}
-                  className="font-mono text-xs leading-relaxed bg-slate-950 text-slate-100 p-4 rounded-xl"
+                  className="text-xs leading-relaxed bg-slate-950 text-slate-100 p-4 rounded-xl"
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Inline CSS is strongly recommended for broad compatibility across web, Outlook, and mobile mail clients.

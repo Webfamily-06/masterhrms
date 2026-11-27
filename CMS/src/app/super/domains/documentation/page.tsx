@@ -121,12 +121,12 @@ function CustomDomainDocumentationPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50/40 dark:bg-blue-950/20 space-y-2">
                   <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 font-mono text-[10px]">
+                    <Badge variant="outline"className="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 tabular-nums text-[10px]">
                       FLOW 1 — Default Host
                     </Badge>
                     <span className="text-[11px] text-muted-foreground">Permanent Fallback</span>
                   </div>
-                  <h3 className="font-mono text-base font-bold text-blue-900 dark:text-blue-200">
+                  <h3 className="text-base font-bold text-blue-900 dark:text-blue-200">
                     https://acme.{baseDomain}
                   </h3>
                   <p className="text-xs text-blue-800/80 dark:text-blue-300/80 leading-relaxed">
@@ -136,12 +136,12 @@ function CustomDomainDocumentationPage() {
 
                 <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-2">
                   <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 font-mono text-[10px]">
+                    <Badge variant="outline"className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 tabular-nums text-[10px]">
                       FLOW 2 — Primary Custom Domain
                     </Badge>
                     <span className="text-[11px] text-muted-foreground">Customer Branded</span>
                   </div>
-                  <h3 className="font-mono text-base font-bold text-emerald-900 dark:text-emerald-200">
+                  <h3 className="text-base font-bold text-emerald-900 dark:text-emerald-200">
                     https://acme.com
                   </h3>
                   <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80 leading-relaxed">
@@ -165,7 +165,7 @@ function CustomDomainDocumentationPage() {
                 ].map((row, i) => (
                   <div key={i} className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <span className="font-semibold text-foreground">{row.property}</span>
-                    <span className="sm:col-span-2 text-muted-foreground font-mono">{row.guarantee}</span>
+                    <span className="sm:col-span-2 text-muted-foreground">{row.guarantee}</span>
                   </div>
                 ))}
               </div>
@@ -265,10 +265,10 @@ function CustomDomainDocumentationPage() {
                       <div className="flex items-center justify-between flex-wrap gap-2">
                         <h4 className="font-bold text-sm text-foreground">{item.title}</h4>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[10px] bg-muted/50 font-mono">
+                          <Badge variant="outline"className="text-[10px] bg-muted/50 tabular-nums">
                             {item.actor}
                           </Badge>
-                          <Badge variant="secondary" className="text-[10px] font-mono">
+                          <Badge variant="secondary"className="text-[10px]">
                             {item.state}
                           </Badge>
                         </div>
@@ -302,12 +302,12 @@ function CustomDomainDocumentationPage() {
                 <div className="p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Badge className="bg-blue-600 text-white font-mono text-[10px]">CNAME</Badge>
+                      <Badge className="bg-blue-600 text-white tabular-nums text-[10px]">CNAME</Badge>
                       <span className="font-semibold text-foreground">Traffic Routing Record (Required)</span>
                     </div>
-                    <span className="text-[11px] text-muted-foreground font-mono">TTL: 300 / Auto</span>
+                    <span className="text-[11px] text-muted-foreground">TTL: 300 / Auto</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-muted/30 p-3 rounded-lg border border-border-color font-mono text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-muted/30 p-3 rounded-lg border border-border-color text-xs">
                     <div>
                       <span className="text-muted-foreground block text-[10px] uppercase">Host / Name:</span>
                       <span className="font-bold text-foreground">@ (Apex) or subdomain (e.g. app)</span>
@@ -336,12 +336,12 @@ function CustomDomainDocumentationPage() {
                 <div className="p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Badge className="bg-purple-600 text-white font-mono text-[10px]">TXT</Badge>
+                      <Badge className="bg-purple-600 text-white tabular-nums text-[10px]">TXT</Badge>
                       <span className="font-semibold text-foreground">Ownership Verification Challenge (Required)</span>
                     </div>
-                    <span className="text-[11px] text-muted-foreground font-mono">TTL: 300</span>
+                    <span className="text-[11px] text-muted-foreground">TTL: 300</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-muted/30 p-3 rounded-lg border border-border-color font-mono text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-muted/30 p-3 rounded-lg border border-border-color text-xs">
                     <div>
                       <span className="text-muted-foreground block text-[10px] uppercase">Host / Name:</span>
                       <span className="font-bold text-foreground">_masterhrms-challenge.[domain]</span>
@@ -437,7 +437,7 @@ function CustomDomainDocumentationPage() {
             <CardContent className="p-6 space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-card space-y-2">
-                  <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 font-mono text-[10px]">
+                  <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 text-[10px]">
                     PROVISIONING
                   </Badge>
                   <h4 className="font-bold text-foreground">ACME Challenge</h4>
@@ -447,7 +447,7 @@ function CustomDomainDocumentationPage() {
                 </div>
 
                 <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-card space-y-2">
-                  <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 font-mono text-[10px]">
+                  <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-[10px]">
                     ACTIVE
                   </Badge>
                   <h4 className="font-bold text-foreground">Certificate Bound</h4>
@@ -457,7 +457,7 @@ function CustomDomainDocumentationPage() {
                 </div>
 
                 <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-card space-y-2">
-                  <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 font-mono text-[10px]">
+                  <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 text-[10px]">
                     AUTO-RENEWAL
                   </Badge>
                   <h4 className="font-bold text-foreground">30-Day Renewal</h4>
@@ -490,7 +490,7 @@ function CustomDomainDocumentationPage() {
                   <XCircle className="size-4 text-rose-600" />
                   <span>The Fundamental Super Admin Security Invariant</span>
                 </div>
-                <p className="text-rose-800/90 dark:text-rose-300/90 leading-relaxed font-mono">
+                <p className="text-rose-800/90 dark:text-rose-300/90 leading-relaxed">
                   {baseDomain}/Super → ONLY Super Admin Login Console<br />
                   acme.{baseDomain}/Super → STRICT 404 NOT FOUND<br />
                   acme.com/Super → STRICT 404 NOT FOUND

@@ -463,25 +463,25 @@ export default function SuperAnalyticsPage() {
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="p-3 rounded-lg bg-muted/30 border border-border/60">
                     <div className="text-[11px] text-muted-foreground">Daily Velocity</div>
-                    <div className="font-mono font-bold text-foreground mt-0.5">
+                    <div className="font-bold text-foreground mt-0.5">
                       {fleetForecast?.formattedDailyGrowth || "0 B / day"}
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/30 border border-border/60">
                     <div className="text-[11px] text-muted-foreground">30-Day Projection</div>
-                    <div className="font-mono font-bold text-foreground mt-0.5">
+                    <div className="font-bold text-foreground mt-0.5">
                       {fleetForecast?.formattedProjected30Days || "0 B"}
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/30 border border-border/60">
                     <div className="text-[11px] text-muted-foreground">Available Capacity</div>
-                    <div className="font-mono font-bold text-foreground mt-0.5">
+                    <div className="font-bold text-foreground mt-0.5">
                       {fleetForecast?.formattedAvailable || "0 B"}
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/30 border border-border/60">
                     <div className="text-[11px] text-muted-foreground">Projected Runway</div>
-                    <div className="font-mono font-bold text-foreground mt-0.5">
+                    <div className="font-bold text-foreground mt-0.5">
                       {fleetForecast?.projectedDaysRemaining != null
                         ? `${fleetForecast.projectedDaysRemaining} days`
                         : "Stable"}
@@ -492,13 +492,13 @@ export default function SuperAnalyticsPage() {
                 <div className="p-3 rounded-lg bg-muted/30 border border-border/60 space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Period Net Growth ({lookbackDays}d)</span>
-                    <span className="font-mono font-semibold text-foreground">
+                    <span className="font-semibold text-foreground">
                       {fleetGrowth?.summary?.formattedNetPeriodGrowth || "0 B"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Data Points / Confidence</span>
-                    <span className="font-mono text-foreground">
+                    <span className="text-foreground">
                       {fleetForecast?.dataPoints ?? 0} pts ({fleetForecast?.confidence || "INSUFFICIENT_DATA"})
                     </span>
                   </div>
@@ -580,11 +580,11 @@ export default function SuperAnalyticsPage() {
                         <TableRow key={item.id} className="hover:bg-muted/40 transition-colors">
                           <TableCell className="py-2.5">
                             <p className="text-xs font-semibold text-foreground">{item.name}</p>
-                            <p className="text-[11px] font-mono text-muted-foreground">{item.slug}</p>
+                            <p className="text-[11px] text-muted-foreground">{item.slug}</p>
                           </TableCell>
                           <TableCell className="text-xs font-medium">{item.plan}</TableCell>
-                          <TableCell className="text-xs text-right font-mono">{item.employeesCount.toLocaleString()}</TableCell>
-                          <TableCell className="text-xs text-right font-mono">{item.usersCount.toLocaleString()}</TableCell>
+                          <TableCell className="text-xs text-right tabular-nums">{item.employeesCount.toLocaleString()}</TableCell>
+                          <TableCell className="text-xs text-right tabular-nums">{item.usersCount.toLocaleString()}</TableCell>
                           <TableCell>
                             <Badge
                               variant={
@@ -680,7 +680,7 @@ export default function SuperAnalyticsPage() {
                     ) : (
                       auditChecks.map((check) => (
                         <TableRow key={check.key} className="hover:bg-muted/40 transition-colors">
-                          <TableCell className="font-mono font-semibold text-xs">{check.key}</TableCell>
+                          <TableCell className="font-semibold text-xs">{check.key}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="text-[10px] capitalize">
                               {check.category}
@@ -700,7 +700,7 @@ export default function SuperAnalyticsPage() {
                               {check.status}
                             </Badge>
                           </TableCell>
-                          <TableCell className="font-mono text-[11px] text-muted-foreground max-w-[200px] truncate">
+                          <TableCell className="text-[11px] text-muted-foreground max-w-[200px] truncate">
                             {check.valueSanitized}
                           </TableCell>
                           <TableCell className="text-xs">
@@ -744,7 +744,7 @@ export default function SuperAnalyticsPage() {
                       value={measurementId}
                       onChange={(e) => setMeasurementId(e.target.value)}
                       placeholder="G-XXXXXXXXXX"
-                      className="h-9 text-xs font-mono"
+                      className="h-9 text-xs"
                     />
                   </div>
                   <label className="flex items-center gap-2 cursor-pointer select-none">

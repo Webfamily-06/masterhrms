@@ -307,7 +307,7 @@ export default function SuperEscalationRulesPage() {
                     </td>
 
                     {/* Rule ID */}
-                    <td className="py-3 px-4 font-mono font-bold text-primary">
+                    <td className="py-3 px-4 tabular-nums font-bold text-primary">
                       {r.ruleId}
                     </td>
 

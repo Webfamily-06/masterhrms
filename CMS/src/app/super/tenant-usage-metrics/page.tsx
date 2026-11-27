@@ -610,7 +610,7 @@ export default function TenantUsageMetricsPage() {
             <span className="text-slate-700 dark:text-slate-300">
               {socketConnected ? "Live Fleet Sync" : "Reconnecting..."}
             </span>
-            <span className="text-[10px] font-mono text-slate-400">
+            <span className="text-[10px] tabular-nums text-slate-400">
               {lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </span>
           </div>
@@ -646,7 +646,7 @@ export default function TenantUsageMetricsPage() {
             <span>Fleet Quota</span>
             <Database className="w-3.5 h-3.5 text-blue-500" />
           </div>
-          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 font-mono">
+          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
             {fleetSummary?.formattedAllocatedStorage || "0 B"}
           </div>
           <div className="text-[10px] text-slate-400">
@@ -660,7 +660,7 @@ export default function TenantUsageMetricsPage() {
             <span>Active Files</span>
             <HardDrive className="w-3.5 h-3.5 text-emerald-500" />
           </div>
-          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 font-mono">
+          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
             {fleetSummary?.formattedActiveStorage || "0 B"}
           </div>
           <div className="text-[10px] text-slate-400">
@@ -674,7 +674,7 @@ export default function TenantUsageMetricsPage() {
             <span>Recycle Bin</span>
             <Trash2 className="w-3.5 h-3.5 text-amber-500" />
           </div>
-          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 font-mono">
+          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
             {fleetSummary?.formattedTrashStorage || "0 B"}
           </div>
           <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
@@ -688,7 +688,7 @@ export default function TenantUsageMetricsPage() {
             <span>Versions</span>
             <Layers className="w-3.5 h-3.5 text-indigo-500" />
           </div>
-          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 font-mono">
+          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
             {fleetSummary?.formattedVersionStorage || "0 B"}
           </div>
           <div className="text-[10px] text-slate-400">
@@ -702,7 +702,7 @@ export default function TenantUsageMetricsPage() {
             <span>In-Flight</span>
             <Clock className="w-3.5 h-3.5 text-sky-500" />
           </div>
-          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 font-mono">
+          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
             {fleetSummary?.formattedReservedStorage || "0 B"}
           </div>
           <div className="text-[10px] text-slate-400">
@@ -716,7 +716,7 @@ export default function TenantUsageMetricsPage() {
             <span>Physical Disk</span>
             <ShieldCheck className="w-3.5 h-3.5 text-purple-500" />
           </div>
-          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 font-mono">
+          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
             {fleetSummary?.formattedBillableStorage || "0 B"}
           </div>
           <div className="text-[10px] text-purple-600 dark:text-purple-400">
@@ -730,7 +730,7 @@ export default function TenantUsageMetricsPage() {
             <span>At-Risk (&ge;80%)</span>
             <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
           </div>
-          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 font-mono">
+          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
             {fleetSummary?.tenantsApproachingQuota ?? 0}
           </div>
           <div className="text-[10px] text-orange-600 dark:text-orange-400">
@@ -744,7 +744,7 @@ export default function TenantUsageMetricsPage() {
             <span>Locked (100%)</span>
             <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
           </div>
-          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 font-mono">
+          <div className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
             {fleetSummary?.tenantsLocked ?? 0}
           </div>
           <div className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold">
@@ -776,7 +776,7 @@ export default function TenantUsageMetricsPage() {
                 key={days}
                 type="button"
                 onClick={() => setForecastLookback(days)}
-                className={`px-2.5 py-1 rounded-md font-mono text-xs transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer ${
                   forecastLookback === days
                     ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-semibold shadow-xs"
                     : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
@@ -806,12 +806,12 @@ export default function TenantUsageMetricsPage() {
                 <BarChart3 className="w-4 h-4 text-blue-500" />
                 Fleet Growth Trajectory & Forward Projections
               </span>
-              <span className="text-[10px] font-mono text-slate-500">
+              <span className="text-[10px] tabular-nums text-slate-500">
                 {fleetAnalytics?.growth?.totalTrackedDays || 0} tracked snapshot days
               </span>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+            <div className="grid grid-cols-3 gap-2 text-xs">
               <div className="p-2.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
                 <span className="text-[10px] text-slate-400 block font-sans">Net Period Delta</span>
                 <span className="text-sm font-bold text-slate-900 dark:text-slate-100 mt-0.5 block">
@@ -841,7 +841,7 @@ export default function TenantUsageMetricsPage() {
             )}
 
             {/* Projections or Recent Data Points */}
-            <div className="divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden bg-white dark:bg-slate-800 text-xs font-mono">
+            <div className="divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden bg-white dark:bg-slate-800 text-xs">
               {(fleetAnalytics?.growth?.projections || []).slice(0, 4).map((proj: any) => (
                 <div key={proj.date} className="p-2.5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-750">
                   <div className="flex items-center gap-2">
@@ -871,7 +871,7 @@ export default function TenantUsageMetricsPage() {
                 <PieChart className="w-4 h-4 text-emerald-500" />
                 Fleet Quota Utilization Distribution
               </span>
-              <span className="text-[10px] font-mono text-slate-500">
+              <span className="text-[10px] tabular-nums text-slate-500">
                 {quotaHistogram.totalTenants} active workspaces
               </span>
             </div>
@@ -907,7 +907,7 @@ export default function TenantUsageMetricsPage() {
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
                   <span>Healthy (&lt;50%)</span>
                 </div>
-                <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                   {quotaHistogram.healthy.count}
                   <span className="text-[10px] text-slate-400 font-normal ml-1">({quotaHistogram.healthy.pct}%)</span>
                 </div>
@@ -918,7 +918,7 @@ export default function TenantUsageMetricsPage() {
                   <span className="w-2 h-2 rounded-full bg-blue-500" />
                   <span>Moderate (50-79%)</span>
                 </div>
-                <div className="text-base font-bold text-blue-600 dark:text-blue-400 font-mono">
+                <div className="text-base font-bold text-blue-600 dark:text-blue-400 tabular-nums">
                   {quotaHistogram.moderate.count}
                   <span className="text-[10px] text-slate-400 font-normal ml-1">({quotaHistogram.moderate.pct}%)</span>
                 </div>
@@ -929,7 +929,7 @@ export default function TenantUsageMetricsPage() {
                   <span className="w-2 h-2 rounded-full bg-amber-500" />
                   <span>At-Risk (80-99%)</span>
                 </div>
-                <div className="text-base font-bold text-amber-600 dark:text-amber-400 font-mono">
+                <div className="text-base font-bold text-amber-600 dark:text-amber-400 tabular-nums">
                   {quotaHistogram.warning.count}
                   <span className="text-[10px] text-slate-400 font-normal ml-1">({quotaHistogram.warning.pct}%)</span>
                 </div>
@@ -940,7 +940,7 @@ export default function TenantUsageMetricsPage() {
                   <span className="w-2 h-2 rounded-full bg-rose-500" />
                   <span>Locked (100%+)</span>
                 </div>
-                <div className="text-base font-bold text-rose-600 dark:text-rose-400 font-mono">
+                <div className="text-base font-bold text-rose-600 dark:text-rose-400 tabular-nums">
                   {quotaHistogram.exceeded.count}
                   <span className="text-[10px] text-slate-400 font-normal ml-1">({quotaHistogram.exceeded.pct}%)</span>
                 </div>
@@ -960,13 +960,13 @@ export default function TenantUsageMetricsPage() {
                   Capacity Exhaustion Watchlist (At-Risk Tenants)
                 </h4>
               </div>
-              <span className="text-[10px] font-mono text-slate-500">
+              <span className="text-[10px] tabular-nums text-slate-500">
                 {(fleetAnalytics?.watchlist || []).length} flagged
               </span>
             </div>
 
             <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden bg-white dark:bg-slate-800">
-              <table className="w-full text-left text-xs font-mono">
+              <table className="w-full text-left text-xs tabular-nums">
                 <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
                   <tr>
                     <th className="p-2">Workspace</th>
@@ -981,7 +981,7 @@ export default function TenantUsageMetricsPage() {
                     <tr key={entry.tenantId} className="hover:bg-slate-50 dark:hover:bg-slate-750">
                       <td className="p-2 font-sans font-medium text-slate-900 dark:text-slate-100">
                         <div>{entry.name}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">{entry.slug}</div>
+                        <div className="text-[10px] text-slate-400">{entry.slug}</div>
                       </td>
                       <td className="p-2">
                         <div>{entry.formattedCurrentUsage} / {entry.formattedQuota}</div>
@@ -1041,7 +1041,7 @@ export default function TenantUsageMetricsPage() {
                   Storage Anomaly Insights & Active Flags
                 </h4>
               </div>
-              <span className="text-[10px] font-mono text-slate-500">
+              <span className="text-[10px] tabular-nums text-slate-500">
                 {(fleetAnalytics?.anomalies || []).length} insights
               </span>
             </div>
@@ -1066,10 +1066,10 @@ export default function TenantUsageMetricsPage() {
                       <span className="font-bold text-slate-900 dark:text-slate-100">{anom.title}</span>
                     </div>
                     <p className="text-slate-500 text-[11px]">{anom.message}</p>
-                    <span className="text-[10px] font-mono text-slate-400">Workspace: {anom.tenantName}</span>
+                    <span className="text-[10px] text-slate-400">Workspace: {anom.tenantName}</span>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="font-mono font-bold text-slate-900 dark:text-slate-100 block">
+                    <span className="tabular-nums font-bold text-slate-900 dark:text-slate-100 block">
                       {anom.metricFormatted}
                     </span>
                     <button
@@ -1141,7 +1141,7 @@ export default function TenantUsageMetricsPage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 space-y-1">
                 <div className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">Active Policies</div>
                 <div className="text-lg font-bold text-slate-900 dark:text-slate-100">
@@ -1182,7 +1182,7 @@ export default function TenantUsageMetricsPage() {
             {/* Recent Fleet Executions Table */}
             {fleetRetention?.recentJobs && fleetRetention.recentJobs.length > 0 && (
               <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
-                <table className="w-full text-left text-xs border-collapse font-mono">
+                <table className="w-full text-left text-xs border-collapse tabular-nums">
                   <thead>
                     <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-[11px] font-semibold text-slate-500 uppercase font-sans">
                       <th className="py-2 px-3">Job ID</th>
@@ -1476,7 +1476,7 @@ export default function TenantUsageMetricsPage() {
                             >
                               {m.name}
                             </span>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
                               {m.domainUrl}
                             </p>
                           </div>
@@ -1496,7 +1496,7 @@ export default function TenantUsageMetricsPage() {
                       </td>
 
                       {/* Quota Limit */}
-                      <td className="py-3 px-4 font-mono font-semibold text-slate-800 dark:text-slate-200">
+                      <td className="py-3 px-4 tabular-nums font-semibold text-slate-800 dark:text-slate-200">
                         {m.formattedQuota || m.storageLimitFormatted}
                         {m.quotaSource && (
                           <span className="block text-[9px] text-slate-400 uppercase font-sans">
@@ -1506,27 +1506,27 @@ export default function TenantUsageMetricsPage() {
                       </td>
 
                       {/* Active Files */}
-                      <td className="py-3 px-4 font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                      <td className="py-3 px-4 tabular-nums text-emerald-600 dark:text-emerald-400 font-semibold">
                         {m.formattedActive || m.storageUsedFormatted}
                       </td>
 
                       {/* Recycle Bin */}
-                      <td className="py-3 px-4 font-mono text-amber-600 dark:text-amber-400">
+                      <td className="py-3 px-4 tabular-nums text-amber-600 dark:text-amber-400">
                         {m.formattedTrash || "0 B"}
                       </td>
 
                       {/* Versions */}
-                      <td className="py-3 px-4 font-mono text-indigo-600 dark:text-indigo-400">
+                      <td className="py-3 px-4 tabular-nums text-indigo-600 dark:text-indigo-400">
                         {m.formattedVersion || "0 B"}
                       </td>
 
                       {/* Reserved In-Flight */}
-                      <td className="py-3 px-4 font-mono text-sky-600 dark:text-sky-400">
+                      <td className="py-3 px-4 tabular-nums text-sky-600 dark:text-sky-400">
                         {m.formattedReserved || "0 B"}
                       </td>
 
                       {/* Physical Disk / Billable */}
-                      <td className="py-3 px-4 font-mono font-bold text-purple-600 dark:text-purple-400">
+                      <td className="py-3 px-4 tabular-nums font-bold text-purple-600 dark:text-purple-400">
                         {m.formattedPhysical || m.formattedBillable || m.storageUsedFormatted}
                       </td>
 
@@ -1534,7 +1534,7 @@ export default function TenantUsageMetricsPage() {
                       <td className="py-3 px-4">
                         <div className="space-y-1.5 min-w-[130px]">
                           <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">
+                            <span className="font-bold text-slate-800 dark:text-slate-200 tabular-nums">
                               {m.storagePercentage !== null ? `${m.storagePercentage}%` : "—"}
                             </span>
                             <span
@@ -1655,7 +1655,7 @@ export default function TenantUsageMetricsPage() {
                           >
                             {m.name}
                           </h4>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
                             {m.domainUrl}
                           </p>
                         </div>
@@ -1690,7 +1690,7 @@ export default function TenantUsageMetricsPage() {
                   {/* Card Body: Multi-dimensional Storage Metrics */}
                   <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-700/60 text-xs">
                     {/* Active & Physical Storage */}
-                    <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                    <div className="grid grid-cols-2 gap-2 text-[11px] tabular-nums">
                       <div className="p-2 bg-slate-50 dark:bg-slate-800/80 rounded border border-slate-200 dark:border-slate-700">
                         <span className="text-slate-500 text-[10px] block font-sans">Active Files</span>
                         <span className="font-bold text-emerald-600 dark:text-emerald-400">
@@ -1712,7 +1712,7 @@ export default function TenantUsageMetricsPage() {
                           <HardDrive className="w-3.5 h-3.5 text-slate-500" />
                           Quota Allocation
                         </span>
-                        <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">
+                        <span className="font-bold text-slate-800 dark:text-slate-200 tabular-nums">
                           {m.formattedQuota || m.storageLimitFormatted}
                         </span>
                       </div>
@@ -1825,7 +1825,7 @@ export default function TenantUsageMetricsPage() {
                           {detailData.profile.plan} ({detailData.profile.billingCycle})
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono">
+                      <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1 tabular-nums">
                         <a
                           href={`https://${detailData.profile.domainUrl}`}
                           target="_blank"
@@ -1944,7 +1944,7 @@ export default function TenantUsageMetricsPage() {
                 {modalTab === "storage" && (
                   <div className="space-y-5">
                     {/* Multi-Dimensional Storage Cards */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs tabular-nums">
                       <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/80">
                         <span className="text-slate-500 text-[11px] block font-sans">Active Logical</span>
                         <span className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1 block">
@@ -1986,7 +1986,7 @@ export default function TenantUsageMetricsPage() {
                             <HardDrive className="w-4 h-4 text-primary" />
                             Storage Quota Status
                           </h5>
-                          <span className="text-xs font-bold text-slate-900 dark:text-slate-100 font-mono">
+                          <span className="text-xs font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                             {detailData.storage.totalUsedFormatted} / {detailData.storage.totalLimitFormatted}
                           </span>
                         </div>
@@ -2026,7 +2026,7 @@ export default function TenantUsageMetricsPage() {
                               <Database className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
                               Database:
                             </span>
-                            <span className="font-bold text-slate-900 dark:text-slate-100 font-mono">
+                            <span className="font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                               {detailData.storage.categories.database.formatted}
                             </span>
                           </div>
@@ -2035,7 +2035,7 @@ export default function TenantUsageMetricsPage() {
                               <ImageIcon className="w-3.5 h-3.5 text-sky-500" />
                               Images:
                             </span>
-                            <span className="font-bold text-slate-900 dark:text-slate-100 font-mono">
+                            <span className="font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                               {detailData.storage.categories.images.formatted}
                             </span>
                           </div>
@@ -2044,7 +2044,7 @@ export default function TenantUsageMetricsPage() {
                               <Video className="w-3.5 h-3.5 text-indigo-500" />
                               Videos:
                             </span>
-                            <span className="font-bold text-slate-900 dark:text-slate-100 font-mono">
+                            <span className="font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                               {detailData.storage.categories.videos.formatted}
                             </span>
                           </div>
@@ -2053,7 +2053,7 @@ export default function TenantUsageMetricsPage() {
                               <FileText className="w-3.5 h-3.5 text-amber-500" />
                               Documentation:
                             </span>
-                            <span className="font-bold text-slate-900 dark:text-slate-100 font-mono">
+                            <span className="font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                               {detailData.storage.categories.documents.formatted}
                             </span>
                           </div>
@@ -2062,7 +2062,7 @@ export default function TenantUsageMetricsPage() {
                               <Music className="w-3.5 h-3.5 text-purple-500" />
                               Audio:
                             </span>
-                            <span className="font-bold text-slate-900 dark:text-slate-100 font-mono">
+                            <span className="font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                               {detailData.storage.categories.audio.formatted}
                             </span>
                           </div>
@@ -2071,7 +2071,7 @@ export default function TenantUsageMetricsPage() {
                               <FileCode className="w-3.5 h-3.5 text-slate-500" />
                               Other Files:
                             </span>
-                            <span className="font-bold text-slate-900 dark:text-slate-100 font-mono">
+                            <span className="font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                               {detailData.storage.categories.other.formatted}
                             </span>
                           </div>
@@ -2141,7 +2141,7 @@ export default function TenantUsageMetricsPage() {
                         Department allocations govern storage ceilings across organization divisions.
                       </p>
                       {detailData.storage.departmentBreakdown?.formattedUnassigned && (
-                        <span className="text-xs font-mono font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700">
+                        <span className="text-xs tabular-nums font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700">
                           Unassigned Pool: {detailData.storage.departmentBreakdown.formattedUnassigned}
                         </span>
                       )}
@@ -2172,12 +2172,12 @@ export default function TenantUsageMetricsPage() {
                                 <td className="py-2.5 px-4 font-semibold text-slate-900 dark:text-slate-100">
                                   {dept.name}
                                 </td>
-                                <td className="py-2.5 px-4 font-mono">{dept.formattedAllocated}</td>
-                                <td className="py-2.5 px-4 font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                                <td className="py-2.5 px-4 tabular-nums">{dept.formattedAllocated}</td>
+                                <td className="py-2.5 px-4 tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">
                                   {dept.formattedUsed}
                                 </td>
                                 <td className="py-2.5 px-4">
-                                  <div className="flex items-center justify-between text-[10px] font-mono mb-1">
+                                  <div className="flex items-center justify-between text-[10px] tabular-nums mb-1">
                                     <span>{dept.percentUsed}%</span>
                                   </div>
                                   <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
@@ -2188,7 +2188,7 @@ export default function TenantUsageMetricsPage() {
                                   </div>
                                 </td>
                                 <td className="py-2.5 px-4 text-slate-500">{dept.employeeCount}</td>
-                                <td className="py-2.5 px-4 text-slate-500 font-mono">{dept.fileCount}</td>
+                                <td className="py-2.5 px-4 text-slate-500 tabular-nums">{dept.fileCount}</td>
                               </tr>
                             ))
                           )}
@@ -2232,12 +2232,12 @@ export default function TenantUsageMetricsPage() {
                                   {tm.name}
                                 </td>
                                 <td className="py-2.5 px-4 text-slate-500">{tm.memberCount} members</td>
-                                <td className="py-2.5 px-4 font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                                <td className="py-2.5 px-4 tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">
                                   {tm.formattedUsed}
                                 </td>
-                                <td className="py-2.5 px-4 font-mono text-slate-500">{tm.formattedQuota}</td>
+                                <td className="py-2.5 px-4 tabular-nums text-slate-500">{tm.formattedQuota}</td>
                                 <td className="py-2.5 px-4">
-                                  <div className="flex items-center justify-between text-[10px] font-mono mb-1">
+                                  <div className="flex items-center justify-between text-[10px] tabular-nums mb-1">
                                     <span>{tm.percentUsed}%</span>
                                   </div>
                                   <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
@@ -2247,7 +2247,7 @@ export default function TenantUsageMetricsPage() {
                                     />
                                   </div>
                                 </td>
-                                <td className="py-2.5 px-4 font-mono text-slate-500">{tm.fileCount}</td>
+                                <td className="py-2.5 px-4 tabular-nums text-slate-500">{tm.fileCount}</td>
                               </tr>
                             ))
                           )}
@@ -2288,15 +2288,15 @@ export default function TenantUsageMetricsPage() {
                               <tr key={usr.userId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
                                 <td className="py-2.5 px-4">
                                   <div className="font-semibold text-slate-900 dark:text-slate-100">{usr.name}</div>
-                                  <div className="text-[10px] text-slate-400 font-mono">{usr.email}</div>
+                                  <div className="text-[10px] text-slate-400">{usr.email}</div>
                                 </td>
                                 <td className="py-2.5 px-4 text-slate-500 capitalize">{usr.role}</td>
-                                <td className="py-2.5 px-4 font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                                <td className="py-2.5 px-4 tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">
                                   {usr.formattedUsed}
                                 </td>
-                                <td className="py-2.5 px-4 font-mono text-slate-500">{usr.formattedQuota}</td>
+                                <td className="py-2.5 px-4 tabular-nums text-slate-500">{usr.formattedQuota}</td>
                                 <td className="py-2.5 px-4">
-                                  <div className="flex items-center justify-between text-[10px] font-mono mb-1">
+                                  <div className="flex items-center justify-between text-[10px] tabular-nums mb-1">
                                     <span>{usr.percentUsed}%</span>
                                   </div>
                                   <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
@@ -2306,7 +2306,7 @@ export default function TenantUsageMetricsPage() {
                                     />
                                   </div>
                                 </td>
-                                <td className="py-2.5 px-4 font-mono text-slate-500">{usr.fileCount}</td>
+                                <td className="py-2.5 px-4 tabular-nums text-slate-500">{usr.fileCount}</td>
                               </tr>
                             ))
                           )}
@@ -2352,10 +2352,10 @@ export default function TenantUsageMetricsPage() {
                                 <td className="py-2.5 px-4 font-medium text-slate-900 dark:text-slate-100">
                                   {act.fileName || act.fileId}
                                 </td>
-                                <td className="py-2.5 px-4 font-mono text-slate-500">
+                                <td className="py-2.5 px-4 tabular-nums text-slate-500">
                                   {act.formattedSize || "—"}
                                 </td>
-                                <td className="py-2.5 px-4 text-slate-500 font-mono text-[11px]">
+                                <td className="py-2.5 px-4 text-slate-500 tabular-nums text-[11px]">
                                   {act.actorId ? act.actorId.slice(0, 8) + "..." : "System"}
                                 </td>
                                 <td className="py-2.5 px-4 text-slate-500 whitespace-nowrap">
@@ -2477,7 +2477,7 @@ export default function TenantUsageMetricsPage() {
                               Capacity forecasting uses tenant-isolated least-squares regression over persistent daily snapshots.
                               A minimum of 2 daily snapshots is required to calculate growth slope and time-to-exhaustion.
                             </p>
-                            <div className="flex items-center gap-3 pt-1 text-[11px] font-mono">
+                            <div className="flex items-center gap-3 pt-1 text-[11px] tabular-nums">
                               <span>Tracked Snapshots: {historyPoints.length}</span>
                               <span>•</span>
                               <span>Confidence: INSUFFICIENT_DATA</span>
@@ -2489,7 +2489,7 @@ export default function TenantUsageMetricsPage() {
                       )}
 
                       {/* KPI Cards */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs tabular-nums">
                         <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/80">
                           <span className="text-slate-500 text-[11px] block font-sans">Daily Consumption Velocity</span>
                           <span className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1 block">
@@ -2557,7 +2557,7 @@ export default function TenantUsageMetricsPage() {
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
                         <div className="flex items-center justify-between text-xs font-semibold">
                           <span className="text-slate-800 dark:text-slate-200">Headroom & 30-Day Linear Ingestion Trajectory</span>
-                          <span className="font-mono text-slate-500">
+                          <span className="tabular-nums text-slate-500">
                             Quota: {detailData.storage.totalLimitFormatted || "10.0 GB"}
                           </span>
                         </div>
@@ -2588,7 +2588,7 @@ export default function TenantUsageMetricsPage() {
                               30d Projected: {fc?.formattedProjected30Days || "0 B"}
                             </span>
                           </div>
-                          <span className="font-mono">
+                          <span className="tabular-nums">
                             Available: {detailData.storage.remainingFormatted || "0 B"}
                           </span>
                         </div>
@@ -2601,13 +2601,13 @@ export default function TenantUsageMetricsPage() {
                             <Database className="w-4 h-4 text-primary" />
                             Storage Snapshots & Mathematical Projections
                           </h4>
-                          <span className="text-[10px] font-mono text-slate-500">
+                          <span className="text-[10px] tabular-nums text-slate-500">
                             {historyPoints.length} Observed • {projectionPoints.length} Projected
                           </span>
                         </div>
 
                         <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                          <table className="w-full text-left text-xs font-mono">
+                          <table className="w-full text-left text-xs tabular-nums">
                             <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
                               <tr>
                                 <th className="p-2.5">Date</th>

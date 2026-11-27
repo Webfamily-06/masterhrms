@@ -597,7 +597,7 @@ export default function SuperAuditLogsPage() {
                   <tbody className="divide-y divide-border/70">
                     {logs.map((row) => (
                       <tr key={row.id} className="hover:bg-muted/40 transition-colors">
-                        <td className="p-3 whitespace-nowrap text-muted-foreground font-mono text-[11px]">
+                        <td className="p-3 whitespace-nowrap text-muted-foreground tabular-nums text-[11px]">
                           <div className="flex items-center gap-1.5">
                             <Clock className="size-3 shrink-0" />
                             <span>{row.createdAt ? new Date(row.createdAt).toLocaleString() : "—"}</span>
@@ -605,7 +605,7 @@ export default function SuperAuditLogsPage() {
                         </td>
 
                         <td className="p-3">
-                          <Badge variant={getActionBadgeVariant(row.action)} className="font-mono text-[10px]">
+                          <Badge variant={getActionBadgeVariant(row.action)} className="tabular-nums text-[10px]">
                             {row.action}
                           </Badge>
                         </td>
@@ -617,7 +617,7 @@ export default function SuperAuditLogsPage() {
                                 {row.entityType || "Entity"}
                               </span>
                               {row.entityId && (
-                                <span className="font-mono text-[10px] text-muted-foreground block truncate max-w-[160px]" title={row.entityId}>
+                                <span className="text-[10px] text-muted-foreground block truncate max-w-[160px]"title={row.entityId}>
                                   {row.entityId}
                                 </span>
                               )}
@@ -635,7 +635,7 @@ export default function SuperAuditLogsPage() {
                                 <span>{row.tenantName}</span>
                               </div>
                               {row.tenantSlug && (
-                                <span className="font-mono text-[10px] text-muted-foreground block">
+                                <span className="text-[10px] text-muted-foreground block">
                                   {row.tenantSlug}
                                 </span>
                               )}
@@ -653,14 +653,14 @@ export default function SuperAuditLogsPage() {
                               {row.actorEmail || "System / Automated"}
                             </span>
                             {row.actorId && (
-                              <span className="font-mono text-[10px] text-muted-foreground block truncate max-w-[140px]" title={row.actorId}>
+                              <span className="text-[10px] text-muted-foreground block truncate max-w-[140px]"title={row.actorId}>
                                 {row.actorId}
                               </span>
                             )}
                           </div>
                         </td>
 
-                        <td className="p-3 whitespace-nowrap font-mono text-[11px] text-muted-foreground">
+                        <td className="p-3 whitespace-nowrap tabular-nums text-[11px] text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Globe className="size-3 shrink-0" />
                             <span>{row.ipAddress || "—"}</span>
@@ -760,7 +760,7 @@ export default function SuperAuditLogsPage() {
                       ? "Environment Passed Production Readiness Checks"
                       : "Production Hardening Recommendations Detected"}
                   </span>
-                  <Badge variant="outline" className="font-mono text-[10px]">
+                  <Badge variant="outline"className="text-[10px]">
                     NODE_ENV: {configAudit.nodeEnv}
                   </Badge>
                 </AlertTitle>
@@ -843,7 +843,7 @@ export default function SuperAuditLogsPage() {
                                   </Badge>
                                 )}
                               </td>
-                              <td className="p-3 font-mono font-bold text-foreground whitespace-nowrap">
+                              <td className="p-3 tabular-nums font-bold text-foreground whitespace-nowrap">
                                 {check.key}
                               </td>
                               <td className="p-3 whitespace-nowrap">
@@ -852,7 +852,7 @@ export default function SuperAuditLogsPage() {
                                   {check.category}
                                 </span>
                               </td>
-                              <td className="p-3 font-mono text-[11px] text-muted-foreground max-w-[220px] truncate" title={check.valueSanitized}>
+                              <td className="p-3 tabular-nums text-[11px] text-muted-foreground max-w-[220px] truncate"title={check.valueSanitized}>
                                 {check.valueSanitized}
                               </td>
                               <td className="p-3 space-y-1">
@@ -885,11 +885,11 @@ export default function SuperAuditLogsPage() {
                 <DialogTitle className="flex items-center gap-2 text-base font-bold flex-wrap">
                   <ScrollText className="size-5 text-primary" />
                   <span>Audit Event Inspection</span>
-                  <Badge variant={getActionBadgeVariant(selectedEntry.action)} className="font-mono text-[10px]">
+                  <Badge variant={getActionBadgeVariant(selectedEntry.action)} className="text-[10px]">
                     {selectedEntry.action}
                   </Badge>
                 </DialogTitle>
-                <DialogDescription className="text-xs font-mono">
+                <DialogDescription className="text-xs tabular-nums">
                   Event ID: {selectedEntry.id} · {new Date(selectedEntry.createdAt).toLocaleString()}
                 </DialogDescription>
               </DialogHeader>
@@ -903,7 +903,7 @@ export default function SuperAuditLogsPage() {
                       {selectedEntry.actorEmail || "System / Automated"}
                     </span>
                     {selectedEntry.actorId && (
-                      <span className="font-mono text-[10px] text-muted-foreground block truncate">
+                      <span className="text-[10px] text-muted-foreground block truncate">
                         {selectedEntry.actorId}
                       </span>
                     )}
@@ -915,7 +915,7 @@ export default function SuperAuditLogsPage() {
                       {selectedEntry.tenantName || "Platform Global"}
                     </span>
                     {selectedEntry.tenantId && (
-                      <span className="font-mono text-[10px] text-muted-foreground block truncate">
+                      <span className="text-[10px] text-muted-foreground block truncate">
                         {selectedEntry.tenantSlug ? `${selectedEntry.tenantSlug} · ` : ""}
                         {selectedEntry.tenantId}
                       </span>
@@ -927,14 +927,14 @@ export default function SuperAuditLogsPage() {
                     <span className="font-semibold text-foreground block">
                       {selectedEntry.entityType || "—"} {selectedEntry.entityId ? `(${selectedEntry.entityId})` : ""}
                     </span>
-                    <span className="font-mono text-[10px] text-muted-foreground block">
+                    <span className="text-[10px] text-muted-foreground block">
                       IP: {selectedEntry.ipAddress || "—"}
                     </span>
                   </div>
                 </div>
 
                 {selectedEntry.userAgent && (
-                  <div className="p-2.5 rounded-lg border bg-muted/15 font-mono text-[11px] text-muted-foreground break-all">
+                  <div className="p-2.5 rounded-lg border bg-muted/15 text-[11px] text-muted-foreground break-all">
                     <span className="font-sans font-bold text-foreground mr-1.5">User-Agent:</span>
                     {selectedEntry.userAgent}
                   </div>

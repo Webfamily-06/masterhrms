@@ -101,7 +101,7 @@ const CATEGORIES: { id: PageCategory; label: string; icon: any }[] = [
   { id: "custom", label: "Custom Pages", icon: Folder },
 ];
 
-export function getCategoryForSlug(slug: string): PageCategory {
+function getCategoryForSlug(slug: string): PageCategory {
   if (slug === "footer" || slug === "header") return "footer";
   if (slug.startsWith("legal-")) return "legal";
   if (slug.startsWith("blog-") || slug.startsWith("resource-blogs") || slug.includes("blog"))
@@ -120,7 +120,7 @@ export function getCategoryForSlug(slug: string): PageCategory {
   return "custom";
 }
 
-export function getPublicUrlForPage(slug: string): string {
+function getPublicUrlForPage(slug: string): string {
   if (slug === "home" || slug === "footer") return "/";
   if (slug === "about") return "/about";
   if (slug === "team") return "/team";
@@ -500,7 +500,7 @@ function CmsStudio() {
                             <div className="font-semibold text-foreground text-xs">{page.title}</div>
                             <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
                               {page.content?.template && (
-                                <span className="font-mono bg-muted/60 px-1 py-0.2 rounded text-[10px]">
+                                <span className="tabular-nums bg-muted/60 px-1 py-0.2 rounded text-[10px]">
                                   template: {page.content.template}
                                 </span>
                               )}
@@ -514,7 +514,7 @@ function CmsStudio() {
 
                           {/* Persistent ID */}
                           <td className="p-3">
-                            <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
+                            <div className="flex items-center gap-1.5 tabular-nums text-[11px] text-muted-foreground">
                               <span title={page.id} className="truncate max-w-[120px]">
                                 {page.id}
                               </span>
@@ -536,7 +536,7 @@ function CmsStudio() {
 
                           {/* Slug & Public URL */}
                           <td className="p-3">
-                            <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                            <div className="flex items-center gap-1.5 tabular-nums text-[11px]">
                               <span className="text-foreground font-medium">/{page.slug}</span>
                               <a
                                 href={publicUrl}
@@ -700,11 +700,11 @@ function CmsStudio() {
                         {page.title}
                       </h3>
 
-                      <div className="text-[11px] font-mono text-muted-foreground mt-1 truncate">
+                      <div className="text-[11px] tabular-nums text-muted-foreground mt-1 truncate">
                         /{page.slug}
                       </div>
 
-                      <div className="flex items-center gap-1 font-mono text-[10px] text-muted-foreground mt-2 bg-muted/40 p-1 rounded">
+                      <div className="flex items-center gap-1 tabular-nums text-[10px] text-muted-foreground mt-2 bg-muted/40 p-1 rounded">
                         <span className="truncate flex-1">ID: {page.id}</span>
                         <Button
                           variant="ghost"
@@ -951,7 +951,7 @@ function FaqManagerStudio() {
               ) : (
                 filtered.map((item: any, idx: number) => (
                   <tr key={item.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="p-3 pl-4 text-center font-mono text-muted-foreground">
+                    <td className="p-3 pl-4 text-center tabular-nums text-muted-foreground">
                       {idx + 1}
                     </td>
                     <td className="p-3">
@@ -1319,7 +1319,7 @@ function TestimonialsManagerStudio() {
               ) : (
                 filtered.map((item: any, idx: number) => (
                   <tr key={item.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="p-3 pl-4 text-center font-mono text-muted-foreground">
+                    <td className="p-3 pl-4 text-center tabular-nums text-muted-foreground">
                       {idx + 1}
                     </td>
                     <td className="p-3">

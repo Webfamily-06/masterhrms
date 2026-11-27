@@ -473,7 +473,7 @@ export function DedicatedPageEditor({ pageId, isNew = false }: DedicatedPageEdit
                   setIsDirty(true);
                 }}
                 placeholder="url-slug"
-                className="text-xs h-8 font-mono w-[140px] sm:w-[180px]"
+                className="text-xs h-8 w-[140px] sm:w-[180px]"
               />
               <Badge
                 variant={published ? 'default' : 'secondary'}
@@ -490,7 +490,7 @@ export function DedicatedPageEditor({ pageId, isNew = false }: DedicatedPageEdit
               )}
             </div>
             {id && (
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground font-mono mt-0.5">
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground tabular-nums mt-0.5">
                 <span>ID: {id}</span>
                 <button
                   type="button"
@@ -679,7 +679,7 @@ export function DedicatedPageEditor({ pageId, isNew = false }: DedicatedPageEdit
                           setIsDirty(true);
                         }}
                         placeholder="/pricing"
-                        className="text-xs h-8 font-mono"
+                        className="text-xs h-8"
                       />
                     </div>
                   </div>
@@ -702,7 +702,7 @@ export function DedicatedPageEditor({ pageId, isNew = false }: DedicatedPageEdit
                           setIsDirty(true);
                         }}
                         placeholder="/contact"
-                        className="text-xs h-8 font-mono"
+                        className="text-xs h-8"
                       />
                     </div>
                   </div>
@@ -756,7 +756,7 @@ export function DedicatedPageEditor({ pageId, isNew = false }: DedicatedPageEdit
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono font-bold text-muted-foreground">#{index + 1}</span>
+                          <span className="text-xs tabular-nums font-bold text-muted-foreground">#{index + 1}</span>
                           <Input
                             value={sec.title || ''}
                             onChange={(e) => {
@@ -875,7 +875,7 @@ export function DedicatedPageEditor({ pageId, isNew = false }: DedicatedPageEdit
                     setIsDirty(true);
                   }}
                   placeholder="Enter detailed page content, markdown narrative, or HTML markup..."
-                  className="text-xs font-mono min-h-[220px]"
+                  className="text-xs tabular-nums min-h-[220px]"
                 />
               </CardContent>
             </Card>
@@ -911,9 +911,9 @@ export function DedicatedPageEditor({ pageId, isNew = false }: DedicatedPageEdit
                       setIsDirty(true);
                     }}
                     placeholder="e.g. enterprise-payroll"
-                    className="text-xs h-8 font-mono mt-1"
+                    className="text-xs h-8 mt-1"
                   />
-                  <p className="text-[11px] text-muted-foreground mt-1 font-mono">
+                  <p className="text-[11px] text-muted-foreground mt-1">
                     Public Path: <span className="text-foreground font-semibold">{publicUrl}</span>
                   </p>
                 </div>
@@ -1047,7 +1047,7 @@ export function DedicatedPageEditor({ pageId, isNew = false }: DedicatedPageEdit
                       setIsDirty(true);
                     }}
                     placeholder={getTrustedCanonicalBlogUrl(slug)}
-                    className="text-xs h-8 font-mono mt-1"
+                    className="text-xs h-8 mt-1"
                   />
                 </div>
               </CardContent>
@@ -1193,7 +1193,7 @@ export function DedicatedPageEditor({ pageId, isNew = false }: DedicatedPageEdit
           )}
 
           <div className="relative border border-border/80 rounded-xl overflow-hidden shadow-xs bg-slate-950">
-            <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900/60 text-slate-400 text-xs font-mono">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900/60 text-slate-400 text-xs tabular-nums">
               <span>HTML / Source Markup</span>
               <span>UTF-8 | Sanitized</span>
             </div>
@@ -1201,7 +1201,7 @@ export function DedicatedPageEditor({ pageId, isNew = false }: DedicatedPageEdit
               ref={textareaRef}
               value={htmlSource}
               onChange={(e) => handleHtmlSourceChange(e.target.value)}
-              className="w-full h-[600px] p-4 font-mono text-xs text-slate-100 bg-transparent resize-y outline-none leading-relaxed"
+              className="w-full h-[600px] p-4 tabular-nums text-xs text-slate-100 bg-transparent resize-y outline-none leading-relaxed"
               placeholder="<h1>Your Page Title</h1>&#10;<p>Write clean HTML markup here...</p>"
               spellCheck={false}
             />
@@ -1214,7 +1214,7 @@ export function DedicatedPageEditor({ pageId, isNew = false }: DedicatedPageEdit
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[750px]">
           {/* Left: Source Code */}
           <div className="flex flex-col border border-border/80 rounded-xl overflow-hidden shadow-xs bg-slate-950">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-slate-900/80 text-slate-400 text-xs font-mono">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-slate-900/80 text-slate-400 text-xs tabular-nums">
               <span className="flex items-center gap-1.5">
                 <FileCode className="size-3.5 text-primary" /> HTML Source
               </span>
@@ -1235,7 +1235,7 @@ export function DedicatedPageEditor({ pageId, isNew = false }: DedicatedPageEdit
               ref={textareaRef}
               value={htmlSource}
               onChange={(e) => handleHtmlSourceChange(e.target.value)}
-              className="flex-1 w-full p-4 font-mono text-xs text-slate-100 bg-transparent resize-none outline-none leading-relaxed"
+              className="flex-1 w-full p-4 text-xs text-slate-100 bg-transparent resize-none outline-none leading-relaxed"
               placeholder="<h1>Start typing HTML...</h1>"
               spellCheck={false}
             />

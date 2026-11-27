@@ -1191,12 +1191,12 @@ export function DedicatedBlogEditor({ articleId, isNew = false }: DedicatedBlogE
       <Card className="p-4 border-border/70 shadow-xs bg-card">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <Badge variant="outline" className="font-mono text-xs gap-1.5 py-1 px-2.5 bg-muted/40">
+            <Badge variant="outline"className="tabular-nums text-xs gap-1.5 py-1 px-2.5 bg-muted/40">
               <Globe className="size-3.5 text-primary" />
               <span>Domain: {resolvedDomain}</span>
             </Badge>
 
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono bg-muted/30 px-2.5 py-1 rounded-md border border-border/50">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums bg-muted/30 px-2.5 py-1 rounded-md border border-border/50">
               <span className="truncate max-w-[320px] sm:max-w-[450px]">{publicBlogUrl}</span>
               <button
                 type="button"
@@ -1292,7 +1292,7 @@ export function DedicatedBlogEditor({ articleId, isNew = false }: DedicatedBlogE
                   Permalink Slug
                 </Label>
                 <div className="flex items-center rounded-lg border border-border/70 bg-muted/20 overflow-hidden focus-within:ring-2 focus-within:ring-primary/40">
-                  <span className="px-3 py-2 text-xs font-mono text-muted-foreground bg-muted/40 border-r border-border/70 shrink-0">
+                  <span className="px-3 py-2 text-xs tabular-nums text-muted-foreground bg-muted/40 border-r border-border/70 shrink-0">
                     {resolvedDomain}/blog/
                   </span>
                   <Input
@@ -1300,7 +1300,7 @@ export function DedicatedBlogEditor({ articleId, isNew = false }: DedicatedBlogE
                     value={form.slug}
                     onChange={(e) => setForm((p) => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') }))}
                     placeholder="autonomous-payroll-systems"
-                    className="border-0 shadow-none focus-visible:ring-0 text-xs font-mono h-9 rounded-none"
+                    className="border-0 shadow-none focus-visible:ring-0 text-xs tabular-nums h-9 rounded-none"
                   />
                 </div>
               </div>
@@ -1485,7 +1485,7 @@ export function DedicatedBlogEditor({ articleId, isNew = false }: DedicatedBlogE
                             value={customTextColor}
                             onChange={(e) => setCustomTextColor(e.target.value)}
                             placeholder="#e11d48"
-                            className="h-7 text-xs font-mono px-2"
+                            className="h-7 text-xs px-2"
                             aria-label="Custom hex value"
                           />
                           <Button
@@ -1570,7 +1570,7 @@ export function DedicatedBlogEditor({ articleId, isNew = false }: DedicatedBlogE
                             value={customHighlightColor}
                             onChange={(e) => setCustomHighlightColor(e.target.value)}
                             placeholder="#fef08a"
-                            className="h-7 text-xs font-mono px-2"
+                            className="h-7 text-xs px-2"
                             aria-label="Custom highlight hex value"
                           />
                           <Button
@@ -1753,7 +1753,7 @@ export function DedicatedBlogEditor({ articleId, isNew = false }: DedicatedBlogE
                       onClick={handleUpdateSelection}
                       rows={18}
                       placeholder="Write your article in GitHub-flavored Markdown..."
-                      className="rounded-t-none border-t-0 font-mono text-xs leading-relaxed focus-visible:ring-1 resize-y"
+                      className="rounded-t-none border-t-0 text-xs leading-relaxed focus-visible:ring-1 resize-y"
                     />
                   </div>
                 )}
@@ -1772,7 +1772,7 @@ export function DedicatedBlogEditor({ articleId, isNew = false }: DedicatedBlogE
                       onClick={handleUpdateSelection}
                       rows={18}
                       placeholder="Write markdown here..."
-                      className="border-0 rounded-none font-mono text-xs leading-relaxed resize-none focus-visible:ring-0 border-r border-border/60"
+                      className="border-0 rounded-none text-xs leading-relaxed resize-none focus-visible:ring-0 border-r border-border/60"
                     />
                     <div className="p-5 bg-muted/10 overflow-y-auto max-h-[460px] blog-details-markdown prose">
                       {form.body ? (
@@ -2240,10 +2240,10 @@ export function DedicatedBlogEditor({ articleId, isNew = false }: DedicatedBlogE
                   value={form.canonicalUrl}
                   onChange={(e) => setForm((p) => ({ ...p, canonicalUrl: e.target.value }))}
                   placeholder={getTrustedCanonicalBlogUrl(cleanSlug)}
-                  className="text-xs font-mono h-9"
+                  className="text-xs h-9"
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  Default: <span className="font-mono text-[9px] text-foreground/80">{getTrustedCanonicalBlogUrl(cleanSlug)}</span> (Derived from platform canonical domain)
+                  Default: <span className="text-[9px] text-foreground/80">{getTrustedCanonicalBlogUrl(cleanSlug)}</span> (Derived from platform canonical domain)
                 </p>
               </div>
 
@@ -2253,7 +2253,7 @@ export function DedicatedBlogEditor({ articleId, isNew = false }: DedicatedBlogE
                   Google Search Snippet Preview
                 </Label>
                 <div className="p-3 rounded-lg border border-border/70 bg-card/60 space-y-1 text-left">
-                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono truncate">
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 truncate">
                     {form.canonicalUrl || getTrustedCanonicalBlogUrl(cleanSlug)}
                   </p>
                   <p className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline line-clamp-1 cursor-pointer">

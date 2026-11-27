@@ -292,7 +292,7 @@ function LanguageEditorPage() {
                 <SelectContent>
                   {languages.map((l) => (
                     <SelectItem key={l.code} value={l.code} className="text-xs">
-                      <span className="mr-2 font-mono uppercase font-bold text-primary">[{l.code}]</span>
+                      <span className="mr-2 uppercase font-bold text-primary">[{l.code}]</span>
                       {l.name}
                     </SelectItem>
                   ))}
@@ -372,7 +372,7 @@ function LanguageEditorPage() {
               ) : (
                 paginatedSlice.map(([key, val]) => (
                   <tr key={key} className="hover:bg-muted/20 transition-colors">
-                    <td className="p-3 pl-4 font-mono font-medium text-foreground align-top">
+                    <td className="p-3 pl-4 tabular-nums font-medium text-foreground align-top">
                       <div className="break-all">{key}</div>
                     </td>
                     <td className="p-2.5 pr-4 align-top">
@@ -406,7 +406,7 @@ function LanguageEditorPage() {
               >
                 <ArrowLeft className="size-3" /> Prev
               </Button>
-              <span className="px-2 font-mono font-semibold text-foreground">
+              <span className="px-2 tabular-nums font-semibold text-foreground">
                 Page {currentPage} of {totalPages}
               </span>
               <Button

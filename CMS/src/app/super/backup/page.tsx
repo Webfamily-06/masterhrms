@@ -287,7 +287,7 @@ function BackupRestoreAdmin() {
                   const isDownloading = downloadingName === s.name;
                   return (
                     <tr key={s.id} className="hover:bg-muted/40 transition-colors">
-                      <td className="p-3 pl-4 font-mono font-medium text-foreground">
+                      <td className="p-3 pl-4 tabular-nums font-medium text-foreground">
                         <div className="flex items-center gap-2">
                           <HardDrive className="size-3.5 text-muted-foreground shrink-0" />
                           <span className="truncate max-w-md" title={s.name}>
@@ -300,7 +300,7 @@ function BackupRestoreAdmin() {
                           {s.type || "Database Snapshot"}
                         </Badge>
                       </td>
-                      <td className="p-3 font-mono font-medium text-foreground">{s.size}</td>
+                      <td className="p-3 tabular-nums font-medium text-foreground">{s.size}</td>
                       <td className="p-3 text-muted-foreground">{s.date}</td>
                       <td className="p-3 pr-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
@@ -360,7 +360,7 @@ function BackupRestoreAdmin() {
           verifyTarget ? (
             <>
               Run SHA-256 integrity verification, SQL statement parsing, and a non-destructive disposable-schema restore check on{" "}
-              <span className="font-mono font-semibold text-foreground">{verifyTarget.name}</span> ({verifyTarget.size})?
+              <span className="font-semibold text-foreground">{verifyTarget.name}</span> ({verifyTarget.size})?
             </>
           ) : undefined
         }
@@ -389,7 +389,7 @@ function BackupRestoreAdmin() {
         description={
           deleteTarget ? (
             <>
-              Permanently remove <span className="font-mono font-semibold text-foreground">{deleteTarget.name}</span> from backup storage? This action cannot be undone.
+              Permanently remove <span className="tabular-nums font-semibold text-foreground">{deleteTarget.name}</span> from backup storage? This action cannot be undone.
             </>
           ) : undefined
         }
@@ -420,7 +420,7 @@ function BackupRestoreAdmin() {
               )}
               Restore Verification Report
             </DialogTitle>
-            <DialogDescription className="text-xs font-mono">
+            <DialogDescription className="text-xs">
               {verificationReport?.filename}
             </DialogDescription>
           </DialogHeader>
@@ -451,25 +451,25 @@ function BackupRestoreAdmin() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3 rounded-lg border border-border/80 bg-muted/30">
                   <div className="text-[11px] text-muted-foreground">Duration</div>
-                  <div className="text-sm font-bold font-mono text-foreground mt-0.5">
+                  <div className="text-sm font-bold tabular-nums text-foreground mt-0.5">
                     {verificationReport.durationMs.toLocaleString()} ms
                   </div>
                 </div>
                 <div className="p-3 rounded-lg border border-border/80 bg-muted/30">
                   <div className="text-[11px] text-muted-foreground">Uncompressed Size</div>
-                  <div className="text-sm font-bold font-mono text-foreground mt-0.5">
+                  <div className="text-sm font-bold tabular-nums text-foreground mt-0.5">
                     {formatBytes(verificationReport.uncompressedSizeBytes)}
                   </div>
                 </div>
                 <div className="p-3 rounded-lg border border-border/80 bg-muted/30">
                   <div className="text-[11px] text-muted-foreground">SQL Statements</div>
-                  <div className="text-sm font-bold font-mono text-foreground mt-0.5">
+                  <div className="text-sm font-bold tabular-nums text-foreground mt-0.5">
                     {verificationReport.statementCount.toLocaleString()}
                   </div>
                 </div>
                 <div className="p-3 rounded-lg border border-border/80 bg-muted/30">
                   <div className="text-[11px] text-muted-foreground">Tables Detected</div>
-                  <div className="text-sm font-bold font-mono text-foreground mt-0.5">
+                  <div className="text-sm font-bold tabular-nums text-foreground mt-0.5">
                     {verificationReport.tablesDetected?.length ?? 0}
                   </div>
                 </div>
@@ -498,7 +498,7 @@ function BackupRestoreAdmin() {
                     )}
                   </Button>
                 </div>
-                <p className="font-mono text-[11px] break-all text-foreground bg-background p-2 rounded border border-border/60">
+                <p className="text-[11px] break-all text-foreground bg-background p-2 rounded border border-border/60">
                   {verificationReport.checksumSha256}
                 </p>
               </div>
@@ -507,7 +507,7 @@ function BackupRestoreAdmin() {
               <div className="flex items-center justify-between p-3 rounded-lg border border-border/80 bg-muted/20">
                 <div>
                   <span className="text-[11px] text-muted-foreground block">Disposable Schema Tested</span>
-                  <span className="font-mono font-semibold text-foreground">
+                  <span className="font-semibold text-foreground">
                     {verificationReport.disposableSchemaTested || "N/A"}
                   </span>
                 </div>
@@ -525,7 +525,7 @@ function BackupRestoreAdmin() {
                 {verificationReport.tablesDetected && verificationReport.tablesDetected.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto p-3 rounded-lg border border-border/80 bg-muted/20">
                     {verificationReport.tablesDetected.map((tbl) => (
-                      <Badge key={tbl} variant="outline" className="font-mono text-[10px]">
+                      <Badge key={tbl} variant="outline"className="text-[10px]">
                         {tbl}
                       </Badge>
                     ))}

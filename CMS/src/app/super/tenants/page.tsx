@@ -914,7 +914,7 @@ function CompaniesManagementPage() {
       {selectedIds.length > 0 && (
         <div className="p-3 rounded-xl border border-primary/30 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs">
-            <Badge className="bg-primary text-primary-foreground font-mono">{selectedIds.length}</Badge>
+            <Badge className="bg-primary text-primary-foreground tabular-nums">{selectedIds.length}</Badge>
             <span className="font-semibold text-foreground">
               compan{selectedIds.length === 1 ? "y" : "ies"} selected
             </span>
@@ -978,7 +978,7 @@ function CompaniesManagementPage() {
               >
                 {tab.label}
                 {tab.count !== undefined && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-muted text-muted-foreground font-mono font-bold">
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-muted text-muted-foreground tabular-nums font-bold">
                     {tab.count}
                   </span>
                 )}
@@ -1194,7 +1194,7 @@ function CompaniesManagementPage() {
                           </div>
                         </td>
                         <td className="p-3">
-                          <span className="font-mono text-[11px] bg-muted px-2 py-0.5 rounded border border-border text-foreground inline-block max-w-[180px] truncate">
+                          <span className="tabular-nums text-[11px] bg-muted px-2 py-0.5 rounded border border-border text-foreground inline-block max-w-[180px] truncate">
                             {tenant.account_url || `${tenant.slug}.${getPlatformBaseDomain()}`}
                           </span>
                         </td>
@@ -1376,7 +1376,7 @@ function CompaniesManagementPage() {
                               >
                                 {tenant.name}
                               </h5>
-                              <p className="font-mono text-[11px] text-muted-foreground truncate">
+                              <p className="text-[11px] text-muted-foreground truncate">
                                 @{tenant.slug}
                               </p>
                             </div>
@@ -1478,7 +1478,7 @@ function CompaniesManagementPage() {
             >
               Previous
             </Button>
-            <span className="px-2 font-mono text-foreground">
+            <span className="px-2 tabular-nums text-foreground">
               {pagination.page} / {Math.max(1, pagination.totalPages)}
             </span>
             <Button
@@ -1514,7 +1514,7 @@ function CompaniesManagementPage() {
               <CompanyAvatar name={detailTenant?.name || "Company"} logoUrl={detailTenant?.logo_url || null} size="md" />
               <div className="min-w-0">
                 <SheetTitle className="text-base font-bold truncate">{detailTenant?.name || "Company Details"}</SheetTitle>
-                <SheetDescription className="text-xs font-mono truncate">
+                <SheetDescription className="text-xs tabular-nums truncate">
                   {detailTenant?.account_url || `${detailTenant?.slug}.${getPlatformBaseDomain()}`}
                 </SheetDescription>
               </div>
@@ -1549,7 +1549,7 @@ function CompaniesManagementPage() {
                 </div>
                 <div className="p-2.5 rounded-lg bg-muted/30 border border-border">
                   <span className="text-[10px] text-muted-foreground block">Slug</span>
-                  <span className="font-mono font-semibold">{detailTenant.slug}</span>
+                  <span className="font-semibold">{detailTenant.slug}</span>
                 </div>
                 <div className="p-2.5 rounded-lg bg-muted/30 border border-border">
                   <span className="text-[10px] text-muted-foreground block">Created</span>
@@ -1620,7 +1620,7 @@ function CompaniesManagementPage() {
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold">Generated Temporary Password</Label>
                   <div className="flex items-center gap-2">
-                    <Input readOnly value={resetResult.temporaryPassword} className="font-mono text-xs font-bold" />
+                    <Input readOnly value={resetResult.temporaryPassword} className="tabular-nums text-xs font-bold"/>
                     <Button
                       type="button"
                       variant="outline"
@@ -1730,7 +1730,7 @@ function CompaniesManagementPage() {
                   placeholder="brightwave"
                   value={formSlug}
                   onChange={(e) => setFormSlug(e.target.value)}
-                  className="font-mono text-xs rounded-r-none"
+                  className="text-xs rounded-r-none"
                   required
                 />
                 <span className="px-2.5 py-2 text-xs bg-muted border border-l-0 border-border rounded-r-md text-muted-foreground whitespace-nowrap">
@@ -1794,7 +1794,7 @@ function CompaniesManagementPage() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Subdomain Slug</Label>
-              <Input value={formSlug} readOnly disabled className="font-mono text-xs opacity-70" />
+              <Input value={formSlug} readOnly disabled className="text-xs opacity-70"/>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Timezone</Label>
@@ -1868,7 +1868,7 @@ function CompaniesManagementPage() {
                   placeholder={targetTenant.slug}
                   value={deleteConfirmSlug}
                   onChange={(e) => setDeleteConfirmSlug(e.target.value)}
-                  className="font-mono text-xs"
+                  className="text-xs"
                   autoComplete="off"
                 />
               </div>
@@ -2234,7 +2234,7 @@ function TenantGovernanceDialog({
                 <DialogTitle className="text-base font-bold truncate">
                   Tenant Governance — {tenant.name}
                 </DialogTitle>
-                <DialogDescription className="text-xs font-mono">
+                <DialogDescription className="text-xs">
                   @{tenant.slug} &bull; ID: {tenant.id}
                 </DialogDescription>
               </div>
@@ -2326,7 +2326,7 @@ function TenantGovernanceDialog({
                     value={maxEmployees}
                     onChange={(e) => setMaxEmployees(e.target.value)}
                     placeholder="Unlimited"
-                    className="h-9 text-xs font-mono"
+                    className="h-9 text-xs tabular-nums"
                   />
                 </div>
 
@@ -2338,7 +2338,7 @@ function TenantGovernanceDialog({
                     value={maxUsers}
                     onChange={(e) => setMaxUsers(e.target.value)}
                     placeholder="Unlimited"
-                    className="h-9 text-xs font-mono"
+                    className="h-9 text-xs tabular-nums"
                   />
                 </div>
               </div>
@@ -2385,19 +2385,19 @@ function TenantGovernanceDialog({
                       </div>
                       <div className="p-3 rounded-lg border border-border bg-muted/30">
                         <span className="text-[10px] text-muted-foreground block">Storage Used</span>
-                        <span className="font-mono font-bold text-sm text-foreground">
+                        <span className="tabular-nums font-bold text-sm text-foreground">
                           {quotaData.summary.tenant?.formattedUsed || "0 B"}
                         </span>
                       </div>
                       <div className="p-3 rounded-lg border border-border bg-muted/30">
                         <span className="text-[10px] text-muted-foreground block">Effective Quota</span>
-                        <span className="font-mono font-bold text-sm text-foreground">
+                        <span className="tabular-nums font-bold text-sm text-foreground">
                           {quotaData.summary.tenant?.formattedQuota || "—"}
                         </span>
                       </div>
                       <div className="p-3 rounded-lg border border-border bg-muted/30">
                         <span className="text-[10px] text-muted-foreground block">Utilization</span>
-                        <span className="font-mono font-bold text-sm text-primary">
+                        <span className="tabular-nums font-bold text-sm text-primary">
                           {Number(quotaData.summary.effectiveUtilizationPct || 0).toFixed(1)}%
                         </span>
                       </div>
@@ -2413,7 +2413,7 @@ function TenantGovernanceDialog({
                         value={quotaGbInput}
                         onChange={(e) => setQuotaGbInput(e.target.value)}
                         placeholder="e.g. 50"
-                        className="h-9 text-xs font-mono"
+                        className="h-9 text-xs"
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -2424,7 +2424,7 @@ function TenantGovernanceDialog({
                         value={quotaMaxUsers}
                         onChange={(e) => setQuotaMaxUsers(e.target.value)}
                         placeholder="Optional"
-                        className="h-9 text-xs font-mono"
+                        className="h-9 text-xs"
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -2435,7 +2435,7 @@ function TenantGovernanceDialog({
                         value={quotaMaxEmployees}
                         onChange={(e) => setQuotaMaxEmployees(e.target.value)}
                         placeholder="Optional"
-                        className="h-9 text-xs font-mono"
+                        className="h-9 text-xs"
                       />
                     </div>
                   </div>
@@ -2500,7 +2500,7 @@ function TenantGovernanceDialog({
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="font-semibold text-foreground">{a.name}</span>
-                                  <Badge variant="outline" className="text-[10px] font-mono">
+                                  <Badge variant="outline"className="text-[10px]">
                                     {a.source}
                                   </Badge>
                                   <Badge
@@ -2560,7 +2560,7 @@ function TenantGovernanceDialog({
                         <div key={item.id} className="p-2.5 flex items-center justify-between gap-2">
                           <div className="min-w-0">
                             <span className="font-semibold text-foreground block truncate">{item.name}</span>
-                            <span className="text-[10px] text-muted-foreground font-mono">
+                            <span className="text-[10px] text-muted-foreground">
                               /{item.slug} &bull; {item.category}
                             </span>
                           </div>
@@ -2615,8 +2615,8 @@ function TenantGovernanceDialog({
                     <tbody className="divide-y divide-border/60">
                       {slugHistory.map((h) => (
                         <tr key={h.id}>
-                          <td className="p-2.5 font-mono text-muted-foreground">{h.oldSlug}</td>
-                          <td className="p-2.5 font-mono font-semibold text-foreground">{h.newSlug}</td>
+                          <td className="p-2.5 tabular-nums text-muted-foreground">{h.oldSlug}</td>
+                          <td className="p-2.5 tabular-nums font-semibold text-foreground">{h.newSlug}</td>
                           <td className="p-2.5">{formatDate(h.changedAt)}</td>
                           <td className="p-2.5">{formatDate(h.releaseAt)}</td>
                         </tr>
@@ -2664,7 +2664,7 @@ function TenantGovernanceDialog({
                       <AlertTriangle className="size-4" />
                       Offboarding Currently Scheduled
                     </h4>
-                    <Badge className="bg-amber-500 text-white font-mono text-[11px]">
+                    <Badge className="bg-amber-500 text-white text-[11px]">
                       {pendingOffboarding.daysRemaining} days remaining
                     </Badge>
                   </div>
@@ -2715,7 +2715,7 @@ function TenantGovernanceDialog({
                         max={90}
                         value={graceDays}
                         onChange={(e) => setGraceDays(e.target.value)}
-                        className="h-9 text-xs font-mono"
+                        className="h-9 text-xs"
                       />
                     </div>
                     <div className="sm:col-span-2 space-y-1">

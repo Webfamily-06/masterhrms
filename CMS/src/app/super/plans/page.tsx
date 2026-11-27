@@ -581,7 +581,7 @@ function SuperAdminPlansPage() {
               </CardDescription>
             </div>
             {calcResult && (
-              <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+              <Badge variant="outline"className="text-[10px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
                 Server Verified
               </Badge>
             )}
@@ -647,7 +647,7 @@ function SuperAdminPlansPage() {
                 value={calcUserCount}
                 onChange={(e) => setCalcUserCount(e.target.value)}
                 placeholder="e.g. 25"
-                className="h-9 text-xs font-mono"
+                className="h-9 text-xs"
               />
             </div>
 
@@ -686,13 +686,13 @@ function SuperAdminPlansPage() {
               </div>
               <div>
                 <span className="text-[11px] text-muted-foreground block">List / Original Price</span>
-                <span className="font-mono font-semibold text-muted-foreground">
+                <span className="tabular-nums font-semibold text-muted-foreground">
                   {formatSystemAmount(calcResult.originalPrice, { showDecimals: true })}
                 </span>
               </div>
               <div>
                 <span className="text-[11px] text-muted-foreground block">Discount Savings</span>
-                <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                <span className="tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">
                   {calcResult.hasDiscount
                     ? `-${formatSystemAmount(calcResult.discountAmount, { showDecimals: true })} (${calcResult.discountPercentage}%)`
                     : "None"}
@@ -700,10 +700,10 @@ function SuperAdminPlansPage() {
               </div>
               <div>
                 <span className="text-[11px] text-muted-foreground block">Final Payable Total</span>
-                <span className="font-mono font-extrabold text-sm text-primary">
+                <span className="tabular-nums font-extrabold text-sm text-primary">
                   {formatSystemAmount(calcResult.sellingPrice, { showDecimals: true })}
                 </span>
-                <span className="block text-[10px] font-mono text-muted-foreground">
+                <span className="block text-[10px] tabular-nums text-muted-foreground">
                   {calcResult.amountInPaise.toLocaleString()} paise
                 </span>
               </div>
@@ -854,11 +854,11 @@ function SuperAdminPlansPage() {
                       <div>
                         <div className="flex items-baseline gap-2 flex-wrap">
                           {pricing.hasDiscount && pricing.unitOriginal && (
-                            <del className="text-sm font-semibold text-muted-foreground line-through font-mono">
+                            <del className="text-sm font-semibold text-muted-foreground line-through tabular-nums">
                               {formatSystemAmount(pricing.unitOriginal, { showDecimals: false })}
                             </del>
                           )}
-                          <span className="text-3xl font-extrabold tracking-tight text-foreground font-mono">
+                          <span className="text-3xl font-extrabold tracking-tight text-foreground tabular-nums">
                             {formatSystemAmount(pricing.unitSelling, { showDecimals: false })}
                           </span>
                           <span className="text-xs text-muted-foreground font-medium">/ user / mo</span>
@@ -884,11 +884,11 @@ function SuperAdminPlansPage() {
                       <div>
                         <div className="flex items-baseline gap-2 flex-wrap">
                           {pricing.hasDiscount && pricing.unitOriginal && (
-                            <del className="text-base font-semibold text-muted-foreground line-through font-mono">
+                            <del className="text-base font-semibold text-muted-foreground line-through tabular-nums">
                               {formatSystemAmount(pricing.unitOriginal, { showDecimals: false })}
                             </del>
                           )}
-                          <span className="text-3xl font-extrabold tracking-tight text-foreground font-mono">
+                          <span className="text-3xl font-extrabold tracking-tight text-foreground tabular-nums">
                             {formatSystemAmount(pricing.totalSelling, { showDecimals: false })}
                           </span>
                           <span className="text-xs text-muted-foreground font-medium">
@@ -1150,7 +1150,7 @@ function SuperAdminPlansPage() {
                     </h4>
                     <p className="text-[11px] text-muted-foreground">Charge based on the number of configured billable seats.</p>
                   </div>
-                  <Badge variant="outline" className="text-[10px] font-mono border-purple-500/30 text-purple-700 dark:text-purple-300">
+                  <Badge variant="outline"className="text-[10px] border-purple-500/30 text-purple-700 dark:text-purple-300">
                     Per-User Engine
                   </Badge>
                 </div>
@@ -1166,7 +1166,7 @@ function SuperAdminPlansPage() {
                       placeholder="100"
                       value={formData.pricePerUser ?? ""}
                       onChange={(e) => setFormData({ ...formData, pricePerUser: Number(e.target.value) || 0 })}
-                      className="h-9 text-sm font-mono font-semibold"
+                      className="h-9 text-sm tabular-nums font-semibold"
                     />
                     <p className="text-[10px] text-muted-foreground">Charged to customer</p>
                   </div>
@@ -1185,7 +1185,7 @@ function SuperAdminPlansPage() {
                           pricePerUserOriginal: e.target.value === "" ? null : Number(e.target.value),
                         })
                       }
-                      className="h-9 text-sm font-mono"
+                      className="h-9 text-sm"
                     />
                     <p className="text-[10px] text-muted-foreground">List price for strikethrough</p>
                   </div>
@@ -1200,7 +1200,7 @@ function SuperAdminPlansPage() {
                       required
                       value={formData.billableUsers}
                       onChange={(e) => setFormData({ ...formData, billableUsers: Number(e.target.value) })}
-                      className="h-9 text-sm font-mono font-semibold"
+                      className="h-9 text-sm font-semibold"
                     />
                     <p className="text-[10px] text-muted-foreground">Range: 1 to 99,999</p>
                   </div>
@@ -1229,7 +1229,7 @@ function SuperAdminPlansPage() {
                     Calculated Monthly Total:
                   </span>
                   <div className="text-right">
-                    <span className="font-extrabold text-foreground font-mono text-sm">
+                    <span className="font-extrabold text-foreground tabular-nums text-sm">
                       {formatSystemAmount((formData.pricePerUser || 0) * (formData.billableUsers || 1))}
                     </span>
                     <span className="text-[11px] text-muted-foreground ml-1.5">
@@ -1247,7 +1247,7 @@ function SuperAdminPlansPage() {
                       Original vs Selling prices for 1 Month and 1 Year billing cycles.
                     </p>
                   </div>
-                  <Badge variant="outline" className="text-[10px] font-mono">
+                  <Badge variant="outline"className="text-[10px]">
                     Currency: INR
                   </Badge>
                 </div>
@@ -1267,7 +1267,7 @@ function SuperAdminPlansPage() {
                         required
                         value={formData.priceMonthly}
                         onChange={(e) => setFormData({ ...formData, priceMonthly: Number(e.target.value) })}
-                        className="h-8 text-xs font-mono font-semibold"
+                        className="h-8 text-xs tabular-nums font-semibold"
                       />
                     </div>
                     <div className="space-y-1">
@@ -1284,7 +1284,7 @@ function SuperAdminPlansPage() {
                             priceMonthlyOriginal: e.target.value === "" ? null : Number(e.target.value),
                           })
                         }
-                        className="h-8 text-xs font-mono"
+                        className="h-8 text-xs"
                       />
                     </div>
                     {formData.priceMonthlyOriginal !== null && formData.priceMonthlyOriginal > formData.priceMonthly && (
@@ -1318,7 +1318,7 @@ function SuperAdminPlansPage() {
                         required
                         value={formData.priceAnnual}
                         onChange={(e) => setFormData({ ...formData, priceAnnual: Number(e.target.value) })}
-                        className="h-8 text-xs font-mono font-semibold"
+                        className="h-8 text-xs tabular-nums font-semibold"
                       />
                     </div>
                     <div className="space-y-1">
@@ -1335,7 +1335,7 @@ function SuperAdminPlansPage() {
                             priceAnnualOriginal: e.target.value === "" ? null : Number(e.target.value),
                           })
                         }
-                        className="h-8 text-xs font-mono"
+                        className="h-8 text-xs"
                       />
                     </div>
                     {formData.priceAnnualOriginal !== null && formData.priceAnnualOriginal > formData.priceAnnual && (
@@ -1431,7 +1431,7 @@ function SuperAdminPlansPage() {
                 placeholder="Core HR & Employee Directory&#10;Biometric Attendance & Leave&#10;Employee Self-Service Portal"
                 value={formData.featuresText}
                 onChange={(e) => setFormData({ ...formData, featuresText: e.target.value })}
-                className="text-xs font-mono"
+                className="text-xs"
               />
             </div>
 

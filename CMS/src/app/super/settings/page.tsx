@@ -265,7 +265,7 @@ const DEFAULT_SETTINGS: SuperSettings = {
   faviconId: null,
   footerText: "© 2026 Webfamily Tech Solutions. All rights reserved.",
   primaryThemeColor: "#FF6B00",
-  fontFamily: "Inter",
+  fontFamily: "Public Sans",
 
   // Currency Defaults
   defaultCurrency: "INR",
@@ -1159,7 +1159,7 @@ function SuperSettingsAdmin() {
               icon={activeNavInfo?.item?.icon}
               badge={
                 activeNavInfo?.item?.badge ? (
-                  <Badge variant="outline" className={cn("text-[10px] font-mono", activeNavInfo.item.badgeColor)}>
+                  <Badge variant="outline"className={cn("text-[10px]", activeNavInfo.item.badgeColor)}>
                     {activeNavInfo.item.badge}
                   </Badge>
                 ) : null
@@ -1327,7 +1327,7 @@ function SuperSettingsAdmin() {
                 <div className="space-y-2 pt-2 border-t">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold">Primary Theme Accent Color</Label>
-                    <span className="text-[11px] font-mono text-muted-foreground">{form.primaryThemeColor}</span>
+                    <span className="text-[11px] text-muted-foreground">{form.primaryThemeColor}</span>
                   </div>
 
                   {/* Preset Swatches */}
@@ -1372,7 +1372,7 @@ function SuperSettingsAdmin() {
                       value={form.primaryThemeColor}
                       onChange={(e) => setForm({ ...form, primaryThemeColor: e.target.value })}
                       placeholder="#FF6B00"
-                      className="text-xs font-mono max-w-[140px]"
+                      className="text-xs max-w-[140px]"
                     />
                   </div>
                 </div>
@@ -1444,7 +1444,7 @@ function SuperSettingsAdmin() {
                 <div className="flex items-center justify-between border-b pb-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 border border-indigo-500/20">
+                      <span className="tabular-nums text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 border border-indigo-500/20">
                         From Address
                       </span>
                       <h4 className="font-bold text-sm text-foreground">Platform / Service Provider</h4>
@@ -1519,7 +1519,7 @@ function SuperSettingsAdmin() {
                         value={form.platformPostalCode || ""}
                         onChange={(e) => setForm({ ...form, platformPostalCode: e.target.value })}
                         placeholder="e.g. 122002"
-                        className="text-xs font-mono"
+                        className="text-xs"
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -1539,7 +1539,7 @@ function SuperSettingsAdmin() {
                       value={form.platformGstin || ""}
                       onChange={(e) => setForm({ ...form, platformGstin: e.target.value.toUpperCase() })}
                       placeholder="e.g. 06AAACM1234F1Z8"
-                      className="text-xs font-mono uppercase tracking-wider"
+                      className="text-xs uppercase tracking-wider"
                     />
                   </div>
 
@@ -1559,7 +1559,7 @@ function SuperSettingsAdmin() {
                         value={form.platformPhone || ""}
                         onChange={(e) => setForm({ ...form, platformPhone: e.target.value })}
                         placeholder="+91 98765 43210"
-                        className="text-xs font-mono"
+                        className="text-xs"
                       />
                     </div>
                   </div>
@@ -1571,7 +1571,7 @@ function SuperSettingsAdmin() {
                     <span className="flex items-center gap-1.5 text-foreground">
                       <FileText className="size-3.5 text-indigo-500" /> Letterhead / Dispatch Preview
                     </span>
-                    <span className="font-mono text-[10px]">ORIGIN</span>
+                    <span className="text-[10px]">ORIGIN</span>
                   </div>
                   <div className="p-3 rounded-lg bg-card border text-xs space-y-1">
                     <div className="font-bold text-foreground">
@@ -1583,7 +1583,7 @@ function SuperSettingsAdmin() {
                       {form.platformState && `, ${form.platformState}`}
                       {form.platformPostalCode && ` — ${form.platformPostalCode}`}
                     </div>
-                    <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-muted-foreground font-mono">
+                    <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-muted-foreground tabular-nums">
                       {form.platformGstin && (
                         <span>
                           <strong className="text-foreground">GSTIN:</strong> {form.platformGstin}
@@ -1611,7 +1611,7 @@ function SuperSettingsAdmin() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                      <span className="tabular-nums text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
                         To Address
                       </span>
                       <h4 className="font-bold text-sm text-foreground">Selected Workspace / Tenant</h4>
@@ -1672,7 +1672,7 @@ function SuperSettingsAdmin() {
                         <SelectItem key={t.id} value={t.id}>
                           <div className="flex items-center gap-2">
                             <span className="font-semibold">{t.name}</span>
-                            <span className="text-muted-foreground text-xs font-mono">
+                            <span className="text-muted-foreground text-xs">
                               ({t.slug})
                             </span>
                             {t.status && (
@@ -1708,7 +1708,7 @@ function SuperSettingsAdmin() {
                     <div className="p-4 rounded-xl border bg-card space-y-3">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <div className="text-xs text-muted-foreground font-mono uppercase">
+                          <div className="text-xs text-muted-foreground uppercase">
                             Legal Entity Name
                           </div>
                           <div className="text-sm font-bold text-foreground">
@@ -1721,7 +1721,7 @@ function SuperSettingsAdmin() {
                           )}
                         </div>
 
-                        <Badge variant="outline" className="text-[10px] font-mono uppercase bg-muted">
+                        <Badge variant="outline"className="text-[10px] uppercase bg-muted">
                           {tenantCompanyProfile?.constitutionOfBusiness
                             ? tenantCompanyProfile.constitutionOfBusiness.replace(/_/g, " ")
                             : "Private Limited"}
@@ -1731,20 +1731,20 @@ function SuperSettingsAdmin() {
                       {/* PAN, TAN, CIN Identification */}
                       <div className="grid grid-cols-3 gap-2 pt-2 border-t text-xs">
                         <div className="space-y-0.5">
-                          <span className="text-[10px] text-muted-foreground uppercase font-mono block">PAN</span>
-                          <span className="font-mono font-bold text-[11px]">
+                          <span className="text-[10px] text-muted-foreground uppercase block">PAN</span>
+                          <span className="font-bold text-[11px]">
                             {tenantCompanyProfile?.pan || "—"}
                           </span>
                         </div>
                         <div className="space-y-0.5">
-                          <span className="text-[10px] text-muted-foreground uppercase font-mono block">TAN</span>
-                          <span className="font-mono font-bold text-[11px]">
+                          <span className="text-[10px] text-muted-foreground uppercase block">TAN</span>
+                          <span className="font-bold text-[11px]">
                             {tenantCompanyProfile?.tan || "—"}
                           </span>
                         </div>
                         <div className="space-y-0.5">
-                          <span className="text-[10px] text-muted-foreground uppercase font-mono block">CIN</span>
-                          <span className="font-mono font-bold text-[11px] truncate block" title={tenantCompanyProfile?.cin || "—"}>
+                          <span className="text-[10px] text-muted-foreground uppercase block">CIN</span>
+                          <span className="font-bold text-[11px] truncate block"title={tenantCompanyProfile?.cin ||"—"}>
                             {tenantCompanyProfile?.cin || "—"}
                           </span>
                         </div>
@@ -1833,7 +1833,7 @@ function SuperSettingsAdmin() {
 
                       {tenantGstRegistration ? (
                         <div className="space-y-2">
-                          <div className="p-2.5 rounded-lg bg-muted/40 border font-mono text-xs flex items-center justify-between">
+                          <div className="p-2.5 rounded-lg bg-muted/40 border tabular-nums text-xs flex items-center justify-between">
                             <span className="font-bold text-foreground tracking-wider">
                               {tenantGstRegistration.gstin}
                             </span>
@@ -1862,7 +1862,7 @@ function SuperSettingsAdmin() {
                       <ShieldCheck className="size-4 text-emerald-600 shrink-0 mt-0.5" />
                       <div>
                         <strong className="text-foreground">Authoritative Data Isolation:</strong> This CompanyProfile is owned exclusively by the tenant at{" "}
-                        <span className="font-mono text-[10px] text-foreground">
+                        <span className="text-[10px] text-foreground">
                           {getTenantWorkspaceUrl(selectedTenant, "/settings")}
                         </span>
                         . Super Admin consumes this record in read-only mode to prevent configuration drift.
@@ -1904,10 +1904,10 @@ function SuperSettingsAdmin() {
                 {/* Live Currency Preview Card */}
                 <div className="p-5 rounded-2xl border bg-gradient-to-br from-amber-500/10 via-card to-primary/10 border-amber-500/30 flex items-center justify-between gap-4">
                   <div>
-                    <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground font-bold">
+                    <div className="text-[10px] tabular-nums uppercase tracking-wider text-muted-foreground font-bold">
                       Realtime Currency Preview
                     </div>
-                    <div className="text-3xl font-bold font-mono text-foreground mt-1">
+                    <div className="text-3xl font-bold tabular-nums text-foreground mt-1">
                       {liveSampleAmount}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
@@ -1950,7 +1950,7 @@ function SuperSettingsAdmin() {
                     <Input
                       value={form.currencySymbol}
                       onChange={(e) => setForm({ ...form, currencySymbol: e.target.value })}
-                      className="text-xs h-10 font-mono"
+                      className="text-xs h-10"
                     />
                   </div>
                 </div>
@@ -2167,7 +2167,7 @@ function SuperSettingsAdmin() {
                   <Input
                     value={form.recaptchaSiteKey}
                     onChange={(e) => setForm({ ...form, recaptchaSiteKey: e.target.value })}
-                    className="text-xs font-mono"
+                    className="text-xs"
                   />
                 </div>
 
@@ -2178,7 +2178,7 @@ function SuperSettingsAdmin() {
                       type={showRecaptchaSecret ? "text" : "password"}
                       value={form.recaptchaSecretKey}
                       onChange={(e) => setForm({ ...form, recaptchaSecretKey: e.target.value })}
-                      className="text-xs font-mono pr-9"
+                      className="text-xs pr-9"
                     />
                     <button
                       type="button"
@@ -2239,7 +2239,7 @@ function SuperSettingsAdmin() {
                 <span className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
                   <Sparkles className="size-3.5 text-primary" /> Quick Provider Presets
                 </span>
-                <span className="text-[10px] text-muted-foreground font-mono uppercase">
+                <span className="text-[10px] text-muted-foreground uppercase">
                   Active: {form.smtpProvider || "custom"}
                 </span>
               </div>
@@ -2285,7 +2285,7 @@ function SuperSettingsAdmin() {
                   value={form.smtpHost}
                   onChange={(e) => setForm({ ...form, smtpHost: e.target.value })}
                   placeholder="e.g. smtp.mailgun.org"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
               </div>
 
@@ -2295,7 +2295,7 @@ function SuperSettingsAdmin() {
                   value={form.smtpPort}
                   onChange={(e) => setForm({ ...form, smtpPort: e.target.value })}
                   placeholder="587"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
               </div>
 
@@ -2324,7 +2324,7 @@ function SuperSettingsAdmin() {
                   value={form.smtpUser}
                   onChange={(e) => setForm({ ...form, smtpUser: e.target.value })}
                   placeholder="postmaster@yourdomain.com or API Key"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
               </div>
 
@@ -2336,7 +2336,7 @@ function SuperSettingsAdmin() {
                     value={form.smtpPass}
                     onChange={(e) => setForm({ ...form, smtpPass: e.target.value })}
                     placeholder="••••••••••••"
-                    className="text-xs font-mono pr-9"
+                    className="text-xs pr-9"
                   />
                   <button
                     type="button"
@@ -2355,7 +2355,7 @@ function SuperSettingsAdmin() {
                 <Input
                   value={form.smtpFromName || "Master HRMS System"}
                   onChange={(e) => setForm({ ...form, smtpFromName: e.target.value })}
-                  className="text-xs font-mono"
+                  className="text-xs tabular-nums"
                   placeholder="Master HRMS System"
                 />
               </div>
@@ -2365,7 +2365,7 @@ function SuperSettingsAdmin() {
                 <Input
                   value={form.smtpFromEmail || `no-reply@${getPlatformBaseDomain()}`}
                   onChange={(e) => setForm({ ...form, smtpFromEmail: e.target.value })}
-                  className="text-xs font-mono"
+                  className="text-xs"
                   placeholder={`no-reply@${getPlatformBaseDomain()}`}
                 />
               </div>
@@ -2375,7 +2375,7 @@ function SuperSettingsAdmin() {
                 <Input
                   value={form.smtpReplyTo || `support@${getPlatformBaseDomain()}`}
                   onChange={(e) => setForm({ ...form, smtpReplyTo: e.target.value })}
-                  className="text-xs font-mono"
+                  className="text-xs"
                   placeholder={`support@${getPlatformBaseDomain()}`}
                 />
               </div>
@@ -2492,7 +2492,7 @@ function SuperSettingsAdmin() {
                   value={form.otpEmailSubject || "{{appName}} — Your Login Verification Code"}
                   onChange={(e) => setForm({ ...form, otpEmailSubject: e.target.value })}
                   placeholder="{{appName}} — Your Login Verification Code"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
               </div>
 
@@ -2510,7 +2510,7 @@ function SuperSettingsAdmin() {
                         navigator.clipboard.writeText(tag);
                         toast.success(`Copied ${tag} to clipboard!`);
                       }}
-                      className="cursor-pointer hover:bg-primary/10 hover:border-primary font-mono text-[10px] py-1 px-2 border-border/80 text-foreground"
+                      className="cursor-pointer hover:bg-primary/10 hover:border-primary text-[10px] py-1 px-2 border-border/80 text-foreground"
                     >
                       {tag}
                     </Badge>
@@ -2527,7 +2527,7 @@ function SuperSettingsAdmin() {
                       <Terminal className="size-3.5 text-primary" />
                       HTML Source Code
                     </Label>
-                    <span className="text-[10px] font-mono text-muted-foreground">HTML5 + Inline CSS</span>
+                    <span className="text-[10px] text-muted-foreground">HTML5 + Inline CSS</span>
                   </div>
                   <Textarea
                     rows={15}
@@ -2569,7 +2569,7 @@ function SuperSettingsAdmin() {
 </body>
 </html>`}
                     onChange={(e) => setForm({ ...form, otpEmailTemplate: e.target.value })}
-                    className="font-mono text-xs leading-relaxed bg-background/50 border-border/80 resize-y"
+                    className="text-xs leading-relaxed bg-background/50 border-border/80 resize-y"
                     placeholder="Enter custom HTML template..."
                   />
                 </div>
@@ -2581,13 +2581,13 @@ function SuperSettingsAdmin() {
                       <Eye className="size-3.5 text-emerald-500" />
                       Live Inbox Render Preview
                     </Label>
-                    <Badge variant="secondary" className="text-[10px] font-mono py-0 h-4">
+                    <Badge variant="secondary"className="text-[10px] py-0 h-4">
                       Simulated Preview
                     </Badge>
                   </div>
 
                   <div className="flex-1 rounded-xl border border-border/80 bg-slate-100 dark:bg-slate-900/50 p-2 overflow-hidden flex flex-col min-h-[320px]">
-                    <div className="text-[10px] font-mono text-muted-foreground px-2 py-1 border-b border-border/40 flex items-center justify-between">
+                    <div className="text-[10px] tabular-nums text-muted-foreground px-2 py-1 border-b border-border/40 flex items-center justify-between">
                       <span className="truncate max-w-[200px]">Subject: {(form.otpEmailSubject || "{{appName}} — Your Login Verification Code").replace("{{appName}}", form.appName || "Master HRMS")}</span>
                       <span>From: {form.smtpFromName || "Master HRMS"} &lt;{form.smtpFromEmail || `no-reply@${getPlatformBaseDomain()}`}&gt;</span>
                     </div>
@@ -2649,7 +2649,7 @@ function SuperSettingsAdmin() {
             <div className="pt-4 border-t space-y-3">
               <div className="font-bold text-xs flex items-center justify-between">
                 <span>Recent SMTP Delivery Logs</span>
-                <span className="font-mono text-[10px] text-muted-foreground">
+                <span className="tabular-nums text-[10px] text-muted-foreground">
                   ({form.smtpLogs?.length || 0} Records)
                 </span>
               </div>
@@ -2658,7 +2658,7 @@ function SuperSettingsAdmin() {
                 {(form.smtpLogs || []).map((log) => (
                   <div
                     key={log.id}
-                    className="p-3 rounded-xl border bg-secondary/10 flex items-center justify-between gap-4 text-xs font-mono"
+                    className="p-3 rounded-xl border bg-secondary/10 flex items-center justify-between gap-4 text-xs tabular-nums"
                   >
                     <div className="flex items-center gap-3">
                       {log.status === "delivered" ? (
@@ -2737,7 +2737,7 @@ function SuperSettingsAdmin() {
                   value={form.oauthBaseUrl}
                   onChange={(e) => setForm({ ...form, oauthBaseUrl: e.target.value })}
                   placeholder="e.g. https://api.yourdomain.com"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
                 <p className="text-[10px] text-muted-foreground">
                   Where your Express server routes reside (used for OAuth redirect callbacks).
@@ -2750,7 +2750,7 @@ function SuperSettingsAdmin() {
                   value={form.frontendBaseUrl}
                   onChange={(e) => setForm({ ...form, frontendBaseUrl: e.target.value })}
                   placeholder="e.g. https://app.yourdomain.com"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
                 <p className="text-[10px] text-muted-foreground">
                   Where users are redirected after successful social authentication.
@@ -2791,7 +2791,7 @@ function SuperSettingsAdmin() {
                   value={form.googleClientId}
                   onChange={(e) => setForm({ ...form, googleClientId: e.target.value })}
                   placeholder="e.g. 123456789-xxxx.apps.googleusercontent.com"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
               </div>
 
@@ -2803,7 +2803,7 @@ function SuperSettingsAdmin() {
                     value={form.googleClientSecret}
                     onChange={(e) => setForm({ ...form, googleClientSecret: e.target.value })}
                     placeholder="GOCSPX-xxxxxxxxxxxxxxxxxxxx"
-                    className="text-xs font-mono pr-9"
+                    className="text-xs pr-9"
                   />
                   <button
                     type="button"
@@ -2826,7 +2826,7 @@ function SuperSettingsAdmin() {
                 <Input
                   readOnly
                   value={`${(form.oauthBaseUrl || getDefaultOauthBaseUrl()).replace(/\/+$/, "")}/api/auth/oauth/google/callback`}
-                  className="text-xs font-mono bg-background select-all"
+                  className="text-xs bg-background select-all"
                 />
                 <Button
                   type="button"
@@ -2879,7 +2879,7 @@ function SuperSettingsAdmin() {
                   value={form.appleClientId}
                   onChange={(e) => setForm({ ...form, appleClientId: e.target.value })}
                   placeholder="e.g. com.masterhrms.web.auth"
-                  className="text-xs font-mono"
+                  className="text-xs tabular-nums"
                 />
               </div>
 
@@ -2889,7 +2889,7 @@ function SuperSettingsAdmin() {
                   value={form.appleTeamId}
                   onChange={(e) => setForm({ ...form, appleTeamId: e.target.value })}
                   placeholder="e.g. ABC123DEFG (10-character Team ID)"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
               </div>
             </div>
@@ -2901,7 +2901,7 @@ function SuperSettingsAdmin() {
                   value={form.appleKeyId}
                   onChange={(e) => setForm({ ...form, appleKeyId: e.target.value })}
                   placeholder="e.g. 10-char Key Identifier"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
               </div>
 
@@ -2913,7 +2913,7 @@ function SuperSettingsAdmin() {
                     value={form.applePrivateKey}
                     onChange={(e) => setForm({ ...form, applePrivateKey: e.target.value })}
                     placeholder="Paste Apple .p8 private key text here..."
-                    className="text-xs font-mono pr-9"
+                    className="text-xs pr-9"
                   />
                   <button
                     type="button"
@@ -2936,7 +2936,7 @@ function SuperSettingsAdmin() {
                 <Input
                   readOnly
                   value={`${(form.oauthBaseUrl || getDefaultOauthBaseUrl()).replace(/\/+$/, "")}/api/auth/oauth/apple/callback`}
-                  className="text-xs font-mono bg-background select-all"
+                  className="text-xs bg-background select-all"
                 />
                 <Button
                   type="button"
@@ -2989,7 +2989,7 @@ function SuperSettingsAdmin() {
                   value={form.linkedinClientId}
                   onChange={(e) => setForm({ ...form, linkedinClientId: e.target.value })}
                   placeholder="e.g. 78xxxxxxxxxxxx"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
               </div>
 
@@ -3001,7 +3001,7 @@ function SuperSettingsAdmin() {
                     value={form.linkedinClientSecret}
                     onChange={(e) => setForm({ ...form, linkedinClientSecret: e.target.value })}
                     placeholder="e.g. secret_xxxxxxxxxxxx"
-                    className="text-xs font-mono pr-9"
+                    className="text-xs pr-9"
                   />
                   <button
                     type="button"
@@ -3024,7 +3024,7 @@ function SuperSettingsAdmin() {
                 <Input
                   readOnly
                   value={`${(form.oauthBaseUrl || getDefaultOauthBaseUrl()).replace(/\/+$/, "")}/api/auth/oauth/linkedin/callback`}
-                  className="text-xs font-mono bg-background select-all"
+                  className="text-xs bg-background select-all"
                 />
                 <Button
                   type="button"
@@ -3077,7 +3077,7 @@ function SuperSettingsAdmin() {
                   value={form.facebookAppId}
                   onChange={(e) => setForm({ ...form, facebookAppId: e.target.value })}
                   placeholder="e.g. 109876543210987"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
               </div>
 
@@ -3089,7 +3089,7 @@ function SuperSettingsAdmin() {
                     value={form.facebookAppSecret}
                     onChange={(e) => setForm({ ...form, facebookAppSecret: e.target.value })}
                     placeholder="e.g. fb_sec_xxxxxxxxxxxxxxxxxxxx"
-                    className="text-xs font-mono pr-9"
+                    className="text-xs pr-9"
                   />
                   <button
                     type="button"
@@ -3112,7 +3112,7 @@ function SuperSettingsAdmin() {
                 <Input
                   readOnly
                   value={`${(form.oauthBaseUrl || getDefaultOauthBaseUrl()).replace(/\/+$/, "")}/api/auth/oauth/facebook/callback`}
-                  className="text-xs font-mono bg-background select-all"
+                  className="text-xs bg-background select-all"
                 />
                 <Button
                   type="button"
@@ -3183,7 +3183,7 @@ function SuperSettingsAdmin() {
                   value={form.pusherAppId}
                   onChange={(e) => setForm({ ...form, pusherAppId: e.target.value })}
                   placeholder="e.g. 1789012"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
                 <p className="text-[11px] text-muted-foreground">
                   The numeric application identifier assigned in your Pusher Channels dashboard.
@@ -3197,7 +3197,7 @@ function SuperSettingsAdmin() {
                   value={form.pusherKey}
                   onChange={(e) => setForm({ ...form, pusherKey: e.target.value })}
                   placeholder="e.g. 4a2b3c4d5e6f7g8h9i0j"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Public application key used by browser clients to establish WebSocket connections.
@@ -3213,7 +3213,7 @@ function SuperSettingsAdmin() {
                     value={form.pusherSecret}
                     onChange={(e) => setForm({ ...form, pusherSecret: e.target.value })}
                     placeholder="•••••••••••••••• (leave blank to keep current)"
-                    className="text-xs font-mono pr-9"
+                    className="text-xs pr-9"
                   />
                   <button
                     type="button"
@@ -3236,7 +3236,7 @@ function SuperSettingsAdmin() {
                   value={form.pusherCluster}
                   onChange={(e) => setForm({ ...form, pusherCluster: e.target.value })}
                   placeholder="e.g. ap2"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
                 <div className="flex flex-wrap items-center gap-1.5 pt-1">
                   <span className="text-[10px] text-muted-foreground">Quick select:</span>
@@ -3351,7 +3351,7 @@ function SuperSettingsAdmin() {
                   value={form.firebaseProjectId}
                   onChange={(e) => setForm({ ...form, firebaseProjectId: e.target.value })}
                   placeholder="e.g. masterhrms-prod"
-                  className="text-xs font-mono"
+                  className="text-xs tabular-nums"
                 />
               </div>
               <div className="space-y-1.5">
@@ -3360,7 +3360,7 @@ function SuperSettingsAdmin() {
                   value={form.firebaseApiKey}
                   onChange={(e) => setForm({ ...form, firebaseApiKey: e.target.value })}
                   placeholder="AIzaSy..."
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
               </div>
               <div className="space-y-1.5">
@@ -3369,7 +3369,7 @@ function SuperSettingsAdmin() {
                   value={form.firebaseAuthDomain}
                   onChange={(e) => setForm({ ...form, firebaseAuthDomain: e.target.value })}
                   placeholder="masterhrms-prod.firebaseapp.com"
-                  className="text-xs font-mono"
+                  className="text-xs tabular-nums"
                 />
               </div>
               <div className="space-y-1.5">
@@ -3378,7 +3378,7 @@ function SuperSettingsAdmin() {
                   value={form.firebaseStorageBucket}
                   onChange={(e) => setForm({ ...form, firebaseStorageBucket: e.target.value })}
                   placeholder="masterhrms-prod.firebasestorage.app"
-                  className="text-xs font-mono"
+                  className="text-xs tabular-nums"
                 />
               </div>
               <div className="space-y-1.5">
@@ -3387,7 +3387,7 @@ function SuperSettingsAdmin() {
                   value={form.firebaseMessagingSenderId}
                   onChange={(e) => setForm({ ...form, firebaseMessagingSenderId: e.target.value })}
                   placeholder="e.g. 123456789012"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
               </div>
               <div className="space-y-1.5">
@@ -3396,7 +3396,7 @@ function SuperSettingsAdmin() {
                   value={form.firebaseAppId}
                   onChange={(e) => setForm({ ...form, firebaseAppId: e.target.value })}
                   placeholder="1:123456789012:web:abcdef123456"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
               </div>
               <div className="space-y-1.5">
@@ -3405,7 +3405,7 @@ function SuperSettingsAdmin() {
                   value={form.firebaseVapidKey}
                   onChange={(e) => setForm({ ...form, firebaseVapidKey: e.target.value })}
                   placeholder="BEl62iUYgUivxIkv69yViEuiBIa..."
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
               </div>
               <div className="space-y-1.5">
@@ -3414,7 +3414,7 @@ function SuperSettingsAdmin() {
                   value={form.firebaseMeasurementId}
                   onChange={(e) => setForm({ ...form, firebaseMeasurementId: e.target.value })}
                   placeholder="G-XXXXXXXXXX"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
               </div>
             </div>
@@ -3427,7 +3427,7 @@ function SuperSettingsAdmin() {
                 value={form.firebaseServiceAccountJson}
                 onChange={(e) => setForm({ ...form, firebaseServiceAccountJson: e.target.value })}
                 placeholder='{"type":"service_account","project_id":"...","private_key":"-----BEGIN PRIVATE KEY-----..."} (leave masked to keep existing secret)'
-                className="text-xs font-mono h-28"
+                className="text-xs tabular-nums h-28"
               />
               <p className="text-[11px] text-muted-foreground">
                 Never exposed to client browsers. Used by backend push dispatchers to sign FCM HTTP v1 tokens.
@@ -3504,7 +3504,7 @@ function SuperSettingsAdmin() {
                   <Input
                     value={form.razorpayKeyId}
                     onChange={(e) => setForm({ ...form, razorpayKeyId: e.target.value })}
-                    className="text-xs font-mono"
+                    className="text-xs"
                     placeholder="rzp_test_... or rzp_live_..."
                   />
                 </div>
@@ -3514,7 +3514,7 @@ function SuperSettingsAdmin() {
                     type="password"
                     value={form.razorpayKeySecret}
                     onChange={(e) => setForm({ ...form, razorpayKeySecret: e.target.value })}
-                    className="text-xs font-mono"
+                    className="text-xs"
                     placeholder="•••••••••••••••• (leave blank to keep current)"
                   />
                 </div>
@@ -3543,7 +3543,7 @@ function SuperSettingsAdmin() {
                   <Input
                     value={form.paypalClientId}
                     onChange={(e) => setForm({ ...form, paypalClientId: e.target.value })}
-                    className="text-xs font-mono"
+                    className="text-xs"
                     placeholder="Enter PayPal Client ID..."
                   />
                 </div>
@@ -3568,7 +3568,7 @@ function SuperSettingsAdmin() {
                     type="password"
                     value={form.paypalSecret}
                     onChange={(e) => setForm({ ...form, paypalSecret: e.target.value })}
-                    className="text-xs font-mono"
+                    className="text-xs"
                     placeholder="•••••••••••••••• (leave blank to keep current)"
                   />
                 </div>
@@ -3602,7 +3602,7 @@ function SuperSettingsAdmin() {
                   value={form.bankTransferDetails}
                   onChange={(e) => setForm({ ...form, bankTransferDetails: e.target.value })}
                   placeholder="Enter Bank Name, Account Number, IFSC, Swift Code, UPI ID, and Transfer Instructions..."
-                  className="text-xs font-mono"
+                  className="text-xs tabular-nums"
                 />
                 <p className="text-[10px] text-muted-foreground">
                   Tenants will copy these bank details to transfer money and upload their
@@ -3642,7 +3642,7 @@ function SuperSettingsAdmin() {
                 <div className="text-sm font-semibold flex items-center gap-2">
                   <span>Emergency Maintenance Mode</span>
                   {form.maintenanceMode ? (
-                    <Badge variant="destructive" className="text-[10px] uppercase font-mono">
+                    <Badge variant="destructive"className="text-[10px] uppercase">
                       Active Lockdown
                     </Badge>
                   ) : (
@@ -3690,7 +3690,7 @@ function SuperSettingsAdmin() {
                   value={form.maintenanceStartTime}
                   onChange={(e) => setForm({ ...form, maintenanceStartTime: e.target.value })}
                   placeholder="e.g. 2026-10-15 02:00:00 UTC or Today at 02:00 AM UTC"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
                 <p className="text-[10px] text-muted-foreground">
                   When maintenance window begins. Leave empty if uncommitted.
@@ -3703,7 +3703,7 @@ function SuperSettingsAdmin() {
                   value={form.maintenanceEndTime}
                   onChange={(e) => setForm({ ...form, maintenanceEndTime: e.target.value })}
                   placeholder="e.g. 2026-10-15 04:00:00 UTC or Today at 04:00 AM UTC"
-                  className="text-xs font-mono"
+                  className="text-xs"
                 />
                 <p className="text-[10px] text-muted-foreground">
                   Required for countdown timer and Retry-After header. Leave blank if unknown.
@@ -3719,7 +3719,7 @@ function SuperSettingsAdmin() {
                 onChange={(e) => setForm({ ...form, maintenanceNoticeMessage: e.target.value })}
                 rows={3}
                 placeholder="Enter informative message explaining the reason and scope of the maintenance..."
-                className="text-xs font-mono"
+                className="text-xs"
               />
               <p className="text-[10px] text-muted-foreground">
                 Displayed in the center of the /maintenance page and in the top marquee banner across public pages.
@@ -3748,7 +3748,7 @@ function SuperSettingsAdmin() {
               placeholder="admin@company.com"
               value={testRecipientEmail}
               onChange={(e) => setTestRecipientEmail(e.target.value)}
-              className="text-xs font-mono"
+              className="text-xs"
             />
           </div>
 

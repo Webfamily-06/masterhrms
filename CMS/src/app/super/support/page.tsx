@@ -704,9 +704,9 @@ function SupportDeskAdmin() {
                         <TableCell>
                           <div className="space-y-0.5">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-mono font-bold text-primary">{t.ticketCode}</span>
+                              <span className="tabular-nums font-bold text-primary">{t.ticketCode}</span>
                               {t.targetAddonSlug && (
-                                <Badge variant="purple" className="text-[9px] font-mono px-1.5 py-0">
+                                <Badge variant="purple"className="text-[9px] px-1.5 py-0">
                                   {t.targetAddonSlug.toUpperCase()}
                                 </Badge>
                               )}
@@ -714,7 +714,7 @@ function SupportDeskAdmin() {
                             <span className="font-semibold text-foreground block max-w-[260px] truncate">
                               {t.subject}
                             </span>
-                            <span className="text-[10px] text-muted-foreground font-mono">
+                            <span className="text-[10px] text-muted-foreground tabular-nums">
                               {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : "—"}
                             </span>
                           </div>
@@ -1008,7 +1008,7 @@ function SupportDeskAdmin() {
                               </Badge>
                             )}
                           </span>
-                          <span className="font-mono">
+                          <span className="tabular-nums">
                             {m.createdAt
                               ? new Date(m.createdAt).toLocaleString([], {
                                   month: "short",
@@ -1172,7 +1172,6 @@ function SupportDeskAdmin() {
                   placeholder="e.g. payroll, biometric, recruitment"
                   value={newTicket.targetAddonSlug}
                   onChange={(e) => setNewTicket({ ...newTicket, targetAddonSlug: e.target.value })}
-                  className="font-mono"
                 />
               </div>
             )}
@@ -1208,9 +1207,9 @@ function SupportDeskAdmin() {
         description={
           activateTarget ? (
             <>
-              Enable <strong className="font-mono text-foreground">{activateTarget.targetAddonSlug?.toUpperCase()}</strong> for{" "}
+              Enable <strong className="text-foreground">{activateTarget.targetAddonSlug?.toUpperCase()}</strong> for{" "}
               <strong className="text-foreground">{activateTarget.tenant?.name || "this workspace"}</strong> and mark ticket{" "}
-              <span className="font-mono">{activateTarget.ticketCode}</span> as resolved?
+              <span>{activateTarget.ticketCode}</span> as resolved?
             </>
           ) : undefined
         }
@@ -1233,7 +1232,7 @@ function SupportDeskAdmin() {
         description={
           deleteTarget ? (
             <>
-              Permanently delete ticket <strong className="font-mono text-foreground">{deleteTarget.ticketCode}</strong> (
+              Permanently delete ticket <strong className="text-foreground">{deleteTarget.ticketCode}</strong> (
               {deleteTarget.subject}) and its conversation history?
             </>
           ) : undefined

@@ -919,7 +919,7 @@ export default function SuperDashboard() {
                     <div className="min-w-0">
                       <p className="font-semibold text-foreground truncate">{tx.tenantName}</p>
                       <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5 truncate">
-                        <span className="font-mono text-sky-600 dark:text-sky-400">{tx.invoiceId}</span>
+                        <span className="tabular-nums text-sky-600 dark:text-sky-400">{tx.invoiceId}</span>
                         <span>·</span>
                         <span>{formatDate(tx.createdAt)}</span>
                       </p>
@@ -988,7 +988,7 @@ export default function SuperDashboard() {
                     <p className="text-[11px] font-medium text-foreground">
                       {tenant.usersCount} {tenant.usersCount === 1 ? "User" : "Users"}
                     </p>
-                    <p className="text-[11px] text-muted-foreground font-mono truncate max-w-[130px]">
+                    <p className="text-[11px] text-muted-foreground truncate max-w-[130px]">
                       {tenant.domain}
                     </p>
                   </div>
@@ -1100,7 +1100,7 @@ export default function SuperDashboard() {
                       <p className="text-[11px] text-muted-foreground truncate" title={ticket.subject}>
                         {ticket.subject}
                       </p>
-                      <p className="text-[10px] font-mono text-sky-600 dark:text-sky-400 mt-0.5">
+                      <p className="text-[10px] text-sky-600 dark:text-sky-400 mt-0.5">
                         {ticket.ticketCode} · {ticket.requestType}
                       </p>
                     </div>

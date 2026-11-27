@@ -94,7 +94,7 @@ function MethodBadge({ method }: { method: string }) {
   const m = (method || "GET").toUpperCase();
   return (
     <span
-      className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold border shrink-0 ${
+      className={`px-2 py-0.5 rounded text-[11px] font-bold border shrink-0 ${
         METHOD_COLORS[m] || "bg-muted text-muted-foreground border-border"
       }`}
     >
@@ -522,7 +522,7 @@ export default function SuperDeveloperPortalPage() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Discovered API Endpoints</p>
-              <p className="text-2xl font-bold text-foreground font-mono mt-1">
+              <p className="text-2xl font-bold text-foreground tabular-nums mt-1">
                 {isLoadingMetadata ? "..." : endpoints.length}
               </p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -539,7 +539,7 @@ export default function SuperDeveloperPortalPage() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Super Admin Routes</p>
-              <p className="text-2xl font-bold text-foreground font-mono mt-1">
+              <p className="text-2xl font-bold text-foreground tabular-nums mt-1">
                 {isLoadingMetadata ? "..." : superAdminEndpoints.length}
               </p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -556,7 +556,7 @@ export default function SuperDeveloperPortalPage() {
           <CardContent className="p-4 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">Active Platform API Keys</p>
-              <p className="text-2xl font-bold text-foreground font-mono mt-1">
+              <p className="text-2xl font-bold text-foreground tabular-nums mt-1">
                 {isLoadingKeys ? "..." : activeKeysCount}
               </p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -576,7 +576,7 @@ export default function SuperDeveloperPortalPage() {
           <TabsTrigger value="reference" className="gap-1.5 text-xs">
             <BookOpen className="size-3.5" />
             API Reference
-            <span className="ml-1 text-[10px] font-mono opacity-75">({endpoints.length})</span>
+            <span className="ml-1 text-[10px] tabular-nums opacity-75">({endpoints.length})</span>
           </TabsTrigger>
           <TabsTrigger value="tester" className="gap-1.5 text-xs">
             <Terminal className="size-3.5" />
@@ -585,7 +585,7 @@ export default function SuperDeveloperPortalPage() {
           <TabsTrigger value="keys" className="gap-1.5 text-xs">
             <Key className="size-3.5" />
             API Keys Vault
-            <span className="ml-1 text-[10px] font-mono opacity-75">({apiKeys.length})</span>
+            <span className="ml-1 text-[10px] tabular-nums opacity-75">({apiKeys.length})</span>
           </TabsTrigger>
         </TabsList>
 
@@ -714,7 +714,7 @@ export default function SuperDeveloperPortalPage() {
                               <MethodBadge method={ep.method} />
                             </td>
                             <td className="p-3">
-                              <div className="font-mono font-semibold text-foreground break-all">
+                              <div className="tabular-nums font-semibold text-foreground break-all">
                                 {ep.fullPath}
                               </div>
                               {ep.description && (
@@ -793,7 +793,7 @@ export default function SuperDeveloperPortalPage() {
                       aria-label="HTTP Method"
                       value={testerMethod}
                       onChange={(e) => setTesterMethod(e.target.value)}
-                      className="h-9 px-2.5 rounded-md border border-border bg-background text-xs font-mono font-bold text-foreground"
+                      className="h-9 px-2.5 rounded-md border border-border bg-background text-xs font-bold text-foreground"
                     >
                       <option value="GET">GET</option>
                       <option value="POST">POST</option>
@@ -805,7 +805,7 @@ export default function SuperDeveloperPortalPage() {
                       value={testerPath}
                       onChange={(e) => setTesterPath(e.target.value)}
                       placeholder="/super/stats"
-                      className="h-9 text-xs font-mono flex-1"
+                      className="h-9 text-xs flex-1"
                     />
                   </div>
                   <p className="text-[11px] text-muted-foreground">
@@ -820,7 +820,7 @@ export default function SuperDeveloperPortalPage() {
                     value={testerApiKey}
                     onChange={(e) => setTesterApiKey(e.target.value)}
                     placeholder="mhk_live_... (optional)"
-                    className="h-9 text-xs font-mono"
+                    className="h-9 text-xs"
                   />
                 </div>
 
@@ -832,7 +832,7 @@ export default function SuperDeveloperPortalPage() {
                       value={testerBody}
                       onChange={(e) => setTesterBody(e.target.value)}
                       placeholder={'{\n  "example": true\n}'}
-                      className="w-full p-3 rounded-lg border border-border bg-muted/30 font-mono text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full p-3 rounded-lg border border-border bg-muted/30 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                 )}
@@ -886,7 +886,7 @@ export default function SuperDeveloperPortalPage() {
                   <div className="flex items-center gap-2">
                     <Badge
                       variant="outline"
-                      className={`font-mono text-[11px] ${
+                      className={`text-[11px] ${
                         testerResult.status >= 200 && testerResult.status < 300
                           ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
                           : "bg-rose-500/10 text-rose-600 border-rose-500/30"
@@ -894,7 +894,7 @@ export default function SuperDeveloperPortalPage() {
                     >
                       HTTP {testerResult.status} {testerResult.statusText}
                     </Badge>
-                    <Badge variant="secondary" className="font-mono text-[11px] gap-1">
+                    <Badge variant="secondary"className="text-[11px] gap-1">
                       <Clock className="size-3" />
                       {testerResult.durationMs} ms
                     </Badge>
@@ -1044,7 +1044,7 @@ export default function SuperDeveloperPortalPage() {
                                 By {keyItem.createdBy}
                               </div>
                             </td>
-                            <td className="p-3 font-mono text-[11px] whitespace-nowrap">
+                            <td className="p-3 tabular-nums text-[11px] whitespace-nowrap">
                               <span className="px-2 py-0.5 rounded bg-muted border border-border text-foreground">
                                 {keyItem.prefix}••••••••
                               </span>
@@ -1055,14 +1055,14 @@ export default function SuperDeveloperPortalPage() {
                                   <Badge
                                     key={scope}
                                     variant="outline"
-                                    className="text-[10px] font-mono bg-primary/5 border-primary/20"
+                                    className="text-[10px] bg-primary/5 border-primary/20"
                                   >
                                     {scope}
                                   </Badge>
                                 ))}
                               </div>
                             </td>
-                            <td className="p-3 font-mono whitespace-nowrap text-foreground">
+                            <td className="p-3 tabular-nums whitespace-nowrap text-foreground">
                               {keyItem.rateLimitPerMin}/min
                             </td>
                             <td className="p-3 whitespace-nowrap">
@@ -1145,7 +1145,7 @@ export default function SuperDeveloperPortalPage() {
                     {selectedEndpoint.module || "General"}
                   </Badge>
                 </div>
-                <DialogTitle className="font-mono text-sm break-all">
+                <DialogTitle className="text-sm break-all">
                   {selectedEndpoint.fullPath}
                 </DialogTitle>
                 <DialogDescription className="text-xs">
@@ -1159,7 +1159,7 @@ export default function SuperDeveloperPortalPage() {
                     <span className="font-semibold text-foreground block">Required Roles</span>
                     <div className="flex flex-wrap gap-1.5">
                       {selectedEndpoint.requiredRoles.map((r) => (
-                        <Badge key={r} variant="secondary" className="font-mono text-[10px]">
+                        <Badge key={r} variant="secondary"className="text-[10px]">
                           {r}
                         </Badge>
                       ))}
@@ -1170,7 +1170,7 @@ export default function SuperDeveloperPortalPage() {
                 {selectedEndpoint.requestBodyFields && selectedEndpoint.requestBodyFields.length > 0 && (
                   <div className="space-y-1">
                     <span className="font-semibold text-foreground block">Expected Body Fields</span>
-                    <div className="p-2.5 rounded-lg bg-muted/50 border font-mono text-[11px]">
+                    <div className="p-2.5 rounded-lg bg-muted/50 border text-[11px]">
                       {selectedEndpoint.requestBodyFields.join(", ")}
                     </div>
                   </div>
@@ -1247,7 +1247,7 @@ export default function SuperDeveloperPortalPage() {
                         className="mt-0.5 rounded border-border text-primary"
                       />
                       <div className="min-w-0">
-                        <div className="font-mono font-semibold text-[11px] text-foreground">
+                        <div className="font-semibold text-[11px] text-foreground">
                           {scope.id}
                         </div>
                         <div className="text-[10px] text-muted-foreground leading-snug">
@@ -1272,7 +1272,7 @@ export default function SuperDeveloperPortalPage() {
                   max={10000}
                   value={newKeyRateLimit}
                   onChange={(e) => setNewKeyRateLimit(e.target.value)}
-                  className="h-9 text-xs font-mono"
+                  className="h-9 text-xs tabular-nums"
                 />
               </div>
 
@@ -1353,7 +1353,7 @@ export default function SuperDeveloperPortalPage() {
                   <Input
                     readOnly
                     value={revealedSecret.secret}
-                    className="font-mono text-xs font-semibold bg-muted/50 select-all"
+                    className="text-xs font-semibold bg-muted/50 select-all"
                   />
                   <Button
                     type="button"

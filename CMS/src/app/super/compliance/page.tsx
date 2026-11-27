@@ -680,7 +680,7 @@ function SuperAdminComplianceControlCenter() {
                             </div>
                           </td>
                           <td className="p-3">
-                            <Badge variant="outline" className="font-mono text-[10px]">
+                            <Badge variant="outline"className="tabular-nums text-[10px]">
                               {rule.ruleType}
                             </Badge>
                           </td>
@@ -699,7 +699,7 @@ function SuperAdminComplianceControlCenter() {
                             </div>
                           </td>
                           <td className="p-3">
-                            <span className="font-mono font-medium">v{rule.version}</span>
+                            <span className="tabular-nums font-medium">v{rule.version}</span>
                           </td>
                           <td className="p-3">{getStatusBadge(rule.publicationStatus)}</td>
                           <td className="p-3 pr-4 text-right">
@@ -939,7 +939,7 @@ function SuperAdminComplianceControlCenter() {
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-border/60 font-mono">
+                      <tbody className="divide-y divide-border/60">
                         {(simResults.results || []).map((r: any, idx: number) => {
                           const netDelta = r.variance?.netPay ?? 0;
                           const empDelta = r.variance?.employerTotalCostVariance ?? 0;
@@ -1060,7 +1060,7 @@ function SuperAdminComplianceControlCenter() {
                       </div>
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="font-mono text-[10px]">
+                          <Badge variant="outline"className="tabular-nums text-[10px]">
                             {log.action}
                           </Badge>
                           <span className="font-semibold text-xs text-foreground">
@@ -1073,7 +1073,7 @@ function SuperAdminComplianceControlCenter() {
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">{log.notes || "No notes provided."}</p>
                       <div className="text-[11px] text-muted-foreground mt-1">
-                        Actor: <span className="font-mono text-foreground">{log.actorEmail}</span> ({log.actorRole})
+                        Actor: <span className="text-foreground">{log.actorEmail}</span> ({log.actorRole})
                       </div>
                     </div>
                   ))}
@@ -1194,7 +1194,7 @@ function SuperAdminComplianceControlCenter() {
                   <div className="grid grid-cols-2 gap-3 p-3.5 bg-muted/40 border border-border/60 rounded-lg">
                     <div>
                       <span className="text-muted-foreground">Rule Type</span>
-                      <div className="font-mono font-semibold mt-0.5">{viewingRule.ruleType}</div>
+                      <div className="font-semibold mt-0.5">{viewingRule.ruleType}</div>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Financial Year</span>
@@ -1248,7 +1248,7 @@ function SuperAdminComplianceControlCenter() {
                     <div className="p-3 rounded-lg border border-border/70 bg-muted/20 flex items-center justify-between">
                       <div>
                         <span className="text-[11px] text-muted-foreground block">Supersedes Prior Version</span>
-                        <span className="font-mono font-semibold text-foreground">
+                        <span className="font-semibold text-foreground">
                           {previousVersion.ruleIdentifier} v{previousVersion.version}
                         </span>
                       </div>
@@ -1284,7 +1284,7 @@ function SuperAdminComplianceControlCenter() {
                             className="flex items-center justify-between p-2 rounded-md border border-border/60 bg-muted/20 text-[11px]"
                           >
                             <div className="flex items-center gap-2 min-w-0">
-                              <Badge variant="outline" className="font-mono text-[10px] shrink-0">
+                              <Badge variant="outline"className="tabular-nums text-[10px] shrink-0">
                                 {log.action}
                               </Badge>
                               <span className="truncate text-muted-foreground">

@@ -166,7 +166,7 @@ export function DynamicTemplateRenderer({ content, fallbackTitle }: DynamicTempl
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="font-bold text-base text-foreground">{sec.title || 'Feature Highlight'}</h3>
                   {sec.badge && (
-                    <Badge variant="secondary" className="text-[10px] font-mono">
+                    <Badge variant="secondary"className="text-[10px]">
                       {sec.badge}
                     </Badge>
                   )}

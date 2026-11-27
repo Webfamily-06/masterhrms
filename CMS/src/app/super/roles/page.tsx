@@ -500,7 +500,7 @@ function RolesAdminStudio() {
             <div className="space-y-1 text-xs">
               <div className="font-bold text-foreground flex items-center gap-2 flex-wrap">
                 <span>Role Governance &amp; User Account Separation</span>
-                <Badge variant="purple" className="text-[10px] font-mono">
+                <Badge variant="purple"className="text-[10px] tabular-nums">
                   Global RBAC Standard
                 </Badge>
               </div>
@@ -589,7 +589,7 @@ function RolesAdminStudio() {
                         <Badge className={`text-xs px-2.5 py-0.5 font-bold ${role.color}`}>
                           {role.label}
                         </Badge>
-                        <Badge variant="outline" className="font-mono text-[10px]">
+                        <Badge variant="outline"className="text-[10px]">
                           {role.key}
                         </Badge>
                       </div>
@@ -631,7 +631,7 @@ function RolesAdminStudio() {
                       </div>
 
                       <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
-                        <span className="font-mono text-[11px]">
+                        <span className="tabular-nums text-[11px]">
                           {Math.round((role.permissions.length / Math.max(1, AVAILABLE_FEATURES.length)) * 100)}% coverage
                         </span>
                         {isProtected ? (
@@ -701,7 +701,7 @@ function RolesAdminStudio() {
                         <code className="text-[10px] font-mono text-muted-foreground/80">{perm.id}</code>
                       </td>
                       <td className="p-3 whitespace-nowrap">
-                        <Badge variant="outline" className="text-[10px] font-mono">
+                        <Badge variant="outline"className="text-[10px] tabular-nums">
                           {perm.category}
                         </Badge>
                       </td>
@@ -779,7 +779,7 @@ function RolesAdminStudio() {
                     onChange={(e) => setEditingRole({ ...editingRole, key: e.target.value })}
                     disabled={editingRole.isSystem}
                     placeholder="e.g. editor or developer"
-                    className="font-mono text-xs h-9"
+                    className="text-xs h-9"
                   />
                 </div>
               </div>

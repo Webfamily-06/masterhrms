@@ -853,7 +853,7 @@ export function SuperShell({ children }: { children: React.ReactNode }) {
                       <i className={cn('text-base ph-duotone', item.iconClass, 'text-primary')} />
                       <span className="font-medium text-sm">{item.label}</span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">{item.to}</span>
+                    <span className="text-[10px] text-muted-foreground/60 shrink-0">{item.to}</span>
                   </CommandItem>
                 ))}
               </CommandGroup>

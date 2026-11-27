@@ -296,7 +296,7 @@ function DedicatedCaseStudiesManager() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-bold tracking-tight">Case Studies & ROI Manager</h1>
-            <Badge variant="secondary" className="gap-1 text-xs font-mono">
+            <Badge variant="secondary"className="gap-1 text-xs tabular-nums">
               <Briefcase className="size-3 text-primary" /> Dedicated Case Studies CMS
             </Badge>
           </div>
@@ -387,14 +387,14 @@ function DedicatedCaseStudiesManager() {
                      loading="lazy"/>
                     <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent" />
                     <div className="absolute top-3 left-3">
-                      <Badge className="bg-emerald-600 text-white font-mono text-[9px] shadow-sm">
+                      <Badge className="bg-emerald-600 text-white text-[9px] shadow-sm">
                         {cs.content?.industry || "Manufacturing"}
                       </Badge>
                     </div>
                     <div className="absolute top-3 right-3">
                       <Badge
                         variant={cs.published ? "default" : "secondary"}
-                        className="text-[9px] font-mono"
+                        className="text-[9px]"
                       >
                         {cs.published ? "Published" : "Draft"}
                       </Badge>
@@ -425,7 +425,7 @@ function DedicatedCaseStudiesManager() {
                 <CardContent className="p-4 pt-0">
                   <div className="pt-3 border-t flex items-center justify-between">
                     <span
-                      className="text-[10px] font-mono text-muted-foreground truncate max-w-[140px]"
+                      className="text-[10px] text-muted-foreground truncate max-w-[140px]"
                       title={cs.slug}
                     >
                       /{cs.slug}
@@ -528,14 +528,14 @@ function DedicatedCaseStudiesManager() {
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">URL Slug (slug: case-study-*)</Label>
                 <div className="flex items-center">
-                  <span className="bg-secondary px-2.5 py-1.5 rounded-l-md border border-r-0 font-mono text-[10px] text-muted-foreground">
+                  <span className="bg-secondary px-2.5 py-1.5 rounded-l-md border border-r-0 tabular-nums text-[10px] text-muted-foreground">
                     case-study-
                   </span>
                   <Input
                     placeholder="apex-manufacturing"
                     value={form.slug}
                     onChange={(e) => setForm((prev) => ({ ...prev, slug: e.target.value }))}
-                    className="rounded-l-none text-xs font-mono"
+                    className="rounded-l-none text-xs"
                   />
                 </div>
               </div>
@@ -593,7 +593,7 @@ function DedicatedCaseStudiesManager() {
                    loading="lazy"/>
                   <Badge
                     variant="outline"
-                    className="absolute bottom-2 left-2 text-[9px] bg-background/80 font-mono"
+                    className="absolute bottom-2 left-2 text-[9px] bg-background/80"
                   >
                     Facility / Office Thumbnail Preview
                   </Badge>

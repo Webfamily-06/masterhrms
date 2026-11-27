@@ -835,7 +835,7 @@ function SuperPurchaseTransactionsPage() {
       {selectedIds.length > 0 && (
         <div className="p-3 rounded-xl border border-primary/30 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs">
-            <Badge className="bg-primary text-primary-foreground font-mono">{selectedIds.length}</Badge>
+            <Badge className="bg-primary text-primary-foreground tabular-nums">{selectedIds.length}</Badge>
             <span className="font-semibold text-foreground">
               transaction{selectedIds.length === 1 ? "" : "s"} selected
             </span>
@@ -893,7 +893,7 @@ function SuperPurchaseTransactionsPage() {
         <div className="p-4 border-b border-border/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <h2 className="font-bold text-sm text-foreground">Transaction Ledger</h2>
-            <Badge variant="secondary" className="text-[11px] font-mono">
+            <Badge variant="secondary"className="text-[11px] tabular-nums">
               {pagination.total} total
             </Badge>
           </div>
@@ -1291,13 +1291,13 @@ function SuperPurchaseTransactionsPage() {
                         />
                       </td>
 
-                      <td className="p-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
+                      <td className="p-3 tabular-nums text-[11px] text-muted-foreground whitespace-nowrap">
                         <span title={tx.id}>
                           {tx.transactionNo || (tx.id.length > 12 ? `${tx.id.slice(0, 10)}...` : tx.id)}
                         </span>
                       </td>
 
-                      <td className="p-3 font-mono font-semibold text-foreground whitespace-nowrap">
+                      <td className="p-3 tabular-nums font-semibold text-foreground whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => setPreviewTargetTx(tx)}
@@ -1328,7 +1328,7 @@ function SuperPurchaseTransactionsPage() {
                             <div className="font-semibold text-foreground truncate" title={tx.customerName}>
                               {tx.customerName}
                             </div>
-                            <div className="text-[10px] text-muted-foreground font-mono truncate">
+                            <div className="text-[10px] text-muted-foreground truncate">
                               {tx.customerEmail}
                             </div>
                           </div>
@@ -1342,7 +1342,7 @@ function SuperPurchaseTransactionsPage() {
                         </div>
                       </td>
 
-                      <td className="p-3 font-bold text-foreground whitespace-nowrap font-mono">
+                      <td className="p-3 font-bold text-foreground whitespace-nowrap tabular-nums">
                         {formatCurrency(tx.amount, tx.currency)}
                       </td>
 
@@ -1573,10 +1573,10 @@ function SuperPurchaseTransactionsPage() {
                     <p className="text-muted-foreground">{previewInvoice.supplier.address}</p>
                   )}
                   {previewInvoice.supplier?.email && (
-                    <p className="font-mono text-[11px]">{previewInvoice.supplier.email}</p>
+                    <p className="tabular-nums text-[11px]">{previewInvoice.supplier.email}</p>
                   )}
                   {previewInvoice.supplier?.gstin && (
-                    <p className="font-mono text-[11px] text-muted-foreground">
+                    <p className="tabular-nums text-[11px] text-muted-foreground">
                       GSTIN: {previewInvoice.supplier.gstin}
                     </p>
                   )}
@@ -1588,13 +1588,13 @@ function SuperPurchaseTransactionsPage() {
                   </span>
                   <p className="font-bold text-foreground">{previewInvoice.customer?.name || "Tenant Workspace"}</p>
                   {previewInvoice.customer?.slug && (
-                    <p className="font-mono text-[11px] text-muted-foreground">@{previewInvoice.customer.slug}</p>
+                    <p className="tabular-nums text-[11px] text-muted-foreground">@{previewInvoice.customer.slug}</p>
                   )}
                   {previewInvoice.customer?.email && (
-                    <p className="font-mono text-[11px]">{previewInvoice.customer.email}</p>
+                    <p className="tabular-nums text-[11px]">{previewInvoice.customer.email}</p>
                   )}
                   {previewInvoice.customer?.taxId && (
-                    <p className="font-mono text-[11px] text-muted-foreground">
+                    <p className="tabular-nums text-[11px] text-muted-foreground">
                       Tax ID: {previewInvoice.customer.taxId}
                     </p>
                   )}
@@ -1617,7 +1617,7 @@ function SuperPurchaseTransactionsPage() {
                 </div>
                 <div>
                   <span className="text-[10px] text-muted-foreground block">Reference</span>
-                  <span className="font-mono text-[11px] text-foreground truncate block">
+                  <span className="tabular-nums text-[11px] text-foreground truncate block">
                     {previewInvoice.payment?.reference || "—"}
                   </span>
                 </div>
@@ -1655,14 +1655,14 @@ function SuperPurchaseTransactionsPage() {
                               <div className="text-[11px] text-muted-foreground">{item.subDescription}</div>
                             )}
                           </td>
-                          <td className="p-2.5 text-right font-mono">{item.quantity}</td>
-                          <td className="p-2.5 text-right font-mono">
+                          <td className="p-2.5 text-right tabular-nums">{item.quantity}</td>
+                          <td className="p-2.5 text-right tabular-nums">
                             {formatCurrency(item.unitPrice, previewInvoice.currency)}
                           </td>
-                          <td className="p-2.5 text-right font-mono">
+                          <td className="p-2.5 text-right tabular-nums">
                             {formatCurrency(item.taxAmount, previewInvoice.currency)}
                           </td>
-                          <td className="p-2.5 text-right font-mono font-semibold text-foreground">
+                          <td className="p-2.5 text-right tabular-nums font-semibold text-foreground">
                             {formatCurrency(item.totalAmount, previewInvoice.currency)}
                           </td>
                         </tr>
@@ -1676,23 +1676,23 @@ function SuperPurchaseTransactionsPage() {
               <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-1.5">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Subtotal</span>
-                  <span className="font-mono">{formatCurrency(previewInvoice.subtotal, previewInvoice.currency)}</span>
+                  <span className="tabular-nums">{formatCurrency(previewInvoice.subtotal, previewInvoice.currency)}</span>
                 </div>
                 {previewInvoice.discount > 0 && (
                   <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
                     <span>Discount</span>
-                    <span className="font-mono">-{formatCurrency(previewInvoice.discount, previewInvoice.currency)}</span>
+                    <span className="tabular-nums">-{formatCurrency(previewInvoice.discount, previewInvoice.currency)}</span>
                   </div>
                 )}
                 {previewInvoice.tax > 0 && (
                   <div className="flex justify-between text-muted-foreground">
                     <span>Tax</span>
-                    <span className="font-mono">{formatCurrency(previewInvoice.tax, previewInvoice.currency)}</span>
+                    <span className="tabular-nums">{formatCurrency(previewInvoice.tax, previewInvoice.currency)}</span>
                   </div>
                 )}
                 <div className="flex justify-between pt-2 border-t border-border font-bold text-sm text-foreground">
                   <span>Total Payable</span>
-                  <span className="font-mono text-primary">
+                  <span className="tabular-nums text-primary">
                     {formatCurrency(previewInvoice.total, previewInvoice.currency)}
                   </span>
                 </div>
@@ -1738,7 +1738,7 @@ function SuperPurchaseTransactionsPage() {
             </DialogTitle>
             <DialogDescription className="text-xs">
               Override billing ledger status for{" "}
-              <strong className="font-mono">{statusEditTx?.invoiceId || statusEditTx?.transactionNo}</strong> (
+              <strong className="tabular-nums">{statusEditTx?.invoiceId || statusEditTx?.transactionNo}</strong> (
               {statusEditTx?.customerName}).
             </DialogDescription>
           </DialogHeader>
@@ -1839,11 +1839,11 @@ function SuperPurchaseTransactionsPage() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Workspace Tenant:</span>
-                    <span className="font-mono text-foreground font-medium">@{viewInvoice.tenantSlug || "system"}</span>
+                    <span className="tabular-nums text-foreground font-medium">@{viewInvoice.tenantSlug ||"system"}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Billing Email:</span>
-                    <span className="font-mono text-foreground">{viewInvoice.customerEmail}</span>
+                    <span className="tabular-nums text-foreground">{viewInvoice.customerEmail}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Subscription Plan:</span>
@@ -1859,7 +1859,7 @@ function SuperPurchaseTransactionsPage() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Reference / Payment ID:</span>
-                    <span className="font-mono text-[11px] text-foreground">
+                    <span className="tabular-nums text-[11px] text-foreground">
                       {viewInvoice.bankTransferRef || viewInvoice.gatewayPaymentId || viewInvoice.gatewayOrderId || "None"}
                     </span>
                   </div>

@@ -797,7 +797,7 @@ export default function SuperNotificationsPage() {
                     <Input
                       value={n.title_template}
                       onChange={(e) => handleLocalTemplateChange(n.id, "title_template", e.target.value)}
-                      className="text-xs font-mono"
+                      className="text-xs"
                     />
                   </div>
 
@@ -807,12 +807,12 @@ export default function SuperNotificationsPage() {
                       value={n.body_template}
                       onChange={(e) => handleLocalTemplateChange(n.id, "body_template", e.target.value)}
                       rows={3}
-                      className="text-xs font-mono"
+                      className="text-xs"
                     />
                   </div>
 
                   <div className="flex items-center justify-between border-t border-border/60 pt-3 text-xs text-muted-foreground">
-                    <span className="capitalize font-mono">Channel: {n.channel.replace("_", " ")}</span>
+                    <span className="capitalize">Channel: {n.channel.replace("_", " ")}</span>
                     <Badge variant={n.enabled ? "success" : "secondary"} className="text-[10px]">
                       {n.enabled ? "Active" : "Disabled"}
                     </Badge>
@@ -1000,7 +1000,7 @@ export default function SuperNotificationsPage() {
                           <span className="truncate">
                             {tenant.name}{" "}
                             {tenant.slug && (
-                              <span className="text-muted-foreground font-mono">({tenant.slug})</span>
+                              <span className="text-muted-foreground">({tenant.slug})</span>
                             )}
                           </span>
                         </label>

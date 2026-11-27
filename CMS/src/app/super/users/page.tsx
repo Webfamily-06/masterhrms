@@ -1101,7 +1101,7 @@ function SuperUsersPage() {
                             </div>
                           </TableCell>
 
-                          <TableCell className="py-2.5 font-mono text-[11px]">
+                          <TableCell className="py-2.5 tabular-nums text-[11px]">
                             <div className="flex items-center gap-1.5">
                               <Globe className="size-3 text-muted-foreground" />
                               {row.ip || "—"}

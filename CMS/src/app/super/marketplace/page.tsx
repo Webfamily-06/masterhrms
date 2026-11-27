@@ -871,7 +871,7 @@ function MarketplaceAdmin() {
                       >
                         <span className="truncate pr-2">{cat.name}</span>
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[11px] font-mono shrink-0 ${
+                          className={`px-2 py-0.5 rounded-full text-[11px] shrink-0 ${
                             isSelected ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
                           }`}
                         >
@@ -913,7 +913,7 @@ function MarketplaceAdmin() {
           {isLoadingAddons ? (
             <div className="py-24 grid place-items-center">
               <Loader2 className="size-8 animate-spin text-primary" />
-              <p className="text-xs text-muted-foreground font-mono mt-3">Loading marketplace catalog...</p>
+              <p className="text-xs text-muted-foreground mt-3">Loading marketplace catalog...</p>
             </div>
           ) : isErrorAddons ? (
             <Card className="p-12 text-center text-muted-foreground space-y-3 rounded-xl">
@@ -1012,13 +1012,13 @@ function MarketplaceAdmin() {
                   </div>
 
                   <div className="flex items-center flex-wrap gap-2 text-xs">
-                    <span className="text-muted-foreground font-mono">/{viewingAddon.slug}</span>
+                    <span className="text-muted-foreground tabular-nums">/{viewingAddon.slug}</span>
                     <span className="text-muted-foreground">&bull;</span>
                     <Badge variant="secondary" className="text-[10px]">
                       {viewingAddon.category}
                     </Badge>
                     <span className="text-muted-foreground">&bull;</span>
-                    <span className="font-semibold text-emerald-600 font-mono">
+                    <span className="font-semibold text-emerald-600 tabular-nums">
                       {Number(viewingAddon.price_monthly) === 0
                         ? "Free"
                         : `${formatSystemAmount(Number(viewingAddon.price_monthly), activeCurrencyConfig)} / mo`}
@@ -1077,13 +1077,13 @@ function MarketplaceAdmin() {
                 </div>
                 <div>
                   <span className="text-[11px] text-muted-foreground">SemVer Version: </span>
-                  <span className="text-xs font-mono font-semibold text-foreground">
+                  <span className="text-xs font-semibold text-foreground">
                     v{viewingAddon.version || "1.0.0"}
                   </span>
                 </div>
                 <div>
                   <span className="text-[11px] text-muted-foreground">Action Route: </span>
-                  <span className="text-xs font-mono font-semibold text-foreground">
+                  <span className="text-xs font-semibold text-foreground">
                     {viewingAddon.install_url || `/addons/${viewingAddon.slug}`}
                   </span>
                 </div>
@@ -1141,11 +1141,11 @@ function MarketplaceAdmin() {
               Add-on Releases Manager — {releasesAddon?.name}
             </DialogTitle>
             <DialogDescription className="text-xs flex items-center gap-2 flex-wrap">
-              <span className="font-mono">/{releasesAddon?.slug}</span>
+              <span className="tabular-nums">/{releasesAddon?.slug}</span>
               <span>&bull;</span>
               <span>
                 Current Version:{" "}
-                <strong className="font-mono text-foreground">
+                <strong className="text-foreground">
                   v{releasesData?.currentVersion || releasesAddon?.version || "1.0.0"}
                 </strong>
               </span>
@@ -1163,7 +1163,7 @@ function MarketplaceAdmin() {
                   <Rocket className="size-3.5 text-primary" />
                   Publish New SemVer Release
                 </h4>
-                <Badge variant="outline" className="text-[10px] font-mono">
+                <Badge variant="outline"className="text-[10px]">
                   Immutable History
                 </Badge>
               </div>
@@ -1185,7 +1185,7 @@ function MarketplaceAdmin() {
                     placeholder="e.g. 2.1.0"
                     value={releaseVersion}
                     onChange={(e) => setReleaseVersion(e.target.value)}
-                    className="h-9 text-xs font-mono"
+                    className="h-9 text-xs"
                     required
                   />
                 </div>
@@ -1280,11 +1280,11 @@ function MarketplaceAdmin() {
                     >
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2">
-                          <Badge className="font-mono text-[11px] bg-primary/10 text-primary border border-primary/20">
+                          <Badge className="tabular-nums text-[11px] bg-primary/10 text-primary border border-primary/20">
                             v{rel.version}
                           </Badge>
                           {rel.previousVersion && (
-                            <span className="text-[10px] font-mono text-muted-foreground">
+                            <span className="text-[10px] text-muted-foreground">
                               from v{rel.previousVersion}
                             </span>
                           )}
@@ -1362,7 +1362,7 @@ function MarketplaceAdmin() {
                   value={editing.slug ?? ""}
                   onChange={(e) => setEditing({ ...editing, slug: e.target.value })}
                   placeholder="e.g. whatsapp-alerts"
-                  className="font-mono text-xs rounded-xl h-9"
+                  className="text-xs rounded-xl h-9"
                 />
               </Field>
 
@@ -1407,7 +1407,7 @@ function MarketplaceAdmin() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold font-mono text-foreground">
+                  <span className="text-xs font-semibold tabular-nums text-foreground">
                     {editing.status === "disabled" ? "Disabled" : "Active"}
                   </span>
                   <Switch
@@ -1446,7 +1446,7 @@ function MarketplaceAdmin() {
                         value={editing.icon ?? ""}
                         onChange={(e) => setEditing({ ...editing, icon: e.target.value })}
                         placeholder="Saved storage URL (/uploads/addons/icons/...) or image link"
-                        className="text-xs font-mono h-9 rounded-xl"
+                        className="text-xs tabular-nums h-9 rounded-xl"
                       />
                       <input
                         type="file"
@@ -1501,7 +1501,7 @@ function MarketplaceAdmin() {
                   value={editing.version ?? ""}
                   onChange={(e) => setEditing({ ...editing, version: e.target.value })}
                   placeholder="1.0.0"
-                  className="rounded-xl text-xs h-9 font-mono"
+                  className="rounded-xl text-xs h-9"
                 />
               </Field>
 
@@ -1534,7 +1534,7 @@ function MarketplaceAdmin() {
                     value={featuresText}
                     onChange={(e) => setFeaturesText(e.target.value)}
                     placeholder={"Real-time sync\nAutomated notifications\nCustom templates"}
-                    className="text-xs font-mono rounded-xl"
+                    className="text-xs tabular-nums rounded-xl"
                   />
                 </Field>
               </div>
@@ -1755,7 +1755,7 @@ function AddonCatalogCard({
             onCheckedChange={(checked) => onToggleStatus(checked ? "active" : "disabled")}
             className="scale-75 origin-left"
           />
-          <span className="text-[10px] font-mono text-muted-foreground select-none">
+          <span className="text-[10px] text-muted-foreground select-none">
             {isEnabled ? "Active" : "Disabled"}
           </span>
         </div>
@@ -1803,10 +1803,10 @@ function AddonCatalogCard({
           {addon.name}
         </h4>
         <div className="flex items-center justify-center gap-1.5 text-[10px]">
-          <Badge variant="secondary" className="font-mono text-[10px] px-1.5 py-0">
+          <Badge variant="secondary"className="tabular-nums text-[10px] px-1.5 py-0">
             v{addon.version || "1.0.0"}
           </Badge>
-          <span className="font-semibold text-emerald-600 font-mono">{priceDisplay}</span>
+          <span className="font-semibold text-emerald-600 tabular-nums">{priceDisplay}</span>
         </div>
       </div>
 

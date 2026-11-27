@@ -431,7 +431,7 @@ function SuperCouponsPage() {
                     <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="py-3 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-mono font-bold text-sm text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/60 px-2 py-0.5 rounded">
+                          <span className="tabular-nums font-bold text-sm text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/60 px-2 py-0.5 rounded">
                             {c.code}
                           </span>
                           <button
@@ -484,7 +484,7 @@ function SuperCouponsPage() {
                                 <Badge
                                   key={d}
                                   variant="outline"
-                                  className={`text-[10px] uppercase font-mono py-0 px-1.5 ${
+                                  className={`text-[10px] uppercase py-0 px-1.5 ${
                                     isLegacy
                                       ? "border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
                                       : "border-purple-200 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300"
@@ -586,7 +586,7 @@ function SuperCouponsPage() {
                   value={code}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
                   disabled={Boolean(editingCoupon)}
-                  className="font-mono uppercase font-bold text-xs mt-1"
+                  className="uppercase font-bold text-xs mt-1"
                   required
                 />
               </div>

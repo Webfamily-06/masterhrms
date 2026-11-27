@@ -319,10 +319,10 @@ export function GuideManagerStudio() {
               <tbody className="divide-y divide-border/60">
                 {filtered.map((item, idx) => (
                   <tr key={item.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="p-3 pl-4 font-mono text-muted-foreground">{idx + 1}</td>
+                    <td className="p-3 pl-4 tabular-nums text-muted-foreground">{idx + 1}</td>
                     <td className="p-3 max-w-[280px]">
                       <div className="font-semibold text-foreground text-sm line-clamp-1">{item.title}</div>
-                      <div className="text-[11px] text-muted-foreground font-mono mt-0.5">{item.slug}</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">{item.slug}</div>
                       <div className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">{item.description}</div>
                     </td>
                     <td className="p-3">
@@ -330,9 +330,9 @@ export function GuideManagerStudio() {
                         {item.category || 'General'}
                       </Badge>
                     </td>
-                    <td className="p-3 font-mono text-[11px]">{item.type || 'PDF'}</td>
+                    <td className="p-3 tabular-nums text-[11px]">{item.type ||'PDF'}</td>
                     <td className="p-3 max-w-[200px]">
-                      <div className="font-mono text-[11px] truncate text-muted-foreground" title={item.downloadUrl}>
+                      <div className="tabular-nums text-[11px] truncate text-muted-foreground"title={item.downloadUrl}>
                         {item.downloadUrl}
                       </div>
                     </td>
@@ -438,7 +438,7 @@ export function GuideManagerStudio() {
                   placeholder="e.g. enterprise-compliance-checklist"
                   value={form.slug}
                   onChange={(e) => setForm((prev) => ({ ...prev, slug: e.target.value }))}
-                  className="h-9 text-xs font-mono"
+                  className="h-9 text-xs"
                 />
               </div>
 
@@ -490,7 +490,7 @@ export function GuideManagerStudio() {
                   placeholder="e.g. /downloads/guide.pdf or https://..."
                   value={form.downloadUrl}
                   onChange={(e) => setForm((prev) => ({ ...prev, downloadUrl: e.target.value }))}
-                  className="h-9 text-xs font-mono"
+                  className="h-9 text-xs"
                 />
               </div>
             </div>

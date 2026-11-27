@@ -132,7 +132,7 @@ export function StatCard({
           ) : (
             <div
               className={cn(
-                "text-lg sm:text-2xl font-black font-mono tracking-tight text-foreground truncate",
+                "text-lg sm:text-2xl font-black tabular-nums tracking-tight text-foreground truncate",
                 vStyle.valueText,
               )}
             >

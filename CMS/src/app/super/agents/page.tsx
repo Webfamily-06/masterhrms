@@ -474,7 +474,7 @@ export default function SuperAgentsPage() {
                         className="rounded border-border text-primary focus:ring-primary/20 h-3.5 w-3.5 cursor-pointer"
                       />
                     </td>
-                    <td className="p-3 font-mono font-bold text-primary">
+                    <td className="p-3 tabular-nums font-bold text-primary">
                       <button
                         type="button"
                         onClick={() => setEditAgent(a)}
@@ -497,8 +497,8 @@ export default function SuperAgentsPage() {
                     </td>
                     <td className="p-3 text-muted-foreground">{a.email}</td>
                     <td className="p-3 font-medium text-foreground">{a.role}</td>
-                    <td className="p-3 font-mono font-semibold text-foreground">{a.ticketsAssigned ?? 0}</td>
-                    <td className="p-3 font-mono font-semibold text-foreground">{a.ticketsResolved ?? 0}</td>
+                    <td className="p-3 tabular-nums font-semibold text-foreground">{a.ticketsAssigned ?? 0}</td>
+                    <td className="p-3 tabular-nums font-semibold text-foreground">{a.ticketsResolved ?? 0}</td>
                     <td className="p-3">
                       <Badge variant={a.availability === "Available" ? "success" : "destructive"} className="text-[10px]">
                         {a.availability}
@@ -639,7 +639,7 @@ export default function SuperAgentsPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base">Edit Agent: {editAgent?.name}</DialogTitle>
-            <DialogDescription className="text-xs font-mono">
+            <DialogDescription className="text-xs">
               {editAgent?.agentId}
             </DialogDescription>
           </DialogHeader>

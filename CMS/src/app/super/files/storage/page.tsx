@@ -596,7 +596,7 @@ export default function SuperStorageAdministrationPage() {
                     Live output from `/super/storage/analytics/fleet` ({lookbackDays}-day lookback).
                   </CardDescription>
                 </div>
-                <Badge variant="outline" className="text-[10px] font-mono">
+                <Badge variant="outline"className="text-[10px]">
                   Confidence: {fleetForecast?.confidence || 'INSUFFICIENT_DATA'}
                 </Badge>
               </CardHeader>
@@ -604,7 +604,7 @@ export default function SuperStorageAdministrationPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="p-3.5 rounded-lg bg-muted/40 border border-border/60">
                     <div className="text-[11px] text-muted-foreground">Daily Ingestion Velocity</div>
-                    <div className="text-base font-bold font-mono text-foreground mt-1">
+                    <div className="text-base font-bold text-foreground mt-1">
                       {fleetForecast?.formattedDailyGrowth || '0 B / day'}
                     </div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">
@@ -613,7 +613,7 @@ export default function SuperStorageAdministrationPage() {
                   </div>
                   <div className="p-3.5 rounded-lg bg-muted/40 border border-border/60">
                     <div className="text-[11px] text-muted-foreground">Projected Runway</div>
-                    <div className="text-base font-bold font-mono text-emerald-600 mt-1">
+                    <div className="text-base font-bold text-emerald-600 mt-1">
                       {fleetForecast?.projectedDaysRemaining != null
                         ? `${fleetForecast.projectedDaysRemaining} days`
                         : 'Stable / Ample'}
@@ -746,20 +746,20 @@ export default function SuperStorageAdministrationPage() {
                         <tr key={t.id} className="hover:bg-muted/40 transition-colors">
                           <td className="p-3 pl-4">
                             <div className="font-semibold text-foreground">{t.name}</div>
-                            <div className="text-[11px] font-mono text-muted-foreground">{t.slug}</div>
+                            <div className="text-[11px] text-muted-foreground">{t.slug}</div>
                           </td>
                           <td className="p-3">
                             <Badge variant="outline" className="text-[10px]">
                               {t.plan}
                             </Badge>
-                            <div className="text-[10px] font-mono text-muted-foreground mt-0.5">{t.quotaSource}</div>
+                            <div className="text-[10px] tabular-nums text-muted-foreground mt-0.5">{t.quotaSource}</div>
                           </td>
-                          <td className="p-3 font-mono">
+                          <td className="p-3 tabular-nums">
                             <div className="font-medium text-foreground">{t.formattedUsed}</div>
                             <div className="text-[10px] text-muted-foreground">of {t.formattedQuota}</div>
                           </td>
                           <td className="p-3 w-40">
-                            <div className="flex items-center justify-between text-[11px] font-mono mb-1">
+                            <div className="flex items-center justify-between text-[11px] tabular-nums mb-1">
                               <span>{pct}%</span>
                             </div>
                             <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
@@ -777,7 +777,7 @@ export default function SuperStorageAdministrationPage() {
                               />
                             </div>
                           </td>
-                          <td className="p-3 font-mono text-muted-foreground">
+                          <td className="p-3 tabular-nums text-muted-foreground">
                             {Number(t.fileCount || 0).toLocaleString()}
                           </td>
                           <td className="p-3">
@@ -869,11 +869,11 @@ export default function SuperStorageAdministrationPage() {
                 <CardTitle className="text-base font-semibold">Fleet Storage Growth &amp; Projection</CardTitle>
                 <CardDescription className="text-xs">
                   Net growth ({lookbackDays}d):{' '}
-                  <strong className="font-mono text-foreground">
+                  <strong className="text-foreground">
                     {fleetGrowth?.summary?.formattedNetPeriodGrowth || '0 B'}
                   </strong>{' '}
                   | Reclaimed:{' '}
-                  <strong className="font-mono text-emerald-600">
+                  <strong className="text-emerald-600">
                     {fleetGrowth?.summary?.formattedReclaimedPeriod || '0 B'}
                   </strong>
                 </CardDescription>
@@ -969,13 +969,13 @@ export default function SuperStorageAdministrationPage() {
                       <tr key={w.tenantId} className="hover:bg-muted/40 transition-colors">
                         <td className="p-3 pl-4">
                           <div className="font-semibold text-foreground">{w.name}</div>
-                          <div className="text-[11px] font-mono text-muted-foreground">{w.plan}</div>
+                          <div className="text-[11px] text-muted-foreground">{w.plan}</div>
                         </td>
-                        <td className="p-3 font-mono">
+                        <td className="p-3 tabular-nums">
                           {w.formattedCurrentUsage} / {w.formattedQuota} ({w.utilizationPercent}%)
                         </td>
-                        <td className="p-3 font-mono">{w.formattedDailyGrowth}</td>
-                        <td className="p-3 font-mono font-semibold">
+                        <td className="p-3 tabular-nums">{w.formattedDailyGrowth}</td>
+                        <td className="p-3 tabular-nums font-semibold">
                           {w.projectedDaysRemaining != null ? `${w.projectedDaysRemaining} days` : '—'}
                           {w.projectedExhaustionDate && (
                             <div className="text-[10px] text-muted-foreground font-normal">
@@ -1066,7 +1066,7 @@ export default function SuperStorageAdministrationPage() {
                         >
                           {item.severity}
                         </Badge>
-                        <Badge variant="outline" className="font-mono text-[10px]">
+                        <Badge variant="outline"className="text-[10px]">
                           {item.type}
                         </Badge>
                         <span className="font-semibold text-xs text-foreground">{item.tenantName}</span>
@@ -1075,7 +1075,7 @@ export default function SuperStorageAdministrationPage() {
                       <p className="text-xs text-muted-foreground">{item.message}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant="secondary" className="font-mono text-xs">
+                      <Badge variant="secondary"className="tabular-nums text-xs">
                         {item.metricFormatted}
                       </Badge>
                       <Button
@@ -1257,7 +1257,7 @@ export default function SuperStorageAdministrationPage() {
                   ) : (
                     retentionJobs.map((j: any) => (
                       <tr key={j.id} className="hover:bg-muted/40 transition-colors">
-                        <td className="p-3 pl-4 font-mono">
+                        <td className="p-3 pl-4 tabular-nums">
                           <div className="font-semibold text-foreground">{j.id.slice(0, 12)}...</div>
                           <div className="text-[10px] text-muted-foreground">Tenant: {j.tenantId}</div>
                         </td>
@@ -1280,7 +1280,7 @@ export default function SuperStorageAdministrationPage() {
                             {j.status}
                           </Badge>
                         </td>
-                        <td className="p-3 font-mono">
+                        <td className="p-3 tabular-nums">
                           {j.formattedDeletedBytes || formatBytes(j.deletedBytes || 0)} ({j.deletedCount ?? 0} files)
                         </td>
                         <td className="p-3 pr-4 text-muted-foreground">
@@ -1384,7 +1384,7 @@ export default function SuperStorageAdministrationPage() {
                     <Activity className="size-4 text-emerald-600" />
                     Live Migration Telemetry
                   </CardTitle>
-                  <CardDescription className="text-xs font-mono">
+                  <CardDescription className="text-xs">
                     Job: {migrationStatusRes?.jobId || 'idle'}
                   </CardDescription>
                 </div>
@@ -1402,33 +1402,33 @@ export default function SuperStorageAdministrationPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
                     <div className="text-[11px] text-muted-foreground">Candidate Local Files</div>
-                    <div className="text-lg font-bold font-mono">{migrationStatusRes?.totalFiles ?? 0}</div>
+                    <div className="text-lg font-bold tabular-nums">{migrationStatusRes?.totalFiles ?? 0}</div>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
                     <div className="text-[11px] text-muted-foreground">Processed</div>
-                    <div className="text-lg font-bold font-mono">{migrationStatusRes?.processedCount ?? 0}</div>
+                    <div className="text-lg font-bold tabular-nums">{migrationStatusRes?.processedCount ?? 0}</div>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
                     <div className="text-[11px] text-muted-foreground">Migrated</div>
-                    <div className="text-lg font-bold font-mono text-emerald-600">
+                    <div className="text-lg font-bold tabular-nums text-emerald-600">
                       {migrationStatusRes?.migratedCount ?? 0}
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
                     <div className="text-[11px] text-muted-foreground">Skipped</div>
-                    <div className="text-lg font-bold font-mono text-amber-600">
+                    <div className="text-lg font-bold tabular-nums text-amber-600">
                       {migrationStatusRes?.skippedCount ?? 0}
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
                     <div className="text-[11px] text-muted-foreground">Failed</div>
-                    <div className="text-lg font-bold font-mono text-rose-600">
+                    <div className="text-lg font-bold tabular-nums text-rose-600">
                       {migrationStatusRes?.failedCount ?? 0}
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
                     <div className="text-[11px] text-muted-foreground">Migrated Volume</div>
-                    <div className="text-lg font-bold font-mono">
+                    <div className="text-lg font-bold tabular-nums">
                       {formatBytes(migrationStatusRes?.migratedBytes || 0)}
                     </div>
                   </div>
@@ -1437,7 +1437,7 @@ export default function SuperStorageAdministrationPage() {
                 {Array.isArray(migrationStatusRes?.lastErrors) && migrationStatusRes.lastErrors.length > 0 && (
                   <div className="space-y-1.5">
                     <Label className="text-rose-600">Recent Migration Errors</Label>
-                    <div className="max-h-36 overflow-y-auto space-y-1 p-2.5 rounded-lg border border-rose-500/30 bg-rose-500/5 font-mono text-[11px]">
+                    <div className="max-h-36 overflow-y-auto space-y-1 p-2.5 rounded-lg border border-rose-500/30 bg-rose-500/5 text-[11px]">
                       {migrationStatusRes.lastErrors.map((err: any, i: number) => (
                         <div key={i}>
                           [{err.fileId}]: {err.error}
@@ -1475,22 +1475,22 @@ export default function SuperStorageAdministrationPage() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60">
                   <div className="text-muted-foreground">Effective Quota</div>
-                  <div className="font-bold font-mono text-sm mt-0.5">{tenantDetail.quota?.formattedQuota}</div>
+                  <div className="font-bold tabular-nums text-sm mt-0.5">{tenantDetail.quota?.formattedQuota}</div>
                   <div className="text-[10px] text-muted-foreground">{tenantDetail.quota?.quotaSource}</div>
                 </div>
                 <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60">
                   <div className="text-muted-foreground">Active Files</div>
-                  <div className="font-bold font-mono text-sm mt-0.5">{tenantDetail.usage?.formattedActive}</div>
+                  <div className="font-bold tabular-nums text-sm mt-0.5">{tenantDetail.usage?.formattedActive}</div>
                   <div className="text-[10px] text-muted-foreground">{tenantDetail.usage?.fileCount} files</div>
                 </div>
                 <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60">
                   <div className="text-muted-foreground">Recycle Bin</div>
-                  <div className="font-bold font-mono text-sm mt-0.5">{tenantDetail.usage?.formattedTrash}</div>
+                  <div className="font-bold tabular-nums text-sm mt-0.5">{tenantDetail.usage?.formattedTrash}</div>
                   <div className="text-[10px] text-amber-600 font-semibold">Reclaimable</div>
                 </div>
                 <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60">
                   <div className="text-muted-foreground">Versions</div>
-                  <div className="font-bold font-mono text-sm mt-0.5">{tenantDetail.usage?.formattedVersion}</div>
+                  <div className="font-bold tabular-nums text-sm mt-0.5">{tenantDetail.usage?.formattedVersion}</div>
                   <div className="text-[10px] text-muted-foreground">Historical blobs</div>
                 </div>
               </div>
@@ -1504,8 +1504,8 @@ export default function SuperStorageAdministrationPage() {
                       <div className="flex-1 mx-3 h-1.5 rounded-full bg-muted overflow-hidden">
                         <div className="h-full bg-primary" style={{ width: `${cat.percentage}%` }} />
                       </div>
-                      <span className="font-mono w-16 text-right">{cat.formatted}</span>
-                      <span className="text-muted-foreground font-mono w-12 text-right">({cat.percentage}%)</span>
+                      <span className="tabular-nums w-16 text-right">{cat.formatted}</span>
+                      <span className="text-muted-foreground tabular-nums w-12 text-right">({cat.percentage}%)</span>
                     </div>
                   ))}
                 </div>
@@ -1522,9 +1522,9 @@ export default function SuperStorageAdministrationPage() {
                       >
                         <div>
                           <span className="font-semibold text-foreground">{u.name}</span>
-                          <span className="text-muted-foreground ml-2 font-mono text-[10px]">{u.email}</span>
+                          <span className="text-muted-foreground ml-2 text-[10px]">{u.email}</span>
                         </div>
-                        <div className="font-mono">{u.formattedUsed}</div>
+                        <div>{u.formattedUsed}</div>
                       </div>
                     ))}
                   </div>
@@ -1579,14 +1579,14 @@ export default function SuperStorageAdministrationPage() {
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
                   <div className="text-[11px] text-muted-foreground">Current Quota</div>
-                  <div className="font-mono font-bold text-sm">{tenantQuotaData.tenant?.formattedQuota}</div>
+                  <div className="tabular-nums font-bold text-sm">{tenantQuotaData.tenant?.formattedQuota}</div>
                   <div className="text-[10px] text-muted-foreground">
                     Source: {tenantQuotaData.tenant?.source} ({tenantQuotaData.tenant?.planName})
                   </div>
                 </div>
                 <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
                   <div className="text-[11px] text-muted-foreground">Used / Available</div>
-                  <div className="font-mono font-bold text-sm">
+                  <div className="tabular-nums font-bold text-sm">
                     {tenantQuotaData.tenant?.formattedUsed} / {tenantQuotaData.tenant?.formattedAvailable}
                   </div>
                   <div className="text-[10px] text-muted-foreground">
@@ -1598,20 +1598,20 @@ export default function SuperStorageAdministrationPage() {
               <div className="p-3 rounded-lg bg-muted/20 border border-border/60 space-y-1">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Platform Hard Ceiling</span>
-                  <span className="font-mono font-medium">
+                  <span className="tabular-nums font-medium">
                     {tenantQuotaData.platform?.formattedCeiling || tenantQuotaData.platformCeiling?.formattedLimit || '1 TB'}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Department Allocations</span>
-                  <span className="font-mono">
+                  <span className="tabular-nums">
                     {tenantQuotaData.allocations?.departments?.formattedAllocatedTotal || '0 B'} (
                     {tenantQuotaData.allocations?.departments?.departmentCount ?? 0} depts)
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">User Overrides Active</span>
-                  <span className="font-mono">
+                  <span className="tabular-nums">
                     {tenantQuotaData.allocations?.usersWithOverridesCount ?? 0}
                   </span>
                 </div>
@@ -1627,9 +1627,9 @@ export default function SuperStorageAdministrationPage() {
                     value={quotaInputGb}
                     onChange={(e) => setQuotaInputGb(e.target.value)}
                     placeholder="e.g. 50"
-                    className="font-mono"
+                    className="tabular-nums"
                   />
-                  <span className="text-muted-foreground font-mono shrink-0">GB</span>
+                  <span className="text-muted-foreground shrink-0">GB</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {[10, 25, 50, 100, 250, 500].map((preset) => (
@@ -1702,7 +1702,7 @@ export default function SuperStorageAdministrationPage() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60">
                   <div className="text-muted-foreground">Current Usage</div>
-                  <div className="font-mono font-bold text-sm">
+                  <div className="tabular-nums font-bold text-sm">
                     {tenantForecastData.forecast.formattedCurrentUsage}
                   </div>
                   <div className="text-[10px] text-muted-foreground">
@@ -1711,7 +1711,7 @@ export default function SuperStorageAdministrationPage() {
                 </div>
                 <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60">
                   <div className="text-muted-foreground">Daily Velocity</div>
-                  <div className="font-mono font-bold text-sm">
+                  <div className="font-bold text-sm">
                     {tenantForecastData.forecast.formattedDailyGrowth}
                   </div>
                   <div className="text-[10px] text-muted-foreground">
@@ -1720,7 +1720,7 @@ export default function SuperStorageAdministrationPage() {
                 </div>
                 <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60">
                   <div className="text-muted-foreground">30d Projection</div>
-                  <div className="font-mono font-bold text-sm">
+                  <div className="font-bold text-sm">
                     {tenantForecastData.forecast.formattedProjected30Days}
                   </div>
                   <div className="text-[10px] text-muted-foreground">
@@ -1729,7 +1729,7 @@ export default function SuperStorageAdministrationPage() {
                 </div>
                 <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60">
                   <div className="text-muted-foreground">Days Remaining</div>
-                  <div className="font-mono font-bold text-sm">
+                  <div className="font-bold text-sm">
                     {tenantForecastData.forecast.projectedDaysRemaining != null
                       ? `${tenantForecastData.forecast.projectedDaysRemaining}d`
                       : 'Stable'}

@@ -659,7 +659,7 @@ export function BlogManagerStudio() {
                   </div>
 
                   <div className="p-3 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground bg-muted/20">
-                    <span className="truncate max-w-[120px] font-mono text-[10px] text-muted-foreground/80">/{cleanSlug}</span>
+                    <span className="truncate max-w-[120px] tabular-nums text-[10px] text-muted-foreground/80">/{cleanSlug}</span>
                     <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
@@ -715,7 +715,7 @@ export function BlogManagerStudio() {
                 >
                   <ChevronLeft className="size-3.5" /> Previous
                 </Button>
-                <span className="px-2 font-mono text-xs">
+                <span className="px-2 tabular-nums text-xs">
                   {currentPage} / {totalPages}
                 </span>
                 <Button
@@ -754,7 +754,7 @@ export function BlogManagerStudio() {
 
                   return (
                     <tr key={post.id} className="hover:bg-muted/30 transition-colors group">
-                      <td className="py-3.5 px-3 pl-4 text-center font-mono text-muted-foreground align-middle">
+                      <td className="py-3.5 px-3 pl-4 text-center tabular-nums text-muted-foreground align-middle">
                         {(currentPage - 1) * pageSize + idx + 1}
                       </td>
                       <td className="py-3.5 px-4 align-middle">
@@ -773,7 +773,7 @@ export function BlogManagerStudio() {
                             >
                               {post.title}
                             </div>
-                            <div className="text-[11px] text-muted-foreground/80 font-mono truncate max-w-sm mt-0.5">
+                            <div className="text-[11px] text-muted-foreground/80 truncate max-w-sm mt-0.5">
                               /blog/{cleanSlug}
                             </div>
                           </div>
@@ -786,7 +786,7 @@ export function BlogManagerStudio() {
                         {Array.isArray(c.tags) && c.tags.length > 0 && (
                           <div className="flex gap-1 mt-1.5 flex-wrap">
                             {c.tags.slice(0, 3).map((t: string) => (
-                              <span key={t} className="text-[9px] bg-muted px-1.5 py-0.5 rounded-md font-mono text-muted-foreground border border-border/40">
+                              <span key={t} className="text-[9px] bg-muted px-1.5 py-0.5 rounded-md text-muted-foreground border border-border/40">
                                 #{t}
                               </span>
                             ))}
@@ -875,7 +875,7 @@ export function BlogManagerStudio() {
                   >
                     <ChevronLeft className="size-3.5" /> Previous
                   </Button>
-                  <span className="px-2 font-mono text-xs">
+                  <span className="px-2 tabular-nums text-xs">
                     {currentPage} / {totalPages}
                   </span>
                   <Button
@@ -969,7 +969,7 @@ export function BlogManagerStudio() {
                         Configure title, permalink slug, rich body content, and cover assets.
                       </p>
                     </div>
-                    <Badge variant="outline" className="text-[11px] font-mono">
+                    <Badge variant="outline"className="text-[11px]">
                       Markdown Enabled
                     </Badge>
                   </div>
@@ -995,7 +995,7 @@ export function BlogManagerStudio() {
                     />
                     <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
                       <span>Public URL preview:</span>
-                      <span className="font-mono text-primary font-medium">/blog/{form.slug || 'your-slug-here'}</span>
+                      <span className="text-primary font-medium">/blog/{form.slug ||'your-slug-here'}</span>
                     </div>
                   </div>
 
@@ -1005,13 +1005,13 @@ export function BlogManagerStudio() {
                       Permalink Slug <span className="text-destructive">*</span>
                     </Label>
                     <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 px-3 h-9">
-                      <span className="font-mono text-xs text-slate-500 shrink-0">{resolvedDomain}/blog/</span>
+                      <span className="tabular-nums text-xs text-slate-500 shrink-0">{resolvedDomain}/blog/</span>
                       <input
                         id="blog-slug-input"
                         value={form.slug}
                         onChange={(e) => setForm((p) => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') }))}
                         placeholder="ai-skills-enterprise-payroll"
-                        className="bg-transparent border-0 outline-none w-full font-mono text-xs text-slate-900 dark:text-slate-100 pl-1"
+                        className="bg-transparent border-0 outline-none w-full text-xs text-slate-900 dark:text-slate-100 pl-1"
                       />
                     </div>
                   </div>
@@ -1115,7 +1115,7 @@ export function BlogManagerStudio() {
                         onChange={(e) => setForm((p) => ({ ...p, body: e.target.value }))}
                         rows={14}
                         placeholder="Write or paste your article content here in Markdown syntax (# Heading, **bold**, lists, code blocks, quotes)..."
-                        className="border-0 shadow-none rounded-none font-mono text-xs leading-relaxed focus-visible:ring-0 p-3.5 resize-y bg-transparent"
+                        className="border-0 shadow-none rounded-none text-xs leading-relaxed focus-visible:ring-0 p-3.5 resize-y bg-transparent"
                       />
                     </div>
                   </div>
@@ -1190,7 +1190,7 @@ export function BlogManagerStudio() {
                         value={form.coverImage}
                         onChange={(e) => setForm((p) => ({ ...p, coverImage: e.target.value }))}
                         placeholder="https://images.unsplash.com/photo-..."
-                        className="h-8 text-xs font-mono border-slate-200 dark:border-slate-800"
+                        className="h-8 text-xs border-slate-200 dark:border-slate-800"
                       />
                     </div>
                   </div>
@@ -1408,7 +1408,7 @@ export function BlogManagerStudio() {
                       <p className="text-xs font-medium text-blue-600 dark:text-blue-400 truncate">
                         {form.seoTitle || form.title || 'Untitled Article'} | MASTERHRMS
                       </p>
-                      <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-mono">
+                      <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
                         https://{resolvedDomain}/blog/{form.slug || 'slug'}
                       </p>
                       <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2">
@@ -1428,7 +1428,7 @@ export function BlogManagerStudio() {
                 </Badge>
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">{form.title || 'Untitled Post'}</h1>
                 <p className="text-sm text-muted-foreground italic">{form.excerpt}</p>
-                <div className="flex items-center gap-4 text-xs text-muted-foreground border-b pb-3 font-mono">
+                <div className="flex items-center gap-4 text-xs text-muted-foreground border-b pb-3 tabular-nums">
                   <span>Author: {form.author}</span>
                   <span>Read: {form.readTime}</span>
                   <span>Date: {form.publishedAt}</span>
@@ -1536,7 +1536,7 @@ export function BlogManagerStudio() {
                   <div key={cat.id} className="flex items-center justify-between p-2 border rounded-md bg-card">
                     <div>
                       <div className="font-semibold text-foreground text-xs">{cat.name}</div>
-                      <div className="text-[10px] text-muted-foreground font-mono">
+                      <div className="text-[10px] text-muted-foreground tabular-nums">
                         slug: /{cat.slug} • {count} post{count !== 1 ? 's' : ''}
                       </div>
                     </div>

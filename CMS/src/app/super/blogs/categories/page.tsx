@@ -274,7 +274,7 @@ export default function BlogCategoriesPage() {
                     <div className="space-y-1">
                       <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
                         <span>{cat.name}</span>
-                        <Badge variant="secondary" className="text-[10px] py-0 px-1.5 h-4 font-mono font-normal">
+                        <Badge variant="secondary"className="text-[10px] py-0 px-1.5 h-4 font-normal">
                           {cat.slug}
                         </Badge>
                       </CardTitle>
@@ -356,7 +356,7 @@ export default function BlogCategoriesPage() {
                 value={formSlug}
                 onChange={(e) => setFormSlug(e.target.value)}
                 placeholder="e.g. workforce-ai"
-                className="text-xs font-mono"
+                className="text-xs"
               />
             </div>
 
