@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { getTenantWorkspaceUrl } from "@/lib/platform-domain";
 import { useState, useEffect, useRef, useMemo } from "react";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -413,358 +414,91 @@ function SuperSettingsAdmin() {
   const navigate = Route.useNavigate();
   const searchParams = useSearch({ from: "/_authenticated/super/settings" });
   const [form, setForm] = useState<SuperSettings>(DEFAULT_SETTINGS);
-  const [activeTab, setActiveTabState] = useState<string>(
-    searchParams.tab === "media" ? "overview" : searchParams.tab || "overview",
+  type SuperSectionId =
+    | "branding"
+    | "addresses"
+    | "currency"
+    | "payments"
+    | "smtp"
+    | "oauth"
+    | "pusher"
+    | "firebase"
+    | "system"
+    | "runtime-factories"
+    | "media";
+
+  const SUPER_NAV_ITEMS: Array<{
+    id: SuperSectionId;
+    label: string;
+    icon: string;
+    badge?: string;
+  }> = useMemo(
+    () => [
+      { id: "branding", label: "Brand Settings", icon: "ph-palette" },
+      { id: "addresses", label: "Company & Dispatch", icon: "ph-buildings" },
+      { id: "currency", label: "Currency & Locale", icon: "ph-currency-inr" },
+      {
+        id: "payments",
+        label: "Payment Gateways",
+        icon: "ph-credit-card",
+        badge: form.razorpayEnabled ? (form.razorpayMode === "live" ? "Live" : "Test") : undefined,
+      },
+      { id: "smtp", label: "Email Settings", icon: "ph-envelope-simple" },
+      { id: "oauth", label: "OAuth 2.0 Settings", icon: "ph-key" },
+      { id: "pusher", label: "WebSockets & Events", icon: "ph-broadcast" },
+      { id: "firebase", label: "Firebase Push & FCM", icon: "ph-bell-ringing" },
+      {
+        id: "system",
+        label: "Maintenance & System",
+        icon: "ph-wrench",
+        badge: form.maintenanceMode ? "Active" : undefined,
+      },
+      { id: "runtime-factories", label: "S3 & Runtime Gateways", icon: "ph-sliders-horizontal" },
+      { id: "media", label: "Media Gallery", icon: "ph-images" },
+    ],
+    [form.maintenanceMode, form.razorpayEnabled, form.razorpayMode],
   );
-  const [settingsSearchQuery, setSettingsSearchQuery] = useState("");
-  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("all");
+
+  const [activeSection, setActiveSection] = useState<SuperSectionId>(
+    (searchParams.tab && searchParams.tab !== "overview" && searchParams.tab !== "media"
+      ? (searchParams.tab as SuperSectionId)
+      : "branding"),
+  );
   const [showRazorpaySecret, setShowRazorpaySecret] = useState(false);
   const [isTestingRazorpay, setIsTestingRazorpay] = useState(false);
+  const [showRuntimeSuite, setShowRuntimeSuite] = useState(searchParams.tab === "runtime-factories");
 
-  const setActiveTab = (tab: string) => {
-    if (tab === "media") {
+  const scrollToSection = (id: SuperSectionId) => {
+    if (id === "media") {
       navigate({ to: "/super/media" as any });
       return;
     }
-    setActiveTabState(tab);
-    navigate({ search: { tab } as any, replace: true });
+    if (id === "runtime-factories") {
+      setShowRuntimeSuite(true);
+    }
+    setActiveSection(id);
+    const el = document.getElementById(`settings-section-${id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
-  // Keep activeTab in sync with URL search param, and populate default tab in URL if missing.
-  // Instantly redirect /super/settings?tab=media to the canonical Platform Media Gallery /super/media.
+  // Handle ?tab= deep links from sidebar or other pages
   useEffect(() => {
     if (searchParams.tab === "media") {
       navigate({ to: "/super/media" as any, replace: true });
       return;
     }
-    if (searchParams.tab && searchParams.tab !== activeTab) {
-      setActiveTabState(searchParams.tab);
-    } else if (!searchParams.tab) {
-      navigate({ search: { tab: activeTab } as any, replace: true });
+    if (searchParams.tab && searchParams.tab !== "overview") {
+      const target = searchParams.tab as SuperSectionId;
+      if (target === "runtime-factories") setShowRuntimeSuite(true);
+      setActiveSection(target);
+      setTimeout(() => {
+        const el = document.getElementById(`settings-section-${target}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 150);
     }
-  }, [searchParams.tab, activeTab, navigate]);
-
-  // Nested Menus Hierarchy Definition — Matches Tenant Settings UI architecture
-  const SUPER_SETTINGS_NAV: SettingsNavCategory[] = useMemo(
-    () => [
-      {
-        id: "overview-cat",
-        label: "Quick Access",
-        description: "Central overview and directory of all platform settings",
-        items: [
-          {
-            id: "overview",
-            label: "Settings Quick Hub",
-            description: "Visual directory & search across all platform settings modules",
-            icon: LayoutDashboard,
-          },
-        ],
-      },
-      {
-        id: "identity",
-        label: "Brand & Identity",
-        description: "Logos, themes, legal entity and media storage",
-        items: [
-          {
-            id: "runtime-factories",
-            label: "S3 Runtime Settings",
-            description: "Canonical 9-category runtime factories & connection tests",
-            icon: SlidersHorizontal,
-          },
-          {
-            id: "branding",
-            label: "Branding & Themes",
-            description: "Logos, favicon, primary theme color and brand identity",
-            icon: Palette,
-          },
-          {
-            id: "addresses",
-            label: "Dispatch & Invoicing",
-            description: "Platform legal name, GSTIN, origin dispatch address",
-            icon: Building2,
-          },
-          {
-            id: "media",
-            label: "Media Gallery",
-            description: "Authoritative platform asset and vector repository",
-            icon: ImageIcon,
-          },
-        ],
-      },
-      {
-        id: "finance",
-        label: "Currency & Payments",
-        description: "Master currency, formatting and payment gateways",
-        items: [
-          {
-            id: "currency",
-            label: "Currency & Locale",
-            description: "Currency symbols, separators and number formatting",
-            icon: Coins,
-          },
-          {
-            id: "payments",
-            label: "Payment Gateways",
-            description: "Razorpay, PayPal & Bank transfer credentials",
-            icon: CreditCard,
-            badge: form.razorpayEnabled
-              ? form.razorpayMode === "live"
-                ? "LIVE"
-                : "SANDBOX"
-              : undefined,
-            badgeColor:
-              form.razorpayMode === "live"
-                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                : "bg-amber-500/10 text-amber-600 border-amber-500/20",
-          },
-        ],
-      },
-      {
-        id: "integrations",
-        label: "Comms & Integrations",
-        description: "Email delivery, OAuth logins, and live websockets",
-        items: [
-          {
-            id: "smtp",
-            label: "SMTP Email Engine",
-            description: "Mail server, credentials & live test email dispatch",
-            icon: Mail,
-          },
-          {
-            id: "oauth",
-            label: "OAuth 2.0 Logins",
-            description: "Google, Apple, LinkedIn & Facebook social sign-in",
-            icon: Key,
-          },
-          {
-            id: "pusher",
-            label: "WebSockets & Events",
-            description: "Pusher & Soketi real-time event broadcasting",
-            icon: Radio,
-          },
-          {
-            id: "firebase",
-            label: "Firebase Push & FCM",
-            description: "Web Push VAPID, Firebase SDK & Service Account",
-            icon: Bell,
-          },
-        ],
-      },
-      {
-        id: "operations",
-        label: "Platform Operations",
-        description: "Maintenance schedule and emergency broadcast",
-        items: [
-          {
-            id: "system",
-            label: "Maintenance & System",
-            description: "Emergency maintenance mode, lockouts & announcements",
-            icon: Wrench,
-            badge: form.maintenanceMode ? "ACTIVE" : undefined,
-            badgeColor: "bg-rose-500/10 text-rose-600 border-rose-500/20",
-          },
-        ],
-      },
-    ],
-    [form.maintenanceMode, form.razorpayEnabled, form.razorpayMode],
-  );
-
-  // Interactive Quick Hub Cards (1:1 Tenant Settings Directory Pattern)
-  const ALL_SUPER_SETTING_CARDS = useMemo(
-    () => [
-      {
-        id: "branding",
-        tab: "branding",
-        category: "identity",
-        categoryLabel: "Brand & Identity",
-        title: "Branding & Themes",
-        description: "Customize light/dark logos, favicon, primary brand accent color, typography and portal footer.",
-        icon: Palette,
-        iconBg: "bg-purple-500/10",
-        iconColor: "text-purple-600 dark:text-purple-400",
-        badge: "White-Label",
-        keywords: ["branding", "logo", "favicon", "theme", "color", "footer", "appearance"],
-      },
-      {
-        id: "addresses",
-        tab: "addresses",
-        category: "identity",
-        categoryLabel: "Brand & Identity",
-        title: "Dispatch & Invoicing Profile",
-        description: "Authoritative platform legal entity name, GSTIN tax ID, billing phone and dispatch address.",
-        icon: Building2,
-        iconBg: "bg-emerald-500/10",
-        iconColor: "text-emerald-600 dark:text-emerald-400",
-        badge: "Legal Entity",
-        keywords: ["address", "gst", "gstin", "company", "legal", "invoice", "dispatch"],
-      },
-      {
-        id: "runtime-factories",
-        tab: "runtime-factories",
-        category: "identity",
-        categoryLabel: "Brand & Identity",
-        title: "S3 & Runtime Gateways",
-        description: "Manage canonical 9-category runtime settings for S3/MinIO storage, security, email and payments.",
-        icon: SlidersHorizontal,
-        iconBg: "bg-cyan-500/10",
-        iconColor: "text-cyan-600 dark:text-cyan-400",
-        badge: "Gateways & S3",
-        keywords: ["s3", "storage", "minio", "runtime", "gateway", "factories"],
-      },
-      {
-        id: "media",
-        tab: "media",
-        category: "identity",
-        categoryLabel: "Brand & Identity",
-        title: "Platform Media Gallery",
-        description: "Browse and manage uploaded platform images, vector brand assets and marketing media files.",
-        icon: ImageIcon,
-        iconBg: "bg-blue-500/10",
-        iconColor: "text-blue-600 dark:text-blue-400",
-        badge: "Asset Vault",
-        keywords: ["media", "gallery", "images", "uploads", "assets"],
-      },
-      {
-        id: "currency",
-        tab: "currency",
-        category: "finance",
-        categoryLabel: "Currency & Payments",
-        title: "Currency & Regional Locale",
-        description: "Configure master currency code, symbol placement, separators, date/time formats and default language.",
-        icon: Coins,
-        iconBg: "bg-amber-500/10",
-        iconColor: "text-amber-600 dark:text-amber-400",
-        badge: `${form.defaultCurrency} (${form.currencySymbol})`,
-        keywords: ["currency", "inr", "usd", "locale", "language", "date", "time", "format"],
-      },
-      {
-        id: "payments",
-        tab: "payments",
-        category: "finance",
-        categoryLabel: "Currency & Payments",
-        title: "Payment Gateways & Bank Wire",
-        description: "Configure Razorpay (Live & Sandbox), PayPal checkout credentials, and manual bank transfer instructions.",
-        icon: CreditCard,
-        iconBg: "bg-emerald-500/10",
-        iconColor: "text-emerald-600 dark:text-emerald-400",
-        badge: form.razorpayEnabled
-          ? `Razorpay ${form.razorpayMode === "live" ? "Live" : "Sandbox"}`
-          : "Configure Gateways",
-        badgeColor: form.razorpayEnabled
-          ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-          : undefined,
-        keywords: ["razorpay", "paypal", "payment", "gateway", "bank", "wire", "billing", "live", "sandbox"],
-      },
-      {
-        id: "smtp",
-        tab: "smtp",
-        category: "integrations",
-        categoryLabel: "Comms & Integrations",
-        title: "SMTP Email Engine",
-        description: "Configure outbound mail relay host, TLS encryption, OTP templates and run live delivery tests.",
-        icon: Mail,
-        iconBg: "bg-blue-500/10",
-        iconColor: "text-blue-600 dark:text-blue-400",
-        badge: form.smtpHost ? "SMTP Ready" : "Setup Required",
-        badgeColor: form.smtpHost
-          ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-          : "bg-amber-500/10 text-amber-600 border-amber-500/20",
-        keywords: ["smtp", "email", "mail", "otp", "relay", "mailgun", "sendgrid"],
-      },
-      {
-        id: "oauth",
-        tab: "oauth",
-        category: "integrations",
-        categoryLabel: "Comms & Integrations",
-        title: "OAuth 2.0 Social Sign-In",
-        description: "Manage Google, Apple, LinkedIn and Facebook OAuth client credentials and callback endpoints.",
-        icon: Key,
-        iconBg: "bg-indigo-500/10",
-        iconColor: "text-indigo-600 dark:text-indigo-400",
-        badge: "SSO Providers",
-        keywords: ["oauth", "google", "apple", "linkedin", "facebook", "sso", "login"],
-      },
-      {
-        id: "pusher",
-        tab: "pusher",
-        category: "integrations",
-        categoryLabel: "Comms & Integrations",
-        title: "WebSockets & Realtime Events",
-        description: "Configure Pusher or Soketi channels for instant live chat, notifications and attendance updates.",
-        icon: Radio,
-        iconBg: "bg-violet-500/10",
-        iconColor: "text-violet-600 dark:text-violet-400",
-        badge: form.pusherEnabled ? "Active" : "Disabled",
-        badgeColor: form.pusherEnabled
-          ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-          : undefined,
-        keywords: ["pusher", "soketi", "websocket", "realtime", "events", "chat"],
-      },
-      {
-        id: "firebase",
-        tab: "firebase",
-        category: "integrations",
-        categoryLabel: "Comms & Integrations",
-        title: "Firebase Push & FCM",
-        description: "Configure Firebase Cloud Messaging Web Push VAPID keys, SDK config and service account JSON.",
-        icon: Bell,
-        iconBg: "bg-orange-500/10",
-        iconColor: "text-orange-600 dark:text-orange-400",
-        badge: form.firebaseEnabled ? "FCM Active" : "Optional",
-        keywords: ["firebase", "fcm", "push", "notifications", "vapid", "mobile"],
-      },
-      {
-        id: "system",
-        tab: "system",
-        category: "operations",
-        categoryLabel: "Platform Operations",
-        title: "Maintenance & System Controls",
-        description: "Toggle emergency maintenance mode, schedule maintenance windows, reCAPTCHA and broadcast banners.",
-        icon: Wrench,
-        iconBg: "bg-rose-500/10",
-        iconColor: "text-rose-600 dark:text-rose-400",
-        badge: form.maintenanceMode ? "Maintenance Active" : "Operational",
-        badgeColor: form.maintenanceMode
-          ? "bg-rose-500/10 text-rose-600 border-rose-500/20"
-          : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-        keywords: ["maintenance", "downtime", "recaptcha", "security", "system", "banner"],
-      },
-    ],
-    [
-      form.defaultCurrency,
-      form.currencySymbol,
-      form.razorpayEnabled,
-      form.razorpayMode,
-      form.smtpHost,
-      form.pusherEnabled,
-      form.firebaseEnabled,
-      form.maintenanceMode,
-    ],
-  );
-
-  const filteredSettingCards = useMemo(() => {
-    return ALL_SUPER_SETTING_CARDS.filter((card) => {
-      if (selectedCategoryFilter !== "all" && card.category !== selectedCategoryFilter) {
-        return false;
-      }
-      if (!settingsSearchQuery.trim()) return true;
-      const q = settingsSearchQuery.toLowerCase();
-      return (
-        card.title.toLowerCase().includes(q) ||
-        card.description.toLowerCase().includes(q) ||
-        card.categoryLabel.toLowerCase().includes(q) ||
-        card.keywords.some((k) => k.toLowerCase().includes(q))
-      );
-    });
-  }, [ALL_SUPER_SETTING_CARDS, selectedCategoryFilter, settingsSearchQuery]);
-
-  const activeNavInfo = useMemo(() => {
-    for (const cat of SUPER_SETTINGS_NAV) {
-      const found = cat.items.find((i) => i.id === activeTab);
-      if (found) return { category: cat, item: found };
-    }
-    return null;
-  }, [SUPER_SETTINGS_NAV, activeTab]);
+  }, [searchParams.tab, navigate]);
 
   const logoLightRef = useRef<HTMLInputElement>(null);
   const logoDarkRef = useRef<HTMLInputElement>(null);
@@ -1150,6 +884,40 @@ function SuperSettingsAdmin() {
     }
   }, [settingsData]);
 
+  // Keep left sticky nav active highlight synced while scrolling through stacked settings cards
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof IntersectionObserver === "undefined" || isLoading) return;
+    const sectionIds: SuperSectionId[] = [
+      "branding",
+      "addresses",
+      "currency",
+      "payments",
+      "smtp",
+      "oauth",
+      "pusher",
+      "firebase",
+      "system",
+      "runtime-factories",
+    ];
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length > 0) {
+          const id = visible[0].target.id.replace("settings-section-", "") as SuperSectionId;
+          setActiveSection(id);
+        }
+      },
+      { rootMargin: "-90px 0px -65% 0px", threshold: 0.01 },
+    );
+    sectionIds.forEach((id) => {
+      const el = document.getElementById(`settings-section-${id}`);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, [isLoading]);
+
   // Track dirty state for sticky unsaved bar
   const isDirty = JSON.stringify(form) !== JSON.stringify(settingsData || DEFAULT_SETTINGS);
 
@@ -1381,282 +1149,115 @@ function SuperSettingsAdmin() {
   });
 
   return (
-    <div className="space-y-6 max-w-full">
+    <div className="w-full space-y-5 font-sans">
       {/* Top Red Marquee Announcement Banner */}
       <MaintenanceMarqueeBanner />
 
-      {/* Header (1:1 Tenant Settings UI Architecture) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
-        <div>
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <div className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
-              <Settings className="size-5" />
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Platform & System Settings</h1>
-            <Badge variant="outline" className="text-[10px] tabular-nums border-primary/30 text-primary bg-primary/5">
-              Super Admin Control Panel
-            </Badge>
-          </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            Configure global branding, currency, payment gateways, SMTP email engine, OAuth logins, realtime websockets, and maintenance windows.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5 h-9 rounded-xl text-xs">
-            <RefreshCw className="size-3.5" /> Refresh
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={saveMutation.isPending}
-            className="gap-1.5 h-9 rounded-xl text-xs bg-primary"
-          >
-            {saveMutation.isPending ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <Save className="size-3.5" />
-            )}
-            Save All Settings
-          </Button>
-        </div>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="flex flex-col lg:flex-row gap-6 items-start">
-          {/* Sub Menu & Nested Menus Navigation Sidebar */}
-          <SettingsNestedNav
-            categories={SUPER_SETTINGS_NAV}
-            activeTab={activeTab}
-            onSelectTab={setActiveTab}
-            title="Platform Settings"
-            subtitle="Global SaaS Controls"
-            searchPlaceholder="Search platform settings..."
-          />
-
-          {/* Right Active Panel */}
-          <main className="flex-1 min-w-0 w-full space-y-5">
-            {activeTab !== "overview" && (
-              <SettingsSectionBreadcrumb
-                categoryLabel={activeNavInfo?.category?.label}
-                itemLabel={activeNavInfo?.item?.label || "Settings"}
-                itemDescription={activeNavInfo?.item?.description}
-                icon={activeNavInfo?.item?.icon}
-                badge={
-                  activeNavInfo?.item?.badge ? (
-                    <Badge variant="outline" className={cn("text-[10px] tabular-nums", activeNavInfo.item.badgeColor)}>
-                      {activeNavInfo.item.badge}
-                    </Badge>
-                  ) : null
-                }
-                actions={
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setActiveTab("overview")}
-                      className="h-8 gap-1.5 text-xs rounded-xl shadow-2xs hover:bg-primary/5 hover:text-primary hover:border-primary/30 transition-all"
-                    >
-                      <ArrowLeft className="size-3.5" />
-                      <span>Back to Settings Hub</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleSave}
-                      disabled={saveMutation.isPending}
-                      className="gap-1.5 text-xs h-8 rounded-xl bg-primary"
-                    >
-                      {saveMutation.isPending ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <Save className="size-3.5" />
-                      )}
-                      Save Settings
-                    </Button>
-                  </div>
-                }
-              />
-            )}
-
-        {/* ===================== TAB: OVERVIEW (SETTINGS QUICK HUB) ===================== */}
-        <TabsContent value="overview" className="space-y-6 mt-0">
-          {/* Hero / Quick Status Banner */}
-          <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-linear-to-br from-primary/10 via-primary/5 to-background p-5 sm:p-6 shadow-2xs">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30 text-xs font-semibold px-2 py-0.5 rounded-full">
-                    Platform Central Hub
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">•</span>
-                  <span className="text-xs font-medium text-muted-foreground">{form.appName || "Master HRMS"}</span>
-                </div>
-                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-                  Settings Quick Hub & Directory
-                </h2>
-                <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl">
-                  Easily navigate, search, and configure all platform branding, Razorpay/PayPal gateways, SMTP email relays, OAuth providers, Pusher websockets, and maintenance controls.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-background/80 border border-border/80 text-xs shadow-2xs">
-                  <Coins className="size-3.5 text-primary" />
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Currency</span>
-                    <span className="font-semibold text-foreground tabular-nums">{form.defaultCurrency} ({form.currencySymbol})</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-background/80 border border-border/80 text-xs shadow-2xs">
-                  <CreditCard className={cn("size-3.5", form.razorpayEnabled ? "text-emerald-500" : "text-amber-500")} />
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Razorpay</span>
-                    <span className={cn("font-semibold", form.razorpayEnabled ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
-                      {form.razorpayEnabled ? (form.razorpayMode === "live" ? "Live Mode" : "Sandbox") : "Disabled"}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-background/80 border border-border/80 text-xs shadow-2xs">
-                  <ShieldCheck className={cn("size-3.5", form.maintenanceMode ? "text-rose-500" : "text-emerald-500")} />
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Platform</span>
-                    <span className={cn("font-semibold", form.maintenanceMode ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400")}>
-                      {form.maintenanceMode ? "Maintenance" : "Operational"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Search & Category Filter Bar */}
-          <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-                <Input
-                  placeholder="Search any platform setting (e.g. branding, razorpay, paypal, smtp, oauth, pusher, firebase, currency, maintenance...)"
-                  value={settingsSearchQuery}
-                  onChange={(e) => setSettingsSearchQuery(e.target.value)}
-                  className="pl-9 pr-9 h-10 rounded-xl bg-card border-border/80 text-sm shadow-2xs"
-                />
-                {settingsSearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSettingsSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded"
-                  >
-                    <X className="size-4" />
-                  </button>
-                )}
-              </div>
-
-              <div className="text-xs text-muted-foreground shrink-0 self-center sm:self-auto px-1 tabular-nums">
-                Showing <span className="font-semibold text-foreground">{filteredSettingCards.length}</span> settings modules
-              </div>
-            </div>
-
-            {/* Quick Category Filter Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-              {[
-                { id: "all", label: "All Settings" },
-                { id: "identity", label: "Brand & Identity" },
-                { id: "finance", label: "Currency & Payments" },
-                { id: "integrations", label: "Comms & Integrations" },
-                { id: "operations", label: "Platform Operations" },
-              ].map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setSelectedCategoryFilter(cat.id)}
-                  className={cn(
-                    "px-3 py-1.5 text-xs rounded-xl font-medium transition-all shrink-0 border cursor-pointer",
-                    selectedCategoryFilter === cat.id
-                      ? "bg-primary text-primary-foreground border-primary shadow-2xs"
-                      : "bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border-border/60",
-                  )}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Settings Cards Grid */}
-          {filteredSettingCards.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filteredSettingCards.map((card) => {
-                const IconComponent = card.icon;
-                return (
-                  <div
-                    key={card.id}
-                    onClick={() => setActiveTab(card.tab)}
-                    className="group relative flex flex-col justify-between p-4 sm:p-5 rounded-2xl border border-border/70 bg-card hover:border-primary/40 hover:shadow-md transition-all duration-200 cursor-pointer text-left"
-                  >
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className={cn("p-2.5 rounded-xl border border-transparent transition-transform group-hover:scale-105 shrink-0", card.iconBg, card.iconColor)}>
-                          <IconComponent className="size-5" />
-                        </div>
-                        {card.badge && (
-                          <Badge variant="outline" className={cn("text-[10px] font-medium px-2 py-0.5", card.badgeColor || "bg-muted/50 text-muted-foreground border-border/60")}>
-                            {card.badge}
-                          </Badge>
-                        )}
-                      </div>
-
-                      <div>
-                        <h3 className="text-sm sm:text-base font-bold text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5">
-                          {card.title}
-                        </h3>
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
-                          {card.description}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 mt-2 border-t border-border/40 flex items-center justify-between text-xs font-semibold text-primary">
-                      <span className="text-[11px] text-muted-foreground uppercase font-bold tracking-wider">{card.categoryLabel}</span>
-                      <span className="flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                        Configure <ArrowRight className="size-3.5" />
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-border bg-muted/10 space-y-3">
-              <div className="p-3 rounded-full bg-muted/60 text-muted-foreground w-fit mx-auto">
-                <Search className="size-6" />
-              </div>
-              <h3 className="text-sm font-bold text-foreground">No settings match your search</h3>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                We couldn&apos;t find any settings matching &quot;{settingsSearchQuery}&quot;. Try searching for &quot;branding&quot;, &quot;razorpay&quot;, &quot;smtp&quot;, or &quot;oauth&quot;.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSettingsSearchQuery("");
-                  setSelectedCategoryFilter("all");
-                }}
-                className="text-xs rounded-xl"
-              >
-                Reset Filter
+      <PageHeader
+        title="Settings"
+        description="Manage authoritative platform-wide settings, branding, legal entity, currency, payment gateways, email, OAuth, and system controls."
+        actions={
+          <div className="flex items-center gap-2">
+            <Link to="/super/media">
+              <Button type="button" size="sm" variant="outline" className="gap-1.5">
+                <i className="ph ph-images" />
+                Media Gallery
               </Button>
-            </div>
-          )}
-        </TabsContent>
+            </Link>
+            <Button type="button" size="sm" variant="outline" onClick={() => refetch()} className="gap-1.5">
+              <i className="ph ph-arrows-clockwise" />
+              Refresh
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={saveMutation.isPending}
+              onClick={handleSave}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5"
+            >
+              <i className={saveMutation.isPending ? "ph ph-spinner-gap animate-spin" : "ph ph-floppy-disk"} />
+              Save All Changes
+            </Button>
+          </div>
+        }
+      />
 
-        {/* TAB 0.9: S3 RUNIFIED RUNTIME SETTINGS & CONNECTION TEST SUITE */}
-        <TabsContent value="runtime-factories" className="space-y-6 pt-4">
-          <SharedSettingsShell scope="PLATFORM" />
-        </TabsContent>
+      {isLoading ? (
+        <div className="p-16 text-center text-muted-foreground text-xs">
+          <i className="ph ph-spinner-gap animate-spin text-2xl text-primary block mx-auto mb-2" />
+          Loading platform settings from database...
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Sticky Sidebar Navigation (1:1 Tenant Settings UI) */}
+          <aside className="lg:col-span-3 lg:sticky lg:top-20">
+            <Card className="border border-border/80 rounded-xl bg-card shadow-xs">
+              <CardContent className="p-2 space-y-0.5">
+                {SUPER_NAV_ITEMS.map((item) => {
+                  const active = activeSection === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => scrollToSection(item.id)}
+                      className={cn(
+                        "w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-xs font-medium text-left transition-colors cursor-pointer",
+                        active
+                          ? "bg-muted text-foreground font-semibold"
+                          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                      )}
+                    >
+                      <span className="flex items-center gap-2.5 min-w-0">
+                        <i className={cn("ph text-base shrink-0", item.icon)} />
+                        <span className="truncate">{item.label}</span>
+                      </span>
+                      {item.badge && (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px] px-1.5 py-0 h-4 shrink-0",
+                            item.id === "system"
+                              ? "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                              : item.badge === "Live"
+                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                : "bg-amber-500/10 text-amber-600 border-amber-500/20",
+                          )}
+                        >
+                          {item.badge}
+                        </Badge>
+                      )}
+                    </button>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </aside>
 
-        {/* TAB 1: BRANDING & THEME (PHASE 1 CORE) */}
-        <TabsContent value="branding" className="space-y-6 pt-4">
-          <div className="grid gap-6 lg:grid-cols-12 items-start">
+          {/* Right Stacked Settings Cards (1:1 Tenant Settings UI) */}
+          <div className="lg:col-span-9 space-y-6">
+            {/* SECTION: BRAND SETTINGS */}
+            <Card id="settings-section-branding" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
+              <CardContent className="p-6 space-y-5">
+                <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
+                  <div className="flex items-start gap-2.5">
+                    <i className="ph ph-palette text-xl text-primary mt-0.5 shrink-0" />
+                    <div>
+                      <h2 className="text-base font-bold text-foreground">Brand Settings</h2>
+                      <p className="text-xs text-muted-foreground mt-0.5">Customize platform light/dark logos, favicon, primary accent theme color, and footer identity.</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={saveMutation.isPending}
+                    onClick={handleSave}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shrink-0"
+                  >
+                    <i className={saveMutation.isPending ? "ph ph-spinner-gap animate-spin" : "ph ph-floppy-disk"} />
+                    Save Changes
+                  </Button>
+                </div>
+                <div className="grid gap-6 lg:grid-cols-12 items-start">
             {/* Left 7 Columns: Enterprise Media Uploaders & Identity */}
             <div className="lg:col-span-7 space-y-6">
               {/* Logos Section */}
@@ -1866,26 +1467,32 @@ function SuperSettingsAdmin() {
               />
             </div>
           </div>
-        </TabsContent>
+              </CardContent>
+            </Card>
 
-        {/* TAB 8: CANONICAL PLATFORM MEDIA GALLERY REDIRECT */}
-        <TabsContent value="media" className="space-y-6 pt-4">
-          <Card className="p-8 text-center bg-card border shadow-xs max-w-lg mx-auto">
-            <h3 className="text-base font-bold text-foreground">Platform Media Gallery</h3>
-            <p className="text-sm text-muted-foreground mt-2 mb-5">
-              Platform media and asset management has moved to the canonical centralized Platform Media Gallery.
-            </p>
-            <Button asChild className="gap-2">
-              <Link to="/super/media">
-                Open Media Gallery
-              </Link>
-            </Button>
-          </Card>
-        </TabsContent>
-
-        {/* TAB 9: DISPATCH & INVOICING ADDRESSES (PHASE 2 WAVE 2.1) */}
-        <TabsContent value="addresses" className="space-y-6 pt-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-card border shadow-xs">
+            {/* SECTION: COMPANY & DISPATCH SETTINGS */}
+            <Card id="settings-section-addresses" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
+              <CardContent className="p-6 space-y-5">
+                <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
+                  <div className="flex items-start gap-2.5">
+                    <i className="ph ph-buildings text-xl text-primary mt-0.5 shrink-0" />
+                    <div>
+                      <h2 className="text-base font-bold text-foreground">Company & Dispatch Settings</h2>
+                      <p className="text-xs text-muted-foreground mt-0.5">Authoritative platform legal name, GSTIN, billing contact, and origin dispatch address.</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={saveMutation.isPending}
+                    onClick={handleSave}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shrink-0"
+                  >
+                    <i className={saveMutation.isPending ? "ph ph-spinner-gap animate-spin" : "ph ph-floppy-disk"} />
+                    Save Changes
+                  </Button>
+                </div>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-card border shadow-xs">
             <div>
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 border border-indigo-500/20">
@@ -2339,11 +1946,32 @@ function SuperSettingsAdmin() {
               </Card>
             </div>
           </div>
-        </TabsContent>
+              </CardContent>
+            </Card>
 
-        {/* TAB 2: CURRENCY, LOCALIZATION & RECAPTCHA SECURITY */}
-        <TabsContent value="currency" className="space-y-6 pt-4">
-          <div className="grid gap-6 lg:grid-cols-12">
+            {/* SECTION: CURRENCY & LOCALE SETTINGS */}
+            <Card id="settings-section-currency" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
+              <CardContent className="p-6 space-y-5">
+                <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
+                  <div className="flex items-start gap-2.5">
+                    <i className="ph ph-currency-inr text-xl text-primary mt-0.5 shrink-0" />
+                    <div>
+                      <h2 className="text-base font-bold text-foreground">Currency & Locale Settings</h2>
+                      <p className="text-xs text-muted-foreground mt-0.5">Configure master currency code, symbol formatting, date/time preferences, and security.</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={saveMutation.isPending}
+                    onClick={handleSave}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shrink-0"
+                  >
+                    <i className={saveMutation.isPending ? "ph ph-spinner-gap animate-spin" : "ph ph-floppy-disk"} />
+                    Save Changes
+                  </Button>
+                </div>
+                <div className="grid gap-6 lg:grid-cols-12">
             {/* Left 7 Columns: Currency & Live Preview */}
             <div className="lg:col-span-7 space-y-6">
               <Card className="p-6 border shadow-xs space-y-6">
@@ -2662,11 +2290,259 @@ function SuperSettingsAdmin() {
               </Card>
             </div>
           </div>
-        </TabsContent>
+              </CardContent>
+            </Card>
 
-        {/* TAB 3: SMTP PRIMARY MAIL ENGINE */}
-        <TabsContent value="smtp" className="space-y-6 pt-4">
-          <Card className="p-6 border shadow-xs space-y-6">
+            {/* SECTION: PAYMENT GATEWAYS */}
+            <section id="settings-section-payments" className="scroll-mt-20 space-y-4">
+              <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-3">
+                <div className="flex items-start gap-2.5">
+                  <i className="ph ph-credit-card text-xl text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <h2 className="text-base font-bold text-foreground">Payment Gateways</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">Configure Razorpay (Live & Sandbox), PayPal checkout credentials, and manual bank transfer details.</p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={saveMutation.isPending}
+                  onClick={handleSave}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shrink-0"
+                >
+                  <i className={saveMutation.isPending ? "ph ph-spinner-gap animate-spin" : "ph ph-floppy-disk"} />
+                  Save Changes
+                </Button>
+              </div>
+              <Card className="p-6 border shadow-xs space-y-6">
+            <h3 className="font-bold text-base border-b pb-4 flex items-center gap-2">
+              <CreditCard className="size-5 text-primary" /> Global Payment Gateways & Bank
+              Instructions
+            </h3>
+
+            {/* 1. Razorpay Gateway */}
+            <div className="space-y-4 border-b pb-6">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <div className="font-bold text-xs text-blue-600 flex items-center gap-2">
+                    <CreditCard className="size-4" /> Razorpay Payment Gateway (INR ₹)
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px] font-semibold",
+                        form.razorpayMode === "live"
+                          ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                          : "bg-amber-500/10 text-amber-600 border-amber-500/20",
+                      )}
+                    >
+                      {form.razorpayMode === "live" ? "Live Production" : "Sandbox Test"}
+                    </Badge>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    UPI, Credit/Debit Cards, NetBanking for Indian INR subscription payments
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestRazorpay}
+                    disabled={isTestingRazorpay || !form.razorpayKeyId}
+                    className="h-8 text-xs gap-1.5 rounded-lg"
+                  >
+                    {isTestingRazorpay ? (
+                      <Loader2 className="size-3.5 animate-spin text-primary" />
+                    ) : (
+                      <Activity className="size-3.5 text-primary" />
+                    )}
+                    {isTestingRazorpay ? "Testing..." : "Test Connection"}
+                  </Button>
+                  <Switch
+                    checked={form.razorpayEnabled}
+                    onCheckedChange={(checked) => setForm({ ...form, razorpayEnabled: checked })}
+                  />
+                </div>
+              </div>
+              <div className="grid sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs font-semibold">Razorpay Key ID</Label>
+                  <Input
+                    value={form.razorpayKeyId}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const detectedMode = val.trim().startsWith("rzp_live_")
+                        ? "live"
+                        : val.trim().startsWith("rzp_test_")
+                          ? "sandbox"
+                          : form.razorpayMode;
+                      setForm({ ...form, razorpayKeyId: val, razorpayMode: detectedMode });
+                    }}
+                    className="text-xs"
+                    placeholder="rzp_live_... or rzp_test_..."
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Razorpay Environment Mode</Label>
+                  <Select
+                    value={form.razorpayMode || "sandbox"}
+                    onValueChange={(v: "sandbox" | "live") => setForm({ ...form, razorpayMode: v })}
+                  >
+                    <SelectTrigger className="text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sandbox">Sandbox (Testing — rzp_test_*)</SelectItem>
+                      <SelectItem value="live">Live (Production — rzp_live_*)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5 sm:col-span-3">
+                  <Label className="text-xs font-semibold">Razorpay Key Secret</Label>
+                  <div className="relative">
+                    <Input
+                      type={showRazorpaySecret ? "text" : "password"}
+                      value={form.razorpayKeySecret}
+                      onChange={(e) => setForm({ ...form, razorpayKeySecret: e.target.value })}
+                      className="text-xs pr-10"
+                      placeholder="•••••••••••••••• (leave blank to keep current)"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowRazorpaySecret((v) => !v)}
+                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                    >
+                      {showRazorpaySecret ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {form.razorpayMode === "sandbox" && form.razorpayKeyId.trim().startsWith("rzp_live_") && (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs">
+                  <AlertTriangle className="size-4 shrink-0" />
+                  <span>
+                    Live key detected (<code className="font-mono">rzp_live_*</code>). Switch Environment Mode to{" "}
+                    <strong>Live (Production)</strong> before saving.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* 2. PayPal Gateway */}
+            <div className="space-y-4 border-b pb-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-xs text-indigo-600 flex items-center gap-1.5">
+                    <Globe className="size-4" /> PayPal Payment Gateway (USD $)
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    Global PayPal balance and international credit card checkout
+                  </div>
+                </div>
+                <Switch
+                  checked={form.paypalEnabled}
+                  onCheckedChange={(checked) => setForm({ ...form, paypalEnabled: checked })}
+                />
+              </div>
+              <div className="grid sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5 col-span-2">
+                  <Label className="text-xs font-semibold">PayPal Client ID</Label>
+                  <Input
+                    value={form.paypalClientId}
+                    onChange={(e) => setForm({ ...form, paypalClientId: e.target.value })}
+                    className="text-xs"
+                    placeholder="Enter PayPal Client ID..."
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">PayPal Environment Mode</Label>
+                  <Select
+                    value={form.paypalMode}
+                    onValueChange={(v: any) => setForm({ ...form, paypalMode: v })}
+                  >
+                    <SelectTrigger className="text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sandbox">Sandbox (Testing)</SelectItem>
+                      <SelectItem value="live">Live (Production)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5 col-span-3">
+                  <Label className="text-xs font-semibold">PayPal Secret Key</Label>
+                  <Input
+                    type="password"
+                    value={form.paypalSecret}
+                    onChange={(e) => setForm({ ...form, paypalSecret: e.target.value })}
+                    className="text-xs"
+                    placeholder="•••••••••••••••• (leave blank to keep current)"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Manual Bank Transfer Instructions & Account Details */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-xs text-emerald-600 flex items-center gap-1.5">
+                    <Building className="size-4" /> Manual Bank Transfer Instructions & Account
+                    Details
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    Shown to tenants when choosing Manual Bank Transfer option
+                  </div>
+                </div>
+                <Switch
+                  checked={form.bankTransferEnabled}
+                  onCheckedChange={(checked) => setForm({ ...form, bankTransferEnabled: checked })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">
+                  Bank Account Details & Payment Instructions
+                </Label>
+                <Textarea
+                  rows={6}
+                  value={form.bankTransferDetails}
+                  onChange={(e) => setForm({ ...form, bankTransferDetails: e.target.value })}
+                  placeholder="Enter Bank Name, Account Number, IFSC, Swift Code, UPI ID, and Transfer Instructions..."
+                  className="text-xs tabular-nums"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Tenants will copy these bank details to transfer money and upload their
+                  transaction receipt screenshot for your approval in Super Admin → Monetization →
+                  Bank Transfers.
+                </p>
+              </div>
+            </div>
+          </Card>
+            </section>
+
+            {/* SECTION: EMAIL SETTINGS */}
+            <section id="settings-section-smtp" className="scroll-mt-20 space-y-4">
+              <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-3">
+                <div className="flex items-start gap-2.5">
+                  <i className="ph ph-envelope-simple text-xl text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <h2 className="text-base font-bold text-foreground">Email Settings</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">Configure primary SMTP mail relay credentials, OTP templates, and live delivery testing.</p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={saveMutation.isPending}
+                  onClick={handleSave}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shrink-0"
+                >
+                  <i className={saveMutation.isPending ? "ph ph-spinner-gap animate-spin" : "ph ph-floppy-disk"} />
+                  Save Changes
+                </Button>
+              </div>
+              <Card className="p-6 border shadow-xs space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
               <div>
                 <h3 className="font-bold text-base flex items-center gap-2">
@@ -3149,11 +3025,31 @@ function SuperSettingsAdmin() {
               </div>
             </div>
           </Card>
-        </TabsContent>
+            </section>
 
-        {/* TAB 4: OAUTH SOCIAL LOGINS */}
-        <TabsContent value="oauth" className="space-y-6 pt-4">
-          {/* Top Domain & Callback Base URL Configuration */}
+            {/* SECTION: OAUTH 2.0 SETTINGS */}
+            <Card id="settings-section-oauth" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
+              <CardContent className="p-6 space-y-5">
+                <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
+                  <div className="flex items-start gap-2.5">
+                    <i className="ph ph-key text-xl text-primary mt-0.5 shrink-0" />
+                    <div>
+                      <h2 className="text-base font-bold text-foreground">OAuth 2.0 Settings</h2>
+                      <p className="text-xs text-muted-foreground mt-0.5">Configure Google, Apple, LinkedIn, and Facebook OAuth 2.0 social authentication.</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={saveMutation.isPending}
+                    onClick={handleSave}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shrink-0"
+                  >
+                    <i className={saveMutation.isPending ? "ph ph-spinner-gap animate-spin" : "ph ph-floppy-disk"} />
+                    Save Changes
+                  </Button>
+                </div>
+                {/* Top Domain & Callback Base URL Configuration */}
           <Card className="p-6 border shadow-xs space-y-4 bg-gradient-to-br from-primary/5 via-card to-background border-primary/20">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
               <div>
@@ -3601,11 +3497,31 @@ function SuperSettingsAdmin() {
               </p>
             </div>
           </Card>
-        </TabsContent>
+              </CardContent>
+            </Card>
 
-        {/* TAB 5: PUSHER WEBSOCKETS */}
-        <TabsContent value="pusher" className="space-y-6 pt-4">
-          <Card className="p-6 border shadow-xs space-y-6">
+            {/* SECTION: WEBSOCKETS & EVENTS */}
+            <section id="settings-section-pusher" className="scroll-mt-20 space-y-4">
+              <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-3">
+                <div className="flex items-start gap-2.5">
+                  <i className="ph ph-broadcast text-xl text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <h2 className="text-base font-bold text-foreground">WebSockets & Events</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">Configure Pusher or Soketi credentials for real-time notifications, chat, and attendance updates.</p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={saveMutation.isPending}
+                  onClick={handleSave}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shrink-0"
+                >
+                  <i className={saveMutation.isPending ? "ph ph-spinner-gap animate-spin" : "ph ph-floppy-disk"} />
+                  Save Changes
+                </Button>
+              </div>
+              <Card className="p-6 border shadow-xs space-y-6">
             <div className="flex items-center justify-between border-b pb-4">
               <div>
                 <h3 className="font-bold text-base flex items-center gap-2">
@@ -3769,11 +3685,30 @@ function SuperSettingsAdmin() {
               </div>
             </div>
           </Card>
-        </TabsContent>
+            </section>
 
-        {/* TAB 5B: FIREBASE PUSH & FCM */}
-        <TabsContent value="firebase" className="space-y-6 pt-4">
-          <Card className="p-6 border shadow-xs space-y-6">
+            {/* SECTION: FIREBASE PUSH & FCM */}
+            <section id="settings-section-firebase" className="scroll-mt-20 space-y-4">
+              <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-3">
+                <div className="flex items-start gap-2.5">
+                  <i className="ph ph-bell-ringing text-xl text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <h2 className="text-base font-bold text-foreground">Firebase Push & FCM</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">Configure Firebase Cloud Messaging Web Push VAPID keys, SDK settings, and service account JSON.</p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={saveMutation.isPending}
+                  onClick={handleSave}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shrink-0"
+                >
+                  <i className={saveMutation.isPending ? "ph ph-spinner-gap animate-spin" : "ph ph-floppy-disk"} />
+                  Save Changes
+                </Button>
+              </div>
+              <Card className="p-6 border shadow-xs space-y-6">
             <div className="flex items-center justify-between border-b pb-4">
               <div>
                 <h3 className="font-bold text-base flex items-center gap-2">
@@ -3938,220 +3873,30 @@ function SuperSettingsAdmin() {
               </div>
             </div>
           </Card>
-        </TabsContent>
+            </section>
 
-        {/* TAB 6: PAYMENTS & BANK DETAILS */}
-        <TabsContent value="payments" className="space-y-6 pt-4">
-          <Card className="p-6 border shadow-xs space-y-6">
-            <h3 className="font-bold text-base border-b pb-4 flex items-center gap-2">
-              <CreditCard className="size-5 text-primary" /> Global Payment Gateways & Bank
-              Instructions
-            </h3>
-
-            {/* 1. Razorpay Gateway */}
-            <div className="space-y-4 border-b pb-6">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <div className="font-bold text-xs text-blue-600 flex items-center gap-2">
-                    <CreditCard className="size-4" /> Razorpay Payment Gateway (INR ₹)
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "text-[10px] font-semibold",
-                        form.razorpayMode === "live"
-                          ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                          : "bg-amber-500/10 text-amber-600 border-amber-500/20",
-                      )}
-                    >
-                      {form.razorpayMode === "live" ? "Live Production" : "Sandbox Test"}
-                    </Badge>
-                  </div>
-                  <div className="text-[11px] text-muted-foreground mt-0.5">
-                    UPI, Credit/Debit Cards, NetBanking for Indian INR subscription payments
+            {/* SECTION: MAINTENANCE & SYSTEM SETTINGS */}
+            <section id="settings-section-system" className="scroll-mt-20 space-y-4">
+              <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-3">
+                <div className="flex items-start gap-2.5">
+                  <i className="ph ph-wrench text-xl text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <h2 className="text-base font-bold text-foreground">Maintenance & System Settings</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">Control emergency maintenance mode, scheduled windows, and platform-wide announcement banners.</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2.5">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleTestRazorpay}
-                    disabled={isTestingRazorpay || !form.razorpayKeyId}
-                    className="h-8 text-xs gap-1.5 rounded-lg"
-                  >
-                    {isTestingRazorpay ? (
-                      <Loader2 className="size-3.5 animate-spin text-primary" />
-                    ) : (
-                      <Activity className="size-3.5 text-primary" />
-                    )}
-                    {isTestingRazorpay ? "Testing..." : "Test Connection"}
-                  </Button>
-                  <Switch
-                    checked={form.razorpayEnabled}
-                    onCheckedChange={(checked) => setForm({ ...form, razorpayEnabled: checked })}
-                  />
-                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={saveMutation.isPending}
+                  onClick={handleSave}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shrink-0"
+                >
+                  <i className={saveMutation.isPending ? "ph ph-spinner-gap animate-spin" : "ph ph-floppy-disk"} />
+                  Save Changes
+                </Button>
               </div>
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label className="text-xs font-semibold">Razorpay Key ID</Label>
-                  <Input
-                    value={form.razorpayKeyId}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      const detectedMode = val.trim().startsWith("rzp_live_")
-                        ? "live"
-                        : val.trim().startsWith("rzp_test_")
-                          ? "sandbox"
-                          : form.razorpayMode;
-                      setForm({ ...form, razorpayKeyId: val, razorpayMode: detectedMode });
-                    }}
-                    className="text-xs"
-                    placeholder="rzp_live_... or rzp_test_..."
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold">Razorpay Environment Mode</Label>
-                  <Select
-                    value={form.razorpayMode || "sandbox"}
-                    onValueChange={(v: "sandbox" | "live") => setForm({ ...form, razorpayMode: v })}
-                  >
-                    <SelectTrigger className="text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sandbox">Sandbox (Testing — rzp_test_*)</SelectItem>
-                      <SelectItem value="live">Live (Production — rzp_live_*)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5 sm:col-span-3">
-                  <Label className="text-xs font-semibold">Razorpay Key Secret</Label>
-                  <div className="relative">
-                    <Input
-                      type={showRazorpaySecret ? "text" : "password"}
-                      value={form.razorpayKeySecret}
-                      onChange={(e) => setForm({ ...form, razorpayKeySecret: e.target.value })}
-                      className="text-xs pr-10"
-                      placeholder="•••••••••••••••• (leave blank to keep current)"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowRazorpaySecret((v) => !v)}
-                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
-                    >
-                      {showRazorpaySecret ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-              {form.razorpayMode === "sandbox" && form.razorpayKeyId.trim().startsWith("rzp_live_") && (
-                <div className="flex items-center gap-2 p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs">
-                  <AlertTriangle className="size-4 shrink-0" />
-                  <span>
-                    Live key detected (<code className="font-mono">rzp_live_*</code>). Switch Environment Mode to{" "}
-                    <strong>Live (Production)</strong> before saving.
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* 2. PayPal Gateway */}
-            <div className="space-y-4 border-b pb-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-xs text-indigo-600 flex items-center gap-1.5">
-                    <Globe className="size-4" /> PayPal Payment Gateway (USD $)
-                  </div>
-                  <div className="text-[10px] text-muted-foreground">
-                    Global PayPal balance and international credit card checkout
-                  </div>
-                </div>
-                <Switch
-                  checked={form.paypalEnabled}
-                  onCheckedChange={(checked) => setForm({ ...form, paypalEnabled: checked })}
-                />
-              </div>
-              <div className="grid sm:grid-cols-3 gap-4">
-                <div className="space-y-1.5 col-span-2">
-                  <Label className="text-xs font-semibold">PayPal Client ID</Label>
-                  <Input
-                    value={form.paypalClientId}
-                    onChange={(e) => setForm({ ...form, paypalClientId: e.target.value })}
-                    className="text-xs"
-                    placeholder="Enter PayPal Client ID..."
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold">PayPal Environment Mode</Label>
-                  <Select
-                    value={form.paypalMode}
-                    onValueChange={(v: any) => setForm({ ...form, paypalMode: v })}
-                  >
-                    <SelectTrigger className="text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sandbox">Sandbox (Testing)</SelectItem>
-                      <SelectItem value="live">Live (Production)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5 col-span-3">
-                  <Label className="text-xs font-semibold">PayPal Secret Key</Label>
-                  <Input
-                    type="password"
-                    value={form.paypalSecret}
-                    onChange={(e) => setForm({ ...form, paypalSecret: e.target.value })}
-                    className="text-xs"
-                    placeholder="•••••••••••••••• (leave blank to keep current)"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 3. Manual Bank Transfer Instructions & Account Details */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-bold text-xs text-emerald-600 flex items-center gap-1.5">
-                    <Building className="size-4" /> Manual Bank Transfer Instructions & Account
-                    Details
-                  </div>
-                  <div className="text-[10px] text-muted-foreground">
-                    Shown to tenants when choosing Manual Bank Transfer option
-                  </div>
-                </div>
-                <Switch
-                  checked={form.bankTransferEnabled}
-                  onCheckedChange={(checked) => setForm({ ...form, bankTransferEnabled: checked })}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">
-                  Bank Account Details & Payment Instructions
-                </Label>
-                <Textarea
-                  rows={6}
-                  value={form.bankTransferDetails}
-                  onChange={(e) => setForm({ ...form, bankTransferDetails: e.target.value })}
-                  placeholder="Enter Bank Name, Account Number, IFSC, Swift Code, UPI ID, and Transfer Instructions..."
-                  className="text-xs tabular-nums"
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  Tenants will copy these bank details to transfer money and upload their
-                  transaction receipt screenshot for your approval in Super Admin → Monetization →
-                  Bank Transfers.
-                </p>
-              </div>
-            </div>
-          </Card>
-        </TabsContent>
-
-        {/* TAB 7: MAINTENANCE MODE & NOTICES */}
-        <TabsContent value="system" className="space-y-6 pt-4">
-          <Card className="p-6 border shadow-xs space-y-6">
+              <Card className="p-6 border shadow-xs space-y-6">
             <div className="flex items-center justify-between border-b pb-4">
               <div>
                 <h3 className="font-bold text-base flex items-center gap-2">
@@ -4261,10 +4006,42 @@ function SuperSettingsAdmin() {
               </p>
             </div>
           </Card>
-        </TabsContent>
-          </main>
+            </section>
+
+            {/* SECTION: S3 & RUNTIME GATEWAYS */}
+            <Card id="settings-section-runtime-factories" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
+                  <div className="flex items-start gap-2.5">
+                    <i className="ph ph-sliders-horizontal text-xl text-primary mt-0.5 shrink-0" />
+                    <div>
+                      <h2 className="text-base font-bold text-foreground">S3 &amp; Runtime Gateways</h2>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Advanced 9-category runtime settings &amp; connection diagnostics (S3/MinIO storage, security, gateways).
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowRuntimeSuite((v) => !v)}
+                    className="gap-1.5 shrink-0"
+                  >
+                    <i className={cn("ph", showRuntimeSuite ? "ph-caret-up" : "ph-caret-down")} />
+                    {showRuntimeSuite ? "Collapse Suite" : "Open S3 Runtime Suite"}
+                  </Button>
+                </div>
+                {showRuntimeSuite && (
+                  <div className="pt-1">
+                    <SharedSettingsShell scope="PLATFORM" />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </Tabs>
+      )}
 
       {/* Send Test Email Dialog */}
       <Dialog open={isTestEmailModalOpen} onOpenChange={setIsTestEmailModalOpen}>
