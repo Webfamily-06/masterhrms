@@ -480,19 +480,31 @@ employeesRouter.put("/:id", requireAuth, requirePermission("hrm.employees.edit")
     }
 
     // --- Non-reactivation update path (no capacity check needed) ---
-    if (avatarUrl && existingEmp.userId) {
+    const normalizedEmail = email ? email.toLowerCase().trim() : undefined;
+    if (existingEmp.userId && normalizedEmail && existingEmp.user?.email?.toLowerCase().trim() !== normalizedEmail) {
+      const emailOwner = await prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } });
+      if (!emailOwner || emailOwner.id === existingEmp.userId) {
+        await prisma.user.update({
+          where: { id: existingEmp.userId },
+          data: { email: normalizedEmail },
+        });
+      }
+    }
+
+    if (existingEmp.userId && (avatarUrl || normalizedEmail || firstName || lastName)) {
       await prisma.profile.upsert({
         where: { userId: existingEmp.userId },
         create: {
           userId: existingEmp.userId,
-          fullName: `${firstName || ""} ${lastName || ""}`.trim() || email,
-          email: email ? email.toLowerCase().trim() : existingEmp.email,
-          avatarUrl,
+          fullName: `${firstName || existingEmp.firstName || ""} ${lastName || existingEmp.lastName || ""}`.trim() || normalizedEmail || existingEmp.email,
+          email: normalizedEmail || existingEmp.email,
+          avatarUrl: avatarUrl || null,
           tenantId: existingEmp.tenantId,
         },
         update: {
-          avatarUrl,
-          fullName: `${firstName || ""} ${lastName || ""}`.trim() || email,
+          ...(avatarUrl ? { avatarUrl } : {}),
+          ...(normalizedEmail ? { email: normalizedEmail } : {}),
+          fullName: `${firstName || existingEmp.firstName || ""} ${lastName || existingEmp.lastName || ""}`.trim() || normalizedEmail || existingEmp.email,
         },
       });
     }

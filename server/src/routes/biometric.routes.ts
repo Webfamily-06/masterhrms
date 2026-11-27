@@ -2166,6 +2166,96 @@ biometricRouter.post("/matrix/push", async (req: Request, res: Response) => {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Historical Machine Punch Log → Attendance Backfill Helper
+// ═══════════════════════════════════════════════════════════════════════════
+export async function backfillAttendanceForBiometricPin(
+  tenantId: string,
+  devicePin: string,
+  employeeId: string,
+  deviceName = "Biometric Terminal"
+): Promise<{ logsLinked: number; daysSynced: number }> {
+  const db = rawPrisma;
+  const trimmedPin = String(devicePin || "").trim();
+  const strippedPin = trimmedPin.replace(/^0+/, "") || trimmedPin;
+  if (!trimmedPin) return { logsLinked: 0, daysSynced: 0 };
+
+  const [tenantRecord, logs] = await Promise.all([
+    db.tenant.findUnique({ where: { id: tenantId }, select: { timezone: true } }),
+    db.biometricPunchLog.findMany({
+      where: {
+        tenantId,
+        OR: [{ employeeCode: trimmedPin }, { employeeCode: strippedPin }],
+      },
+      orderBy: { punchTime: "asc" },
+    }),
+  ]);
+
+  if (logs.length === 0) return { logsLinked: 0, daysSynced: 0 };
+
+  // 1. Mark all matching punch logs as linked & processed
+  await db.biometricPunchLog.updateMany({
+    where: { id: { in: logs.map((l) => l.id) } },
+    data: { employeeId, syncStatus: "processed" },
+  });
+
+  // 2. Group punches by tenant calendar date (First-In / Last-Out)
+  const byDate = new Map<string, { dateUtc: Date; punches: Date[] }>();
+  for (const log of logs) {
+    const dateUtc = getTenantAttendanceDateUtc(log.punchTime, tenantRecord?.timezone);
+    const key = dateUtc.toISOString().slice(0, 10);
+    if (!byDate.has(key)) byDate.set(key, { dateUtc, punches: [] });
+    byDate.get(key)!.punches.push(log.punchTime);
+  }
+
+  let daysSynced = 0;
+  for (const { dateUtc, punches } of byDate.values()) {
+    punches.sort((a, b) => a.getTime() - b.getTime());
+    const firstPunch = punches[0];
+    const lastPunch = punches.length > 1 ? punches[punches.length - 1] : null;
+    const workHours = lastPunch
+      ? Number(((lastPunch.getTime() - firstPunch.getTime()) / (1000 * 60 * 60)).toFixed(2))
+      : undefined;
+
+    const existing = await db.attendance.findUnique({
+      where: {
+        tenantId_employeeId_date: { tenantId, employeeId, date: dateUtc },
+      },
+    });
+
+    if (!existing) {
+      await db.attendance.create({
+        data: {
+          tenantId,
+          employeeId,
+          date: dateUtc,
+          checkIn: firstPunch,
+          checkOut: lastPunch,
+          status: "present",
+          notes: `Synced from ${deviceName} (${punches.length} punch${punches.length > 1 ? "es" : ""})`,
+        },
+      }).catch(() => {});
+    } else {
+      const nextCheckIn = existing.checkIn && existing.checkIn < firstPunch ? existing.checkIn : firstPunch;
+      const nextCheckOut =
+        lastPunch && (!existing.checkOut || lastPunch > existing.checkOut)
+          ? lastPunch
+          : existing.checkOut;
+      await db.attendance.update({
+        where: { id: existing.id },
+        data: {
+          checkIn: nextCheckIn,
+          checkOut: nextCheckOut,
+          status: "present",
+        },
+      }).catch(() => {});
+    }
+    daysSynced++;
+  }
+
+  return { logsLinked: logs.length, daysSynced };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // WAVE 2.3 — BiometricEmployeeMapping CRUD
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -2249,22 +2339,80 @@ biometricRouter.post("/devices/:id/mappings", requireAuth, async (req: AuthReque
       });
     }
 
-    // Retroactively link any unmatched punch logs for this PIN on this device
-    await prisma.biometricPunchLog.updateMany({
-      where: { tenantId, deviceId: id, employeeCode: trimmedPin, syncStatus: "unmatched_employee" },
-      data:  { employeeId, syncStatus: "processed" },
-    });
+    // Retroactively link ALL historical machine punch logs for this PIN and create/update Attendance records
+    const backfill = await backfillAttendanceForBiometricPin(
+      tenantId,
+      trimmedPin,
+      employeeId,
+      device.deviceName
+    );
 
     return res.status(201).json({
       success: true,
-      message: `PIN ${devicePin} mapped to employee successfully.`,
+      message: `PIN ${devicePin} mapped! Synced ${backfill.logsLinked} machine punches across ${backfill.daysSynced} attendance days.`,
       mapping,
+      backfill,
     });
   } catch (err: any) {
     if (err?.code === "P2002") {
       return res.status(409).json({ error: "This PIN is already mapped to another employee on this device." });
     }
     return res.status(500).json({ error: err.message || "Failed to create mapping." });
+  }
+});
+
+/**
+ * POST /api/biometric/reprocess-attendance
+ * Backfills ALL historical BiometricPunchLogs for every mapped or code-matched
+ * employee into the Attendance table (First-In / Last-Out per tenant calendar day).
+ */
+biometricRouter.post("/reprocess-attendance", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+
+    const [mappings, employees] = await Promise.all([
+      rawPrisma.biometricEmployeeMapping.findMany({
+        where: { tenantId, isActive: true },
+        include: { device: { select: { deviceName: true } } },
+      }),
+      rawPrisma.employee.findMany({
+        where: { tenantId },
+        select: { id: true, employeeCode: true },
+      }),
+    ]);
+
+    let totalLogs = 0;
+    let totalDays = 0;
+    const processedKeys = new Set<string>();
+
+    for (const m of mappings) {
+      const key = `${m.devicePin}::${m.employeeId}`;
+      if (processedKeys.has(key)) continue;
+      processedKeys.add(key);
+      const r = await backfillAttendanceForBiometricPin(tenantId, m.devicePin, m.employeeId, m.device?.deviceName || "Biometric Terminal");
+      totalLogs += r.logsLinked;
+      totalDays += r.daysSynced;
+    }
+
+    for (const emp of employees) {
+      if (!emp.employeeCode) continue;
+      const key = `${emp.employeeCode}::${emp.id}`;
+      if (processedKeys.has(key)) continue;
+      processedKeys.add(key);
+      const r = await backfillAttendanceForBiometricPin(tenantId, emp.employeeCode, emp.id, "Biometric Terminal");
+      totalLogs += r.logsLinked;
+      totalDays += r.daysSynced;
+    }
+
+    return res.json({
+      success: true,
+      logsLinked: totalLogs,
+      daysSynced: totalDays,
+      message: `Synced ${totalLogs} biometric machine punches into ${totalDays} employee attendance records.`,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to reprocess biometric attendance." });
   }
 });
 

@@ -674,6 +674,24 @@ export function BiometricSyncConsole() {
     }
   }
 
+  const [isReprocessingAttendance, setIsReprocessingAttendance] = useState(false);
+
+  async function reprocessAllAttendance() {
+    if (isReprocessingAttendance) return;
+    setIsReprocessingAttendance(true);
+    try {
+      const res = await api.post("/biometric/reprocess-attendance", {});
+      toast.success(res?.message || "All machine punches synced to Attendance!");
+      qc.invalidateQueries({ queryKey: ["biometric-logs", tenantId] });
+      qc.invalidateQueries({ queryKey: ["attendance-list"] });
+      qc.invalidateQueries({ queryKey: ["attendance-today"] });
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to sync punches to attendance.");
+    } finally {
+      setIsReprocessingAttendance(false);
+    }
+  }
+
   const admsHost = cloudConfig?.serverHost || "api.masterhrms.com";
   const admsPort = "80";
 
@@ -703,6 +721,16 @@ export function BiometricSyncConsole() {
                 className="hidden"
                 onChange={handleFileUpload}
               />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={reprocessAllAttendance}
+                disabled={isReprocessingAttendance}
+                className="gap-1.5"
+              >
+                {isReprocessingAttendance ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4 text-emerald-600" />}
+                Sync Logs to Attendance
+              </Button>
               <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="gap-1.5">
                 <Upload className="size-4 text-emerald-600" /> Import USB Log
               </Button>
