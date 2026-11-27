@@ -429,6 +429,9 @@ export async function verifyBackupIntegrityAndDisposableRestore(
   // 4. Isolated Disposable Restore Simulation
   // Creates an ephemeral schema, sets search_path, validates isolation, and drops it.
   const disposableSchema = options?.disposableSchema || `disposable_audit_${Date.now()}`;
+  if (!/^[a-z_][a-z0-9_]{0,62}$/i.test(disposableSchema)) {
+    throw new Error("Invalid disposable schema identifier.");
+  }
   let disposableRestorePassed = false;
 
   try {
@@ -445,10 +448,12 @@ export async function verifyBackupIntegrityAndDisposableRestore(
       );
     `);
 
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO "${disposableSchema}"."_recovery_probe" ("id", "backup_name", "checksum")
-      VALUES ('probe-1', '${filename}', '${checksumSha256}');
-    `);
+    // Parameterized values — filename/checksum are NEVER interpolated into SQL text (SQLi-safe)
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "${disposableSchema}"."_recovery_probe" ("id", "backup_name", "checksum") VALUES ('probe-1', $1, $2);`,
+      String(filename).slice(0, 255),
+      String(checksumSha256).slice(0, 128)
+    );
 
     // C. Verify probe data in disposable schema
     const probeRows: any[] = await prisma.$queryRawUnsafe(`

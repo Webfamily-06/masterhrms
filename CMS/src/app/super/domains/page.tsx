@@ -1,24 +1,20 @@
 'use client';
-import {  createFileRoute, Link, Outlet, useRouterState  } from "@/src/lib/router-compat";
+
 import { useState, useMemo } from "react";
+import { Link, Outlet, useRouterState } from "@/src/lib/router-compat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import {
   Globe,
-  Plus,
   Search,
   CheckCircle2,
   Clock,
   XCircle,
   Eye,
   Trash2,
-  Calendar,
   FileSpreadsheet,
   FileText,
-  ChevronDown,
-  ChevronsUp,
   X,
-  ExternalLink,
   Loader2,
   ShieldCheck,
   Check,
@@ -28,7 +24,6 @@ import {
   Star,
   Server,
   Layers,
-  Info,
   ChevronRight,
   ShieldAlert,
   Shield,
@@ -36,9 +31,12 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -46,8 +44,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 export type CustomDomainRecord = {
   id: string;
@@ -76,24 +81,9 @@ export type CustomDomainRecord = {
   customDomainUrl?: string;
 };
 
-const COMPANY_AVATARS = [
-  "/ui-assets/company/company-01.svg",
-  "/ui-assets/company/company-02.svg",
-  "/ui-assets/company/company-03.svg",
-  "/ui-assets/company/company-04.svg",
-  "/ui-assets/company/company-05.svg",
-  "/ui-assets/company/company-06.svg",
-  "/ui-assets/company/company-07.svg",
-  "/ui-assets/company/company-08.svg",
-  "/ui-assets/company/company-09.svg",
-  "/ui-assets/company/company-10.svg",
-];
-
 export default function SuperDomainsPage() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
-  if (pathname.includes("/documentation")) {
-    return <Outlet />;
-  }
+  const isDocumentationRoute = pathname.includes("/documentation");
 
   const queryClient = useQueryClient();
 
@@ -105,19 +95,21 @@ export default function SuperDomainsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Modals / Drawers
+  // Dialogs & Confirmations
   const [detailDomain, setDetailDomain] = useState<CustomDomainRecord | null>(null);
   const [deleteDomain, setDeleteDomain] = useState<CustomDomainRecord | null>(null);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
-  const [targetRejectDomain, setTargetRejectDomain] = useState<CustomDomainRecord | null>(null);
+  const [targetRejectDomains, setTargetRejectDomains] = useState<CustomDomainRecord[]>([]);
+  const [bulkApproveOpen, setBulkApproveOpen] = useState(false);
 
   // 1. Fetch live domains from existing Flow 2 API
   const { data: domains = [], isLoading, refetch } = useQuery<CustomDomainRecord[]>({
     queryKey: ["super-custom-domains"],
+    enabled: !isDocumentationRoute,
     queryFn: async () => {
-      const res = await api.get("/api/super/domains");
-      const list = Array.isArray(res) ? res : res?.data || [];
+      const res = await api.get("/super/domains");
+      const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
       return list.map((d: any) => ({
         id: String(d.id),
         domain: d.domain,
@@ -126,9 +118,9 @@ export default function SuperDomainsPage() {
         subdomain: d.subdomain || "tenant.masterhrms.com",
         targetCname: d.targetCname || "cname.masterhrms.com",
         isPrimary: Boolean(d.isPrimary),
-        planName: d.planName || "Advanced",
+        planName: d.planName || "Standard",
         planType: d.planType || "Monthly",
-        price: d.price || "200",
+        price: d.price || "0",
         status: d.status || "pending",
         sslStatus: d.sslStatus || "provisioning",
         dnsStatus: d.dnsStatus || "pending",
@@ -158,15 +150,16 @@ export default function SuperDomainsPage() {
     return { total, pendingApproval, awaitingDns, active, sslProvisioning, rejected };
   }, [domains]);
 
-  // 2. Mutations using real existing backend APIs
+  // 2. Single-record mutations
   const approveMutation = useMutation({
     mutationFn: async (id: string) => {
-      return api.put(`/api/super/domains/${id}/approve`, {});
+      return api.put(`/super/domains/${id}/approve`, {});
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: any, id: string) => {
       toast.success(data?.message || "Custom domain approved successfully. SSL provisioning initiated.");
       queryClient.invalidateQueries({ queryKey: ["super-custom-domains"] });
-      if (detailDomain) {
+      setSelectedIds((prev) => prev.filter((item) => item !== id));
+      if (detailDomain?.id === id) {
         setDetailDomain((prev) => (prev ? { ...prev, status: "approved", approvedAt: new Date().toISOString() } : null));
       }
     },
@@ -176,17 +169,33 @@ export default function SuperDomainsPage() {
   });
 
   const rejectMutation = useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      return api.put(`/api/super/domains/${id}/reject`, { reason });
+    mutationFn: async ({ ids, reason }: { ids: string[]; reason: string }) => {
+      const results = await Promise.allSettled(
+        ids.map((id) => api.put(`/super/domains/${id}/reject`, { reason })),
+      );
+      const succeeded = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - succeeded;
+      if (succeeded === 0) {
+        const firstErr = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+        throw new Error(firstErr?.reason?.message || "Failed to reject custom domain(s)");
+      }
+      return { succeeded, failed, ids, reason };
     },
-    onSuccess: (data: any) => {
-      toast.success(data?.message || "Custom domain rejected");
+    onSuccess: ({ succeeded, failed, ids, reason }) => {
+      if (ids.length === 1) {
+        toast.success("Custom domain rejected");
+      } else if (failed > 0) {
+        toast.warning(`Rejected ${succeeded} domain(s); ${failed} failed.`);
+      } else {
+        toast.success(`Rejected ${succeeded} custom domain(s).`);
+      }
       queryClient.invalidateQueries({ queryKey: ["super-custom-domains"] });
+      setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)));
       setIsRejectModalOpen(false);
       setRejectReason("");
-      setTargetRejectDomain(null);
-      if (detailDomain) {
-        setDetailDomain((prev) => (prev ? { ...prev, status: "rejected", rejectedReason: rejectReason } : null));
+      setTargetRejectDomains([]);
+      if (detailDomain && ids.includes(detailDomain.id)) {
+        setDetailDomain((prev) => (prev ? { ...prev, status: "rejected", rejectedReason: reason } : null));
       }
     },
     onError: (err: any) => {
@@ -196,13 +205,13 @@ export default function SuperDomainsPage() {
 
   const verifyMutation = useMutation({
     mutationFn: async (id: string) => {
-      return api.post(`/api/super/domains/${id}/verify`, {});
+      return api.post(`/super/domains/${id}/verify`, {});
     },
     onSuccess: (data: any) => {
       if (data?.verified) {
-        toast.success(data?.message || "DNS verification verified successfully!");
+        toast.success(data?.message || "DNS verification succeeded.");
       } else {
-        toast.warning(data?.message || "DNS check incomplete: DNS records not yet detected.");
+        toast.warning(data?.message || "DNS check incomplete: records not yet detected.");
       }
       queryClient.invalidateQueries({ queryKey: ["super-custom-domains"] });
     },
@@ -213,12 +222,13 @@ export default function SuperDomainsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return api.delete(`/api/super/domains/${id}`);
+      return api.delete(`/super/domains/${id}`);
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: any, id: string) => {
       toast.success(data?.message || "Custom domain removed successfully.");
+      setSelectedIds((prev) => prev.filter((item) => item !== id));
       setDeleteDomain(null);
-      if (detailDomain?.id === deleteDomain?.id) {
+      if (detailDomain?.id === id) {
         setDetailDomain(null);
       }
       queryClient.invalidateQueries({ queryKey: ["super-custom-domains"] });
@@ -228,13 +238,68 @@ export default function SuperDomainsPage() {
     },
   });
 
-  // Copy helper
-  const handleCopy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    toast.success("Copied to clipboard!");
-    setTimeout(() => setCopiedKey(null), 2000);
-  };
+  // 3. Bulk mutations
+  const bulkVerifyMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const results = await Promise.allSettled(
+        ids.map((id) => api.post(`/super/domains/${id}/verify`, {})),
+      );
+      let verified = 0;
+      let incomplete = 0;
+      let failed = 0;
+      for (const r of results) {
+        if (r.status === "fulfilled") {
+          if (r.value?.verified) verified += 1;
+          else incomplete += 1;
+        } else {
+          failed += 1;
+        }
+      }
+      return { verified, incomplete, failed, total: ids.length };
+    },
+    onSuccess: ({ verified, incomplete, failed }) => {
+      if (failed > 0) {
+        toast.warning(`DNS check finished: ${verified} verified, ${incomplete} pending, ${failed} failed.`);
+      } else if (incomplete > 0) {
+        toast.info(`DNS check finished: ${verified} verified, ${incomplete} awaiting propagation.`);
+      } else {
+        toast.success(`DNS verified for all ${verified} selected domain(s).`);
+      }
+      queryClient.invalidateQueries({ queryKey: ["super-custom-domains"] });
+      setSelectedIds([]);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Bulk DNS verification failed");
+    },
+  });
+
+  const bulkApproveMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const results = await Promise.allSettled(
+        ids.map((id) => api.put(`/super/domains/${id}/approve`, {})),
+      );
+      const succeeded = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - succeeded;
+      if (succeeded === 0) {
+        const firstErr = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+        throw new Error(firstErr?.reason?.message || "Bulk approval failed");
+      }
+      return { succeeded, failed };
+    },
+    onSuccess: ({ succeeded, failed }) => {
+      if (failed > 0) {
+        toast.warning(`Approved ${succeeded} domain(s); ${failed} could not be approved.`);
+      } else {
+        toast.success(`Approved ${succeeded} custom domain(s). SSL provisioning initiated.`);
+      }
+      setBulkApproveOpen(false);
+      setSelectedIds([]);
+      queryClient.invalidateQueries({ queryKey: ["super-custom-domains"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to bulk approve domains");
+    },
+  });
 
   // Filtered & Sorted domains
   const filteredDomains = useMemo(() => {
@@ -268,8 +333,30 @@ export default function SuperDomainsPage() {
       });
   }, [domains, searchTerm, statusFilter, dnsFilter, sslFilter, sortBy]);
 
+  const selectedDomains = useMemo(
+    () => domains.filter((d) => selectedIds.includes(d.id)),
+    [domains, selectedIds],
+  );
+  const pendingSelectedDomains = useMemo(
+    () => selectedDomains.filter((d) => d.status === "pending"),
+    [selectedDomains],
+  );
+
+  // Early route hand-off AFTER all React hooks have run
+  if (isDocumentationRoute) {
+    return <Outlet />;
+  }
+
+  // Copy helper
+  const handleCopy = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    toast.success("Copied to clipboard");
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
   const toggleSelectAll = () => {
-    if (selectedIds.length === filteredDomains.length) {
+    if (selectedIds.length === filteredDomains.length && filteredDomains.length > 0) {
       setSelectedIds([]);
     } else {
       setSelectedIds(filteredDomains.map((d) => d.id));
@@ -282,6 +369,7 @@ export default function SuperDomainsPage() {
 
   // Export CSV
   const exportCSV = () => {
+    const escapeCell = (val: unknown) => `"${String(val ?? "").replace(/"/g, '""')}"`;
     const headers = [
       "Domain",
       "Tenant Name",
@@ -294,81 +382,77 @@ export default function SuperDomainsPage() {
       "Target CNAME",
     ];
     const rows = filteredDomains.map((d) => [
-      `"${d.domain}"`,
-      `"${d.tenantName}"`,
-      `"${d.status}"`,
-      `"${d.dnsStatus}"`,
-      `"${d.sslStatus}"`,
-      `"${d.isPrimary ? "Yes" : "No"}"`,
-      `"${d.createdAt}"`,
-      `"${d.approvedAt || "—"}"`,
-      `"${d.targetCname}"`,
+      escapeCell(d.domain),
+      escapeCell(d.tenantName),
+      escapeCell(d.status),
+      escapeCell(d.dnsStatus),
+      escapeCell(d.sslStatus),
+      escapeCell(d.isPrimary ? "Yes" : "No"),
+      escapeCell(d.createdAt),
+      escapeCell(d.approvedAt || "—"),
+      escapeCell(d.targetCname),
     ]);
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+    link.setAttribute("href", url);
     link.setAttribute("download", `custom_domains_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     toast.success("Domain catalog exported to CSV");
   };
 
+  const isBulkBusy =
+    bulkVerifyMutation.isPending || bulkApproveMutation.isPending || rejectMutation.isPending;
+
   return (
-    <div className="space-y-6 pb-12">
-      {/* Breadcrumb Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-            <Link to="/super" className="hover:text-foreground transition-colors">
-              Super Admin
+    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+      <PageHeader
+        title="Custom Domains"
+        description="Review, verify DNS, audit SSL issuance, and govern Flow 2 Primary Custom Domains across all tenant workspaces."
+        icon={Globe}
+        breadcrumbs={[
+          { label: "Super Admin", href: "/super" },
+          { label: "Extensions & Add-ons" },
+          { label: "Custom Domains" },
+        ]}
+        actions={
+          <>
+            <Link to="/super/domains/documentation">
+              <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5 shadow-2xs">
+                <FileText className="size-3.5 text-indigo-500" />
+                <span>Documentation</span>
+              </Button>
             </Link>
-            <ChevronRight className="size-3" />
-            <span>Extensions &amp; Add-ons</span>
-            <ChevronRight className="size-3" />
-            <span className="text-foreground font-medium">Custom Domains</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            Custom Domains
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Review, verify DNS, audit SSL issuance, and govern Flow 2 Primary Custom Domains across all tenant workspaces.
-          </p>
-        </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Link to="/super/domains/documentation">
-            <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5 shadow-2xs">
-              <FileText className="size-3.5 text-indigo-500" />
-              <span>Documentation</span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => refetch()}
+              disabled={isLoading}
+              className="text-xs h-8 gap-1.5 shadow-2xs"
+              title="Refetch domain catalog records from database"
+            >
+              <RefreshCw className={`size-3.5 ${isLoading ? "animate-spin" : ""}`} />
+              <span>Refresh Data</span>
             </Button>
-          </Link>
 
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => refetch()}
-            disabled={isLoading}
-            className="text-xs h-8 gap-1.5 shadow-2xs"
-            title="Refetch domain catalog records from database"
-          >
-            <RefreshCw className={`size-3.5 ${isLoading ? "animate-spin" : ""}`} />
-            <span>Refresh Data</span>
-          </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={exportCSV}
-            disabled={filteredDomains.length === 0}
-            className="text-xs h-8 gap-1.5 shadow-2xs"
-          >
-            <FileSpreadsheet className="size-3.5 text-emerald-600" />
-            <span>Export CSV</span>
-          </Button>
-        </div>
-      </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={exportCSV}
+              disabled={filteredDomains.length === 0}
+              className="text-xs h-8 gap-1.5 shadow-2xs"
+            >
+              <FileSpreadsheet className="size-3.5 text-emerald-600" />
+              <span>Export CSV</span>
+            </Button>
+          </>
+        }
+      />
 
       {/* Architecture Context Banner */}
       <div className="rounded-xl p-4 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/40 text-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-2xs">
@@ -394,7 +478,7 @@ export default function SuperDomainsPage() {
 
       {/* Dynamic Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+        <Card className="p-3.5 border border-border/80 rounded-xl shadow-xs bg-card space-y-1">
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
             Total Domains
           </span>
@@ -405,7 +489,7 @@ export default function SuperDomainsPage() {
           <p className="text-[10px] text-muted-foreground">All registered records</p>
         </Card>
 
-        <Card className="p-3.5 border shadow-2xs bg-card space-y-1 border-blue-200/60 dark:border-blue-900/40 bg-blue-50/20">
+        <Card className="p-3.5 border border-blue-200/60 dark:border-blue-900/40 rounded-xl shadow-xs bg-blue-50/20 dark:bg-card space-y-1">
           <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 block">
             Pending Approval
           </span>
@@ -416,7 +500,7 @@ export default function SuperDomainsPage() {
           <p className="text-[10px] text-blue-600/80 dark:text-blue-400/80">DNS verified, awaiting review</p>
         </Card>
 
-        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+        <Card className="p-3.5 border border-border/80 rounded-xl shadow-xs bg-card space-y-1">
           <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 block">
             Awaiting DNS
           </span>
@@ -427,7 +511,7 @@ export default function SuperDomainsPage() {
           <p className="text-[10px] text-muted-foreground">Pending registrar setup</p>
         </Card>
 
-        <Card className="p-3.5 border shadow-2xs bg-card space-y-1 border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-50/20">
+        <Card className="p-3.5 border border-emerald-200/60 dark:border-emerald-900/40 rounded-xl shadow-xs bg-emerald-50/20 dark:bg-card space-y-1">
           <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 block">
             Active Domains
           </span>
@@ -438,7 +522,7 @@ export default function SuperDomainsPage() {
           <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80">Approved &amp; serving</p>
         </Card>
 
-        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+        <Card className="p-3.5 border border-border/80 rounded-xl shadow-xs bg-card space-y-1">
           <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300 block">
             SSL Provisioning
           </span>
@@ -449,7 +533,7 @@ export default function SuperDomainsPage() {
           <p className="text-[10px] text-muted-foreground">ACME cert challenges</p>
         </Card>
 
-        <Card className="p-3.5 border shadow-2xs bg-card space-y-1">
+        <Card className="p-3.5 border border-border/80 rounded-xl shadow-xs bg-card space-y-1">
           <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300 block">
             Rejected
           </span>
@@ -462,25 +546,24 @@ export default function SuperDomainsPage() {
       </div>
 
       {/* Main Table Card */}
-      <Card className="border shadow-xs overflow-hidden">
+      <Card className="border border-border/80 rounded-xl shadow-xs overflow-hidden">
         {/* Filter Controls Bar */}
         <div className="p-4 border-b bg-muted/15 space-y-3">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             {/* Search Input */}
             <div className="relative flex-1 max-w-sm">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <Input
                 type="text"
                 placeholder="Search domain, tenant, or slug..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-background border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                className="pl-9 h-8 text-xs bg-background"
               />
             </div>
 
             {/* Filter Dropdowns */}
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Status Filter */}
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="h-8 text-xs px-2.5 w-auto min-w-[135px] bg-background border rounded-lg shadow-2xs gap-2">
                   <div className="flex items-center gap-1.5 truncate">
@@ -497,7 +580,6 @@ export default function SuperDomainsPage() {
                 </SelectContent>
               </Select>
 
-              {/* DNS Filter */}
               <Select value={dnsFilter} onValueChange={setDnsFilter}>
                 <SelectTrigger className="h-8 text-xs px-2.5 w-auto min-w-[125px] bg-background border rounded-lg shadow-2xs gap-2">
                   <div className="flex items-center gap-1.5 truncate">
@@ -513,7 +595,6 @@ export default function SuperDomainsPage() {
                 </SelectContent>
               </Select>
 
-              {/* SSL Filter */}
               <Select value={sslFilter} onValueChange={setSslFilter}>
                 <SelectTrigger className="h-8 text-xs px-2.5 w-auto min-w-[120px] bg-background border rounded-lg shadow-2xs gap-2">
                   <div className="flex items-center gap-1.5 truncate">
@@ -529,7 +610,6 @@ export default function SuperDomainsPage() {
                 </SelectContent>
               </Select>
 
-              {/* Sort By */}
               <Select value={sortBy} onValueChange={setSortBy}>
                 <SelectTrigger className="h-8 text-xs px-2.5 w-auto min-w-[135px] bg-background border rounded-lg shadow-2xs gap-2">
                   <div className="flex items-center gap-1.5 truncate">
@@ -546,6 +626,72 @@ export default function SuperDomainsPage() {
               </Select>
             </div>
           </div>
+
+          {/* Contextual Bulk Actions Toolbar */}
+          {selectedIds.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-xs">
+              <div className="flex items-center gap-2">
+                <Badge variant="soft" className="font-bold">
+                  {selectedIds.length} selected
+                </Badge>
+                <span className="text-muted-foreground">
+                  {pendingSelectedDomains.length} pending review
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1.5"
+                  disabled={isBulkBusy}
+                  onClick={() => bulkVerifyMutation.mutate(selectedIds)}
+                >
+                  {bulkVerifyMutation.isPending ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="size-3 text-blue-600" />
+                  )}
+                  Verify DNS ({selectedIds.length})
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="success"
+                  className="h-7 text-xs gap-1.5"
+                  disabled={isBulkBusy || pendingSelectedDomains.length === 0}
+                  onClick={() => setBulkApproveOpen(true)}
+                >
+                  <Check className="size-3" />
+                  Approve ({pendingSelectedDomains.length})
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-7 text-xs gap-1.5"
+                  disabled={isBulkBusy || pendingSelectedDomains.length === 0}
+                  onClick={() => {
+                    setTargetRejectDomains(pendingSelectedDomains);
+                    setIsRejectModalOpen(true);
+                  }}
+                >
+                  <X className="size-3" />
+                  Reject ({pendingSelectedDomains.length})
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs text-muted-foreground"
+                  disabled={isBulkBusy}
+                  onClick={() => setSelectedIds([])}
+                >
+                  Clear
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Loading State */}
@@ -563,7 +709,7 @@ export default function SuperDomainsPage() {
               <Globe className="w-7 h-7" />
             </div>
             <div className="space-y-1 max-w-md mx-auto">
-              <h4 className="text-base font-semibold text-slate-800 dark:text-slate-100">
+              <h4 className="text-base font-semibold text-foreground">
                 {searchTerm || statusFilter !== "all" || dnsFilter !== "all" || sslFilter !== "all"
                   ? "No matching custom domains found"
                   : "No primary custom domains have been requested yet"}
@@ -589,37 +735,43 @@ export default function SuperDomainsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-muted/40 border-b text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  <th className="py-3 px-4 w-10">
+                <tr className="bg-muted/50 border-b text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  <th className="p-3 w-10">
                     <input
                       type="checkbox"
+                      aria-label="Select all domains"
                       checked={selectedIds.length === filteredDomains.length && filteredDomains.length > 0}
                       onChange={toggleSelectAll}
                       className="rounded border-slate-300 text-primary focus:ring-primary/20 h-3.5 w-3.5 cursor-pointer"
                     />
                   </th>
-                  <th className="py-3 px-4">Primary Domain</th>
-                  <th className="py-3 px-4">Tenant / Company</th>
-                  <th className="py-3 px-4">Approval Status</th>
-                  <th className="py-3 px-4">DNS Verification</th>
-                  <th className="py-3 px-4">SSL / TLS</th>
-                  <th className="py-3 px-4">Requested</th>
-                  <th className="py-3 px-4">Verified / Approved</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th className="p-3">Primary Domain</th>
+                  <th className="p-3">Tenant / Company</th>
+                  <th className="p-3">Approval Status</th>
+                  <th className="p-3">DNS Verification</th>
+                  <th className="p-3">SSL / TLS</th>
+                  <th className="p-3">Requested</th>
+                  <th className="p-3">Verified / Approved</th>
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border-color">
-                {filteredDomains.map((d, idx) => {
-                  const avatarSrc = COMPANY_AVATARS[idx % COMPANY_AVATARS.length];
+              <tbody className="divide-y divide-border/70">
+                {filteredDomains.map((d) => {
                   const isApproved = d.status === "approved";
                   const isPending = d.status === "pending";
-                  const isRejected = d.status === "rejected";
+                  const tenantInitials = (d.tenantName || "WS")
+                    .split(/\s+/)
+                    .map((p) => p[0])
+                    .slice(0, 2)
+                    .join("")
+                    .toUpperCase();
 
                   return (
-                    <tr key={d.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="py-3 px-4">
+                    <tr key={d.id} className="hover:bg-muted/40 transition-colors">
+                      <td className="p-3">
                         <input
                           type="checkbox"
+                          aria-label={`Select ${d.domain}`}
                           checked={selectedIds.includes(d.id)}
                           onChange={() => toggleSelect(d.id)}
                           className="rounded border-slate-300 text-primary focus:ring-primary/20 h-3.5 w-3.5 cursor-pointer"
@@ -627,16 +779,17 @@ export default function SuperDomainsPage() {
                       </td>
 
                       {/* Domain URL & Primary Badge */}
-                      <td className="py-3 px-4">
+                      <td className="p-3">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <button
+                            type="button"
                             onClick={() => setDetailDomain(d)}
-                            className="font-mono font-bold text-foreground hover:text-primary transition-colors text-left"
+                            className="font-mono font-bold text-foreground hover:text-primary transition-colors text-left cursor-pointer"
                           >
                             {d.domain}
                           </button>
                           {d.isPrimary && (
-                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 text-[10px] gap-0.5">
+                            <Badge variant="warning" className="text-[10px] gap-0.5 py-0">
                               <Star className="size-2.5 fill-amber-500 text-amber-500" /> Primary
                             </Badge>
                           )}
@@ -646,11 +799,11 @@ export default function SuperDomainsPage() {
                         </span>
                       </td>
 
-                      {/* Tenant with Avatar */}
-                      <td className="py-3 px-4">
+                      {/* Tenant with Initials */}
+                      <td className="p-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="size-7 rounded-full border p-0.5 bg-background flex items-center justify-center shrink-0">
-                            <img src={avatarSrc} alt={d.tenantName} className="size-full object-contain rounded-full" />
+                          <div className="size-7 rounded-full border border-primary/20 bg-primary/10 text-primary font-bold text-[10px] flex items-center justify-center shrink-0">
+                            {tenantInitials}
                           </div>
                           <div>
                             <span className="font-semibold text-foreground block">{d.tenantName}</span>
@@ -660,24 +813,24 @@ export default function SuperDomainsPage() {
                       </td>
 
                       {/* Approval Status */}
-                      <td className="py-3 px-4">
+                      <td className="p-3">
                         {isApproved ? (
-                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 text-[10px] gap-1">
-                            <Check className="size-3 text-emerald-600" /> Approved
+                          <Badge variant="success" className="text-[10px] gap-1">
+                            <Check className="size-3" /> Approved
                           </Badge>
                         ) : isPending ? (
-                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 text-[10px] gap-1">
-                            <Clock className="size-3 text-amber-600" /> Pending Review
+                          <Badge variant="warning" className="text-[10px] gap-1">
+                            <Clock className="size-3" /> Pending Review
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-400 text-[10px] gap-1">
-                            <X className="size-3 text-rose-600" /> Rejected
+                          <Badge variant="outline" className="bg-rose-500/10 text-rose-600 border-rose-500/20 text-[10px] gap-1">
+                            <X className="size-3" /> Rejected
                           </Badge>
                         )}
                       </td>
 
                       {/* DNS Verification */}
-                      <td className="py-3 px-4">
+                      <td className="p-3">
                         {d.dnsStatus === "verified" ? (
                           <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
                             <CheckCircle2 className="size-3.5" /> Verified
@@ -694,83 +847,98 @@ export default function SuperDomainsPage() {
                       </td>
 
                       {/* SSL Status */}
-                      <td className="py-3 px-4">
+                      <td className="p-3">
                         {d.sslStatus === "active" ? (
-                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 text-[10px]">
+                          <Badge variant="success" className="text-[10px]">
                             Active (TLS 1.3)
                           </Badge>
                         ) : d.sslStatus === "failed" ? (
-                          <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 text-[10px]">
+                          <Badge variant="outline" className="bg-rose-500/10 text-rose-600 border-rose-500/20 text-[10px]">
                             Failed
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 text-[10px]">
+                          <Badge variant="warning" className="text-[10px]">
                             Provisioning
                           </Badge>
                         )}
                       </td>
 
                       {/* Requested At */}
-                      <td className="py-3 px-4 text-muted-foreground whitespace-nowrap">
+                      <td className="p-3 text-muted-foreground whitespace-nowrap">
                         {d.createdAt}
                       </td>
 
                       {/* Verified / Approved At */}
-                      <td className="py-3 px-4 text-muted-foreground whitespace-nowrap">
+                      <td className="p-3 text-muted-foreground whitespace-nowrap">
                         {d.approvedAt ? new Date(d.approvedAt).toLocaleDateString() : d.verifiedAt ? new Date(d.verifiedAt).toLocaleDateString() : "—"}
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3 px-4 text-right">
+                      <td className="p-3 text-right">
                         <div className="inline-flex items-center gap-1 justify-end">
-                          <button
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
                             title="Verify DNS in Real-Time"
                             onClick={() => verifyMutation.mutate(d.id)}
                             disabled={verifyMutation.isPending}
-                            className="p-1.5 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-md transition-colors"
+                            className="size-7 text-muted-foreground hover:text-blue-600 hover:bg-blue-500/10"
                           >
-                            <RefreshCw className={`size-3.5 ${verifyMutation.isPending && (verifyMutation.variables as string) === d.id ? "animate-spin text-blue-600" : ""}`} />
-                          </button>
+                            <RefreshCw className={`size-3.5 ${verifyMutation.isPending && verifyMutation.variables === d.id ? "animate-spin text-blue-600" : ""}`} />
+                          </Button>
 
-                          <button
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
                             title="View DNS & Details"
                             onClick={() => setDetailDomain(d)}
-                            className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-md transition-colors"
+                            className="size-7 text-muted-foreground hover:text-primary"
                           >
                             <Eye className="size-3.5" />
-                          </button>
+                          </Button>
 
                           {isPending && (
                             <>
-                              <button
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
                                 title="Approve Domain"
                                 onClick={() => approveMutation.mutate(d.id)}
                                 disabled={approveMutation.isPending}
-                                className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-md transition-colors"
+                                className="size-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
                               >
                                 <Check className="size-3.5" />
-                              </button>
+                              </Button>
 
-                              <button
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
                                 title="Reject Domain"
                                 onClick={() => {
-                                  setTargetRejectDomain(d);
+                                  setTargetRejectDomains([d]);
                                   setIsRejectModalOpen(true);
                                 }}
-                                className="p-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-md transition-colors"
+                                className="size-7 text-rose-600 hover:text-rose-700 hover:bg-rose-500/10"
                               >
                                 <X className="size-3.5" />
-                              </button>
+                              </Button>
                             </>
                           )}
 
-                          <button
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
                             title="Delete Domain"
                             onClick={() => setDeleteDomain(d)}
-                            className="p-1.5 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-md transition-colors"
+                            className="size-7 text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10"
                           >
                             <Trash2 className="size-3.5" />
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -782,309 +950,343 @@ export default function SuperDomainsPage() {
         )}
       </Card>
 
-      {/* DETAIL MODAL / DRAWER */}
-      {detailDomain && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-xl w-full overflow-hidden max-h-[90vh] flex flex-col">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border-color">
-              <div className="flex items-center gap-2">
-                <Globe className="size-5 text-primary" />
-                <div>
-                  <h4 className="font-semibold text-sm text-foreground">Custom Domain Details</h4>
-                  <p className="text-[11px] text-muted-foreground font-mono">{detailDomain.domain}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setDetailDomain(null)}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
+      {/* DETAIL DIALOG (Radix Dialog) */}
+      <Dialog open={!!detailDomain} onOpenChange={(open) => !open && setDetailDomain(null)}>
+        <DialogContent className="max-w-xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          {detailDomain && (
+            <>
+              <DialogHeader className="px-5 py-4 border-b border-border/70">
+                <DialogTitle className="flex items-center gap-2 text-base font-bold">
+                  <Globe className="size-5 text-primary" />
+                  <span>Custom Domain Details</span>
+                </DialogTitle>
+                <DialogDescription className="text-xs font-mono">
+                  {detailDomain.domain}
+                </DialogDescription>
+              </DialogHeader>
 
-            {/* Modal Scrollable Body */}
-            <div className="p-5 space-y-4 overflow-y-auto text-xs">
-              {/* Status and Tenant Header Banner */}
-              <div className="p-3.5 rounded-xl bg-muted/40 border border-border-color flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Tenant Workspace</span>
-                  <span className="font-bold text-foreground text-sm">{detailDomain.tenantName}</span>
-                  <span className="text-muted-foreground font-mono block text-[11px]">{detailDomain.subdomain}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Governance</span>
-                  {detailDomain.status === "approved" ? (
-                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 text-[10px] gap-1">
-                      <Check className="size-3" /> Approved
-                    </Badge>
-                  ) : detailDomain.status === "pending" ? (
-                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 text-[10px] gap-1">
-                      <Clock className="size-3" /> Pending Review
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 text-[10px] gap-1">
-                      <X className="size-3" /> Rejected
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              {/* Rejection alert if applicable */}
-              {detailDomain.status === "rejected" && (
-                <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-800 dark:text-rose-300 space-y-1">
-                  <div className="font-bold flex items-center gap-1.5">
-                    <ShieldAlert className="size-4 text-rose-600" />
-                    <span>Domain Request Rejected</span>
+              <div className="p-5 space-y-4 overflow-y-auto text-xs flex-1">
+                {/* Status and Tenant Header Banner */}
+                <div className="p-3.5 rounded-xl bg-muted/40 border border-border/70 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground block">Tenant Workspace</span>
+                    <span className="font-bold text-foreground text-sm">{detailDomain.tenantName}</span>
+                    <span className="text-muted-foreground font-mono block text-[11px]">{detailDomain.subdomain}</span>
                   </div>
-                  <p className="text-[11px] leading-relaxed">
-                    Reason: {detailDomain.rejectedReason || "No specific reason provided."}
-                  </p>
-                </div>
-              )}
-
-              {/* Status Matrix */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-lg border bg-card space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">DNS Status</span>
-                  <span className={`font-semibold ${detailDomain.dnsStatus === "verified" ? "text-emerald-600" : "text-amber-600"}`}>
-                    {detailDomain.dnsStatus === "verified" ? "Verified" : "Pending Verification"}
-                  </span>
-                </div>
-                <div className="p-3 rounded-lg border bg-card space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">SSL Status</span>
-                  <span className={`font-semibold ${detailDomain.sslStatus === "active" ? "text-emerald-600" : "text-amber-600"}`}>
-                    {detailDomain.sslStatus === "active" ? "Active (TLS 1.3)" : detailDomain.sslStatus || "Provisioning"}
-                  </span>
-                </div>
-              </div>
-
-              {/* DNS Instructions Table */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-foreground uppercase tracking-wider text-[10px]">
-                    Required DNS Configuration
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-[10px] h-6 gap-1"
-                    onClick={() => verifyMutation.mutate(detailDomain.id)}
-                    disabled={verifyMutation.isPending}
-                  >
-                    <RefreshCw className={`size-3 ${verifyMutation.isPending ? "animate-spin" : ""}`} /> Verify Now
-                  </Button>
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Governance</span>
+                    {detailDomain.status === "approved" ? (
+                      <Badge variant="success" className="text-[10px] gap-1">
+                        <Check className="size-3" /> Approved
+                      </Badge>
+                    ) : detailDomain.status === "pending" ? (
+                      <Badge variant="warning" className="text-[10px] gap-1">
+                        <Clock className="size-3" /> Pending Review
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-rose-500/10 text-rose-600 border-rose-500/20 text-[10px] gap-1">
+                        <X className="size-3" /> Rejected
+                      </Badge>
+                    )}
+                  </div>
                 </div>
 
-                <div className="border rounded-xl divide-y text-[11px] font-mono bg-muted/20">
-                  {/* CNAME */}
-                  <div className="p-2.5 flex items-center justify-between gap-2">
-                    <div>
-                      <Badge className="bg-blue-600 text-white text-[9px] mr-1.5 font-sans">CNAME</Badge>
-                      <span className="text-muted-foreground">Host: @ → Target: </span>
-                      <span className="font-bold text-foreground">{detailDomain.targetCname}</span>
+                {/* Rejection alert if applicable */}
+                {detailDomain.status === "rejected" && (
+                  <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <ShieldAlert className="size-4 text-rose-600" />
+                      <span>Domain Request Rejected</span>
                     </div>
+                    <p className="text-[11px] leading-relaxed">
+                      Reason: {detailDomain.rejectedReason || "No specific reason provided."}
+                    </p>
+                  </div>
+                )}
+
+                {/* Status Matrix */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 rounded-lg border bg-card space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground block">DNS Status</span>
+                    <span className={`font-semibold ${detailDomain.dnsStatus === "verified" ? "text-emerald-600" : "text-amber-600"}`}>
+                      {detailDomain.dnsStatus === "verified" ? "Verified" : "Pending Verification"}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-lg border bg-card space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground block">SSL Status</span>
+                    <span className={`font-semibold ${detailDomain.sslStatus === "active" ? "text-emerald-600" : "text-amber-600"}`}>
+                      {detailDomain.sslStatus === "active" ? "Active (TLS 1.3)" : detailDomain.sslStatus || "Provisioning"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* DNS Instructions Table */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-foreground uppercase tracking-wider text-[10px]">
+                      Required DNS Configuration
+                    </span>
                     <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-6 text-muted-foreground hover:text-foreground"
-                      onClick={() => handleCopy(detailDomain.targetCname, "cname")}
+                      size="sm"
+                      variant="outline"
+                      className="text-[10px] h-6 gap-1"
+                      onClick={() => verifyMutation.mutate(detailDomain.id)}
+                      disabled={verifyMutation.isPending}
                     >
-                      {copiedKey === "cname" ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                      <RefreshCw className={`size-3 ${verifyMutation.isPending ? "animate-spin" : ""}`} /> Verify Now
                     </Button>
                   </div>
 
-                  {/* TXT Challenge */}
-                  {detailDomain.verificationToken && (
+                  <div className="border rounded-xl divide-y text-[11px] font-mono bg-muted/20">
                     <div className="p-2.5 flex items-center justify-between gap-2">
-                      <div className="truncate">
-                        <Badge className="bg-purple-600 text-white text-[9px] mr-1.5 font-sans">TXT</Badge>
-                        <span className="text-muted-foreground">Challenge: </span>
-                        <span className="font-bold text-purple-600 dark:text-purple-400">{detailDomain.verificationToken}</span>
+                      <div>
+                        <Badge className="bg-blue-600 text-white text-[9px] mr-1.5 font-sans">CNAME</Badge>
+                        <span className="text-muted-foreground">Host: @ → Target: </span>
+                        <span className="font-bold text-foreground">{detailDomain.targetCname}</span>
                       </div>
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="size-6 text-muted-foreground hover:text-foreground shrink-0"
-                        onClick={() => handleCopy(detailDomain.verificationToken || "", "txt")}
+                        className="size-6 text-muted-foreground hover:text-foreground"
+                        onClick={() => handleCopy(detailDomain.targetCname, "cname")}
                       >
-                        {copiedKey === "txt" ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                        {copiedKey === "cname" ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
                       </Button>
                     </div>
-                  )}
+
+                    {detailDomain.verificationToken && (
+                      <div className="p-2.5 flex items-center justify-between gap-2">
+                        <div className="truncate">
+                          <Badge className="bg-purple-600 text-white text-[9px] mr-1.5 font-sans">TXT</Badge>
+                          <span className="text-muted-foreground">Challenge: </span>
+                          <span className="font-bold text-purple-600 dark:text-purple-400">{detailDomain.verificationToken}</span>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-6 text-muted-foreground hover:text-foreground shrink-0"
+                          onClick={() => handleCopy(detailDomain.verificationToken || "", "txt")}
+                        >
+                          {copiedKey === "txt" ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Audit Timeline */}
+                <div className="space-y-2 pt-2 border-t">
+                  <span className="font-bold text-foreground uppercase tracking-wider text-[10px] flex items-center gap-1">
+                    <Clock className="size-3 text-primary" /> Lifecycle Audit Trail
+                  </span>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-[11px]">
+                      <span className="text-muted-foreground">1. Requested At:</span>
+                      <span className="font-semibold text-foreground">{detailDomain.createdAt}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-[11px]">
+                      <span className="text-muted-foreground">2. DNS Verified At:</span>
+                      <span className="font-semibold text-foreground">
+                        {detailDomain.verifiedAt ? new Date(detailDomain.verifiedAt).toLocaleString() : "Pending"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-[11px]">
+                      <span className="text-muted-foreground">3. Super Admin Review:</span>
+                      <span className="font-semibold text-foreground">
+                        {detailDomain.approvedAt
+                          ? `Approved at ${new Date(detailDomain.approvedAt).toLocaleString()}`
+                          : detailDomain.status === "rejected"
+                          ? "Rejected"
+                          : "In Queue"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-[11px]">
+                      <span className="text-muted-foreground">4. SSL Certificate:</span>
+                      <span className="font-semibold text-foreground">
+                        {detailDomain.sslIssuedAt ? `Issued at ${new Date(detailDomain.sslIssuedAt).toLocaleString()}` : detailDomain.sslStatus}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Audit Timeline */}
-              <div className="space-y-2 pt-2 border-t">
-                <span className="font-bold text-foreground uppercase tracking-wider text-[10px] flex items-center gap-1">
-                  <Clock className="size-3 text-primary" /> Lifecycle Audit Trail
-                </span>
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-[11px]">
-                    <span className="text-muted-foreground">1. Requested At:</span>
-                    <span className="font-semibold text-foreground">{detailDomain.createdAt}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-[11px]">
-                    <span className="text-muted-foreground">2. DNS Verified At:</span>
-                    <span className="font-semibold text-foreground">
-                      {detailDomain.verifiedAt ? new Date(detailDomain.verifiedAt).toLocaleString() : "Pending"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-[11px]">
-                    <span className="text-muted-foreground">3. Super Admin Review:</span>
-                    <span className="font-semibold text-foreground">
-                      {detailDomain.approvedAt ? `Approved at ${new Date(detailDomain.approvedAt).toLocaleString()}` : detailDomain.status === "rejected" ? "Rejected" : "In Queue"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 text-[11px]">
-                    <span className="text-muted-foreground">4. SSL Certificate:</span>
-                    <span className="font-semibold text-foreground">
-                      {detailDomain.sslIssuedAt ? `Issued at ${new Date(detailDomain.sslIssuedAt).toLocaleString()}` : detailDomain.sslStatus}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer Actions */}
-            <div className="p-4 border-t border-border-color flex items-center justify-between gap-2 bg-muted/10">
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs h-8 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-                onClick={() => {
-                  setDeleteDomain(detailDomain);
-                }}
-              >
-                <Trash2 className="size-3.5 mr-1" /> Delete
-              </Button>
-
-              <div className="flex items-center gap-2">
-                {detailDomain.status === "pending" && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-xs h-8 text-rose-600 hover:bg-rose-50"
-                      onClick={() => {
-                        setTargetRejectDomain(detailDomain);
-                        setIsRejectModalOpen(true);
-                      }}
-                    >
-                      <X className="size-3.5 mr-1" /> Reject Request
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
-                      disabled={approveMutation.isPending}
-                      onClick={() => approveMutation.mutate(detailDomain.id)}
-                    >
-                      {approveMutation.isPending ? <Loader2 className="size-3.5 animate-spin mr-1" /> : <Check className="size-3.5 mr-1" />}
-                      Approve &amp; Activate
-                    </Button>
-                  </>
-                )}
+              <DialogFooter className="px-5 py-3.5 border-t border-border/70 bg-muted/10 flex-row items-center justify-between sm:justify-between gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-xs h-8"
-                  onClick={() => setDetailDomain(null)}
+                  className="text-xs h-8 text-rose-600 hover:text-rose-700 hover:bg-rose-500/10"
+                  onClick={() => setDeleteDomain(detailDomain)}
                 >
-                  Close
+                  <Trash2 className="size-3.5 mr-1" /> Delete
                 </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* REJECT MODAL */}
-      {isRejectModalOpen && targetRejectDomain && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-md w-full p-5 space-y-4">
-            <div className="flex items-center gap-2.5 text-rose-600">
+                <div className="flex items-center gap-2">
+                  {detailDomain.status === "pending" && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-8 text-rose-600 hover:bg-rose-500/10"
+                        onClick={() => {
+                          setTargetRejectDomains([detailDomain]);
+                          setIsRejectModalOpen(true);
+                        }}
+                      >
+                        <X className="size-3.5 mr-1" /> Reject Request
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="success"
+                        className="text-xs h-8"
+                        disabled={approveMutation.isPending}
+                        onClick={() => approveMutation.mutate(detailDomain.id)}
+                      >
+                        {approveMutation.isPending ? <Loader2 className="size-3.5 animate-spin mr-1" /> : <Check className="size-3.5 mr-1" />}
+                        Approve &amp; Activate
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-8"
+                    onClick={() => setDetailDomain(null)}
+                  >
+                    Close
+                  </Button>
+                </div>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* REJECT DIALOG (Single or Bulk) */}
+      <Dialog
+        open={isRejectModalOpen && targetRejectDomains.length > 0}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsRejectModalOpen(false);
+            setRejectReason("");
+            setTargetRejectDomains([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-rose-600">
               <AlertTriangle className="size-5" />
-              <h4 className="font-bold text-base text-foreground">Reject Custom Domain Request</h4>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Please state the reason for rejecting <strong className="text-foreground">{targetRejectDomain.domain}</strong>. The tenant admin will see this reason in their workspace settings.
-            </p>
-            <textarea
-              placeholder="e.g. Hostname does not match corporate registration, CNAME proxying misconfigured, or offensive wording..."
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              rows={3}
-              className="w-full p-2.5 text-xs bg-muted/30 border rounded-lg focus:outline-none focus:ring-1 focus:ring-rose-500"
-              autoFocus
-            />
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs h-8"
-                onClick={() => {
-                  setIsRejectModalOpen(false);
-                  setRejectReason("");
-                  setTargetRejectDomain(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                className="text-xs h-8 bg-rose-600 hover:bg-rose-700"
-                disabled={rejectMutation.isPending || !rejectReason.trim()}
-                onClick={() =>
-                  rejectMutation.mutate({
-                    id: targetRejectDomain.id,
-                    reason: rejectReason.trim(),
-                  })
-                }
-              >
-                {rejectMutation.isPending && <Loader2 className="size-3 animate-spin mr-1" />}
-                Confirm Rejection
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+              {targetRejectDomains.length === 1
+                ? "Reject Custom Domain Request"
+                : `Reject ${targetRejectDomains.length} Custom Domain Requests`}
+            </DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed">
+              {targetRejectDomains.length === 1 ? (
+                <>
+                  State the reason for rejecting{" "}
+                  <strong className="text-foreground font-mono">{targetRejectDomains[0]?.domain}</strong>. The tenant admin will see this reason in their workspace settings.
+                </>
+              ) : (
+                <>
+                  State the rejection reason to apply to all{" "}
+                  <strong className="text-foreground">{targetRejectDomains.length}</strong> selected pending domains.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
 
-      {/* DELETE CONFIRMATION MODAL */}
-      {deleteDomain && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-sm w-full p-5 text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center mx-auto">
-              <AlertTriangle className="size-6" />
+          {targetRejectDomains.length > 1 && (
+            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-2 rounded-lg bg-muted/30 border">
+              {targetRejectDomains.map((d) => (
+                <Badge key={d.id} variant="outline" className="font-mono text-[10px]">
+                  {d.domain}
+                </Badge>
+              ))}
             </div>
-            <h4 className="font-semibold text-base text-foreground">Remove Custom Domain?</h4>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Are you sure you want to remove <strong className="text-foreground">{deleteDomain.domain}</strong>? The vanity routing will be detached. The tenant&apos;s default Flow 1 workspace will remain completely active.
-            </p>
-            <div className="flex items-center justify-center gap-2 pt-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDeleteDomain(null)}
-                className="text-xs h-8"
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutate(deleteDomain.id)}
-                className="text-xs h-8 bg-rose-600 hover:bg-rose-700"
-              >
-                {deleteMutation.isPending && <Loader2 className="size-3 animate-spin mr-1" />}
-                Confirm Removal
-              </Button>
-            </div>
-          </div>
+          )}
+
+          <Textarea
+            placeholder="e.g. Hostname does not match corporate registration, CNAME proxying misconfigured..."
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            rows={3}
+            className="text-xs"
+            autoFocus
+          />
+
+          <DialogFooter className="pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-8"
+              onClick={() => {
+                setIsRejectModalOpen(false);
+                setRejectReason("");
+                setTargetRejectDomains([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="text-xs h-8"
+              disabled={rejectMutation.isPending || !rejectReason.trim()}
+              onClick={() =>
+                rejectMutation.mutate({
+                  ids: targetRejectDomains.map((d) => d.id),
+                  reason: rejectReason.trim(),
+                })
+              }
+            >
+              {rejectMutation.isPending && <Loader2 className="size-3 animate-spin mr-1" />}
+              Confirm Rejection
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* BULK APPROVE CONFIRMATION DIALOG */}
+      <ConfirmationDialog
+        open={bulkApproveOpen}
+        onOpenChange={setBulkApproveOpen}
+        variant="default"
+        icon={<ShieldCheck className="size-5" />}
+        title={`Approve ${pendingSelectedDomains.length} Custom Domain(s)?`}
+        description="Selected pending domains will be approved and SSL certificate provisioning will be initiated for each workspace."
+        confirmLabel={`Approve ${pendingSelectedDomains.length} Domain(s)`}
+        isLoading={bulkApproveMutation.isPending}
+        onConfirm={() => bulkApproveMutation.mutate(pendingSelectedDomains.map((d) => d.id))}
+      >
+        <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+          {pendingSelectedDomains.map((d) => (
+            <Badge key={d.id} variant="outline" className="font-mono text-[10px]">
+              {d.domain}
+            </Badge>
+          ))}
         </div>
-      )}
+      </ConfirmationDialog>
+
+      {/* DELETE CONFIRMATION DIALOG */}
+      <ConfirmationDialog
+        open={!!deleteDomain}
+        onOpenChange={(open) => !open && setDeleteDomain(null)}
+        variant="destructive"
+        title="Remove Custom Domain?"
+        description={
+          deleteDomain ? (
+            <>
+              Are you sure you want to remove{" "}
+              <strong className="text-foreground font-mono">{deleteDomain.domain}</strong>? Vanity routing will be detached while the tenant&apos;s default Flow 1 workspace remains active.
+            </>
+          ) : undefined
+        }
+        confirmLabel="Confirm Removal"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => {
+          if (deleteDomain) deleteMutation.mutate(deleteDomain.id);
+        }}
+      />
     </div>
   );
 }

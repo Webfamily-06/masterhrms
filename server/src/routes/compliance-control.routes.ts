@@ -296,7 +296,8 @@ complianceControlRouter.post("/rules/:id/approve", async (req: AuthRequest, res:
   try {
     const { id } = req.params;
     const actorEmail = req.user?.email || "compliance@masterhrms.com";
-    const { enforceMakerChecker = true } = req.body;
+    // Maker-checker is ALWAYS enforced server-side; clients cannot opt out of self-approval protection.
+    const enforceMakerChecker = true;
 
     const updated = await registryService.approveRule(
       id,
@@ -581,8 +582,27 @@ complianceControlRouter.get("/audit-trail", async (req: AuthRequest, res: Respon
 complianceControlRouter.get("/affected-tenants", async (req: AuthRequest, res: Response) => {
   try {
     const { jurisdiction = "CENTRAL", stateCode = "ALL" } = req.query;
+    const juris = String(jurisdiction).toUpperCase();
+    const state = String(stateCode).toUpperCase().trim();
+
+    // CENTRAL rules (or ALL states) affect every workspace; STATE rules only affect workspaces
+    // that employ staff in that state (by work state code or residential state).
+    const isStateScoped = juris !== "CENTRAL" && state && state !== "ALL";
+    const where: any = isStateScoped
+      ? {
+          employees: {
+            some: {
+              OR: [
+                { workStateCode: { equals: state, mode: "insensitive" } },
+                { state: { equals: state, mode: "insensitive" } },
+              ],
+            },
+          },
+        }
+      : {};
 
     const tenants = await prisma.tenant.findMany({
+      where,
       select: {
         id: true,
         name: true,
@@ -595,8 +615,8 @@ complianceControlRouter.get("/affected-tenants", async (req: AuthRequest, res: R
 
     return res.json({
       success: true,
-      jurisdiction: String(jurisdiction).toUpperCase(),
-      stateCode: String(stateCode).toUpperCase(),
+      jurisdiction: juris,
+      stateCode: state,
       affectedTenantsCount: tenants.length,
       tenants: tenants.map((t) => ({
         id: t.id,

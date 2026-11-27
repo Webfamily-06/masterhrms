@@ -140,7 +140,12 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
 
     // Host-to-JWT Tenant Binding Enforcement
     const resolvedTenant = (req as any).resolvedTenant;
-    let tenantId = account.profile?.tenantId || (isSuper && decoded.tenantId ? decoded.tenantId : null);
+    // Impersonation is session-scoped: the signed token's tenant wins over any persisted profile tenant,
+    // so multiple Super Admin tabs can impersonate different workspaces without overwriting each other.
+    let tenantId =
+      isSuper && isImpersonating && decoded.tenantId
+        ? decoded.tenantId
+        : account.profile?.tenantId || (isSuper && decoded.tenantId ? decoded.tenantId : null);
 
     if (resolvedTenant) {
       if (!isSuper && !isImpersonating) {

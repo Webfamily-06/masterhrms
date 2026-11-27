@@ -1,9 +1,12 @@
 'use client';
-import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
-import {  createFileRoute  } from "@/src/lib/router-compat";
+
+import { useState, useMemo } from "react";
+import { Link } from "@/src/lib/router-compat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -23,137 +26,225 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { useState, useMemo } from "react";
 import {
   ShieldCheck,
-  ShieldOff,
-  UserCheck,
   Users,
   Search,
-  Building2,
   CheckCircle2,
-  Sparkles,
   RefreshCw,
   Plus,
   Loader2,
-  Lock,
-  UserPlus,
   Shield,
-  Key,
   Pencil,
   Trash2,
-  Code,
-  FileText,
-  Store,
   Sliders,
-  CheckSquare,
-  Square,
-  ChevronRight,
-  Info,
-  Mail,
-  User as UserIcon,
+  ArrowUpRight,
+  Lock,
+  Grid3x3,
+  Check,
+  Minus,
 } from "lucide-react";
 
+export type PermissionCategory =
+  | "HR Core"
+  | "Business Modules"
+  | "CMS & Web"
+  | "Marketplace"
+  | "Tenants"
+  | "Security & Admin"
+  | "Developer";
 
-
-// Feature Permissions Definition Type
 export type FeaturePermission = {
   id: string;
   name: string;
-  category: "CMS" | "Marketplace" | "Tenants" | "Security" | "Developer" | "HRMS";
+  category: PermissionCategory;
   description: string;
 };
 
-const AVAILABLE_FEATURES: FeaturePermission[] = [
+/**
+ * Single canonical source of truth for all platform & workspace RBAC permissions.
+ * Both AVAILABLE_FEATURES and SYSTEM_PERMISSIONS derive directly from this registry.
+ */
+const PLATFORM_PERMISSIONS: readonly FeaturePermission[] = [
+  // HR Core
+  {
+    id: "hr:employees",
+    name: "Employees & Directory",
+    category: "HR Core",
+    description: "Manage employee profiles, org charts, and master directory",
+  },
+  {
+    id: "hr:payroll",
+    name: "Payroll & Salaries",
+    category: "HR Core",
+    description: "Run pay runs, statutory filings, and payslips",
+  },
+  {
+    id: "hr:attendance",
+    name: "Attendance & Shifts",
+    category: "HR Core",
+    description: "Manage attendance logs, shift rosters, and time tracking",
+  },
+  {
+    id: "hr:leave",
+    name: "Leave Requests",
+    category: "HR Core",
+    description: "Submit, review, and approve employee leave requests",
+  },
+
+  // Business Modules
+  {
+    id: "pos:checkout",
+    name: "POS Checkout",
+    category: "Business Modules",
+    description: "Operate point-of-sale checkout terminals and transactions",
+  },
+  {
+    id: "pos:reports",
+    name: "POS Financial Reports",
+    category: "Business Modules",
+    description: "View point-of-sale revenue summaries and ledger exports",
+  },
+  {
+    id: "crm:leads",
+    name: "CRM Pipeline & Deals",
+    category: "Business Modules",
+    description: "Manage sales pipelines, leads, and deal stages",
+  },
+  {
+    id: "invoices:manage",
+    name: "Invoices & Billing",
+    category: "Business Modules",
+    description: "Generate, send, and reconcile customer invoices",
+  },
+
+  // CMS & Web
   {
     id: "cms:read",
     name: "View CMS Pages",
-    category: "CMS",
-    description: "View public marketing and legal pages",
+    category: "CMS & Web",
+    description: "View public marketing, blog, and legal pages",
   },
   {
     id: "cms:write",
     name: "Edit CMS Pages & Hero",
-    category: "CMS",
-    description: "Modify page content, hero section, and meta tags",
+    category: "CMS & Web",
+    description: "Modify page content, hero sections, and SEO metadata",
   },
   {
     id: "cms:publish",
     name: "Publish / Unpublish Pages",
-    category: "CMS",
+    category: "CMS & Web",
     description: "Toggle live publishing status of website pages",
   },
+
+  // Marketplace
   {
     id: "marketplace:read",
     name: "Browse Addons Marketplace",
     category: "Marketplace",
-    description: "View extensions and installed addons",
+    description: "View extensions and installed workspace addons",
   },
   {
     id: "marketplace:manage",
     name: "Manage Addon Extensions",
     category: "Marketplace",
-    description: "Create, edit, price, and delete marketplace addons",
+    description: "Create, edit, price, and archive marketplace addons",
   },
   {
     id: "marketplace:upload_png",
     name: "Upload PNG Media Icons",
     category: "Marketplace",
-    description: "Upload custom PNG icons and screenshots",
+    description: "Upload custom PNG icons and extension screenshots",
   },
+
+  // Tenants
   {
     id: "tenants:read",
     name: "View Workspaces & Tenants",
     category: "Tenants",
-    description: "List company workspaces and employee quotas",
+    description: "List company workspaces and seat utilization quotas",
   },
   {
     id: "tenants:manage",
     name: "Provision & Manage Tenants",
     category: "Tenants",
-    description: "Create, edit domain slugs, and delete tenant accounts",
+    description: "Create, configure domain slugs, and govern tenant accounts",
   },
+  {
+    id: "super:tenants",
+    name: "Multi-Tenant Workspaces",
+    category: "Tenants",
+    description: "Full platform-level tenant lifecycle orchestration",
+  },
+
+  // Security & Admin
   {
     id: "roles:read",
     name: "View System User Roles",
-    category: "Security",
-    description: "View user directory and assigned role badges",
+    category: "Security & Admin",
+    description: "Inspect role definitions and assigned permission matrices",
   },
   {
     id: "roles:manage",
     name: "Manage Roles & Permissions",
-    category: "Security",
-    description: "Create custom roles, edit permissions, assign user roles",
+    category: "Security & Admin",
+    description: "Create custom roles and modify blueprint permissions",
   },
+  {
+    id: "super:plans",
+    name: "Monetization & Plans",
+    category: "Security & Admin",
+    description: "Manage subscription tiers, coupons, and pricing",
+  },
+  {
+    id: "super:settings",
+    name: "System Config & SMTP",
+    category: "Security & Admin",
+    description: "Configure platform settings, mail transport, and branding",
+  },
+  {
+    id: "super:roles",
+    name: "Roles & RBAC Matrix",
+    category: "Security & Admin",
+    description: "Govern root security role definitions across the platform",
+  },
+
+  // Developer
   {
     id: "dev:og_preview",
     name: "Open Graph Data Tools",
     category: "Developer",
-    description: "Use OG metadata fetcher and CORS previewer",
+    description: "Use OG metadata fetcher and social preview studio",
   },
   {
     id: "dev:api_docs",
     name: "API Documentation Access",
     category: "Developer",
-    description: "Access developer REST API reference",
+    description: "Access developer REST API reference and webhook tools",
   },
-  {
-    id: "hr:employees",
-    name: "Employee Directory & Master",
-    category: "HRMS",
-    description: "Manage employee records and org charts",
-  },
-  {
-    id: "hr:payroll",
-    name: "Payroll & Tax Automation",
-    category: "HRMS",
-    description: "Run pay runs, statutory filings, and payslips",
-  },
-];
+] as const;
+
+const AVAILABLE_FEATURES: FeaturePermission[] = [...PLATFORM_PERMISSIONS];
+
+const SYSTEM_PERMISSIONS = PLATFORM_PERMISSIONS.map((p) => ({
+  id: p.id,
+  label: p.name,
+  module: p.category,
+}));
+
+const PERMISSION_MAP = new Map<string, FeaturePermission>(
+  PLATFORM_PERMISSIONS.map((p) => [p.id, p]),
+);
+
+const PERMISSION_CATEGORIES: PermissionCategory[] = Array.from(
+  new Set(PLATFORM_PERMISSIONS.map((p) => p.category)),
+);
 
 export type RoleDefinition = {
   key: string;
@@ -164,28 +255,7 @@ export type RoleDefinition = {
   permissions: string[];
 };
 
-const SYSTEM_PERMISSIONS = [
-  { id: "hr:employees", label: "Employees & Directory", module: "HR Core" },
-  { id: "hr:payroll", label: "Payroll & Salaries", module: "HR Core" },
-  { id: "hr:attendance", label: "Attendance & Shifts", module: "HR Core" },
-  { id: "hr:leave", label: "Leave Requests", module: "HR Core" },
-  { id: "pos:checkout", label: "POS Checkout", module: "POS" },
-  { id: "pos:reports", label: "POS Financial Reports", module: "POS" },
-  { id: "crm:leads", label: "CRM Pipeline & Deals", module: "CRM" },
-  { id: "invoices:manage", label: "Invoices & Billing", module: "Invoicing" },
-  { id: "cms:read", label: "CMS Read Access", module: "CMS & Web" },
-  { id: "cms:write", label: "CMS Write Access", module: "CMS & Web" },
-  { id: "cms:publish", label: "CMS Publish Pages", module: "CMS & Web" },
-  { id: "marketplace:read", label: "Marketplace Browse", module: "Addons" },
-  { id: "marketplace:manage", label: "Marketplace Management", module: "Addons" },
-  { id: "marketplace:upload_png", label: "Upload PNG Assets", module: "Addons" },
-  { id: "dev:og_preview", label: "OG Image Preview Studio", module: "Developer" },
-  { id: "dev:api_docs", label: "Swagger & API Testing", module: "Developer" },
-  { id: "super:tenants", label: "Multi-Tenant Workspaces", module: "Super Admin" },
-  { id: "super:plans", label: "Monetization & Plans", module: "Super Admin" },
-  { id: "super:settings", label: "System Config & SMTP", module: "Super Admin" },
-  { id: "super:roles", label: "Roles & RBAC Matrix", module: "Super Admin" },
-];
+const SYSTEM_ROLE_KEYS = ["super_admin", "hr_admin", "manager", "employee"] as const;
 
 const DEFAULT_ROLES: RoleDefinition[] = [
   {
@@ -222,44 +292,28 @@ const DEFAULT_ROLES: RoleDefinition[] = [
   },
 ];
 
-type UserProfileRow = {
-  id: string;
-  user_id?: string;
-  full_name: string | null;
-  email: string | null;
-  avatar_url: string | null;
-  tenant_id: string | null;
-  created_at: string;
-  two_factor_enabled?: boolean;
-  tenants: { name: string; slug: string } | null;
-  roles: string[];
-};
-
 function RolesAdminStudio() {
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"roles_crud" | "user_assignment">("user_assignment");
+  const [activeTab, setActiveTab] = useState<"roles_crud" | "permission_matrix">("roles_crud");
   const [searchQuery, setSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
-  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
-  // Super Admin Master 2FA Reset Mutation
-  const resetUser2FAMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      return await api.post(`/super/users/${userId}/reset-2fa`, {});
-    },
-    onSuccess: (res: any) => {
-      toast.success(res.message || "Two-Factor Authentication reset successfully. User account unlocked.");
-      qc.invalidateQueries({ queryKey: ["all-users-roles"] });
-    },
-    onError: (e: any) => toast.error(e.message || "Failed to reset 2FA"),
-  });
+  // Role Dialog & Delete Confirmation States
+  const [editingRole, setEditingRole] = useState<RoleDefinition | null>(null);
+  const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+  const [roleToDelete, setRoleToDelete] = useState<RoleDefinition | null>(null);
 
-  // Custom Roles definitions stored in MySQL
-  const { data: storedRoleDefs } = useQuery({
+  // Fetch stored role definitions from CMS config
+  const {
+    data: storedRoleDefs,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ["custom-role-definitions"],
     queryFn: async () => {
       try {
-        const page = await api.get("/cms/pages/system-role-definitions");
+        const res = await api.get("/cms/pages/system-role-definitions");
+        const page = res?.data || res || {};
         if (page?.content && Array.isArray((page.content as any).roles)) {
           return (page.content as any).roles as RoleDefinition[];
         }
@@ -272,7 +326,7 @@ function RolesAdminStudio() {
 
   const rolesList = storedRoleDefs ?? DEFAULT_ROLES;
 
-  // Mutation to persist custom roles to database
+  // Mutation to persist role definitions
   const saveRoleDefsMutation = useMutation({
     mutationFn: async (updatedRoles: RoleDefinition[]) => {
       await api.put("/cms/pages/system-role-definitions", {
@@ -284,44 +338,41 @@ function RolesAdminStudio() {
     },
     onSuccess: () => {
       toast.success("Role definitions saved to system");
+      setRoleToDelete(null);
       qc.invalidateQueries({ queryKey: ["custom-role-definitions"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: any) => toast.error(e?.message || "Failed to save role definitions"),
   });
 
-  // Query Users & Roles
-  const {
-    data: users = [],
-    isLoading,
-    refetch,
-  } = useQuery({
-    queryKey: ["all-users-roles"],
-    queryFn: async () => {
-      try {
-        const list = await api.get("/super/users");
-        return Array.isArray(list) ? (list as UserProfileRow[]) : [];
-      } catch {
-        return [];
-      }
-    },
-  });
+  const filteredRoles = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return rolesList;
+    return rolesList.filter(
+      (r) =>
+        r.label.toLowerCase().includes(q) ||
+        r.key.toLowerCase().includes(q) ||
+        r.description.toLowerCase().includes(q),
+    );
+  }, [rolesList, searchQuery]);
 
-  // Query registered Tenants
-  const { data: tenants = [] } = useQuery({
-    queryKey: ["super-tenants-list"],
-    queryFn: async () => {
-      try {
-        const list = await api.get("/super/tenants");
-        return Array.isArray(list) ? list : [];
-      } catch {
-        return [];
-      }
-    },
-  });
+  const filteredPermissions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return AVAILABLE_FEATURES.filter((feat) => {
+      const matchesCat = categoryFilter === "all" || feat.category === categoryFilter;
+      const matchesQ =
+        !q ||
+        feat.id.toLowerCase().includes(q) ||
+        feat.name.toLowerCase().includes(q) ||
+        feat.description.toLowerCase().includes(q);
+      return matchesCat && matchesQ;
+    });
+  }, [categoryFilter, searchQuery]);
 
-  // Role Modal Dialog States
-  const [editingRole, setEditingRole] = useState<RoleDefinition | null>(null);
-  const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+  const systemRoleCount = useMemo(
+    () => rolesList.filter((r) => r.isSystem || (SYSTEM_ROLE_KEYS as readonly string[]).includes(r.key)).length,
+    [rolesList],
+  );
+  const customRoleCount = rolesList.length - systemRoleCount;
 
   function openCreateRole() {
     setEditingRole({
@@ -336,13 +387,14 @@ function RolesAdminStudio() {
   }
 
   function openEditRole(role: RoleDefinition) {
-    setEditingRole({ ...role });
+    setEditingRole({ ...role, permissions: [...role.permissions] });
     setIsRoleModalOpen(true);
   }
 
   function saveRole(updatedRole: RoleDefinition) {
-    if (!updatedRole.key || !updatedRole.label) {
-      return toast.error("Role key and label are required");
+    if (!updatedRole.key.trim() || !updatedRole.label.trim()) {
+      toast.error("Role key and label are required");
+      return;
     }
 
     const key = updatedRole.key.toLowerCase().replace(/[^a-z0-9_]+/g, "_");
@@ -359,405 +411,332 @@ function RolesAdminStudio() {
     setIsRoleModalOpen(false);
   }
 
-  function deleteRole(roleKey: string) {
-    if (["super_admin", "hr_admin", "manager", "employee"].includes(roleKey)) {
-      return toast.error("Cannot delete core system role");
+  function confirmDeleteRole(role: RoleDefinition) {
+    if ((SYSTEM_ROLE_KEYS as readonly string[]).includes(role.key) || role.isSystem) {
+      toast.error("Cannot delete core system role");
+      return;
     }
-    const updatedList = rolesList.filter((r) => r.key !== roleKey);
+    const updatedList = rolesList.filter((r) => r.key !== role.key);
     saveRoleDefsMutation.mutate(updatedList);
   }
 
-  // Filtered Users List
-  const filteredUsers = useMemo(() => {
-    if (!users) return [];
-    return users.filter((u) => {
-      const needle = searchQuery.toLowerCase();
-      const matchesSearch =
-        !needle ||
-        (u.full_name ?? "").toLowerCase().includes(needle) ||
-        (u.email ?? "").toLowerCase().includes(needle) ||
-        (u.tenants?.name ?? "").toLowerCase().includes(needle);
-
-      let matchesRole = true;
-      if (roleFilter !== "all") {
-        if (roleFilter === "unassigned") matchesRole = u.roles.length === 0;
-        else matchesRole = u.roles.includes(roleFilter);
-      }
-
-      return matchesSearch && matchesRole;
-    });
-  }, [users, searchQuery, roleFilter]);
-
-  // User Role Mutation (Add / Remove Role for a User)
-  const toggleUserRole = useMutation({
-    mutationFn: async ({ uid, role, exists }: { uid: string; role: string; exists: boolean }) => {
-      await api.put(`/super/users/${uid}/roles`, { role, exists });
-    },
-    onSuccess: () => {
-      toast.success("User roles updated");
-      qc.invalidateQueries({ queryKey: ["all-users-roles"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   return (
-    <div className="space-y-6">
-      <BreadcrumbNav className="mb-4" />
-      {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Platform Roles & RBAC Governance</h1>
-            <Badge variant="secondary" className="gap-1 text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
-              <ShieldCheck className="size-3" /> Root Security Engine
-            </Badge>
-          </div>
-          <p className="text-muted-foreground text-xs sm:text-sm mt-1">
-            Configure system-level administrator privileges, root access, and enterprise role blueprint templates.
-          </p>
-        </div>
+    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+      <PageHeader
+        title="Roles & RBAC Matrix"
+        description="Configure system-level administrator role blueprints and synchronize enterprise feature permission matrices."
+        icon={ShieldCheck}
+        badge={
+          <Badge variant="purple" className="gap-1 text-xs">
+            <ShieldCheck className="size-3" /> Root Security Engine
+          </Badge>
+        }
+        breadcrumbs={[
+          { label: "Super Admin", href: "/super" },
+          { label: "Core Orchestration" },
+          { label: "Roles & RBAC Matrix" },
+        ]}
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading} className="gap-1.5 text-xs h-8">
+              <RefreshCw className={`size-3.5 ${isLoading ? "animate-spin" : ""}`} /> Refresh
+            </Button>
+            <Link to="/super/users">
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
+                <Users className="size-3.5 text-primary" />
+                Manage Platform Users
+                <ArrowUpRight className="size-3.5" />
+              </Button>
+            </Link>
+            <Button size="sm" onClick={openCreateRole} className="gap-1.5 text-xs h-8">
+              <Plus className="size-3.5" /> Create Role Blueprint
+            </Button>
+          </>
+        }
+      />
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2 text-xs">
-            <RefreshCw className="size-3.5" /> Refresh
-          </Button>
-          <Button size="sm" onClick={() => setIsAddUserOpen(true)} className="gap-2 bg-primary text-xs">
-            <UserPlus className="size-3.5" /> + Platform Admin User
-          </Button>
-          <Button variant="secondary" size="sm" onClick={openCreateRole} className="gap-2 text-xs">
-            <Plus className="size-3.5" /> Create Role Template
-          </Button>
-        </div>
+      {/* KPI Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Total Role Blueprints"
+          value={rolesList.length}
+          description="Active system & custom templates"
+          icon={Shield}
+          variant="primary"
+          isLoading={isLoading}
+        />
+        <StatCard
+          title="System Preset Roles"
+          value={systemRoleCount}
+          description="Protected core RBAC tiers"
+          icon={Lock}
+          variant="purple"
+          isLoading={isLoading}
+        />
+        <StatCard
+          title="Custom Roles"
+          value={customRoleCount}
+          description="Platform-defined custom blueprints"
+          icon={Sliders}
+          variant="info"
+          isLoading={isLoading}
+        />
+        <StatCard
+          title="Permission Keys"
+          value={AVAILABLE_FEATURES.length}
+          description={`Across ${PERMISSION_CATEGORIES.length} capability modules`}
+          icon={Grid3x3}
+          variant="success"
+        />
       </div>
 
-      {/* Multi-Tenant SaaS Architecture Boundary Notice */}
-      <Card className="p-4 border-purple-500/25 bg-purple-500/5 shadow-2xs">
-        <div className="flex items-start gap-3">
-          <div className="size-9 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 mt-0.5">
-            <ShieldCheck className="size-5" />
-          </div>
-          <div className="space-y-1 text-xs">
-            <div className="font-bold text-foreground flex items-center gap-2">
-              <span>Multi-Tenant SaaS Boundary Notice</span>
-              <Badge variant="outline" className="text-[10px] font-mono border-purple-500/30 text-purple-600 dark:text-purple-400">
-                Global RBAC Standard
-              </Badge>
+      {/* Multi-Tenant SaaS Boundary & User Directory Link Notice */}
+      <Card className="p-4 border border-purple-500/25 bg-purple-500/5 rounded-xl shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="size-9 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 mt-0.5">
+              <ShieldCheck className="size-5" />
             </div>
-            <p className="text-muted-foreground leading-relaxed">
-              In this multi-tenant ERP platform, <strong className="text-foreground">Tenant Admins</strong> manage their own organization employees, employee invitations, and internal workspace roles (HR Manager, Accountant, Employee, Staff) inside their private tenant workspace (<code className="font-mono text-purple-600 dark:text-purple-400">/users</code>). As <strong className="text-foreground">Super Admin</strong>, you govern root platform capabilities, system-level administrators, and default permission blueprint templates.
-            </p>
+            <div className="space-y-1 text-xs">
+              <div className="font-bold text-foreground flex items-center gap-2 flex-wrap">
+                <span>Role Governance &amp; User Account Separation</span>
+                <Badge variant="purple" className="text-[10px] font-mono">
+                  Global RBAC Standard
+                </Badge>
+              </div>
+              <p className="text-muted-foreground leading-relaxed">
+                This console manages platform role blueprints and permission keys. To provision accounts, assign roles to individual users, inspect login history, or reset 2FA locks, use the dedicated <strong className="text-foreground">Platform Users</strong> directory.
+              </p>
+            </div>
           </div>
+
+          <Link to="/super/users" className="shrink-0">
+            <Button size="sm" variant="secondary" className="gap-1.5 text-xs h-8">
+              <Users className="size-3.5" />
+              Open Platform Users
+              <ArrowUpRight className="size-3.5" />
+            </Button>
+          </Link>
         </div>
       </Card>
 
       {/* Main Tabs Navigation */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-        <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full max-w-lg">
-          <TabsTrigger value="user_assignment" className="gap-2 text-xs flex-1 min-w-[160px]">
-            <Users className="size-3.5" /> Platform Users ({users?.length ?? 0})
-          </TabsTrigger>
-          <TabsTrigger value="roles_crud" className="gap-2 text-xs flex-1 min-w-[160px]">
-            <Shield className="size-3.5" /> Role Blueprints ({rolesList.length})
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "roles_crud" | "permission_matrix")} className="w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <TabsList className="flex flex-wrap h-auto gap-1 p-1">
+            <TabsTrigger value="roles_crud" className="gap-2 text-xs">
+              <Shield className="size-3.5" /> Role Blueprints ({rolesList.length})
+            </TabsTrigger>
+            <TabsTrigger value="permission_matrix" className="gap-2 text-xs">
+              <Grid3x3 className="size-3.5" /> Permission Matrix ({AVAILABLE_FEATURES.length})
+            </TabsTrigger>
+          </TabsList>
 
-        {/* TAB 1: USER ROLE ASSIGNMENT & DIRECTORY */}
-        <TabsContent value="user_assignment" className="space-y-6 pt-4">
-          {/* Search & Filter Bar */}
-          <Card className="p-4 shadow-xs border">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="relative flex-1 w-full max-w-md">
-                <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search user by name, email, or tenant workspace..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-9 text-xs"
-                />
-              </div>
-
-              <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-                <Button
-                  size="sm"
-                  onClick={() => setIsAddUserOpen(true)}
-                  className="gap-1.5 text-xs h-9"
-                >
-                  <UserPlus className="size-3.5" /> Add User
-                </Button>
-                <Select value={roleFilter} onValueChange={setRoleFilter}>
-                  <SelectTrigger className="h-9 w-[200px] text-xs">
-                    <SelectValue placeholder="Filter by Role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all" className="text-xs">
-                      All User Roles
-                    </SelectItem>
-                    {rolesList.map((r) => (
-                      <SelectItem key={r.key} value={r.key} className="text-xs">
-                        {r.label} ({r.key})
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="unassigned" className="text-xs">
-                      No Roles Assigned
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                placeholder={activeTab === "roles_crud" ? "Search roles..." : "Search permission keys..."}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 h-8 text-xs bg-background"
+              />
             </div>
-          </Card>
 
-          {/* User Directory Cards */}
+            {activeTab === "permission_matrix" && (
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="h-8 w-[170px] text-xs bg-background">
+                  <SelectValue placeholder="All Modules" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Modules</SelectItem>
+                  {PERMISSION_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        </div>
+
+        {/* TAB 1: ROLE DEFINITIONS & FEATURE PERMISSIONS CRUD */}
+        <TabsContent value="roles_crud" className="space-y-4 pt-4">
           {isLoading ? (
-            <div className="py-20 grid place-items-center">
+            <div className="py-16 grid place-items-center border border-border/80 rounded-xl bg-card">
               <Loader2 className="size-8 animate-spin text-primary" />
             </div>
-          ) : filteredUsers.length === 0 ? (
-            <Card className="p-12 text-center text-muted-foreground space-y-3">
-              <UserIcon className="size-10 mx-auto opacity-40 text-primary" />
-              <p className="text-sm font-medium">No users found matching "{searchQuery}".</p>
-              <Button size="sm" onClick={() => setIsAddUserOpen(true)} className="gap-2">
-                <UserPlus className="size-4" /> Add First Admin User
-              </Button>
+          ) : filteredRoles.length === 0 ? (
+            <Card className="p-12 text-center border border-border/80 rounded-xl space-y-2">
+              <Shield className="size-10 mx-auto text-muted-foreground/40" />
+              <p className="text-sm font-semibold text-foreground">No matching role blueprints</p>
+              <p className="text-xs text-muted-foreground">Try clearing your search query or create a new role blueprint.</p>
             </Card>
           ) : (
-            <div className="grid gap-3">
-              {filteredUsers.map((u) => (
-                <Card
-                  key={u.id}
-                  className="hover:border-primary/40 transition-all shadow-xs border"
-                >
-                  <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    {/* User Profile Info */}
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="size-11 rounded-full bg-primary/10 text-primary font-bold grid place-items-center text-sm shrink-0 border">
-                        {u.full_name
-                          ? u.full_name[0].toUpperCase()
-                          : u.email
-                            ? u.email[0].toUpperCase()
-                            : "U"}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredRoles.map((role) => {
+                const isProtected =
+                  Boolean(role.isSystem) || (SYSTEM_ROLE_KEYS as readonly string[]).includes(role.key);
+
+                return (
+                  <Card
+                    key={role.key}
+                    className="hover:border-primary/50 transition-all shadow-xs border border-border/80 rounded-xl flex flex-col justify-between"
+                  >
+                    <CardHeader className="p-5 pb-3 border-b space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <Badge className={`text-xs px-2.5 py-0.5 font-bold ${role.color}`}>
+                          {role.label}
+                        </Badge>
+                        <Badge variant="outline" className="font-mono text-[10px]">
+                          {role.key}
+                        </Badge>
                       </div>
+                      <CardTitle className="text-sm font-semibold leading-tight pt-1">
+                        {role.description || "No description provided."}
+                      </CardTitle>
+                    </CardHeader>
 
-                      <div className="space-y-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-sm text-foreground truncate">
-                            {u.full_name || "Unnamed User"}
+                    <CardContent className="p-5 space-y-4 flex-1">
+                      <div className="space-y-2">
+                        <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                          <span>Assigned Permissions</span>
+                          <span>
+                            {role.permissions.length} / {AVAILABLE_FEATURES.length}
                           </span>
                         </div>
 
-                        <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap font-mono">
-                          <span>{u.email}</span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1">
-                            <Building2 className="size-3" /> {u.tenants?.name ?? "No Workspace"}
-                          </span>
-                        </div>
-
-                        {/* Assigned Role & Security Badges */}
-                        <div className="flex items-center gap-1.5 pt-1 flex-wrap">
-                          {u.two_factor_enabled ? (
-                            <Badge className="text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/30">
-                              2FA Active (TOTP)
-                            </Badge>
+                        <div className="flex flex-wrap gap-1 max-h-[140px] overflow-y-auto pr-1">
+                          {role.permissions.length === 0 ? (
+                            <span className="text-xs text-muted-foreground italic">
+                              No permissions selected
+                            </span>
                           ) : (
-                            <Badge variant="outline" className="text-[10px] text-muted-foreground/80">
-                              2FA Off
-                            </Badge>
-                          )}
-
-                          {u.roles.length === 0 ? (
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] text-amber-600 border-amber-600"
-                            >
-                              No Role Assigned
-                            </Badge>
-                          ) : (
-                            u.roles.map((rKey) => {
-                              const rDef = rolesList.find((r) => r.key === rKey);
+                            role.permissions.map((permId) => {
+                              const feat = PERMISSION_MAP.get(permId);
                               return (
                                 <Badge
-                                  key={rKey}
-                                  className={`text-[10px] font-semibold ${rDef?.color ?? "bg-secondary"}`}
+                                  key={permId}
+                                  variant="secondary"
+                                  className="text-[10px] py-0 px-1.5"
+                                  title={feat?.description || permId}
                                 >
-                                  {rDef?.label ?? rKey}
+                                  {feat?.name ?? permId}
                                 </Badge>
                               );
                             })
                           )}
                         </div>
                       </div>
-                    </div>
 
-                    {/* Interactive Actions: Role Toggle Buttons + 2FA Unlock */}
-                    <div className="flex flex-wrap items-center gap-2 shrink-0 border-t md:border-t-0 pt-3 md:pt-0">
-                      {u.two_factor_enabled && (
+                      <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
+                        <span className="font-mono text-[11px]">
+                          {Math.round((role.permissions.length / Math.max(1, AVAILABLE_FEATURES.length)) * 100)}% coverage
+                        </span>
+                        {isProtected ? (
+                          <Badge variant="outline" className="text-[10px]">
+                            System Preset
+                          </Badge>
+                        ) : (
+                          <Badge variant="soft" className="text-[10px]">
+                            Custom Blueprint
+                          </Badge>
+                        )}
+                      </div>
+                    </CardContent>
+
+                    <div className="px-5 pb-4 border-t pt-3 flex items-center justify-end gap-2 bg-muted/20 rounded-b-xl">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openEditRole(role)}
+                        className="gap-1.5 text-xs h-8"
+                      >
+                        <Pencil className="size-3.5" /> Edit Role
+                      </Button>
+                      {!isProtected && (
                         <Button
                           size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            if (confirm(`Reset 2-Step Verification for ${u.full_name || u.email}? This will unlock their account.`)) {
-                              resetUser2FAMutation.mutate(u.id);
-                            }
-                          }}
-                          disabled={resetUser2FAMutation.isPending}
-                          className="text-[11px] h-7 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-rose-200 shadow-2xs gap-1 font-semibold"
-                          title="Super Admin Master 2FA Unlock"
+                          variant="ghost"
+                          onClick={() => setRoleToDelete(role)}
+                          className="text-rose-600 hover:bg-rose-500/10 h-8 px-2.5"
+                          title={`Delete ${role.label}`}
                         >
-                          <ShieldOff className="size-3" />
-                          <span>Reset 2FA</span>
+                          <Trash2 className="size-3.5" />
                         </Button>
                       )}
-
-                      <div className="text-xs font-semibold text-muted-foreground mr-1 hidden lg:block">
-                        Assign Role:
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1 border p-1 rounded-lg bg-secondary/20">
-                        {rolesList.map((rDef) => {
-                          const hasThisRole = u.roles.includes(rDef.key);
-                          return (
-                            <Button
-                              key={rDef.key}
-                              size="sm"
-                              variant={hasThisRole ? "default" : "ghost"}
-                              onClick={() =>
-                                toggleUserRole.mutate({
-                                  uid: u.id,
-                                  role: rDef.key,
-                                  exists: hasThisRole,
-                                })
-                              }
-                              className={`text-[11px] h-7 px-2.5 transition-all ${hasThisRole ? rDef.color : "hover:bg-secondary"}`}
-                            >
-                              {rDef.label}
-                            </Button>
-                          );
-                        })}
-                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
 
-        {/* TAB 2: ROLE DEFINITIONS & FEATURE PERMISSIONS CRUD */}
-        <TabsContent value="roles_crud" className="space-y-6 pt-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold"> Defined Roles & Feature Access Matrix
-            </h2>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={openCreateRole}
-              className="gap-1.5 text-xs"
-            >
-              <Plus className="size-3.5" /> Add New Role
-            </Button>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {rolesList.map((role) => {
-              const assignedCount = users?.filter((u) => u.roles.includes(role.key)).length ?? 0;
-
-              return (
-                <Card
-                  key={role.key}
-                  className="hover:border-primary/50 transition-all shadow-xs border flex flex-col justify-between"
-                >
-                  <CardHeader className="p-5 pb-3 border-b space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <Badge className={`text-xs px-2.5 py-0.5 font-bold ${role.color}`}>
-                        {role.label}
-                      </Badge>
-                      <Badge variant="outline" className="font-mono text-[10px]">
-                        {role.key}
-                      </Badge>
-                    </div>
-                    <CardTitle className="text-sm font-semibold leading-tight pt-1">
-                      {role.description}
-                    </CardTitle>
-                  </CardHeader>
-
-                  <CardContent className="p-5 space-y-4">
-                    {/* Permissions list chips */}
-                    <div className="space-y-2">
-                      <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
-                        <span>Assigned Permissions</span>
-                        <span>({role.permissions.length})</span>
-                      </div>
-
-                      <div className="flex flex-wrap gap-1 max-h-[120px] overflow-y-auto pr-1">
-                        {role.permissions.length === 0 ? (
-                          <span className="text-xs text-muted-foreground italic">
-                            No permissions selected
-                          </span>
-                        ) : (
-                          role.permissions.map((permId) => {
-                            const feat = AVAILABLE_FEATURES.find((f) => f.id === permId);
-                            return (
-                              <Badge
-                                key={permId}
-                                variant="secondary"
-                                className="text-[10px] py-0 px-1.5"
-                              >
-                                {feat?.name ?? permId}
-                              </Badge>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3 font-mono">
-                      <span>Members: {assignedCount} Users</span>
-                      {role.isSystem && (
-                        <Badge variant="outline" className="text-[9px]">
-                          System Preset
+        {/* TAB 2: SYNCHRONIZED PERMISSION MATRIX */}
+        <TabsContent value="permission_matrix" className="pt-4">
+          <Card className="border border-border/80 rounded-xl shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-muted/50 border-b text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <th className="p-3 min-w-[240px]">Permission Capability</th>
+                    <th className="p-3">Module</th>
+                    {rolesList.map((role) => (
+                      <th key={role.key} className="p-3 text-center whitespace-nowrap">
+                        <Badge className={`text-[10px] font-bold ${role.color}`}>
+                          {role.label}
                         </Badge>
-                      )}
-                    </div>
-                  </CardContent>
-
-                  <div className="px-5 pb-4 border-t pt-3 flex items-center justify-end gap-2 bg-secondary/10 rounded-b-xl">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openEditRole(role)}
-                      className="gap-1 text-xs"
-                    >
-                      <Pencil className="size-3.5" /> Edit Role
-                    </Button>
-                    {!role.isSystem && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          if (confirm(`Delete role "${role.label}"?`)) deleteRole(role.key);
-                        }}
-                        className="text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/70">
+                  {filteredPermissions.map((perm) => (
+                    <tr key={perm.id} className="hover:bg-muted/40 transition-colors">
+                      <td className="p-3">
+                        <div className="font-semibold text-foreground">{perm.name}</div>
+                        <div className="text-[11px] text-muted-foreground">{perm.description}</div>
+                        <code className="text-[10px] font-mono text-muted-foreground/80">{perm.id}</code>
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        <Badge variant="outline" className="text-[10px] font-mono">
+                          {perm.category}
+                        </Badge>
+                      </td>
+                      {rolesList.map((role) => {
+                        const granted = role.permissions.includes(perm.id);
+                        return (
+                          <td key={`${role.key}-${perm.id}`} className="p-3 text-center">
+                            {granted ? (
+                              <span
+                                className="inline-flex items-center justify-center size-6 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                                title={`${role.label} has ${perm.id}`}
+                              >
+                                <Check className="size-3.5" />
+                              </span>
+                            ) : (
+                              <span
+                                className="inline-flex items-center justify-center size-6 rounded-full bg-muted/50 text-muted-foreground/50"
+                                title={`${role.label} does not have ${perm.id}`}
+                              >
+                                <Minus className="size-3" />
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </TabsContent>
       </Tabs>
 
-      {/* MODAL 1: ADD NEW USER & ASSIGN ROLES */}
-      <AddUserDialog
-        open={isAddUserOpen}
-        onOpenChange={setIsAddUserOpen}
-        rolesList={rolesList}
-        tenants={tenants ?? []}
-        onCreated={() => qc.invalidateQueries({ queryKey: ["all-users-roles"] })}
-      />
-
-      {/* MODAL 2: CREATE & EDIT ROLE WITH PERMISSIONS MATRIX */}
+      {/* CREATE & EDIT ROLE DIALOG */}
       {editingRole && (
         <Dialog open={isRoleModalOpen} onOpenChange={setIsRoleModalOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -766,11 +745,10 @@ function RolesAdminStudio() {
                 <Shield className="size-5 text-primary" />
                 {editingRole.key && rolesList.some((r) => r.key === editingRole.key)
                   ? `Edit Role — ${editingRole.label}`
-                  : "Create Custom Role"}
+                  : "Create Custom Role Blueprint"}
               </DialogTitle>
               <DialogDescription>
-                Define role key (admin, editor, developer), badge label, description, and feature
-                permissions matrix.
+                Define role key identifier, badge label, description, and feature permissions from the unified platform registry.
               </DialogDescription>
             </DialogHeader>
 
@@ -790,6 +768,7 @@ function RolesAdminStudio() {
                       });
                     }}
                     placeholder="e.g. Content Editor"
+                    className="text-xs h-9"
                   />
                 </div>
 
@@ -800,7 +779,7 @@ function RolesAdminStudio() {
                     onChange={(e) => setEditingRole({ ...editingRole, key: e.target.value })}
                     disabled={editingRole.isSystem}
                     placeholder="e.g. editor or developer"
-                    className="font-mono text-xs"
+                    className="font-mono text-xs h-9"
                   />
                 </div>
               </div>
@@ -822,16 +801,13 @@ function RolesAdminStudio() {
                   value={editingRole.color}
                   onValueChange={(val) => setEditingRole({ ...editingRole, color: val })}
                 >
-                  <SelectTrigger className="text-xs">
+                  <SelectTrigger className="text-xs h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="bg-amber-500 text-white">
-                      Amber / Gold (Super Admin)
-                    </SelectItem>
-                    <SelectItem value="bg-emerald-600 text-white">
-                      Emerald Green (System Admin)
-                    </SelectItem>
+                    <SelectItem value="bg-red-600 text-white">Red (Root / Super Admin)</SelectItem>
+                    <SelectItem value="bg-amber-500 text-white">Amber / Gold</SelectItem>
+                    <SelectItem value="bg-emerald-600 text-white">Emerald Green (System Admin)</SelectItem>
                     <SelectItem value="bg-indigo-600 text-white">Indigo (Editor)</SelectItem>
                     <SelectItem value="bg-cyan-600 text-white">Cyan (Developer)</SelectItem>
                     <SelectItem value="bg-blue-600 text-white">Blue (HR Admin)</SelectItem>
@@ -841,12 +817,12 @@ function RolesAdminStudio() {
                 </Select>
               </div>
 
-              {/* FEATURE PERMISSIONS MATRIX CHECKBOXES */}
+              {/* UNIFIED FEATURE PERMISSIONS MATRIX CHECKBOXES */}
               <div className="p-4 rounded-xl border bg-secondary/10 space-y-4">
                 <div className="flex items-center justify-between border-b pb-2">
                   <Label className="text-xs font-bold flex items-center gap-1.5">
                     <Sliders className="size-4 text-primary" /> Feature Permissions Matrix (
-                    {editingRole.permissions.length} selected)
+                    {editingRole.permissions.length} / {AVAILABLE_FEATURES.length} selected)
                   </Label>
                   <div className="flex items-center gap-2">
                     <button
@@ -857,7 +833,7 @@ function RolesAdminStudio() {
                           permissions: AVAILABLE_FEATURES.map((f) => f.id),
                         })
                       }
-                      className="text-[11px] text-primary hover:underline"
+                      className="text-[11px] text-primary hover:underline cursor-pointer"
                     >
                       Select All
                     </button>
@@ -865,42 +841,54 @@ function RolesAdminStudio() {
                     <button
                       type="button"
                       onClick={() => setEditingRole({ ...editingRole, permissions: [] })}
-                      className="text-[11px] text-muted-foreground hover:underline"
+                      className="text-[11px] text-muted-foreground hover:underline cursor-pointer"
                     >
                       Deselect All
                     </button>
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {AVAILABLE_FEATURES.map((feat) => {
-                    const isChecked = editingRole.permissions.includes(feat.id);
+                <div className="space-y-4">
+                  {PERMISSION_CATEGORIES.map((category) => {
+                    const catPerms = AVAILABLE_FEATURES.filter((f) => f.category === category);
                     return (
-                      <div
-                        key={feat.id}
-                        onClick={() => {
-                          const updated = isChecked
-                            ? editingRole.permissions.filter((p) => p !== feat.id)
-                            : [...editingRole.permissions, feat.id];
-                          setEditingRole({ ...editingRole, permissions: updated });
-                        }}
-                        className={`p-3 rounded-lg border cursor-pointer transition-all flex items-start gap-2.5 ${
-                          isChecked
-                            ? "bg-primary/5 border-primary shadow-xs"
-                            : "bg-background border-border hover:bg-secondary/40"
-                        }`}
-                      >
-                        <Checkbox checked={isChecked} className="mt-0.5" />
-                        <div className="space-y-0.5 text-xs">
-                          <div className="font-semibold text-foreground flex items-center gap-1.5">
-                            <span>{feat.name}</span>
-                            <Badge variant="outline" className="text-[9px] py-0 px-1 font-mono">
-                              {feat.category}
-                            </Badge>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground leading-normal">
-                            {feat.description}
-                          </p>
+                      <div key={category} className="space-y-2">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                          {category}
+                        </div>
+                        <div className="grid gap-2.5 sm:grid-cols-2">
+                          {catPerms.map((feat) => {
+                            const isChecked = editingRole.permissions.includes(feat.id);
+                            return (
+                              <div
+                                key={feat.id}
+                                onClick={() => {
+                                  const updated = isChecked
+                                    ? editingRole.permissions.filter((p) => p !== feat.id)
+                                    : [...editingRole.permissions, feat.id];
+                                  setEditingRole({ ...editingRole, permissions: updated });
+                                }}
+                                className={`p-3 rounded-lg border cursor-pointer transition-all flex items-start gap-2.5 ${
+                                  isChecked
+                                    ? "bg-primary/5 border-primary shadow-xs"
+                                    : "bg-background border-border hover:bg-secondary/40"
+                                }`}
+                              >
+                                <Checkbox checked={isChecked} className="mt-0.5 pointer-events-none" />
+                                <div className="space-y-0.5 text-xs min-w-0">
+                                  <div className="font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
+                                    <span>{feat.name}</span>
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground leading-normal">
+                                    {feat.description}
+                                  </p>
+                                  <code className="text-[10px] font-mono text-muted-foreground/75 block">
+                                    {feat.id}
+                                  </code>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
@@ -910,18 +898,19 @@ function RolesAdminStudio() {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsRoleModalOpen(false)}>
+              <Button variant="outline" size="sm" onClick={() => setIsRoleModalOpen(false)}>
                 Cancel
               </Button>
               <Button
+                size="sm"
                 onClick={() => saveRole(editingRole)}
                 disabled={saveRoleDefsMutation.isPending}
-                className="gap-2"
+                className="gap-1.5"
               >
                 {saveRoleDefsMutation.isPending ? (
-                  <Loader2 className="size-4 animate-spin" />
+                  <Loader2 className="size-3.5 animate-spin" />
                 ) : (
-                  <CheckCircle2 className="size-4" />
+                  <CheckCircle2 className="size-3.5" />
                 )}
                 Save Role
               </Button>
@@ -929,191 +918,29 @@ function RolesAdminStudio() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* DELETE ROLE CONFIRMATION DIALOG */}
+      <ConfirmationDialog
+        open={!!roleToDelete}
+        onOpenChange={(open) => !open && setRoleToDelete(null)}
+        variant="destructive"
+        title="Delete Custom Role Blueprint?"
+        description={
+          roleToDelete ? (
+            <>
+              Are you sure you want to delete the custom role{" "}
+              <strong className="text-foreground">{roleToDelete.label}</strong> (
+              <code className="font-mono">{roleToDelete.key}</code>)? This removes the role blueprint from the platform configuration.
+            </>
+          ) : undefined
+        }
+        confirmLabel="Delete Role"
+        isLoading={saveRoleDefsMutation.isPending}
+        onConfirm={() => {
+          if (roleToDelete) confirmDeleteRole(roleToDelete);
+        }}
+      />
     </div>
-  );
-}
-
-/* =========================================================================
-   ADD NEW USER & ASSIGN ROLES DIALOG COMPONENT
-   ========================================================================= */
-function AddUserDialog({
-  open,
-  onOpenChange,
-  rolesList,
-  tenants,
-  onCreated,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  rolesList: RoleDefinition[];
-  tenants: Array<{ id: string; name: string; slug: string }>;
-  onCreated: () => void;
-}) {
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [tenantId, setTenantId] = useState<string>("none");
-  const [selectedRoles, setSelectedRoles] = useState<string[]>(["admin"]);
-
-  const addUserMutation = useMutation({
-    mutationFn: async () => {
-      if (!fullName || !email || !password) {
-        throw new Error("Full name, email, and password are required");
-      }
-      if (selectedRoles.length === 0) {
-        throw new Error("Select at least one role to assign");
-      }
-
-      await api.post("/auth/register", {
-        email,
-        password,
-        fullName,
-      });
-    },
-    onSuccess: () => {
-      toast.success(`User "${fullName}" created & assigned roles successfully!`);
-      onOpenChange(false);
-      setFullName("");
-      setEmail("");
-      setPassword("");
-      setSelectedRoles(["admin"]);
-      onCreated();
-    },
-    onError: (err: Error) => {
-      toast.error(err.message);
-    },
-  });
-
-  const toggleRoleSelection = (roleKey: string) => {
-    setSelectedRoles((prev) =>
-      prev.includes(roleKey) ? prev.filter((r) => r !== roleKey) : [...prev, roleKey],
-    );
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[540px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <UserPlus className="size-5 text-primary" /> Provision New User & Assign Roles
-          </DialogTitle>
-          <DialogDescription>
-            Add a new admin, editor, developer, or employee account and grant role privileges.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Full Name *</Label>
-            <div className="relative">
-              <UserIcon className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-              <Input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="e.g. Alex Mercer"
-                className="pl-9 h-9 text-xs"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Email Address *</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="alex@company.com"
-                className="pl-9 h-9 text-xs font-mono"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Initial Password *</Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="pl-9 h-9 text-xs font-mono"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Assign Tenant / Company Workspace</Label>
-            <Select value={tenantId} onValueChange={setTenantId}>
-              <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="Select Workspace" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none" className="text-xs">
-                  No Workspace (Platform Global)
-                </SelectItem>
-                {tenants.map((t) => (
-                  <SelectItem key={t.id} value={t.id} className="text-xs">
-                    {t.name} ({t.slug})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* ROLE ASSIGNMENT CHECKBOXES */}
-          <div className="p-4 rounded-xl border bg-secondary/10 space-y-3">
-            <Label className="text-xs font-bold flex items-center gap-1.5">
-              <ShieldCheck className="size-4 text-primary" /> Assign Initial Roles (
-              {selectedRoles.length} selected) *
-            </Label>
-
-            <div className="grid grid-cols-2 gap-2">
-              {rolesList.map((rDef) => {
-                const isSelected = selectedRoles.includes(rDef.key);
-                return (
-                  <div
-                    key={rDef.key}
-                    onClick={() => toggleRoleSelection(rDef.key)}
-                    className={`p-2.5 rounded-lg border cursor-pointer transition-all flex items-center justify-between ${
-                      isSelected
-                        ? "bg-primary/5 border-primary shadow-xs"
-                        : "bg-background border-border hover:bg-secondary/40"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Checkbox checked={isSelected} />
-                      <span className="text-xs font-semibold">{rDef.label}</span>
-                    </div>
-                    <Badge className={`text-[9px] py-0 px-1 ${rDef.color}`}>{rDef.key}</Badge>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => addUserMutation.mutate()}
-            disabled={addUserMutation.isPending}
-            className="gap-2"
-          >
-            {addUserMutation.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <UserPlus className="size-4" />
-            )}
-            Provision User & Assign Roles
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 

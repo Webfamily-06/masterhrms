@@ -51,6 +51,7 @@ import { SubscriptionFooterBar } from "@/components/subscription/subscription-fo
 import { ProductNotSubscribed } from "@/components/product-not-subscribed";
 import { AddonNotInstalled } from "@/components/addon-not-installed";
 import { useNavigationResolver } from "@/lib/navigation-resolver";
+import { PlatformBroadcastBanner } from "@/components/layout/PlatformBroadcastBanner";
 
 const CRM_ROUTE_PREFIXES = [
   "/crm",
@@ -1268,6 +1269,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       {/* Main Page Wrapper */}
       <div className={cn("page-wrapper flex flex-col justify-between bg-background", isChatRoute && "chat-page-wrapper")}>
         <main className={cn("content min-w-0 flex-1 bg-background", isChatRoute && "chat-page-content")}>
+          {!isChatRoute && <PlatformBroadcastBanner />}
           {isSuperAdmin && !profile?.tenant_id && !isPlatformOrShared ? (
             <AccessDenied
               moduleName="Tenant Workspace"

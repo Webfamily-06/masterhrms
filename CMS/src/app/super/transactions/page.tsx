@@ -1,9 +1,11 @@
 'use client';
-import {  createFileRoute, Link  } from "@/src/lib/router-compat";
+
 import { useState, useMemo, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, API_BASE } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api, API_BASE, getAuthToken } from "@/lib/api";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/ui/page-header";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +26,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Loader2,
   Search,
@@ -35,7 +40,6 @@ import {
   Calendar as CalendarIcon,
   ChevronDown,
   X,
-  CreditCard,
   Building2,
   ShieldCheck,
   ShieldAlert,
@@ -44,11 +48,11 @@ import {
   CheckCircle2,
   ExternalLink,
   FileCheck,
+  Receipt,
+  SlidersHorizontal,
 } from "lucide-react";
 import { PaymentProviderBadge, getPaymentProviderMeta } from "@/components/payment-provider-badge";
 import { getSocketClient } from "@/lib/socket";
-
-
 
 export interface DatabaseTransaction {
   id: string;
@@ -117,6 +121,65 @@ export interface DatabaseTransaction {
   };
 }
 
+interface CanonicalInvoicePreview {
+  invoiceNo: string;
+  classification: string;
+  status: string;
+  issueDate: string;
+  settlementDate?: string | null;
+  billingPeriod?: string | null;
+  supplier?: {
+    name?: string;
+    address?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    gstin?: string | null;
+  };
+  customer?: {
+    name?: string;
+    slug?: string | null;
+    email?: string;
+    address?: string | null;
+    taxId?: string | null;
+  };
+  payment?: {
+    gateway?: string;
+    reference?: string | null;
+    paymentDate?: string | null;
+    currency?: string;
+  };
+  items?: Array<{
+    description: string;
+    subDescription?: string | null;
+    sacCode?: string | null;
+    quantity: number;
+    unitPrice: number;
+    discount?: number;
+    taxableAmount: number;
+    taxRate?: number;
+    taxAmount: number;
+    totalAmount: number;
+  }>;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  taxBreakup?: {
+    cgst?: number;
+    sgst?: number;
+    igst?: number;
+  } | null;
+  total: number;
+  currency: string;
+  notes?: string | null;
+  verification?: {
+    status?: string;
+    summary?: string;
+    provider?: string;
+    orderId?: string | null;
+    paymentId?: string | null;
+  };
+}
+
 interface TransactionsApiResponse {
   transactions: DatabaseTransaction[];
   pagination: {
@@ -125,6 +188,31 @@ interface TransactionsApiResponse {
     pageSize: number;
     totalPages: number;
   };
+}
+
+const ALLOWED_TRANSACTION_STATUSES = [
+  { value: "paid", label: "Paid", badgeClass: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
+  { value: "open", label: "Open", badgeClass: "bg-sky-500/10 text-sky-600 border-sky-500/20" },
+  { value: "pending", label: "Pending", badgeClass: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
+  { value: "failed", label: "Failed", badgeClass: "bg-rose-500/10 text-rose-600 border-rose-500/20" },
+  { value: "void", label: "Void", badgeClass: "bg-slate-500/10 text-slate-600 border-slate-500/20" },
+] as const;
+
+type AllowedStatusValue = (typeof ALLOWED_TRANSACTION_STATUSES)[number]["value"];
+
+function toIsoDate(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getCurrentMonthRange(): { start: string; end: string; label: string } {
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const label = now.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  return { start: toIsoDate(first), end: toIsoDate(last), label };
 }
 
 function formatCurrency(val: number | string, curr: string = "USD") {
@@ -160,7 +248,6 @@ function formatCurrency(val: number | string, curr: string = "USD") {
     formatted = `${normalizedCurr} ${safeNum.toFixed(2)}`;
   }
 
-  // Ensure authoritative ISO currency code is appended if not already present
   if (!formatted.includes(normalizedCurr)) {
     return `${formatted} ${normalizedCurr}`;
   }
@@ -238,9 +325,9 @@ function getTransactionStatusMeta(tx: DatabaseTransaction): TransactionStatusMet
     tx.status === "Rejected" ||
     tx.rawStatus === "failed" ||
     tx.rawStatus === "rejected" ||
-    tx.rawStatus === "declined";
+    tx.rawStatus === "declined" ||
+    tx.rawStatus === "void";
 
-  // 1. Payment Status Presentation
   let paymentStatusLabel: string;
   let paymentStatusClass: string;
   let paymentStatusIconType: "check" | "clock" | "alert" | "point" = "point";
@@ -249,31 +336,35 @@ function getTransactionStatusMeta(tx: DatabaseTransaction): TransactionStatusMet
     paymentStatusLabel = "Paid";
     paymentStatusClass = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
     paymentStatusIconType = "check";
+  } else if (tx.rawStatus === "void") {
+    paymentStatusLabel = "Void";
+    paymentStatusClass = "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20";
+    paymentStatusIconType = "alert";
   } else if (isFailed) {
     if (isManual) {
       paymentStatusLabel = tx.status === "Rejected" ? "Rejected" : "Failed";
       paymentStatusClass = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20";
     } else {
-      // Gateway failures: MUST NOT be called "Rejected" (admin rejection)
       paymentStatusLabel = tx.rawStatus === "declined" ? "Declined" : "Failed";
       paymentStatusClass = "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20";
     }
     paymentStatusIconType = "alert";
+  } else if (tx.rawStatus === "open") {
+    paymentStatusLabel = "Open";
+    paymentStatusClass = "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20";
+    paymentStatusIconType = "clock";
   } else {
-    // In-progress / Pending / Processing
     if (isManual) {
       paymentStatusLabel = "Pending Review";
       paymentStatusClass = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20";
       paymentStatusIconType = "clock";
     } else {
-      // Automatic Gateway in-progress
       paymentStatusLabel = "Processing";
       paymentStatusClass = "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20";
       paymentStatusIconType = "clock";
     }
   }
 
-  // 2. Verification Status Presentation
   let verificationStatusLabel: string;
   let verificationStatusClass: string;
   let verificationIconType: "shieldCheck" | "shieldAlert" | "clock" | "alert" = "clock";
@@ -283,16 +374,9 @@ function getTransactionStatusMeta(tx: DatabaseTransaction): TransactionStatusMet
     verificationStatusClass = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30";
     verificationIconType = "shieldCheck";
   } else if (isFailed || tx.verificationStatus === "REJECTED") {
-    if (isManual) {
-      verificationStatusLabel = "REJECTED";
-      verificationStatusClass = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30";
-      verificationIconType = "shieldAlert";
-    } else {
-      // Automatic Gateway failure: display FAILED, NOT REJECTED!
-      verificationStatusLabel = "FAILED";
-      verificationStatusClass = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30";
-      verificationIconType = "shieldAlert";
-    }
+    verificationStatusLabel = isManual ? "REJECTED" : "FAILED";
+    verificationStatusClass = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30";
+    verificationIconType = "shieldAlert";
   } else if (tx.verification?.status === "MISMATCH") {
     verificationStatusLabel = "MISMATCH";
     verificationStatusClass = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30";
@@ -309,8 +393,6 @@ function getTransactionStatusMeta(tx: DatabaseTransaction): TransactionStatusMet
     }
   }
 
-  // 3. Action Rendering Permission: STRICTLY per Section 11 pseudo-code
-  // Manual only, pending verification, and neither paid nor failed
   const canApproveOrReject = isManual && tx.verificationStatus === "PENDING" && !isPaid && !isFailed;
 
   return {
@@ -330,8 +412,9 @@ function getTransactionStatusMeta(tx: DatabaseTransaction): TransactionStatusMet
 
 function SuperPurchaseTransactionsPage() {
   const queryClient = useQueryClient();
+  const currentMonth = useMemo(() => getCurrentMonthRange(), []);
 
-  // Search & Filter State
+  // Search & Filter State — initialized to current month range
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState("Payment Method");
@@ -346,9 +429,19 @@ function SuperPurchaseTransactionsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  // Selection & Details State
+  // Selection & Dialog States
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [viewInvoice, setViewInvoice] = useState<DatabaseTransaction | null>(null);
+  const [previewTargetTx, setPreviewTargetTx] = useState<DatabaseTransaction | null>(null);
+  const [statusEditTx, setStatusEditTx] = useState<DatabaseTransaction | null>(null);
+  const [newTxStatus, setNewTxStatus] = useState<AllowedStatusValue>("paid");
+  const [statusNotes, setStatusNotes] = useState("");
+
+  // Bulk status update state
+  const [bulkStatusTarget, setBulkStatusTarget] = useState<AllowedStatusValue>("paid");
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+
   const [approveConfirmTx, setApproveConfirmTx] = useState<DatabaseTransaction | null>(null);
   const [proofPreviewTx, setProofPreviewTx] = useState<DatabaseTransaction | null>(null);
   const [rejectTargetTx, setRejectTargetTx] = useState<DatabaseTransaction | null>(null);
@@ -357,7 +450,6 @@ function SuperPurchaseTransactionsPage() {
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
 
-  // Debounce search input by 300ms
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchInput.trim());
@@ -366,7 +458,6 @@ function SuperPurchaseTransactionsPage() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Construct query string for API
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
     if (debouncedSearch) params.append("search", debouncedSearch);
@@ -380,9 +471,18 @@ function SuperPurchaseTransactionsPage() {
     params.append("page", String(currentPage));
     params.append("pageSize", String(pageSize));
     return params.toString();
-  }, [debouncedSearch, paymentMethodFilter, verificationModeFilter, statusFilter, sortBy, startDate, endDate, currentPage, pageSize]);
+  }, [
+    debouncedSearch,
+    paymentMethodFilter,
+    verificationModeFilter,
+    statusFilter,
+    sortBy,
+    startDate,
+    endDate,
+    currentPage,
+    pageSize,
+  ]);
 
-  // Real-time Database Query using TanStack Query
   const {
     data: apiResponse,
     isLoading,
@@ -394,23 +494,55 @@ function SuperPurchaseTransactionsPage() {
     queryKey: ["super-transactions-list", queryParams],
     queryFn: async () => {
       const res = await api.get<TransactionsApiResponse>(`/super/transactions?${queryParams}`);
-      return res;
+      return (res as any)?.data || res || { transactions: [], pagination: { total: 0, page: 1, pageSize: 10, totalPages: 1 } };
     },
     staleTime: 10_000,
   });
 
-  // Real-time synchronization via Socket.IO
+  // Live Invoice Preview query via GET /super/transactions/:id/preview
+  const {
+    data: invoicePreviewRes,
+    isLoading: isLoadingPreview,
+    isError: isPreviewError,
+    error: previewError,
+  } = useQuery<{ invoice?: CanonicalInvoicePreview }>({
+    queryKey: ["super-transaction-preview", previewTargetTx?.id],
+    queryFn: async () => {
+      const res = await api.get(`/super/transactions/${previewTargetTx!.id}/preview`);
+      return res?.data || res || {};
+    },
+    enabled: Boolean(previewTargetTx?.id),
+  });
+
+  const previewInvoice: CanonicalInvoicePreview | null = invoicePreviewRes?.invoice || null;
+
+  // Mutation: Single transaction status update via PATCH /super/transactions/:id/status
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status, notes }: { id: string; status: AllowedStatusValue; notes?: string }) => {
+      return await api.patch(`/super/transactions/${id}/status`, { status, notes: notes || undefined });
+    },
+    onSuccess: (res: any) => {
+      toast.success(res?.message || "Transaction status updated successfully.");
+      setStatusEditTx(null);
+      setStatusNotes("");
+      queryClient.invalidateQueries({ queryKey: ["super-transactions-list"] });
+      refetch();
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to update transaction status.");
+    },
+  });
+
+  // Real-time Socket.IO invalidation
   useEffect(() => {
     const socket = getSocketClient();
     const handleLiveInvalidation = () => {
       refetch();
     };
-
     socket.on("payment:confirmed", handleLiveInvalidation);
     socket.on("payment:rejected", handleLiveInvalidation);
     socket.on("subscription:activated", handleLiveInvalidation);
     socket.on("super:transaction_updated", handleLiveInvalidation);
-
     return () => {
       socket.off("payment:confirmed", handleLiveInvalidation);
       socket.off("payment:rejected", handleLiveInvalidation);
@@ -427,7 +559,6 @@ function SuperPurchaseTransactionsPage() {
     totalPages: 1,
   };
 
-  // Row selection handlers
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       setSelectedIds(transactions.map((t) => t.id));
@@ -442,11 +573,68 @@ function SuperPurchaseTransactionsPage() {
     );
   };
 
-  // Real database export to CSV
+  const exportRowsToCsv = (items: DatabaseTransaction[], filenamePrefix: string) => {
+    if (items.length === 0) {
+      toast.error("No transactions available to export.");
+      return;
+    }
+
+    const headers = [
+      "Invoice ID",
+      "Document Classification",
+      "Transaction No",
+      "Customer / Company",
+      "Tenant Workspace",
+      "Customer Email",
+      "Amount",
+      "Currency",
+      "Formatted Amount",
+      "Payment Method",
+      "Status",
+      "Plan / Description",
+      "Billing Cycle",
+      "Gateway Order ID",
+      "Gateway Payment ID",
+      "Created Date",
+      "Paid Date",
+    ];
+
+    const csvRows = items.map((tx) => [
+      `"${tx.invoiceId || ""}"`,
+      `"${tx.classification || "TRANSACTION VOUCHER"}"`,
+      `"${tx.transactionNo || ""}"`,
+      `"${(tx.customerName || "").replace(/"/g, '""')}"`,
+      `"${tx.tenantSlug || ""}"`,
+      `"${tx.customerEmail || ""}"`,
+      `"${tx.amount}"`,
+      `"${tx.currency}"`,
+      `"${formatCurrency(tx.amount, tx.currency)}"`,
+      `"${tx.paymentMethod}"`,
+      `"${tx.status}"`,
+      `"${(tx.planName || "").replace(/"/g, '""')}"`,
+      `"${tx.billingCycle || ""}"`,
+      `"${tx.gatewayOrderId || ""}"`,
+      `"${tx.gatewayPaymentId || ""}"`,
+      `"${tx.createdAt ? new Date(tx.createdAt).toISOString() : ""}"`,
+      `"${tx.paidAt ? new Date(tx.paidAt).toISOString() : ""}"`,
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...csvRows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${filenamePrefix}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${items.length} transaction record(s) to CSV.`);
+  };
+
   const handleExportCSV = async () => {
     setIsExporting(true);
     try {
-      // Request complete filtered dataset from database (export mode)
       const exportParams = new URLSearchParams();
       if (debouncedSearch) exportParams.append("search", debouncedSearch);
       if (paymentMethodFilter !== "Payment Method") exportParams.append("paymentMethod", paymentMethodFilter);
@@ -459,59 +647,8 @@ function SuperPurchaseTransactionsPage() {
       const res = await api.get<{ transactions: DatabaseTransaction[]; total: number }>(
         `/super/transactions?${exportParams.toString()}`
       );
-
       const items = res?.transactions || transactions;
-
-      const headers = [
-        "Invoice ID",
-        "Document Classification",
-        "Transaction No",
-        "Customer / Company",
-        "Tenant Workspace",
-        "Customer Email",
-        "Amount",
-        "Currency",
-        "Formatted Amount",
-        "Payment Method",
-        "Status",
-        "Plan / Description",
-        "Billing Cycle",
-        "Gateway Order ID",
-        "Gateway Payment ID",
-        "Created Date",
-        "Paid Date",
-      ];
-
-      const csvRows = items.map((tx) => [
-        `"${tx.invoiceId || ""}"`,
-        `"${tx.classification || "TRANSACTION VOUCHER"}"`,
-        `"${tx.transactionNo || ""}"`,
-        `"${(tx.customerName || "").replace(/"/g, '""')}"`,
-        `"${tx.tenantSlug || ""}"`,
-        `"${tx.customerEmail || ""}"`,
-        `"${tx.amount}"`,
-        `"${tx.currency}"`,
-        `"${formatCurrency(tx.amount, tx.currency)}"`,
-        `"${tx.paymentMethod}"`,
-        `"${tx.status}"`,
-        `"${(tx.planName || "").replace(/"/g, '""')}"`,
-        `"${tx.billingCycle || ""}"`,
-        `"${tx.gatewayOrderId || ""}"`,
-        `"${tx.gatewayPaymentId || ""}"`,
-        `"${tx.createdAt ? new Date(tx.createdAt).toISOString() : ""}"`,
-        `"${tx.paidAt ? new Date(tx.paidAt).toISOString() : ""}"`,
-      ]);
-
-      const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...csvRows.map((r) => r.join(","))].join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `super_admin_transactions_${new Date().toISOString().slice(0, 10)}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      toast.success(`Exported ${items.length} transaction records successfully`);
+      exportRowsToCsv(items, "super_admin_transactions");
     } catch (err: any) {
       toast.error(err?.message || "Failed to export transactions");
     } finally {
@@ -519,24 +656,49 @@ function SuperPurchaseTransactionsPage() {
     }
   };
 
-  // Download genuine vector PDF document (Phase 7 & Phase G)
+  const handleBulkExportCSV = () => {
+    const selectedItems = transactions.filter((tx) => selectedIds.includes(tx.id));
+    exportRowsToCsv(selectedItems, "selected_transactions");
+  };
+
+  const handleBulkStatusUpdate = async () => {
+    if (selectedIds.length === 0) return;
+    setIsBulkUpdating(true);
+    let succeeded = 0;
+    let failed = 0;
+    for (const id of selectedIds) {
+      try {
+        await api.patch(`/super/transactions/${id}/status`, { status: bulkStatusTarget });
+        succeeded += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    setIsBulkUpdating(false);
+    setBulkConfirmOpen(false);
+    setSelectedIds([]);
+    queryClient.invalidateQueries({ queryKey: ["super-transactions-list"] });
+    refetch();
+    if (failed === 0) {
+      toast.success(`Updated ${succeeded} transaction(s) to '${bulkStatusTarget}'.`);
+    } else {
+      toast.warning(`Updated ${succeeded} transaction(s); ${failed} failed.`);
+    }
+  };
+
   const handleDownloadInvoice = async (id: string, invoiceId: string) => {
     const loadingToast = toast.loading(`Generating PDF for Invoice #${invoiceId}...`);
     try {
-      const token = localStorage.getItem("hrms_auth_token");
+      const token = getAuthToken();
       const res = await fetch(`${API_BASE}/super/transactions/${id}/download`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-
       if (!res.ok) {
         throw new Error(`Failed to download invoice PDF (HTTP ${res.status})`);
       }
-
       const blob = await res.blob();
       const pdfBlob = new Blob([blob], { type: "application/pdf" });
       const url = URL.createObjectURL(pdfBlob);
-
-      // Direct silent download to user disk - no preview window / tab opened
       const a = document.createElement("a");
       a.href = url;
       a.download = `Invoice-${invoiceId}.pdf`;
@@ -544,7 +706,6 @@ function SuperPurchaseTransactionsPage() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-
       toast.dismiss(loadingToast);
       toast.success(`Invoice #${invoiceId} PDF downloaded successfully`);
     } catch (err: any) {
@@ -597,7 +758,15 @@ function SuperPurchaseTransactionsPage() {
     }
   };
 
-  // Format date range text for the button
+  const openStatusEditor = (tx: DatabaseTransaction) => {
+    const normalized = String(tx.rawStatus || tx.status || "pending").toLowerCase();
+    const matched = ALLOWED_TRANSACTION_STATUSES.find((s) => s.value === normalized)?.value || "pending";
+    setNewTxStatus(matched);
+    setStatusNotes("");
+    setStatusEditTx(tx);
+  };
+
+  // Real dynamic date range display (never hardcoded)
   const dateRangeDisplay = useMemo(() => {
     if (startDate && endDate) {
       return `${formatDate(startDate)} - ${formatDate(endDate)}`;
@@ -608,93 +777,125 @@ function SuperPurchaseTransactionsPage() {
     if (endDate) {
       return `Until ${formatDate(endDate)}`;
     }
-    return "01/09/2026 - 30/09/2026";
-  }, [startDate, endDate]);
+    return `All Dates (${currentMonth.label})`;
+  }, [startDate, endDate, currentMonth.label]);
 
   return (
-    <div className="space-y-6">
-      {/* ─── Top Header & Breadcrumb ────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 page-breadcrumb">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground mb-1">
-            Purchase Transaction
-          </h2>
-          <nav aria-label="breadcrumb">
-            <ol className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <li>
-                <Link to="/super" className="hover:text-primary transition-colors flex items-center">
-                  <i className="ti ti-smart-home text-sm"></i>
-                </Link>
-              </li>
-              <li>/</li>
-              <li className="text-muted-foreground">Super Admin</li>
-              <li>/</li>
-              <li className="font-semibold text-foreground">Purchase Transaction List</li>
-            </ol>
-          </nav>
-        </div>
+    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+      <PageHeader
+        title="Purchase Transactions"
+        description="Inspect platform billing invoices, preview canonical tax documents, verify offline payment proofs, and update transaction statuses."
+        icon={Receipt}
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                refetch();
+                queryClient.invalidateQueries({ queryKey: ["super-transactions-list"] });
+                toast.info("Refreshed transaction records");
+              }}
+              disabled={isFetching}
+              className="gap-1.5 text-xs"
+            >
+              <RefreshCw className={`size-3.5 ${isFetching ? "animate-spin text-primary" : ""}`} />
+              Refresh
+            </Button>
 
-        {/* Right Toolbar: Export, Refresh & Collapse Controls */}
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => {
-              refetch();
-              queryClient.invalidateQueries({ queryKey: ["super-transactions-list"] });
-              toast.info("Refreshed transaction records from database");
-            }}
-            disabled={isFetching}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-md border border-border bg-card text-foreground hover:bg-accent hover:text-accent-foreground transition-colors shadow-2xs cursor-pointer"
-            title="Refresh database records"
-          >
-            <RefreshCw className={`size-3.5 ${isFetching ? "animate-spin text-primary" : "text-muted-foreground"}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                disabled={isExporting}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border border-border bg-card text-foreground hover:bg-accent hover:text-accent-foreground transition-colors shadow-2xs cursor-pointer"
-              >
-                {isExporting ? (
-                  <Loader2 className="size-3.5 animate-spin text-primary" />
-                ) : (
-                  <i className="ti ti-file-export text-sm"></i>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={isExporting} className="gap-1.5 text-xs">
+                  {isExporting ? (
+                    <Loader2 className="size-3.5 animate-spin text-primary" />
+                  ) : (
+                    <Download className="size-3.5" />
+                  )}
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52 text-xs">
+                <DropdownMenuItem onClick={handleExportCSV} className="cursor-pointer gap-2">
+                  <FileText className="size-3.5 text-emerald-600" />
+                  Export Filtered Data (CSV)
+                </DropdownMenuItem>
+                {selectedIds.length > 0 && (
+                  <DropdownMenuItem onClick={handleBulkExportCSV} className="cursor-pointer gap-2">
+                    <FileCheck className="size-3.5 text-primary" />
+                    Export Selected ({selectedIds.length}) CSV
+                  </DropdownMenuItem>
                 )}
-                Export
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 text-xs bg-popover text-popover-foreground border-border shadow-lg">
-              <DropdownMenuItem onClick={handleExportCSV} className="cursor-pointer gap-2 focus:bg-accent focus:text-accent-foreground">
-                <i className="ti ti-file-type-xls text-sm text-emerald-600"></i>
-                Export Filtered Data (CSV)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+      />
 
-          <button
-            type="button"
-            className="size-8 rounded-md border border-border bg-card flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shadow-2xs"
-            title="Collapse Header"
-          >
-            <i className="ti ti-chevrons-up text-sm"></i>
-          </button>
+      {/* Bulk Actions Toolbar */}
+      {selectedIds.length > 0 && (
+        <div className="p-3 rounded-xl border border-primary/30 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs">
+            <Badge className="bg-primary text-primary-foreground font-mono">{selectedIds.length}</Badge>
+            <span className="font-semibold text-foreground">
+              transaction{selectedIds.length === 1 ? "" : "s"} selected
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleBulkExportCSV}
+              className="h-8 text-xs gap-1.5"
+            >
+              <Download className="size-3.5" />
+              Export Selected CSV
+            </Button>
+
+            <div className="flex items-center gap-1.5">
+              <select
+                aria-label="Bulk target status"
+                value={bulkStatusTarget}
+                onChange={(e) => setBulkStatusTarget(e.target.value as AllowedStatusValue)}
+                className="h-8 px-2.5 rounded-md border border-border bg-background text-xs text-foreground"
+              >
+                {ALLOWED_TRANSACTION_STATUSES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    Set Status: {s.label}
+                  </option>
+                ))}
+              </select>
+              <Button
+                size="sm"
+                onClick={() => setBulkConfirmOpen(true)}
+                className="h-8 text-xs gap-1.5"
+              >
+                <SlidersHorizontal className="size-3.5" />
+                Apply Status
+              </Button>
+            </div>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setSelectedIds([])}
+              className="h-8 text-xs text-muted-foreground"
+            >
+              Clear
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* ─── Main Transaction List Card ───────────────────────────────────── */}
-      <div className="card bg-card border border-border rounded-lg shadow-2xs overflow-hidden">
+      {/* Main Transaction List Card */}
+      <div className="border border-border/80 rounded-xl bg-card shadow-xs overflow-hidden">
         {/* Table Filter Header */}
         <div className="p-4 border-b border-border/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <h5 className="font-bold text-sm text-foreground">Transaction List</h5>
-            {selectedIds.length > 0 && (
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                {selectedIds.length} selected
-              </span>
-            )}
+            <h2 className="font-bold text-sm text-foreground">Transaction Ledger</h2>
+            <Badge variant="secondary" className="text-[11px] font-mono">
+              {pagination.total} total
+            </Badge>
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap">
@@ -708,7 +909,7 @@ function SuperPurchaseTransactionsPage() {
                 placeholder="Search invoices..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                className="pl-8 pr-7 py-1.5 text-xs bg-background border border-border rounded-md w-44 sm:w-48 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                className="pl-8 pr-7 py-1.5 text-xs bg-background border border-border rounded-md w-44 sm:w-48 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
               {searchInput && (
                 <button
@@ -721,7 +922,7 @@ function SuperPurchaseTransactionsPage() {
               )}
             </div>
 
-            {/* Date Range Picker Popover */}
+            {/* Dynamic Date Range Filter Popover */}
             <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
               <PopoverTrigger asChild>
                 <button
@@ -779,20 +980,32 @@ function SuperPurchaseTransactionsPage() {
                     </div>
                   </div>
 
-                  {/* Date Quick Presets */}
-                  <div className="pt-2 border-t border-border flex flex-wrap gap-1">
+                  {/* Dynamic Date Presets */}
+                  <div className="pt-2 border-t border-border flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStartDate(currentMonth.start);
+                        setEndDate(currentMonth.end);
+                        setCurrentPage(1);
+                        setIsDatePopoverOpen(false);
+                      }}
+                      className="px-2 py-1 text-[10px] font-semibold rounded bg-primary/10 text-primary hover:bg-primary/20"
+                    >
+                      This Month ({currentMonth.label})
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
                         const today = new Date();
                         const past = new Date();
                         past.setDate(today.getDate() - 7);
-                        setStartDate(past.toISOString().slice(0, 10));
-                        setEndDate(today.toISOString().slice(0, 10));
+                        setStartDate(toIsoDate(past));
+                        setEndDate(toIsoDate(today));
                         setCurrentPage(1);
                         setIsDatePopoverOpen(false);
                       }}
-                      className="px-2 py-0.5 text-[10px] rounded bg-muted hover:bg-accent text-foreground"
+                      className="px-2 py-1 text-[10px] rounded bg-muted hover:bg-accent text-foreground"
                     >
                       Last 7 Days
                     </button>
@@ -802,26 +1015,14 @@ function SuperPurchaseTransactionsPage() {
                         const today = new Date();
                         const past = new Date();
                         past.setDate(today.getDate() - 30);
-                        setStartDate(past.toISOString().slice(0, 10));
-                        setEndDate(today.toISOString().slice(0, 10));
+                        setStartDate(toIsoDate(past));
+                        setEndDate(toIsoDate(today));
                         setCurrentPage(1);
                         setIsDatePopoverOpen(false);
                       }}
-                      className="px-2 py-0.5 text-[10px] rounded bg-muted hover:bg-accent text-foreground"
+                      className="px-2 py-1 text-[10px] rounded bg-muted hover:bg-accent text-foreground"
                     >
                       Last 30 Days
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStartDate("2026-09-01");
-                        setEndDate("2026-09-30");
-                        setCurrentPage(1);
-                        setIsDatePopoverOpen(false);
-                      }}
-                      className="px-2 py-0.5 text-[10px] rounded bg-muted hover:bg-accent text-foreground"
-                    >
-                      Sep 2026
                     </button>
                     <button
                       type="button"
@@ -831,9 +1032,9 @@ function SuperPurchaseTransactionsPage() {
                         setCurrentPage(1);
                         setIsDatePopoverOpen(false);
                       }}
-                      className="px-2 py-0.5 text-[10px] rounded bg-muted hover:bg-destructive/10 hover:text-destructive text-muted-foreground ml-auto"
+                      className="px-2 py-1 text-[10px] rounded bg-muted hover:bg-destructive/10 hover:text-destructive text-muted-foreground ml-auto"
                     >
-                      Reset All
+                      Reset
                     </button>
                   </div>
 
@@ -864,7 +1065,7 @@ function SuperPurchaseTransactionsPage() {
                   <ChevronDown className="size-3 text-muted-foreground ml-0.5" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40 text-xs bg-popover text-popover-foreground border-border shadow-lg">
+              <DropdownMenuContent align="end" className="w-40 text-xs">
                 {[
                   "Payment Method",
                   "Razorpay",
@@ -880,9 +1081,7 @@ function SuperPurchaseTransactionsPage() {
                       setPaymentMethodFilter(method);
                       setCurrentPage(1);
                     }}
-                    className={`cursor-pointer focus:bg-accent focus:text-accent-foreground ${
-                      paymentMethodFilter === method ? "font-bold text-primary" : ""
-                    }`}
+                    className={`cursor-pointer ${paymentMethodFilter === method ? "font-bold text-primary" : ""}`}
                   >
                     {method}
                   </DropdownMenuItem>
@@ -901,24 +1100,15 @@ function SuperPurchaseTransactionsPage() {
                   <ChevronDown className="size-3 text-muted-foreground ml-0.5" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-36 text-xs bg-popover text-popover-foreground border-border shadow-lg">
-                {[
-                  "Select Status",
-                  "Paid",
-                  "Unpaid",
-                  "Failed",
-                  "Pending",
-                  "Refunded",
-                ].map((status) => (
+              <DropdownMenuContent align="end" className="w-36 text-xs">
+                {["Select Status", "Paid", "Open", "Pending", "Failed", "Void"].map((status) => (
                   <DropdownMenuItem
                     key={status}
                     onClick={() => {
                       setStatusFilter(status);
                       setCurrentPage(1);
                     }}
-                    className={`cursor-pointer focus:bg-accent focus:text-accent-foreground ${
-                      statusFilter === status ? "font-bold text-primary" : ""
-                    }`}
+                    className={`cursor-pointer ${statusFilter === status ? "font-bold text-primary" : ""}`}
                   >
                     {status}
                   </DropdownMenuItem>
@@ -937,21 +1127,15 @@ function SuperPurchaseTransactionsPage() {
                   <ChevronDown className="size-3 text-muted-foreground ml-0.5" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44 text-xs bg-popover text-popover-foreground border-border shadow-lg">
-                {[
-                  "All Modes",
-                  "Automatic Gateway",
-                  "Manual Review",
-                ].map((mode) => (
+              <DropdownMenuContent align="end" className="w-44 text-xs">
+                {["All Modes", "Automatic Gateway", "Manual Review"].map((mode) => (
                   <DropdownMenuItem
                     key={mode}
                     onClick={() => {
                       setVerificationModeFilter(mode);
                       setCurrentPage(1);
                     }}
-                    className={`cursor-pointer focus:bg-accent focus:text-accent-foreground ${
-                      verificationModeFilter === mode ? "font-bold text-primary" : ""
-                    }`}
+                    className={`cursor-pointer ${verificationModeFilter === mode ? "font-bold text-primary" : ""}`}
                   >
                     {mode}
                   </DropdownMenuItem>
@@ -970,23 +1154,15 @@ function SuperPurchaseTransactionsPage() {
                   <ChevronDown className="size-3 text-muted-foreground ml-0.5" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 text-xs bg-popover text-popover-foreground border-border shadow-lg">
-                {[
-                  "Sort By : Last 7 Days",
-                  "Recently Added",
-                  "Ascending",
-                  "Descending",
-                  "Last Month",
-                ].map((s) => (
+              <DropdownMenuContent align="end" className="w-48 text-xs">
+                {["Sort By : Last 7 Days", "Recently Added", "Ascending", "Descending", "Last Month"].map((s) => (
                   <DropdownMenuItem
                     key={s}
                     onClick={() => {
                       setSortBy(s);
                       setCurrentPage(1);
                     }}
-                    className={`cursor-pointer focus:bg-accent focus:text-accent-foreground ${
-                      sortBy === s ? "font-bold text-primary" : ""
-                    }`}
+                    className={`cursor-pointer ${sortBy === s ? "font-bold text-primary" : ""}`}
                   >
                     {s}
                   </DropdownMenuItem>
@@ -1000,8 +1176,8 @@ function SuperPurchaseTransactionsPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="bg-muted/50 border-b border-border text-muted-foreground font-semibold uppercase tracking-wider text-[11px]">
-                <th className="py-3 px-3 w-10">
+              <tr className="border-b border-border">
+                <th className="bg-muted/50 p-3 w-10">
                   <input
                     type="checkbox"
                     checked={transactions.length > 0 && selectedIds.length === transactions.length}
@@ -1009,32 +1185,46 @@ function SuperPurchaseTransactionsPage() {
                     className="rounded border-border text-primary focus:ring-primary cursor-pointer"
                   />
                 </th>
-                <th className="py-3 px-3 font-semibold text-foreground whitespace-nowrap">Transaction ID</th>
-                <th className="py-3 px-3 font-semibold text-foreground whitespace-nowrap">Invoice Number</th>
-                <th className="py-3 px-3 font-semibold text-foreground">Tenant / Company</th>
-                <th className="py-3 px-3 font-semibold text-foreground">Customer Email</th>
-                <th className="py-3 px-3 font-semibold text-foreground whitespace-nowrap">Payment Method</th>
-                <th className="py-3 px-3 font-semibold text-foreground whitespace-nowrap">Provider</th>
-                <th className="py-3 px-3 font-semibold text-foreground whitespace-nowrap">Amount</th>
-                <th className="py-3 px-3 font-semibold text-foreground whitespace-nowrap">Payment Status</th>
-                <th className="py-3 px-3 font-semibold text-foreground whitespace-nowrap">Verification Status</th>
-                <th className="py-3 px-3 font-semibold text-foreground whitespace-nowrap">Submitted Date</th>
-                <th className="py-3 px-3 font-semibold text-foreground whitespace-nowrap text-center">Receipt</th>
-                <th className="py-3 px-3 text-right font-semibold text-foreground whitespace-nowrap">Actions</th>
+                <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground p-3 whitespace-nowrap">
+                  Transaction ID
+                </th>
+                <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground p-3 whitespace-nowrap">
+                  Invoice
+                </th>
+                <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground p-3">
+                  Tenant / Company
+                </th>
+                <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground p-3 whitespace-nowrap">
+                  Method & Provider
+                </th>
+                <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground p-3 whitespace-nowrap">
+                  Amount
+                </th>
+                <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground p-3 whitespace-nowrap">
+                  Payment Status
+                </th>
+                <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground p-3 whitespace-nowrap">
+                  Verification
+                </th>
+                <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground p-3 whitespace-nowrap">
+                  Date
+                </th>
+                <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground p-3 text-right whitespace-nowrap">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
               {isLoading ? (
                 <tr>
-                  <td colSpan={13} className="py-14 text-center text-muted-foreground">
+                  <td colSpan={10} className="py-14 text-center text-muted-foreground">
                     <Loader2 className="size-6 animate-spin mx-auto mb-2 text-primary" />
                     <p className="font-medium text-foreground">Loading purchase transactions...</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">Querying PostgreSQL database records</p>
                   </td>
                 </tr>
               ) : isError ? (
                 <tr>
-                  <td colSpan={13} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={10} className="py-12 text-center text-muted-foreground">
                     <AlertCircle className="size-8 mx-auto mb-2 text-destructive" />
                     <p className="font-semibold text-foreground">Unable to load purchase transactions.</p>
                     <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1 mb-3">
@@ -1048,15 +1238,23 @@ function SuperPurchaseTransactionsPage() {
                 </tr>
               ) : transactions.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={10} className="py-12 text-center text-muted-foreground">
                     <FileText className="size-8 mx-auto mb-2 text-muted-foreground/60" />
                     <p className="font-semibold text-foreground">No transactions found.</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {debouncedSearch || paymentMethodFilter !== "Payment Method" || statusFilter !== "Select Status" || startDate || endDate
+                      {debouncedSearch ||
+                      paymentMethodFilter !== "Payment Method" ||
+                      statusFilter !== "Select Status" ||
+                      startDate ||
+                      endDate
                         ? "No transactions match your current active filters."
-                        : "There are no purchase transactions recorded in PostgreSQL yet."}
+                        : "There are no purchase transactions recorded yet."}
                     </p>
-                    {(debouncedSearch || paymentMethodFilter !== "Payment Method" || statusFilter !== "Select Status" || startDate || endDate) && (
+                    {(debouncedSearch ||
+                      paymentMethodFilter !== "Payment Method" ||
+                      statusFilter !== "Select Status" ||
+                      startDate ||
+                      endDate) && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -1083,11 +1281,8 @@ function SuperPurchaseTransactionsPage() {
                   const hasProof = !!tx.proofUrl;
 
                   return (
-                    <tr
-                      key={tx.id}
-                      className="hover:bg-muted/40 transition-colors group"
-                    >
-                      <td className="py-3 px-3">
+                    <tr key={tx.id} className="hover:bg-muted/40 transition-colors">
+                      <td className="p-3">
                         <input
                           type="checkbox"
                           checked={selectedIds.includes(tx.id)}
@@ -1096,27 +1291,24 @@ function SuperPurchaseTransactionsPage() {
                         />
                       </td>
 
-                      {/* Transaction ID */}
-                      <td className="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
+                      <td className="p-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
                         <span title={tx.id}>
                           {tx.transactionNo || (tx.id.length > 12 ? `${tx.id.slice(0, 10)}...` : tx.id)}
                         </span>
                       </td>
 
-                      {/* Invoice Number */}
-                      <td className="py-3 px-3 font-mono font-semibold text-foreground whitespace-nowrap">
+                      <td className="p-3 font-mono font-semibold text-foreground whitespace-nowrap">
                         <button
                           type="button"
-                          onClick={() => setViewInvoice(tx)}
-                          className="text-primary hover:underline cursor-pointer focus:outline-none"
-                          title="Click to view full transaction details"
+                          onClick={() => setPreviewTargetTx(tx)}
+                          className="text-primary hover:underline cursor-pointer"
+                          title="Open canonical invoice preview"
                         >
                           {tx.invoiceId || tx.transactionNo}
                         </button>
                       </td>
 
-                      {/* Tenant / Company */}
-                      <td className="py-3 px-3 max-w-[180px]">
+                      <td className="p-3 max-w-[200px]">
                         <div className="flex items-center gap-2">
                           <div className="size-7 rounded-full bg-muted border border-border/80 flex items-center justify-center p-0.5 shrink-0 overflow-hidden">
                             {tx.companyLogo && (tx.companyLogo.startsWith("http") || tx.companyLogo.startsWith("/")) ? (
@@ -1132,48 +1324,29 @@ function SuperPurchaseTransactionsPage() {
                               <Building2 className="size-3.5 text-muted-foreground" />
                             )}
                           </div>
-                          <div className="truncate">
-                            <h6
-                              className="font-semibold text-foreground truncate max-w-[140px] text-xs"
-                              title={tx.customerName}
-                            >
+                          <div className="min-w-0">
+                            <div className="font-semibold text-foreground truncate" title={tx.customerName}>
                               {tx.customerName}
-                            </h6>
-                            {tx.tenantSlug && (
-                              <span className="text-[10px] text-muted-foreground font-mono block truncate">
-                                @{tx.tenantSlug}
-                              </span>
-                            )}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground font-mono truncate">
+                              {tx.customerEmail}
+                            </div>
                           </div>
                         </div>
                       </td>
 
-                      {/* Customer Email */}
-                      <td className="py-3 px-3 text-muted-foreground max-w-[160px]">
-                        <span className="truncate block font-mono text-xs" title={tx.customerEmail}>
-                          {tx.customerEmail}
-                        </span>
+                      <td className="p-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <PaymentProviderBadge provider={tx.paymentMethod} />
+                          <span className="text-[11px] text-muted-foreground">{providerMeta.displayName}</span>
+                        </div>
                       </td>
 
-                      {/* Payment Method */}
-                      <td className="py-3 px-3 text-foreground whitespace-nowrap">
-                        <PaymentProviderBadge provider={tx.paymentMethod} />
-                      </td>
-
-                      {/* Provider */}
-                      <td className="py-3 px-3 whitespace-nowrap">
-                        <span className="inline-flex items-center text-xs font-medium text-foreground">
-                          {providerMeta.displayName}
-                        </span>
-                      </td>
-
-                      {/* Amount */}
-                      <td className="py-3 px-3 font-bold text-foreground whitespace-nowrap">
+                      <td className="p-3 font-bold text-foreground whitespace-nowrap font-mono">
                         {formatCurrency(tx.amount, tx.currency)}
                       </td>
 
-                      {/* Payment Status */}
-                      <td className="py-3 px-3 whitespace-nowrap">
+                      <td className="p-3 whitespace-nowrap">
                         <span
                           className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${statusMeta.paymentStatusClass}`}
                         >
@@ -1181,17 +1354,14 @@ function SuperPurchaseTransactionsPage() {
                             <CheckCircle2 className="size-3" />
                           ) : statusMeta.paymentStatusIconType === "clock" ? (
                             <Clock className="size-3" />
-                          ) : statusMeta.paymentStatusIconType === "alert" ? (
-                            <AlertTriangle className="size-3" />
                           ) : (
-                            <i className="ti ti-point-filled text-xs"></i>
+                            <AlertTriangle className="size-3" />
                           )}
                           {statusMeta.paymentStatusLabel}
                         </span>
                       </td>
 
-                      {/* Verification Status */}
-                      <td className="py-3 px-3 whitespace-nowrap">
+                      <td className="p-3 whitespace-nowrap">
                         <span
                           className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusMeta.verificationStatusClass}`}
                         >
@@ -1208,62 +1378,59 @@ function SuperPurchaseTransactionsPage() {
                         </span>
                       </td>
 
-                      {/* Submitted Date */}
-                      <td className="py-3 px-3 text-muted-foreground whitespace-nowrap">
+                      <td className="p-3 text-muted-foreground whitespace-nowrap">
                         {formatDate(tx.createdAt)}
                       </td>
 
-                      {/* Column 11: Generated Platform Receipt / Invoice Document */}
-                      <td className="py-3 px-3 whitespace-nowrap text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleDownloadInvoice(tx.id, tx.invoiceId || tx.transactionNo)}
-                          className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded cursor-pointer transition-colors border ${
-                            statusMeta.isPaid
-                              ? "text-primary hover:text-primary/80 bg-primary/10 hover:bg-primary/20 border-primary/20"
-                              : "text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-accent border-border"
-                          }`}
-                          title={statusMeta.isPaid ? "Download Official Payment Receipt PDF" : "Download Official Invoice PDF"}
-                        >
-                          <FileText className="size-3" />
-                          {statusMeta.isPaid ? "Receipt" : "Invoice"}
-                        </button>
-                      </td>
+                      <td className="p-3 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewTargetTx(tx)}
+                            className="h-7 px-2 rounded-md border border-border bg-card text-foreground hover:bg-accent text-[11px] font-medium inline-flex items-center gap-1 cursor-pointer"
+                            title="Invoice Preview"
+                          >
+                            <Receipt className="size-3 text-primary" />
+                            Preview
+                          </button>
 
-                      {/* Actions */}
-                      <td className="py-3 px-3 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* View Full Details Button */}
                           <button
                             type="button"
                             onClick={() => setViewInvoice(tx)}
-                            className="size-7 rounded-md border border-border bg-card flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shadow-2xs cursor-pointer"
-                            title="View Full Details"
+                            className="size-7 rounded-md border border-border bg-card flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
+                            title="Ledger & Verification Details"
                           >
                             <Eye className="size-3.5" />
                           </button>
 
-                          {/* Customer Payment Proof ONLY for manual transactions that have submitted evidence */}
+                          <button
+                            type="button"
+                            onClick={() => openStatusEditor(tx)}
+                            className="size-7 rounded-md border border-border bg-card flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-accent cursor-pointer"
+                            title="Update Transaction Status"
+                          >
+                            <SlidersHorizontal className="size-3.5" />
+                          </button>
+
                           {statusMeta.isManual && hasProof && (
                             <button
                               type="button"
                               onClick={() => setProofPreviewTx(tx)}
-                              className="h-7 px-2 rounded-md border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 font-medium text-[11px] flex items-center gap-1 transition-colors shadow-2xs cursor-pointer"
-                              title="View Customer Uploaded Payment Proof"
+                              className="h-7 px-2 rounded-md border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 font-medium text-[11px] flex items-center gap-1 cursor-pointer"
+                              title="View Payment Proof"
                             >
-                              <FileCheck className="size-3 text-purple-600 dark:text-purple-400" />
-                              Payment Proof
+                              <FileCheck className="size-3" />
+                              Proof
                             </button>
                           )}
 
-                          {/* Approve / Reject: ONLY FOR MANUAL PAYMENTS with pending verification */}
                           {statusMeta.canApproveOrReject && (
                             <>
                               <button
                                 type="button"
                                 disabled={isProcessingAction}
                                 onClick={() => setApproveConfirmTx(tx)}
-                                className="h-7 px-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-[11px] flex items-center gap-1 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                                className="h-7 px-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-[11px] flex items-center gap-1 cursor-pointer disabled:opacity-50"
                                 title="Approve Manual Payment"
                               >
                                 <CheckCircle2 className="size-3" />
@@ -1276,7 +1443,7 @@ function SuperPurchaseTransactionsPage() {
                                   setRejectTargetTx(tx);
                                   setRejectDialogOpen(true);
                                 }}
-                                className="h-7 px-2 rounded-md bg-rose-600 hover:bg-rose-700 text-white font-medium text-[11px] flex items-center gap-1 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                                className="h-7 px-2 rounded-md bg-rose-600 hover:bg-rose-700 text-white font-medium text-[11px] flex items-center gap-1 cursor-pointer disabled:opacity-50"
                                 title="Reject Manual Payment"
                               >
                                 <AlertTriangle className="size-3" />
@@ -1285,34 +1452,11 @@ function SuperPurchaseTransactionsPage() {
                             </>
                           )}
 
-                          {/* Automatic Gateway Processing: never shows manual approve/reject */}
-                          {!statusMeta.isManual && !statusMeta.isPaid && !statusMeta.isFailed && (
-                            <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded inline-flex items-center gap-1">
-                              <Clock className="size-3" />
-                              Gateway Processing
-                            </span>
-                          )}
-
-                          {statusMeta.isPaid && (
-                            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded inline-flex items-center gap-1">
-                              <CheckCircle2 className="size-3" />
-                              {!statusMeta.isManual ? "Gateway Verified" : "Verified"}
-                            </span>
-                          )}
-
-                          {statusMeta.isFailed && (
-                            <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-1 rounded inline-flex items-center gap-1">
-                              <AlertTriangle className="size-3" />
-                              {!statusMeta.isManual ? "Failed" : "Rejected"}
-                            </span>
-                          )}
-
-                          {/* Download Genuine Invoice PDF */}
                           <button
                             type="button"
                             onClick={() => handleDownloadInvoice(tx.id, tx.invoiceId || tx.transactionNo)}
-                            className="size-7 rounded-md border border-border bg-card flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shadow-2xs cursor-pointer"
-                            title="Download Printable Invoice PDF"
+                            className="size-7 rounded-md border border-border bg-card flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
+                            title="Download Invoice PDF"
                           >
                             <Download className="size-3.5" />
                           </button>
@@ -1326,7 +1470,7 @@ function SuperPurchaseTransactionsPage() {
           </table>
         </div>
 
-        {/* Table Footer Pagination Info */}
+        {/* Pagination Footer */}
         <div className="p-4 border-t border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-muted-foreground">
           <p>
             Showing{" "}
@@ -1337,8 +1481,7 @@ function SuperPurchaseTransactionsPage() {
             <span className="font-semibold text-foreground">
               {Math.min(pagination.page * pagination.pageSize, pagination.total)}
             </span>{" "}
-            of{" "}
-            <span className="font-semibold text-foreground">{pagination.total}</span> entries
+            of <span className="font-semibold text-foreground">{pagination.total}</span> entries
           </p>
 
           <div className="flex items-center gap-1">
@@ -1346,17 +1489,16 @@ function SuperPurchaseTransactionsPage() {
               type="button"
               disabled={pagination.page <= 1 || isLoading}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="px-2.5 py-1 rounded border border-border bg-card text-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="px-2.5 py-1 rounded border border-border bg-card text-foreground hover:bg-accent disabled:opacity-40"
             >
               Previous
             </button>
-
-            {Array.from({ length: Math.max(1, pagination.totalPages) }, (_, i) => i + 1).map((pg) => (
+            {Array.from({ length: Math.min(7, Math.max(1, pagination.totalPages)) }, (_, i) => i + 1).map((pg) => (
               <button
                 key={pg}
                 type="button"
                 onClick={() => setCurrentPage(pg)}
-                className={`px-2.5 py-1 rounded border font-semibold transition-colors ${
+                className={`px-2.5 py-1 rounded border font-semibold ${
                   pagination.page === pg
                     ? "border-primary bg-primary text-primary-foreground"
                     : "border-border bg-card text-foreground hover:bg-accent"
@@ -1365,12 +1507,11 @@ function SuperPurchaseTransactionsPage() {
                 {pg}
               </button>
             ))}
-
             <button
               type="button"
               disabled={pagination.page >= pagination.totalPages || isLoading}
               onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
-              className="px-2.5 py-1 rounded border border-border bg-card text-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="px-2.5 py-1 rounded border border-border bg-card text-foreground hover:bg-accent disabled:opacity-40"
             >
               Next
             </button>
@@ -1378,7 +1519,289 @@ function SuperPurchaseTransactionsPage() {
         </div>
       </div>
 
-      {/* ─── Real Database Transaction Details Modal (Section 8 Strict Separation) ─── */}
+      {/* ─── CANONICAL INVOICE PREVIEW DIALOG (GET /super/transactions/:id/preview) ─── */}
+      <Dialog open={Boolean(previewTargetTx)} onOpenChange={(o) => !o && setPreviewTargetTx(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between gap-2 pr-6">
+              <span className="flex items-center gap-2 text-base">
+                <Receipt className="size-4 text-primary" />
+                Invoice Preview — {previewInvoice?.invoiceNo || previewTargetTx?.invoiceId || previewTargetTx?.transactionNo}
+              </span>
+              {previewInvoice?.status && (
+                <Badge
+                  variant="outline"
+                  className={
+                    previewInvoice.status === "PAID"
+                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                      : previewInvoice.status === "FAILED"
+                      ? "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                      : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                  }
+                >
+                  {previewInvoice.status}
+                </Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {previewInvoice?.classification || "Canonical Billing Document Preview"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingPreview ? (
+            <div className="py-14 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+              <Loader2 className="size-6 animate-spin text-primary" />
+              <p className="text-xs">Loading canonical invoice preview...</p>
+            </div>
+          ) : isPreviewError || !previewInvoice ? (
+            <Alert variant="danger">
+              <AlertTriangle className="size-4" />
+              <AlertDescription className="text-xs">
+                {(previewError as any)?.message || "Could not load invoice preview for this transaction."}
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <div className="space-y-4 py-2 text-xs">
+              {/* Supplier & Customer Blocks */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Issued By (Supplier)
+                  </span>
+                  <p className="font-bold text-foreground">{previewInvoice.supplier?.name || "Platform Billing"}</p>
+                  {previewInvoice.supplier?.address && (
+                    <p className="text-muted-foreground">{previewInvoice.supplier.address}</p>
+                  )}
+                  {previewInvoice.supplier?.email && (
+                    <p className="font-mono text-[11px]">{previewInvoice.supplier.email}</p>
+                  )}
+                  {previewInvoice.supplier?.gstin && (
+                    <p className="font-mono text-[11px] text-muted-foreground">
+                      GSTIN: {previewInvoice.supplier.gstin}
+                    </p>
+                  )}
+                </div>
+
+                <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Billed To (Customer)
+                  </span>
+                  <p className="font-bold text-foreground">{previewInvoice.customer?.name || "Tenant Workspace"}</p>
+                  {previewInvoice.customer?.slug && (
+                    <p className="font-mono text-[11px] text-muted-foreground">@{previewInvoice.customer.slug}</p>
+                  )}
+                  {previewInvoice.customer?.email && (
+                    <p className="font-mono text-[11px]">{previewInvoice.customer.email}</p>
+                  )}
+                  {previewInvoice.customer?.taxId && (
+                    <p className="font-mono text-[11px] text-muted-foreground">
+                      Tax ID: {previewInvoice.customer.taxId}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Document Metadata */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 rounded-lg bg-muted/30 border border-border">
+                <div>
+                  <span className="text-[10px] text-muted-foreground block">Issue Date</span>
+                  <span className="font-semibold text-foreground">{previewInvoice.issueDate || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-muted-foreground block">Settlement Date</span>
+                  <span className="font-semibold text-foreground">{previewInvoice.settlementDate || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-muted-foreground block">Payment Gateway</span>
+                  <span className="font-semibold text-foreground">{previewInvoice.payment?.gateway || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-muted-foreground block">Reference</span>
+                  <span className="font-mono text-[11px] text-foreground truncate block">
+                    {previewInvoice.payment?.reference || "—"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Line Items Table */}
+              {Array.isArray(previewInvoice.items) && previewInvoice.items.length > 0 && (
+                <div className="overflow-x-auto border border-border/80 rounded-lg">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-border/80">
+                        <th className="bg-muted/50 text-[10px] uppercase tracking-wider text-muted-foreground p-2.5">
+                          Description
+                        </th>
+                        <th className="bg-muted/50 text-[10px] uppercase tracking-wider text-muted-foreground p-2.5 text-right">
+                          Qty
+                        </th>
+                        <th className="bg-muted/50 text-[10px] uppercase tracking-wider text-muted-foreground p-2.5 text-right">
+                          Unit Price
+                        </th>
+                        <th className="bg-muted/50 text-[10px] uppercase tracking-wider text-muted-foreground p-2.5 text-right">
+                          Tax
+                        </th>
+                        <th className="bg-muted/50 text-[10px] uppercase tracking-wider text-muted-foreground p-2.5 text-right">
+                          Total
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {previewInvoice.items.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="p-2.5">
+                            <div className="font-semibold text-foreground">{item.description}</div>
+                            {item.subDescription && (
+                              <div className="text-[11px] text-muted-foreground">{item.subDescription}</div>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-right font-mono">{item.quantity}</td>
+                          <td className="p-2.5 text-right font-mono">
+                            {formatCurrency(item.unitPrice, previewInvoice.currency)}
+                          </td>
+                          <td className="p-2.5 text-right font-mono">
+                            {formatCurrency(item.taxAmount, previewInvoice.currency)}
+                          </td>
+                          <td className="p-2.5 text-right font-mono font-semibold text-foreground">
+                            {formatCurrency(item.totalAmount, previewInvoice.currency)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Totals Breakdown */}
+              <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-1.5">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span className="font-mono">{formatCurrency(previewInvoice.subtotal, previewInvoice.currency)}</span>
+                </div>
+                {previewInvoice.discount > 0 && (
+                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                    <span>Discount</span>
+                    <span className="font-mono">-{formatCurrency(previewInvoice.discount, previewInvoice.currency)}</span>
+                  </div>
+                )}
+                {previewInvoice.tax > 0 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Tax</span>
+                    <span className="font-mono">{formatCurrency(previewInvoice.tax, previewInvoice.currency)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between pt-2 border-t border-border font-bold text-sm text-foreground">
+                  <span>Total Payable</span>
+                  <span className="font-mono text-primary">
+                    {formatCurrency(previewInvoice.total, previewInvoice.currency)}
+                  </span>
+                </div>
+              </div>
+
+              {previewInvoice.notes && (
+                <p className="text-[11px] text-muted-foreground italic">{previewInvoice.notes}</p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            {previewTargetTx && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  handleDownloadInvoice(
+                    previewTargetTx.id,
+                    previewInvoice?.invoiceNo || previewTargetTx.invoiceId || previewTargetTx.transactionNo
+                  )
+                }
+                className="gap-1.5 text-xs"
+              >
+                <Download className="size-3.5" />
+                Download PDF
+              </Button>
+            )}
+            <Button size="sm" onClick={() => setPreviewTargetTx(null)} className="text-xs">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── UPDATE TRANSACTION STATUS DIALOG (PATCH /super/transactions/:id/status) ─── */}
+      <Dialog open={Boolean(statusEditTx)} onOpenChange={(o) => !o && setStatusEditTx(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <SlidersHorizontal className="size-4 text-primary" />
+              Update Transaction Status
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Override billing ledger status for{" "}
+              <strong className="font-mono">{statusEditTx?.invoiceId || statusEditTx?.transactionNo}</strong> (
+              {statusEditTx?.customerName}).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            <div className="space-y-1.5">
+              <Label htmlFor="tx-status-select" className="text-xs font-semibold">
+                Target Status *
+              </Label>
+              <select
+                id="tx-status-select"
+                value={newTxStatus}
+                onChange={(e) => setNewTxStatus(e.target.value as AllowedStatusValue)}
+                className="w-full h-9 rounded-md border border-border bg-background px-3 text-xs text-foreground"
+              >
+                {ALLOWED_TRANSACTION_STATUSES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label} ({s.value})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="tx-status-notes" className="text-xs font-semibold">
+                Audit Notes (Optional)
+              </Label>
+              <textarea
+                id="tx-status-notes"
+                rows={3}
+                value={statusNotes}
+                onChange={(e) => setStatusNotes(e.target.value)}
+                placeholder="Reason for manual status reconciliation..."
+                className="w-full p-2.5 rounded-md border border-border bg-background text-xs text-foreground"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setStatusEditTx(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={updateStatusMutation.isPending}
+              onClick={() => {
+                if (!statusEditTx) return;
+                updateStatusMutation.mutate({
+                  id: statusEditTx.id,
+                  status: newTxStatus,
+                  notes: statusNotes.trim() || undefined,
+                });
+              }}
+              className="gap-1.5"
+            >
+              {updateStatusMutation.isPending && <Loader2 className="size-3.5 animate-spin" />}
+              Save Status
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── FULL LEDGER & VERIFICATION DETAILS MODAL ─── */}
       <Dialog open={!!viewInvoice} onOpenChange={() => setViewInvoice(null)}>
         <DialogContent className="max-w-lg bg-card text-foreground border-border shadow-xl">
           {viewInvoice && (() => {
@@ -1388,7 +1811,7 @@ function SuperPurchaseTransactionsPage() {
             return (
               <>
                 <DialogHeader>
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2 pr-6">
                     <div className="flex flex-col gap-0.5">
                       <DialogTitle className="text-base font-bold flex items-center gap-2 text-foreground">
                         <FileText className="size-4 text-primary" />
@@ -1400,35 +1823,16 @@ function SuperPurchaseTransactionsPage() {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      {/* Verification Mode Badge */}
-                      <span
-                        className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                          isDrawerManual
-                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
-                            : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30"
-                        }`}
-                      >
-                        {isDrawerManual ? "MANUAL — Admin Review" : "AUTOMATIC — Gateway"}
-                      </span>
-                      {/* Payment Status Badge */}
-                      <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${drawerMeta.paymentStatusClass}`}>
-                        {drawerMeta.paymentStatusLabel}
-                      </span>
-                    </div>
+                    <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${drawerMeta.paymentStatusClass}`}>
+                      {drawerMeta.paymentStatusLabel}
+                    </span>
                   </div>
                   <DialogDescription className="text-xs text-muted-foreground">
-                    Authoritative PostgreSQL transaction ledger record
+                    Authoritative transaction ledger & verification metadata
                   </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-3 py-2 text-xs border-y border-border/80 max-h-[60vh] overflow-y-auto pr-1">
-                  {viewInvoice.classification && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Classification:</span>
-                      <span className="font-semibold text-primary">{viewInvoice.classification}</span>
-                    </div>
-                  )}
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Customer Company:</span>
                     <span className="font-semibold text-foreground">{viewInvoice.customerName}</span>
@@ -1447,269 +1851,25 @@ function SuperPurchaseTransactionsPage() {
                       {viewInvoice.planName} ({viewInvoice.billingCycle})
                     </span>
                   </div>
-                  {viewInvoice.billableUsers && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Licensed Seats:</span>
-                      <span className="text-foreground">{viewInvoice.billableUsers} users</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Verification Mode:</span>
+                    <span className="font-semibold text-foreground">
+                      {isDrawerManual ? "MANUAL — Admin Review" : "AUTOMATIC — Gateway"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Reference / Payment ID:</span>
+                    <span className="font-mono text-[11px] text-foreground">
+                      {viewInvoice.bankTransferRef || viewInvoice.gatewayPaymentId || viewInvoice.gatewayOrderId || "None"}
+                    </span>
+                  </div>
+                  {viewInvoice.rejectionReason && (
+                    <div className="p-2.5 rounded-md bg-rose-500/10 border border-rose-500/20 text-xs">
+                      <span className="font-bold text-rose-600 block mb-0.5">Rejection Reason:</span>
+                      <p>{viewInvoice.rejectionReason}</p>
                     </div>
                   )}
 
-                  {/* Section 8: Specific Mode Rendering */}
-                  {drawerMeta.isAutomatic ? (
-                    /* ─── AUTOMATIC GATEWAY TRANSACTION DETAILS ─── */
-                    <div className="p-3 rounded-lg border border-blue-500/20 bg-blue-500/5 space-y-2 text-xs">
-                      <div className="flex justify-between items-center font-semibold text-blue-600 dark:text-blue-400 border-b border-blue-500/20 pb-1.5">
-                        <span>Verification Mode:</span>
-                        <span className="font-bold">AUTOMATIC — Gateway</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Provider:</span>
-                        <span className="font-semibold text-foreground">
-                          {viewInvoice.verification?.provider || viewInvoice.paymentMethod}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Gateway Transaction ID:</span>
-                        <span className="font-mono text-[11px] text-foreground">
-                          {viewInvoice.gatewayOrderId || viewInvoice.id}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Gateway Reference:</span>
-                        <span className="font-mono text-[11px] text-foreground">
-                          {viewInvoice.gatewayPaymentId || "None"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Payment Status:</span>
-                        <span className="font-semibold text-foreground">{drawerMeta.paymentStatusLabel}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Verification Status:</span>
-                        <span className="font-semibold text-foreground">{drawerMeta.verificationStatusLabel}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Verified At:</span>
-                        <span className="text-foreground">
-                          {viewInvoice.verifiedAt || viewInvoice.paidAt
-                            ? formatDate(viewInvoice.verifiedAt || viewInvoice.paidAt)
-                            : "—"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Verified By:</span>
-                        <span className="font-mono text-foreground font-medium">
-                          {drawerMeta.isPaid ? (viewInvoice.verifiedBy || "SYSTEM_GATEWAY") : "—"}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    /* ─── MANUAL REVIEW TRANSACTION DETAILS ─── */
-                    <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 space-y-2 text-xs">
-                      <div className="flex justify-between items-center font-semibold text-amber-600 dark:text-amber-400 border-b border-amber-500/20 pb-1.5">
-                        <span>Verification Mode:</span>
-                        <span className="font-bold">MANUAL — Admin Review</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Payment Method:</span>
-                        <span className="font-semibold text-foreground">{viewInvoice.paymentMethod}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">UTR / Reference:</span>
-                        <span className="font-mono text-[11px] font-bold text-foreground">
-                          {viewInvoice.bankTransferRef || viewInvoice.gatewayPaymentId || "None"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Submitted Date:</span>
-                        <span className="text-foreground">{formatDate(viewInvoice.createdAt)}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Payment Status:</span>
-                        <span className="font-semibold text-foreground">{drawerMeta.paymentStatusLabel}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Verification Status:</span>
-                        <span className="font-semibold text-foreground">{drawerMeta.verificationStatusLabel}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Reviewer:</span>
-                        <span className="font-mono text-foreground font-medium">
-                          {drawerMeta.isPaid ? (viewInvoice.verifiedBy || "Super Admin") : "—"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Verified At:</span>
-                        <span className="text-foreground">
-                          {viewInvoice.verifiedAt || viewInvoice.paidAt
-                            ? formatDate(viewInvoice.verifiedAt || viewInvoice.paidAt)
-                            : "—"}
-                        </span>
-                      </div>
-
-                      {viewInvoice.rejectionReason && (
-                        <div className="p-2.5 rounded-md bg-rose-500/10 border border-rose-500/20 text-xs mt-1">
-                          <span className="font-bold text-rose-600 dark:text-rose-400 block mb-0.5">Rejection Reason:</span>
-                          <p className="text-rose-700 dark:text-rose-300">{viewInvoice.rejectionReason}</p>
-                        </div>
-                      )}
-
-                      {/* Manual Payment Proof Evidence Section */}
-                      <div className="pt-2 border-t border-amber-500/20">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-foreground flex items-center gap-1.5">
-                            <FileCheck className="size-3.5 text-purple-600" />
-                            Payment Proof:
-                          </span>
-                          {viewInvoice.proofUrl ? (
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const target = viewInvoice;
-                                  setViewInvoice(null);
-                                  setProofPreviewTx(target);
-                                }}
-                                className="text-primary hover:underline text-[11px] font-medium flex items-center gap-1 cursor-pointer"
-                              >
-                                <Eye className="size-3" />
-                                View Proof
-                              </button>
-                              <a
-                                href={viewInvoice.proofUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-muted-foreground hover:text-foreground text-[11px] font-medium flex items-center gap-0.5"
-                              >
-                                <ExternalLink className="size-3" />
-                                Open
-                              </a>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground text-[11px]">No proof uploaded</span>
-                          )}
-                        </div>
-
-                        {viewInvoice.proofUrl && (
-                          <div className="mt-2 relative rounded-md overflow-hidden border border-border bg-black/5 dark:bg-black/40 min-h-[140px] max-h-56 flex items-center justify-center">
-                            {viewInvoice.proofUrl.toLowerCase().includes(".pdf") ? (
-                              <iframe
-                                src={viewInvoice.proofUrl}
-                                className="w-full h-52 border-0"
-                                title="Payment Proof PDF"
-                              />
-                            ) : (
-                              <img
-                                src={viewInvoice.proofUrl}
-                                alt="Customer Payment Proof"
-                                className="max-h-52 w-auto object-contain cursor-pointer hover:opacity-95 transition-opacity"
-                                onClick={() => {
-                                  const target = viewInvoice;
-                                  setViewInvoice(null);
-                                  setProofPreviewTx(target);
-                                }}
-                                onError={(e) => {
-                                  e.currentTarget.style.display = "none";
-                                }}
-                              />
-                            )}
-                          </div>
-                        )}
-                        {viewInvoice.proofNotes && (
-                          <p className="text-[11px] text-muted-foreground italic mt-1">
-                            Notes: {viewInvoice.proofNotes}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Gateway Cross-Verification Card (Diagnostic Comparison) */}
-                  {drawerMeta.isAutomatic && viewInvoice.verification && (
-                    <div
-                      className={`p-3 rounded-lg border text-xs space-y-2 mt-2 ${
-                        viewInvoice.verification.status === "VERIFIED"
-                          ? "bg-emerald-500/5 border-emerald-500/20 text-foreground"
-                          : viewInvoice.verification.status === "MISMATCH"
-                          ? "bg-rose-500/5 border-rose-500/20 text-foreground"
-                          : "bg-muted/40 border-border text-muted-foreground"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold flex items-center gap-1.5">
-                          {viewInvoice.verification.status === "VERIFIED" ? (
-                            <CheckCircle2 className="size-3.5 text-emerald-500" />
-                          ) : viewInvoice.verification.status === "MISMATCH" ? (
-                            <AlertTriangle className="size-3.5 text-rose-500" />
-                          ) : (
-                            <Clock className="size-3.5 text-amber-500" />
-                          )}
-                          Gateway Cryptographic Verification:
-                        </span>
-                        <span
-                          className={`font-semibold uppercase tracking-wider text-[10px] px-2 py-0.5 rounded ${
-                            viewInvoice.verification.status === "VERIFIED"
-                              ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                              : viewInvoice.verification.status === "MISMATCH"
-                              ? "bg-rose-500/20 text-rose-600 dark:text-rose-400"
-                              : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
-                          }`}
-                        >
-                          {viewInvoice.verification.summary || viewInvoice.verification.status}
-                        </span>
-                      </div>
-
-                      {viewInvoice.verification.status === "MISMATCH" && (
-                        <div className="mt-2 p-2 rounded bg-rose-500/10 border border-rose-500/20 space-y-1.5 text-[11px]">
-                          <div className="font-semibold text-rose-600 dark:text-rose-400">
-                            Diagnostic Discrepancy Comparison:
-                          </div>
-                          {viewInvoice.verification.mismatchReason && (
-                            <p className="text-muted-foreground italic">
-                              {viewInvoice.verification.mismatchReason}
-                            </p>
-                          )}
-                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-rose-500/20">
-                            <div>
-                              <span className="text-muted-foreground block text-[10px]">Expected Amount:</span>
-                              <span className="font-mono font-medium">
-                                {formatCurrency(
-                                  viewInvoice.verification.diagnosticComparison?.expectedAmount ?? viewInvoice.amount,
-                                  viewInvoice.verification.diagnosticComparison?.expectedCurrency ?? viewInvoice.currency
-                                )}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground block text-[10px]">Gateway Amount:</span>
-                              <span className="font-mono font-medium text-rose-500">
-                                {viewInvoice.verification.diagnosticComparison?.gatewayAmount !== null &&
-                                viewInvoice.verification.diagnosticComparison?.gatewayAmount !== undefined
-                                  ? formatCurrency(
-                                      viewInvoice.verification.diagnosticComparison.gatewayAmount,
-                                      viewInvoice.verification.diagnosticComparison?.gatewayCurrency ?? viewInvoice.currency
-                                    )
-                                  : "N/A"}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground block text-[10px]">Expected Order:</span>
-                              <span className="font-mono truncate block text-[10px]">
-                                {viewInvoice.verification.diagnosticComparison?.expectedOrderId || "None"}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground block text-[10px]">Gateway Order:</span>
-                              <span className="font-mono truncate block text-[10px]">
-                                {viewInvoice.verification.diagnosticComparison?.gatewayOrderId || "None"}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Financial Summary */}
                   <div className="pt-2 border-t border-border space-y-1">
                     <div className="flex justify-between text-muted-foreground">
                       <span>Subtotal:</span>
@@ -1735,41 +1895,57 @@ function SuperPurchaseTransactionsPage() {
                 </div>
 
                 <DialogFooter className="gap-2 sm:justify-between flex-wrap">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Button
                       type="button"
                       variant="outline"
+                      size="sm"
                       onClick={() => {
-                        handleDownloadInvoice(viewInvoice.id, viewInvoice.invoiceId || viewInvoice.transactionNo);
+                        const target = viewInvoice;
+                        setViewInvoice(null);
+                        setPreviewTargetTx(target);
                       }}
-                      className="gap-1.5 text-xs border-border"
+                      className="gap-1.5 text-xs"
                     >
-                      <Download className="size-3.5" />
-                      Download Invoice PDF
+                      <Receipt className="size-3.5" />
+                      Invoice Preview
                     </Button>
-
-                    {/* Section 8 & 11: Approve / Reject strictly for MANUAL transactions with pending verification */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const target = viewInvoice;
+                        setViewInvoice(null);
+                        openStatusEditor(target);
+                      }}
+                      className="gap-1.5 text-xs"
+                    >
+                      <SlidersHorizontal className="size-3.5" />
+                      Change Status
+                    </Button>
                     {drawerMeta.canApproveOrReject && (
                       <>
                         <Button
                           type="button"
-                          variant="default"
+                          size="sm"
                           disabled={isProcessingAction}
                           onClick={() => setApproveConfirmTx(viewInvoice)}
                           className="gap-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                         >
                           <CheckCircle2 className="size-3.5" />
-                          Approve Payment
+                          Approve
                         </Button>
                         <Button
                           type="button"
+                          size="sm"
                           variant="destructive"
                           disabled={isProcessingAction}
                           onClick={() => {
                             setRejectTargetTx(viewInvoice);
                             setRejectDialogOpen(true);
                           }}
-                          className="gap-1 text-xs bg-rose-600 hover:bg-rose-700 text-white"
+                          className="gap-1 text-xs"
                         >
                           <AlertTriangle className="size-3.5" />
                           Reject
@@ -1777,8 +1953,7 @@ function SuperPurchaseTransactionsPage() {
                       </>
                     )}
                   </div>
-
-                  <Button type="button" onClick={() => setViewInvoice(null)} className="text-xs">
+                  <Button type="button" size="sm" onClick={() => setViewInvoice(null)} className="text-xs">
                     Close
                   </Button>
                 </DialogFooter>
@@ -1788,74 +1963,38 @@ function SuperPurchaseTransactionsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ─── Dedicated Approve Confirmation Dialog ────────────────────────── */}
-      <Dialog open={!!approveConfirmTx} onOpenChange={() => setApproveConfirmTx(null)}>
-        <DialogContent className="max-w-md bg-card text-foreground border-border shadow-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold flex items-center gap-2 text-foreground">
-              <CheckCircle2 className="size-5 text-emerald-500" />
-              Approve this payment?
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Confirming will authorize the payment, mark the invoice as PAID, activate the tenant's subscription, create an authoritative ledger entry, and send a confirmation email.
-            </DialogDescription>
-          </DialogHeader>
+      {/* Approve Manual Payment Confirmation */}
+      <ConfirmationDialog
+        open={Boolean(approveConfirmTx)}
+        onOpenChange={(open) => !open && setApproveConfirmTx(null)}
+        title={`Approve payment for ${approveConfirmTx?.invoiceId || approveConfirmTx?.transactionNo}?`}
+        description={
+          approveConfirmTx
+            ? `Confirming will mark ${formatCurrency(approveConfirmTx.amount, approveConfirmTx.currency)} for ${approveConfirmTx.customerName} as PAID, activate the subscription, and dispatch a confirmation email.`
+            : ""
+        }
+        confirmLabel="Approve Payment"
+        variant="default"
+        icon={<CheckCircle2 className="size-5 text-emerald-600" />}
+        isLoading={isProcessingAction}
+        onConfirm={() => {
+          if (approveConfirmTx) void handleApprovePayment(approveConfirmTx.id);
+        }}
+      />
 
-          {approveConfirmTx && (
-            <div className="space-y-2.5 py-3 text-xs border-y border-border">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Invoice Number:</span>
-                <span className="font-mono font-bold text-foreground">
-                  {approveConfirmTx.invoiceId || approveConfirmTx.transactionNo}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Tenant / Company:</span>
-                <span className="font-semibold text-foreground">
-                  {approveConfirmTx.customerName} (@{approveConfirmTx.tenantSlug})
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Payment Method:</span>
-                <span className="font-medium text-foreground">{approveConfirmTx.paymentMethod}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Settlement Amount:</span>
-                <span className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">
-                  {formatCurrency(approveConfirmTx.amount, approveConfirmTx.currency)}
-                </span>
-              </div>
-            </div>
-          )}
+      {/* Bulk Status Update Confirmation */}
+      <ConfirmationDialog
+        open={bulkConfirmOpen}
+        onOpenChange={setBulkConfirmOpen}
+        title={`Update ${selectedIds.length} transaction(s) to "${bulkStatusTarget}"?`}
+        description="This will apply PATCH /super/transactions/:id/status to each selected record in the billing ledger."
+        confirmLabel={`Set ${selectedIds.length} to ${bulkStatusTarget}`}
+        variant={bulkStatusTarget === "void" || bulkStatusTarget === "failed" ? "destructive" : "default"}
+        isLoading={isBulkUpdating}
+        onConfirm={handleBulkStatusUpdate}
+      />
 
-          <DialogFooter className="gap-2 sm:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isProcessingAction}
-              onClick={() => setApproveConfirmTx(null)}
-              className="text-xs"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={isProcessingAction}
-              onClick={async () => {
-                if (!approveConfirmTx) return;
-                const tx = approveConfirmTx;
-                await handleApprovePayment(tx.id);
-              }}
-              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
-            >
-              {isProcessingAction && <Loader2 className="size-3.5 animate-spin" />}
-              Approve Payment
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─── Dedicated Customer Payment Proof Preview Dialog (Section 9) ─── */}
+      {/* Payment Proof Preview Dialog */}
       <Dialog open={!!proofPreviewTx} onOpenChange={() => setProofPreviewTx(null)}>
         <DialogContent className="max-w-2xl bg-card text-foreground border-border shadow-2xl">
           <DialogHeader>
@@ -1864,146 +2003,50 @@ function SuperPurchaseTransactionsPage() {
               Payment Proof
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Customer-uploaded manual payment proof evidence for Invoice #{proofPreviewTx?.invoiceId || proofPreviewTx?.transactionNo} ({proofPreviewTx?.customerName})
+              Customer-uploaded payment proof for Invoice #{proofPreviewTx?.invoiceId || proofPreviewTx?.transactionNo} ({proofPreviewTx?.customerName})
             </DialogDescription>
           </DialogHeader>
 
           {proofPreviewTx?.proofUrl && (
             <div className="space-y-3 py-2">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs p-2.5 rounded-md bg-muted/40 border border-border">
-                <div>
-                  <span className="text-muted-foreground block text-[10px]">Invoice:</span>
-                  <span className="font-mono font-semibold text-foreground">
-                    {proofPreviewTx.invoiceId || proofPreviewTx.transactionNo}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block text-[10px]">Tenant:</span>
-                  <span className="font-semibold text-foreground truncate block">
-                    {proofPreviewTx.customerName}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block text-[10px]">Amount:</span>
-                  <span className="font-bold text-primary">
-                    {formatCurrency(proofPreviewTx.amount, proofPreviewTx.currency)}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block text-[10px]">Reference / UTR:</span>
-                  <span className="font-mono font-bold text-foreground truncate block">
-                    {proofPreviewTx.bankTransferRef || proofPreviewTx.gatewayPaymentId || "None"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Preview Box */}
-              <div className="rounded-lg border border-border bg-black/5 dark:bg-black/30 overflow-hidden flex flex-col items-center justify-center min-h-[300px] max-h-[500px]">
+              <div className="rounded-lg border border-border bg-black/5 dark:bg-black/30 overflow-hidden flex flex-col items-center justify-center min-h-[260px] max-h-[480px]">
                 {proofPreviewTx.proofUrl.toLowerCase().includes(".pdf") ? (
                   <iframe
                     src={proofPreviewTx.proofUrl}
-                    className="w-full h-[450px] border-0"
+                    className="w-full h-[420px] border-0"
                     title="PDF Payment Proof"
                   />
                 ) : (
                   <img
                     src={proofPreviewTx.proofUrl}
                     alt="Payment Proof"
-                    className="max-h-[450px] w-auto object-contain cursor-pointer hover:opacity-95 transition-opacity"
+                    className="max-h-[420px] w-auto object-contain cursor-pointer"
                     onClick={() => window.open(proofPreviewTx.proofUrl || "", "_blank")}
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
                   />
                 )}
               </div>
-
               {proofPreviewTx.proofNotes && (
-                <p className="text-xs text-muted-foreground italic px-1">
-                  Tenant Submission Notes: {proofPreviewTx.proofNotes}
-                </p>
+                <p className="text-xs text-muted-foreground italic">{proofPreviewTx.proofNotes}</p>
               )}
             </div>
           )}
 
-          <DialogFooter className="gap-2 sm:justify-between flex-wrap">
-            <div className="flex items-center gap-2">
-              {proofPreviewTx?.proofUrl && (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => window.open(proofPreviewTx.proofUrl || "", "_blank")}
-                    className="text-xs gap-1.5"
-                  >
-                    <ExternalLink className="size-3.5" />
-                    Open Full Size
-                  </Button>
-                  <a
-                    href={proofPreviewTx.proofUrl}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-card text-xs font-medium text-foreground hover:bg-accent transition-colors"
-                  >
-                    <Download className="size-3.5" />
-                    Download Proof File
-                  </a>
-                </>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              {proofPreviewTx && (() => {
-                const proofMeta = getTransactionStatusMeta(proofPreviewTx);
-                return (
-                  <>
-                    {proofMeta.canApproveOrReject && (
-                      <>
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
-                          onClick={() => {
-                            const target = proofPreviewTx;
-                            setProofPreviewTx(null);
-                            setApproveConfirmTx(target);
-                          }}
-                        >
-                          <CheckCircle2 className="size-3.5" />
-                          Approve
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="destructive"
-                          className="text-xs gap-1 bg-rose-600 hover:bg-rose-700 text-white"
-                          onClick={() => {
-                            const target = proofPreviewTx;
-                            setProofPreviewTx(null);
-                            setRejectTargetTx(target);
-                            setRejectDialogOpen(true);
-                          }}
-                        >
-                          <AlertTriangle className="size-3.5" />
-                          Reject
-                        </Button>
-                      </>
-                    )}
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setProofPreviewTx(null)}
-                      className="text-xs"
-                    >
-                      Close
-                    </Button>
-                  </>
-                );
-              })()}
-            </div>
+          <DialogFooter className="gap-2 sm:justify-between">
+            {proofPreviewTx?.proofUrl && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(proofPreviewTx.proofUrl || "", "_blank")}
+                className="text-xs gap-1.5"
+              >
+                <ExternalLink className="size-3.5" />
+                Open Full Size
+              </Button>
+            )}
+            <Button type="button" size="sm" variant="outline" onClick={() => setProofPreviewTx(null)}>
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2017,18 +2060,16 @@ function SuperPurchaseTransactionsPage() {
               Reject Payment Verification
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Provide a safe explanation for why this payment proof was rejected. This reason will be emailed to the tenant billing contact.
+              Provide a clear reason for rejecting this payment proof. This explanation will be emailed to the tenant billing contact.
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-2 space-y-2">
-            <label className="text-xs font-semibold text-foreground">
-              Rejection Reason:
-            </label>
+            <label className="text-xs font-semibold text-foreground">Rejection Reason:</label>
             <textarea
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="e.g. UTR reference number not found in bank statement, screenshot illegible, or amount does not match."
+              placeholder="e.g. UTR reference number not found in bank statement, or amount mismatch."
               rows={3}
               className="w-full text-xs p-2.5 rounded-md border border-border bg-background text-foreground focus:ring-1 focus:ring-primary focus:outline-none"
             />
@@ -2051,7 +2092,7 @@ function SuperPurchaseTransactionsPage() {
               variant="destructive"
               disabled={isProcessingAction}
               onClick={handleRejectPayment}
-              className="text-xs bg-rose-600 hover:bg-rose-700 text-white"
+              className="text-xs"
             >
               Confirm Rejection
             </Button>

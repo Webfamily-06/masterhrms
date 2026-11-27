@@ -47,7 +47,9 @@ const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
   { to: '/super/tenant-usage-metrics', label: 'Tenant Usage Metrics', iconClass: 'ph-chart-bar', group: 'Core Orchestration' },
   { to: '/super/plans', label: 'Subscription Plans', iconClass: 'ph-credit-card', group: 'Core Orchestration' },
   { to: '/super/coupons', label: 'Discount Coupons', iconClass: 'ph-tag', group: 'Core Orchestration' },
+  { to: '/super/referrals', label: 'Referral Program', iconClass: 'ph-gift', group: 'Core Orchestration' },
   { to: '/super/transactions', label: 'Purchase Transactions', iconClass: 'ph-receipt', group: 'Core Orchestration' },
+  { to: '/super/users', label: 'Platform Users', iconClass: 'ph-users-three', group: 'Core Orchestration' },
   { to: '/super/roles', label: 'Roles & RBAC Matrix', iconClass: 'ph-shield-check', group: 'Core Orchestration' },
   { to: '/super/compliance', label: 'Statutory Compliance', iconClass: 'ph-scales', group: 'Core Orchestration' },
 
@@ -73,25 +75,21 @@ const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
   { to: '/super/files', label: 'File Manager', iconClass: 'ph-folder-notch-open', group: 'Marketing & CMS' },
 
   // ── Communications & Support Tickets
-  { to: '/super/tenant-support-tickets', label: 'Tenant Support Tickets', iconClass: 'ph-ticket', group: 'Communications' },
+  { to: '/super/support', label: 'Support Desk', iconClass: 'ph-lifebuoy', group: 'Communications' },
   { to: '/super/agents', label: 'Support Agents', iconClass: 'ph-headset', group: 'Communications' },
   { to: '/super/sla-policies', label: 'SLA Policies', iconClass: 'ph-shield-check', group: 'Communications' },
   { to: '/super/escalation-rules', label: 'Escalation Rules', iconClass: 'ph-warning-octagon', group: 'Communications' },
-  { to: '/super/support', label: 'Global Support Desk', iconClass: 'ph-lifebuoy', group: 'Communications' },
   { to: '/super/email-templates', label: 'Email Templates', iconClass: 'ph-envelope', group: 'Communications' },
   { to: '/super/notifications', label: 'Broadcast Alerts', iconClass: 'ph-bell', group: 'Communications' },
 
   // ── System Controls
-  { to: '/cronjob', label: 'Cron Automations', iconClass: 'ph-clock', group: 'System Controls' },
-  { to: '/clear-cache', label: 'Cache & Maintenance', iconClass: 'ph-arrows-clockwise', group: 'System Controls' },
   { to: '/super/settings', label: 'Platform Settings', iconClass: 'ph-gear', group: 'System Controls' },
   { to: '/super/analytics', label: 'Platform Analytics', iconClass: 'ph-chart-line-up', group: 'System Controls' },
+  { to: '/super/audit-logs', label: 'Audit Logs', iconClass: 'ph-scroll', group: 'System Controls' },
   { to: '/super/languages', label: 'Localization (i18n)', iconClass: 'ph-globe', group: 'System Controls' },
-  { to: '/super/files/storage', label: 'Storage Administration', iconClass: 'ph-hard-drive', group: 'System Controls' },
+  { to: '/super/files/storage', label: 'Storage Governance', iconClass: 'ph-hard-drive', group: 'System Controls' },
   { to: '/super/backup', label: 'Database Backups', iconClass: 'ph-database', group: 'System Controls' },
-  { to: '/super/api-docs', label: 'API Reference', iconClass: 'ph-code', group: 'System Controls' },
-  { to: '/super/developer', label: 'Developer & Web APIs', iconClass: 'ph-terminal-window', group: 'System Controls' },
-  { to: '/super/docs', label: 'Documentation Portal', iconClass: 'ph-book-open', group: 'System Controls' },
+  { to: '/super/developer', label: 'Developer Portal', iconClass: 'ph-terminal-window', group: 'System Controls' },
 
   // ── UI & Design System (Super Admin Only)
   {
@@ -337,11 +335,12 @@ function SuperSidebar({
                   const isAnyChildActive = hasChildren
                     ? item.children!.some((c) => path === c.to || (c.to !== '/super/plans' && path.startsWith(c.to)))
                     : false;
+                  const isExactOnly = item.to === '/super' || item.to === '/super/files' || item.to === '/super/domains';
                   const isActive = hasChildren
                     ? isAnyChildActive
-                    : item.to === '/super'
-                      ? path === '/super'
-                      : path.startsWith(item.to);
+                    : isExactOnly
+                      ? path === item.to
+                      : path === item.to || path.startsWith(`${item.to}/`);
 
                   if (hasChildren) {
                     const isExpanded = Boolean(openMenus[item.label] || isAnyChildActive);
@@ -566,18 +565,19 @@ export function SuperShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  if (typeof window !== 'undefined' && isTenantWorkspaceHost()) {
-    return <NotFoundView />;
-  }
-
+  const isTenantHost = typeof window !== 'undefined' && isTenantWorkspaceHost();
   const hasToken = typeof window !== 'undefined' && !!(localStorage.getItem('hrms_auth_token') || localStorage.getItem('auth_token'));
   const isSuperAdmin = profile?.roles?.includes('super_admin');
 
   useEffect(() => {
-    if (!hasToken) {
+    if (!isTenantHost && !hasToken) {
       navigate({ to: '/super06' });
     }
-  }, [hasToken, navigate]);
+  }, [isTenantHost, hasToken, navigate]);
+
+  if (isTenantHost) {
+    return <NotFoundView />;
+  }
 
   if (!hasToken) {
     return (
@@ -631,9 +631,11 @@ export function SuperShell({ children }: { children: React.ReactNode }) {
     .join('')
     .toUpperCase();
 
-  const currentItem = ALL_SUPER_SEARCH_ITEMS.find((item) =>
-    item.to === '/super' ? path === '/super' : path.startsWith(item.to)
-  );
+  const currentItem = ALL_SUPER_SEARCH_ITEMS
+    .filter((item) =>
+      item.to === '/super' ? path === '/super' : path === item.to || path.startsWith(`${item.to}/`)
+    )
+    .sort((a, b) => b.to.length - a.to.length)[0];
   const currentTitle = currentItem?.label || 'Command Center';
 
   return (
@@ -818,9 +820,9 @@ export function SuperShell({ children }: { children: React.ReactNode }) {
         </main>
         <footer className="mt-auto py-3 px-6 border-t border-border-color/60 text-xs text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-2" data-testid="super-footer">
           <span data-testid="super-footer-text">
-            {appConfig?.footerText && !appConfig.footerText.includes("Apex HRMS") && !appConfig.footerText.includes("Persisted Forever")
+            {appConfig?.footerText
               ? appConfig.footerText
-              : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`}
+              : `© ${new Date().getFullYear()} ${appConfig?.appName || 'Master HRMS'}. All rights reserved.`}
           </span>
           <span>{appConfig?.appName}</span>
         </footer>

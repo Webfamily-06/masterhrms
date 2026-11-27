@@ -6,8 +6,12 @@ import { QuotaGovernanceService } from "../services/files/quota-governance.servi
 import { StorageForecastService } from "../services/files/storage-forecast.service";
 import { StorageRetentionService } from "../services/files/storage-retention.service";
 import { StorageMigrationService } from "../services/files/storage-migration.service";
+import { superAuditMiddleware } from "../lib/super-audit";
 
 export const superStorageRouter = Router();
+
+// Platform audit trail for quota overrides, retention sweeps, snapshot captures and migrations
+superStorageRouter.use(superAuditMiddleware("super-storage"));
 
 /**
  * GET /api/v1/super/storage/overview

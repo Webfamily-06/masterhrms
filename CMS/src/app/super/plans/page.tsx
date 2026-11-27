@@ -1,13 +1,15 @@
 'use client';
-import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
-import {  createFileRoute  } from "@/src/lib/router-compat";
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { PageHeader } from "@/components/ui/page-header";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -38,10 +40,10 @@ import {
   Calculator,
   AlertCircle,
   Tag,
+  Copy,
+  Star,
 } from "lucide-react";
 import { formatSystemAmount } from "@/lib/currency";
-
-
 
 export type BillingDurationKey = "1_month" | "1_year";
 
@@ -93,6 +95,21 @@ export interface SubscriptionPlanRecord {
   subscriptions?: PlanSubscriber[];
 }
 
+interface PlanCalculationResult {
+  durationKey: string;
+  planType: "standard" | "custom";
+  pricingModel: "fixed" | "per_user";
+  userCount?: number;
+  unitPrice: number;
+  unitPriceOriginal?: number | null;
+  sellingPrice: number;
+  originalPrice: number;
+  discountAmount: number;
+  discountPercentage: number;
+  hasDiscount: boolean;
+  amountInPaise: number;
+}
+
 export type SubscriptionPlan = SubscriptionPlanRecord & {
   price_monthly: number;
   price_annual: number;
@@ -106,11 +123,21 @@ function SuperAdminPlansPage() {
   const queryClient = useQueryClient();
   const [selectedDuration, setSelectedDuration] = useState<BillingDurationKey>("1_month");
   const [searchTerm, setSearchTerm] = useState("");
+  const [defaultPlanId, setDefaultPlanId] = useState<string | null>(null);
 
-  // Modal states
+  // Modal & confirmation states
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Partial<SubscriptionPlanRecord> | null>(null);
   const [selectedSubscribersPlan, setSelectedSubscribersPlan] = useState<SubscriptionPlanRecord | null>(null);
+  const [planToDelete, setPlanToDelete] = useState<SubscriptionPlanRecord | null>(null);
+  const [planToMakeDefault, setPlanToMakeDefault] = useState<SubscriptionPlanRecord | null>(null);
+
+  // Price Calculator state
+  const [calcPlanId, setCalcPlanId] = useState<string>("");
+  const [calcDuration, setCalcDuration] = useState<string>("1_month");
+  const [calcUserCount, setCalcUserCount] = useState<string>("25");
+  const [calcResult, setCalcResult] = useState<PlanCalculationResult | null>(null);
+  const [calcError, setCalcError] = useState<string | null>(null);
 
   // Form states for Create/Edit
   const [formData, setFormData] = useState({
@@ -149,9 +176,22 @@ function SuperAdminPlansPage() {
     queryKey: ["super-admin-subscription-plans"],
     queryFn: async () => {
       const res = await api.get("/super/plans");
-      return Array.isArray(res) ? res : res?.plans || [];
+      const unwrapped = res?.data || res;
+      return Array.isArray(unwrapped) ? unwrapped : unwrapped?.plans || [];
     },
   });
+
+  // Auto-select first plan in calculator when plans load
+  useEffect(() => {
+    if (!calcPlanId && plans.length > 0) {
+      setCalcPlanId(plans[0].id);
+      if (plans[0].billableUsers) {
+        setCalcUserCount(String(plans[0].billableUsers));
+      }
+    }
+  }, [plans, calcPlanId]);
+
+  const selectedCalcPlan = plans.find((p) => p.id === calcPlanId) || null;
 
   // Mutation: Create or Update Plan
   const savePlanMutation = useMutation({
@@ -180,6 +220,7 @@ function SuperAdminPlansPage() {
     },
     onSuccess: () => {
       toast.success("Plan deleted successfully");
+      setPlanToDelete(null);
       queryClient.invalidateQueries({ queryKey: ["super-admin-subscription-plans"] });
       queryClient.invalidateQueries({ queryKey: ["public-billing-plans"] });
     },
@@ -187,6 +228,72 @@ function SuperAdminPlansPage() {
       toast.error(err?.message || "Failed to delete plan");
     },
   });
+
+  // Mutation: Duplicate Plan
+  const duplicatePlanMutation = useMutation({
+    mutationFn: async (planId: string) => {
+      return await api.post(`/super/plans/${planId}/duplicate`, {});
+    },
+    onSuccess: (res: any) => {
+      const created = res?.data || res;
+      toast.success(`Duplicated plan as "${created?.name || "Copy"}"`);
+      queryClient.invalidateQueries({ queryKey: ["super-admin-subscription-plans"] });
+      queryClient.invalidateQueries({ queryKey: ["public-billing-plans"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to duplicate plan");
+    },
+  });
+
+  // Mutation: Make Default Signup Plan
+  const makeDefaultMutation = useMutation({
+    mutationFn: async (planId: string) => {
+      return await api.post(`/super/plans/${planId}/make-default`, {});
+    },
+    onSuccess: (res: any, planId: string) => {
+      setDefaultPlanId(planId);
+      setPlanToMakeDefault(null);
+      toast.success(res?.message || "Default signup plan updated.");
+      queryClient.invalidateQueries({ queryKey: ["super-admin-subscription-plans"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to set default signup plan");
+    },
+  });
+
+  // Mutation: Authoritative Server-Side Price Calculator
+  const calculatePriceMutation = useMutation({
+    mutationFn: async (payload: { planId: string; duration: string; userCount?: number }) => {
+      const res = await api.post<PlanCalculationResult>("/super/plans/calculate", payload);
+      return (res as any)?.data || res;
+    },
+    onSuccess: (data: PlanCalculationResult) => {
+      setCalcError(null);
+      setCalcResult(data);
+    },
+    onError: (err: any) => {
+      setCalcResult(null);
+      const msg = err?.message || "Failed to calculate plan pricing.";
+      setCalcError(msg);
+      toast.error(msg);
+    },
+  });
+
+  const handleCalculatePrice = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!calcPlanId) {
+      toast.error("Select a subscription plan first.");
+      return;
+    }
+    const payload: { planId: string; duration: string; userCount?: number } = {
+      planId: calcPlanId,
+      duration: calcDuration,
+    };
+    if (selectedCalcPlan?.pricingModel === "per_user" && calcUserCount.trim() !== "") {
+      payload.userCount = Number(calcUserCount);
+    }
+    calculatePriceMutation.mutate(payload);
+  };
 
   const openCreateModal = () => {
     setEditingPlan(null);
@@ -210,7 +317,8 @@ function SuperAdminPlansPage() {
       trialDays: 3,
       combinedUserLimit: 50,
       storageLimitGb: 10,
-      featuresText: "Core HR & Employee Directory\nBiometric Attendance & Leave\nEmployee Self-Service Portal\nStandard Email Support",
+      featuresText:
+        "Core HR & Employee Directory\nBiometric Attendance & Leave\nEmployee Self-Service Portal\nStandard Email Support",
       isPopular: false,
       sortOrder: (plans.length || 0) + 1,
       isPublic: true,
@@ -231,13 +339,23 @@ function SuperAdminPlansPage() {
       pricingModel: (plan.pricingModel === "per_user" ? "per_user" : "fixed") as "fixed" | "per_user",
       currency: plan.currency || "INR",
       priceMonthly: Number(durationPrices["1_month"] ?? plan.priceMonthly ?? 0),
-      priceMonthlyOriginal: plan.priceMonthlyOriginal !== null && plan.priceMonthlyOriginal !== undefined ? Number(plan.priceMonthlyOriginal) : null,
+      priceMonthlyOriginal:
+        plan.priceMonthlyOriginal !== null && plan.priceMonthlyOriginal !== undefined
+          ? Number(plan.priceMonthlyOriginal)
+          : null,
       priceQuarterly: Number(durationPrices["3_months"] ?? plan.priceQuarterly ?? 0),
       priceSemiAnnual: Number(durationPrices["6_months"] ?? plan.priceSemiAnnual ?? 0),
       priceAnnual: Number(durationPrices["1_year"] ?? plan.priceAnnual ?? 0),
-      priceAnnualOriginal: plan.priceAnnualOriginal !== null && plan.priceAnnualOriginal !== undefined ? Number(plan.priceAnnualOriginal) : null,
-      pricePerUser: plan.pricePerUser !== null && plan.pricePerUser !== undefined ? Number(plan.pricePerUser) : null,
-      pricePerUserOriginal: plan.pricePerUserOriginal !== null && plan.pricePerUserOriginal !== undefined ? Number(plan.pricePerUserOriginal) : null,
+      priceAnnualOriginal:
+        plan.priceAnnualOriginal !== null && plan.priceAnnualOriginal !== undefined
+          ? Number(plan.priceAnnualOriginal)
+          : null,
+      pricePerUser:
+        plan.pricePerUser !== null && plan.pricePerUser !== undefined ? Number(plan.pricePerUser) : null,
+      pricePerUserOriginal:
+        plan.pricePerUserOriginal !== null && plan.pricePerUserOriginal !== undefined
+          ? Number(plan.pricePerUserOriginal)
+          : null,
       billableUsers: plan.billableUsers ? Number(plan.billableUsers) : 25,
       isTrial: Boolean(plan.isTrial),
       trialDays: 3,
@@ -258,7 +376,6 @@ function SuperAdminPlansPage() {
       return;
     }
 
-    // Validation for Per-User plan
     if (formData.planType === "custom" && formData.pricingModel === "per_user") {
       const userCount = Number(formData.billableUsers);
       if (!Number.isInteger(userCount) || userCount < 1 || userCount > 99999) {
@@ -274,7 +391,6 @@ function SuperAdminPlansPage() {
         return;
       }
     } else {
-      // Fixed price plan validation
       if (formData.priceMonthly < 0 || formData.priceAnnual < 0) {
         toast.error("Plan prices must be non-negative.");
         return;
@@ -321,7 +437,7 @@ function SuperAdminPlansPage() {
       billableUsers: Number(formData.billableUsers) || 1,
       durationPrices,
       isTrial: formData.isTrial,
-      trialDays: 3, // Exactly 3 days per requirement
+      trialDays: 3,
       maxUsers: userLimit,
       maxEmployees: userLimit,
       storageLimitGb: formData.storageLimitGb ? Number(formData.storageLimitGb) : null,
@@ -334,32 +450,33 @@ function SuperAdminPlansPage() {
     savePlanMutation.mutate(payload);
   };
 
-  const handleDeletePlan = (plan: SubscriptionPlanRecord) => {
+  const handleRequestDeletePlan = (plan: SubscriptionPlanRecord) => {
     if ((plan._count?.subscriptions || 0) > 0) {
-      toast.error(`Cannot delete "${plan.name}": It has ${plan._count?.subscriptions} active subscriber(s). Please reassign them first.`);
+      toast.error(
+        `Cannot delete "${plan.name}": It has ${plan._count?.subscriptions} active subscriber(s). Please reassign them first.`
+      );
       return;
     }
-    if (confirm(`Are you sure you want to permanently delete plan "${plan.name}"?`)) {
-      deletePlanMutation.mutate(plan.id);
-    }
+    setPlanToDelete(plan);
   };
 
-  // Helper to calculate plan display pricing
   const getPlanPricingDetails = (plan: SubscriptionPlanRecord, duration: BillingDurationKey) => {
     const isPerUser = plan.pricingModel === "per_user";
     if (isPerUser) {
       const userCount = plan.billableUsers || 1;
       const unitSelling = Number(plan.pricePerUser || 0);
-      const unitOriginal = plan.pricePerUserOriginal !== null && plan.pricePerUserOriginal !== undefined
-        ? Number(plan.pricePerUserOriginal)
-        : null;
+      const unitOriginal =
+        plan.pricePerUserOriginal !== null && plan.pricePerUserOriginal !== undefined
+          ? Number(plan.pricePerUserOriginal)
+          : null;
 
       const multiplier = duration === "1_year" ? 12 : 1;
       const annualDiscount = duration === "1_year" ? 0.8 : 1.0;
       const totalSelling = Math.round(unitSelling * userCount * multiplier * annualDiscount);
       const totalOriginal = unitOriginal !== null ? Math.round(unitOriginal * userCount * multiplier) : totalSelling;
       const hasDiscount = totalOriginal > totalSelling;
-      const discountPercent = hasDiscount && totalOriginal > 0 ? Math.round(((totalOriginal - totalSelling) / totalOriginal) * 100) : 0;
+      const discountPercent =
+        hasDiscount && totalOriginal > 0 ? Math.round(((totalOriginal - totalSelling) / totalOriginal) * 100) : 0;
 
       return {
         isPerUser: true,
@@ -377,15 +494,21 @@ function SuperAdminPlansPage() {
     let original: number | null = null;
 
     if (duration === "1_year") {
-      selling = Number(plan.durationPrices?.["1_year"] ?? plan.priceAnnual ?? (plan.priceMonthly ? plan.priceMonthly * 12 : 0));
-      original = plan.priceAnnualOriginal !== null && plan.priceAnnualOriginal !== undefined
-        ? Number(plan.priceAnnualOriginal)
-        : (plan.priceMonthlyOriginal ? Number(plan.priceMonthlyOriginal) * 12 : null);
+      selling = Number(
+        plan.durationPrices?.["1_year"] ?? plan.priceAnnual ?? (plan.priceMonthly ? plan.priceMonthly * 12 : 0)
+      );
+      original =
+        plan.priceAnnualOriginal !== null && plan.priceAnnualOriginal !== undefined
+          ? Number(plan.priceAnnualOriginal)
+          : plan.priceMonthlyOriginal
+          ? Number(plan.priceMonthlyOriginal) * 12
+          : null;
     } else {
       selling = Number(plan.durationPrices?.["1_month"] ?? plan.priceMonthly ?? 0);
-      original = plan.priceMonthlyOriginal !== null && plan.priceMonthlyOriginal !== undefined
-        ? Number(plan.priceMonthlyOriginal)
-        : null;
+      original =
+        plan.priceMonthlyOriginal !== null && plan.priceMonthlyOriginal !== undefined
+          ? Number(plan.priceMonthlyOriginal)
+          : null;
     }
 
     const hasDiscount = original !== null && original > selling;
@@ -418,48 +541,184 @@ function SuperAdminPlansPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <BreadcrumbNav className="mb-4" />
-      {/* Top Header & Context Actions */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-5">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Subscription Plans</h1>
+    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+      <PageHeader
+        title="Subscription Plans"
+        description="Configure Standard and Custom SaaS pricing, per-user billing models, 3-day trials, default signup assignment, and authoritative server-side pricing simulation."
+        icon={Layers}
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="gap-2 text-xs"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+
+            <Button onClick={openCreateModal} size="sm" className="gap-2 text-xs">
+              <Plus className="h-3.5 w-3.5" />
+              Create Plan
+            </Button>
+          </>
+        }
+      />
+
+      {/* Server-Side Authoritative Price Calculator Panel */}
+      <Card className="border border-border/80 rounded-xl bg-card shadow-xs">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Calculator className="size-4 text-primary" />
+                Authoritative Plan Price Calculator
+              </CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                Simulate exact billing totals via the server-side pricing engine (<code className="font-mono">POST /super/plans/calculate</code>).
+              </CardDescription>
+            </div>
+            {calcResult && (
+              <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                Server Verified
+              </Badge>
+            )}
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            Configure Standard and Custom SaaS pricing, per-user billing models, 3-day trials, and feature entitlements.
-          </p>
-        </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form onSubmit={handleCalculatePrice} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+            <div className="lg:col-span-4 space-y-1.5">
+              <Label htmlFor="calc-plan" className="text-xs font-semibold">
+                Subscription Plan
+              </Label>
+              <select
+                id="calc-plan"
+                value={calcPlanId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setCalcPlanId(id);
+                  setCalcResult(null);
+                  setCalcError(null);
+                  const found = plans.find((p) => p.id === id);
+                  if (found?.billableUsers) {
+                    setCalcUserCount(String(found.billableUsers));
+                  }
+                }}
+                className="w-full h-9 rounded-md border border-border bg-background px-3 text-xs text-foreground"
+              >
+                <option value="">Select a plan...</option>
+                {plans.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.pricingModel === "per_user" ? "Per-User" : "Fixed"})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+            <div className="lg:col-span-3 space-y-1.5">
+              <Label htmlFor="calc-duration" className="text-xs font-semibold">
+                Billing Duration
+              </Label>
+              <select
+                id="calc-duration"
+                value={calcDuration}
+                onChange={(e) => setCalcDuration(e.target.value)}
+                className="w-full h-9 rounded-md border border-border bg-background px-3 text-xs text-foreground"
+              >
+                <option value="1_month">1 Month</option>
+                <option value="3_months">3 Months (Quarterly)</option>
+                <option value="6_months">6 Months (Semi-Annual)</option>
+                <option value="1_year">1 Year (Annual)</option>
+              </select>
+            </div>
 
-          <Button
-            onClick={openCreateModal}
-            size="sm"
-            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
-          >
-            <Plus className="h-4 w-4" />
-            Create Plan
-          </Button>
-        </div>
-      </div>
+            <div className="lg:col-span-3 space-y-1.5">
+              <Label htmlFor="calc-users" className="text-xs font-semibold">
+                Billable Seats {selectedCalcPlan?.pricingModel === "per_user" ? "*" : "(Per-User Only)"}
+              </Label>
+              <Input
+                id="calc-users"
+                type="number"
+                min={1}
+                max={99999}
+                disabled={selectedCalcPlan?.pricingModel !== "per_user"}
+                value={calcUserCount}
+                onChange={(e) => setCalcUserCount(e.target.value)}
+                placeholder="e.g. 25"
+                className="h-9 text-xs font-mono"
+              />
+            </div>
+
+            <div className="lg:col-span-2">
+              <Button
+                type="submit"
+                size="sm"
+                disabled={!calcPlanId || calculatePriceMutation.isPending}
+                className="w-full h-9 gap-1.5 text-xs"
+              >
+                {calculatePriceMutation.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Calculator className="size-3.5" />
+                )}
+                Calculate
+              </Button>
+            </div>
+          </form>
+
+          {calcError && (
+            <Alert variant="danger">
+              <AlertCircle className="size-4" />
+              <AlertDescription className="text-xs">{calcError}</AlertDescription>
+            </Alert>
+          )}
+
+          {calcResult && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-lg bg-muted/40 border border-border text-xs">
+              <div>
+                <span className="text-[11px] text-muted-foreground block">Pricing Model</span>
+                <span className="font-semibold text-foreground capitalize">
+                  {calcResult.pricingModel.replace("_", " ")}
+                  {calcResult.userCount ? ` (${calcResult.userCount} seats)` : ""}
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] text-muted-foreground block">List / Original Price</span>
+                <span className="font-mono font-semibold text-muted-foreground">
+                  {formatSystemAmount(calcResult.originalPrice, { showDecimals: true })}
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] text-muted-foreground block">Discount Savings</span>
+                <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                  {calcResult.hasDiscount
+                    ? `-${formatSystemAmount(calcResult.discountAmount, { showDecimals: true })} (${calcResult.discountPercentage}%)`
+                    : "None"}
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] text-muted-foreground block">Final Payable Total</span>
+                <span className="font-mono font-extrabold text-sm text-primary">
+                  {formatSystemAmount(calcResult.sellingPrice, { showDecimals: true })}
+                </span>
+                <span className="block text-[10px] font-mono text-muted-foreground">
+                  {calcResult.amountInPaise.toLocaleString()} paise
+                </span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Duration Selector & Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card p-3 rounded-xl border shadow-xs">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card p-3 rounded-xl border border-border/80 shadow-xs">
         <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-lg w-full sm:w-auto">
           {(["1_month", "1_year"] as BillingDurationKey[]).map((dur) => (
             <button
               key={dur}
+              type="button"
               onClick={() => setSelectedDuration(dur)}
               className={`flex-1 sm:flex-initial px-4 py-1.5 text-xs font-medium rounded-md transition-all ${
                 selectedDuration === dur
@@ -503,7 +762,9 @@ function SuperAdminPlansPage() {
             </div>
             <h3 className="font-semibold text-lg">No subscription plans found</h3>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              {searchTerm ? "No plans match your current search query." : "Get started by creating your first subscription plan."}
+              {searchTerm
+                ? "No plans match your current search query."
+                : "Get started by creating your first subscription plan."}
             </p>
             <Button onClick={openCreateModal} size="sm" className="mt-2">
               <Plus className="h-4 w-4 mr-1.5" />
@@ -517,25 +778,37 @@ function SuperAdminPlansPage() {
             const pricing = getPlanPricingDetails(plan, selectedDuration);
             const activeSubs = plan._count?.subscriptions || plan.subscriptions?.length || 0;
             const userQuota = plan.maxUsers ?? plan.maxEmployees;
+            const isDefaultPlan = defaultPlanId === plan.id;
 
             return (
               <Card
                 key={plan.id}
-                className={`relative flex flex-col transition-all duration-300 motion-safe:animate-in motion-safe:fade-in-50 motion-safe:zoom-in-95 hover:shadow-md ${
-                  plan.isPopular ? "border-primary shadow-sm ring-1 ring-primary/20" : "border-border"
+                className={`relative flex flex-col border border-border/80 rounded-xl bg-card shadow-xs transition-all duration-300 hover:shadow-md ${
+                  plan.isPopular ? "border-primary shadow-sm ring-1 ring-primary/20" : ""
                 } ${plan.status !== "active" ? "opacity-75 bg-muted/20" : ""}`}
               >
-                {/* Popular or Trial Ribbon */}
-                <div className="absolute -top-3 left-4 right-4 flex justify-between items-center pointer-events-none">
-                  {plan.isPopular ? (
-                    <Badge className="bg-primary text-primary-foreground font-semibold text-[11px] gap-1 shadow-xs pointer-events-auto">
-                      <Flame className="h-3 w-3 fill-current" />
-                      Most Popular
-                    </Badge>
-                  ) : <div />}
+                {/* Popular / Default / Trial Ribbon */}
+                <div className="absolute -top-3 left-4 right-4 flex justify-between items-center gap-1 pointer-events-none">
+                  <div className="flex items-center gap-1">
+                    {plan.isPopular && (
+                      <Badge className="bg-primary text-primary-foreground font-semibold text-[11px] gap-1 shadow-xs pointer-events-auto">
+                        <Flame className="h-3 w-3 fill-current" />
+                        Most Popular
+                      </Badge>
+                    )}
+                    {isDefaultPlan && (
+                      <Badge className="bg-amber-500 text-white font-semibold text-[11px] gap-1 shadow-xs pointer-events-auto">
+                        <Star className="h-3 w-3 fill-current" />
+                        Default Signup
+                      </Badge>
+                    )}
+                  </div>
 
                   {plan.isTrial && (
-                    <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-semibold text-[11px] gap-1 pointer-events-auto">
+                    <Badge
+                      variant="secondary"
+                      className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-semibold text-[11px] gap-1 pointer-events-auto"
+                    >
                       <Clock className="h-3 w-3" />
                       3-Day Free Trial
                     </Badge>
@@ -545,10 +818,13 @@ function SuperAdminPlansPage() {
                 <CardHeader className="pt-6 pb-4">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="flex items-center gap-1.5">
-                        <CardTitle className="text-xl font-bold tracking-tight">{plan.name}</CardTitle>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <CardTitle className="text-lg font-bold tracking-tight">{plan.name}</CardTitle>
                         {plan.planType === "custom" && (
-                          <Badge variant="outline" className="text-[10px] bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20">
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20"
+                          >
                             Custom Plan
                           </Badge>
                         )}
@@ -572,11 +848,11 @@ function SuperAdminPlansPage() {
                     </div>
                   </div>
 
-                  {/* Price display with strikethrough original price if discounted */}
+                  {/* Price display */}
                   <div className="pt-4 border-t mt-3">
                     {pricing.isPerUser ? (
                       <div>
-                        <div className="flex items-baseline gap-2">
+                        <div className="flex items-baseline gap-2 flex-wrap">
                           {pricing.hasDiscount && pricing.unitOriginal && (
                             <del className="text-sm font-semibold text-muted-foreground line-through font-mono">
                               {formatSystemAmount(pricing.unitOriginal, { showDecimals: false })}
@@ -585,9 +861,7 @@ function SuperAdminPlansPage() {
                           <span className="text-3xl font-extrabold tracking-tight text-foreground font-mono">
                             {formatSystemAmount(pricing.unitSelling, { showDecimals: false })}
                           </span>
-                          <span className="text-xs text-muted-foreground font-medium">
-                            / user / mo
-                          </span>
+                          <span className="text-xs text-muted-foreground font-medium">/ user / mo</span>
                           {pricing.hasDiscount && (
                             <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] border-emerald-500/20 ml-1">
                               Save {pricing.discountPercent}%
@@ -596,7 +870,10 @@ function SuperAdminPlansPage() {
                         </div>
                         <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
                           <span>
-                            Total: <strong className="text-foreground">{formatSystemAmount(pricing.totalSelling, { showDecimals: false })}</strong>
+                            Total:{" "}
+                            <strong className="text-foreground">
+                              {formatSystemAmount(pricing.totalSelling, { showDecimals: false })}
+                            </strong>
                           </span>
                           <span className="text-[11px]">
                             ({pricing.userCount} users &bull; {getDurationLabel(selectedDuration)})
@@ -605,7 +882,7 @@ function SuperAdminPlansPage() {
                       </div>
                     ) : (
                       <div>
-                        <div className="flex items-baseline gap-2">
+                        <div className="flex items-baseline gap-2 flex-wrap">
                           {pricing.hasDiscount && pricing.unitOriginal && (
                             <del className="text-base font-semibold text-muted-foreground line-through font-mono">
                               {formatSystemAmount(pricing.unitOriginal, { showDecimals: false })}
@@ -635,7 +912,6 @@ function SuperAdminPlansPage() {
                 </CardHeader>
 
                 <CardContent className="flex-1 space-y-4 pb-4">
-                  {/* Combined User Limit or Per-User Quota */}
                   <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/40 border border-border/40 text-xs">
                     <span className="text-muted-foreground font-medium flex items-center gap-1.5">
                       <Users className="h-3.5 w-3.5 text-primary" />
@@ -650,9 +926,10 @@ function SuperAdminPlansPage() {
                     </span>
                   </div>
 
-                  {/* Feature Checklist */}
                   <div className="space-y-2">
-                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Features & Entitlements</p>
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      Features & Entitlements
+                    </p>
                     <ul className="space-y-1.5 text-xs">
                       {(plan.features || []).slice(0, 6).map((feat, idx) => (
                         <li key={idx} className="flex items-start gap-2">
@@ -668,9 +945,9 @@ function SuperAdminPlansPage() {
                     </ul>
                   </div>
 
-                  {/* Active Subscribers Pill */}
                   <div className="pt-2 border-t">
                     <button
+                      type="button"
                       onClick={() => setSelectedSubscribersPlan(plan)}
                       className="w-full flex items-center justify-between text-xs p-2 rounded-md hover:bg-muted/50 transition-colors text-muted-foreground hover:text-foreground group"
                     >
@@ -683,25 +960,54 @@ function SuperAdminPlansPage() {
                   </div>
                 </CardContent>
 
-                <CardFooter className="pt-3 border-t bg-muted/10 flex items-center justify-between gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditModal(plan)}
-                    className="flex-1 gap-1.5 text-xs h-8"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit Plan
-                  </Button>
+                <CardFooter className="pt-3 border-t bg-muted/10 flex flex-col gap-2">
+                  <div className="w-full flex items-center justify-between gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEditModal(plan)}
+                      className="flex-1 gap-1.5 text-xs h-8"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={duplicatePlanMutation.isPending && duplicatePlanMutation.variables === plan.id}
+                      onClick={() => duplicatePlanMutation.mutate(plan.id)}
+                      className="gap-1.5 text-xs h-8"
+                      title="Duplicate Plan"
+                    >
+                      {duplicatePlanMutation.isPending && duplicatePlanMutation.variables === plan.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                      Duplicate
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRequestDeletePlan(plan)}
+                      className="h-8 px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      title="Delete Plan"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
 
                   <Button
-                    variant="ghost"
+                    variant={isDefaultPlan ? "secondary" : "ghost"}
                     size="sm"
-                    onClick={() => handleDeletePlan(plan)}
-                    className="h-8 px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    title="Delete Plan"
+                    disabled={isDefaultPlan || makeDefaultMutation.isPending}
+                    onClick={() => setPlanToMakeDefault(plan)}
+                    className="w-full h-7.5 text-[11px] gap-1.5 font-semibold"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Star className={`h-3 w-3 ${isDefaultPlan ? "fill-amber-500 text-amber-500" : "text-amber-600"}`} />
+                    {isDefaultPlan ? "Active Default Signup Plan" : "Make Default Signup Plan"}
                   </Button>
                 </CardFooter>
               </Card>
@@ -758,14 +1064,15 @@ function SuperAdminPlansPage() {
                 </button>
               </div>
 
-              {/* PRICING MODEL SELECTOR (When Custom Plan is selected) */}
               {formData.planType === "custom" && (
                 <div className="pt-2 border-t mt-2 space-y-1.5">
                   <Label className="text-xs font-semibold">Custom Pricing Model</Label>
                   <div className="grid grid-cols-2 gap-3">
-                    <label className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer ${
-                      formData.pricingModel === "fixed" ? "bg-primary/5 border-primary font-semibold" : "bg-card"
-                    }`}>
+                    <label
+                      className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer ${
+                        formData.pricingModel === "fixed" ? "bg-primary/5 border-primary font-semibold" : "bg-card"
+                      }`}
+                    >
                       <input
                         type="radio"
                         name="pricingModel"
@@ -777,9 +1084,11 @@ function SuperAdminPlansPage() {
                       Fixed Price
                     </label>
 
-                    <label className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer ${
-                      formData.pricingModel === "per_user" ? "bg-primary/5 border-primary font-semibold" : "bg-card"
-                    }`}>
+                    <label
+                      className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer ${
+                        formData.pricingModel === "per_user" ? "bg-primary/5 border-primary font-semibold" : "bg-card"
+                      }`}
+                    >
                       <input
                         type="radio"
                         name="pricingModel"
@@ -832,13 +1141,12 @@ function SuperAdminPlansPage() {
               />
             </div>
 
-            {/* CONDITIONAL PRICING CONFIGURATION: PER-USER VS FIXED */}
             {formData.planType === "custom" && formData.pricingModel === "per_user" ? (
               <div className="p-3.5 rounded-lg border bg-purple-500/5 border-purple-500/20 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-xs font-bold uppercase tracking-wider text-purple-900 dark:text-purple-300">
-                      Per-User Pricing Model (INR ₹)
+                      Per-User Pricing Model (INR)
                     </h4>
                     <p className="text-[11px] text-muted-foreground">Charge based on the number of configured billable seats.</p>
                   </div>
@@ -871,10 +1179,12 @@ function SuperAdminPlansPage() {
                       step="1"
                       placeholder="125"
                       value={formData.pricePerUserOriginal ?? ""}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        pricePerUserOriginal: e.target.value === "" ? null : Number(e.target.value),
-                      })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          pricePerUserOriginal: e.target.value === "" ? null : Number(e.target.value),
+                        })
+                      }
                       className="h-9 text-sm font-mono"
                     />
                     <p className="text-[10px] text-muted-foreground">List price for strikethrough</p>
@@ -896,22 +1206,23 @@ function SuperAdminPlansPage() {
                   </div>
                 </div>
 
-                {/* Validation Warnings for Per-User */}
-                {(formData.billableUsers < 1 || formData.billableUsers > 99999 || !Number.isInteger(Number(formData.billableUsers))) && (
+                {(formData.billableUsers < 1 ||
+                  formData.billableUsers > 99999 ||
+                  !Number.isInteger(Number(formData.billableUsers))) && (
                   <div className="flex items-center gap-2 p-2 rounded bg-destructive/10 text-destructive text-xs font-medium">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     User count must be a whole integer between 1 and 99,999.
                   </div>
                 )}
 
-                {formData.pricePerUserOriginal !== null && (formData.pricePerUserOriginal || 0) < (formData.pricePerUser || 0) && (
-                  <div className="flex items-center gap-2 p-2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-medium">
-                    <AlertCircle className="h-4 w-4 shrink-0" />
-                    Selling price per user cannot be greater than original price per user.
-                  </div>
-                )}
+                {formData.pricePerUserOriginal !== null &&
+                  (formData.pricePerUserOriginal || 0) < (formData.pricePerUser || 0) && (
+                    <div className="flex items-center gap-2 p-2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-medium">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      Selling price per user cannot be greater than original price per user.
+                    </div>
+                  )}
 
-                {/* Live Calculated Dynamic Preview */}
                 <div className="p-2.5 rounded-md bg-background border flex items-center justify-between text-xs">
                   <span className="text-muted-foreground flex items-center gap-1.5">
                     <Calculator className="h-3.5 w-3.5 text-purple-600" />
@@ -928,25 +1239,27 @@ function SuperAdminPlansPage() {
                 </div>
               </div>
             ) : (
-              /* STANDARD & FIXED PRICING SECTION: 1 Month & 1 Year (Selling & Original) */
               <div className="p-3.5 rounded-lg border bg-muted/20 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">Duration Pricing (INR ₹)</h4>
-                    <p className="text-[11px] text-muted-foreground">Original vs Selling prices for 1 Month and 1 Year billing cycles.</p>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">Duration Pricing (INR)</h4>
+                    <p className="text-[11px] text-muted-foreground">
+                      Original vs Selling prices for 1 Month and 1 Year billing cycles.
+                    </p>
                   </div>
-                  <Badge variant="outline" className="text-[10px] font-mono">Currency: INR (₹)</Badge>
+                  <Badge variant="outline" className="text-[10px] font-mono">
+                    Currency: INR
+                  </Badge>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* 1 Month Pricing */}
                   <div className="p-2.5 rounded-md bg-background border space-y-2">
                     <span className="text-xs font-bold text-primary flex items-center gap-1">
                       <Tag className="h-3 w-3" />
                       1 Month Billing
                     </span>
                     <div className="space-y-1">
-                      <Label className="text-[11px]">Selling Price (₹) *</Label>
+                      <Label className="text-[11px]">Selling Price *</Label>
                       <Input
                         type="number"
                         min="0"
@@ -958,24 +1271,30 @@ function SuperAdminPlansPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[11px]">Original Price (₹)</Label>
+                      <Label className="text-[11px]">Original Price</Label>
                       <Input
                         type="number"
                         min="0"
                         step="1"
                         placeholder="Leave blank if no discount"
                         value={formData.priceMonthlyOriginal ?? ""}
-                        onChange={(e) => setFormData({
-                          ...formData,
-                          priceMonthlyOriginal: e.target.value === "" ? null : Number(e.target.value),
-                        })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            priceMonthlyOriginal: e.target.value === "" ? null : Number(e.target.value),
+                          })
+                        }
                         className="h-8 text-xs font-mono"
                       />
                     </div>
                     {formData.priceMonthlyOriginal !== null && formData.priceMonthlyOriginal > formData.priceMonthly && (
                       <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
                         Discount: {formatSystemAmount(formData.priceMonthlyOriginal - formData.priceMonthly)} (
-                        {Math.round(((formData.priceMonthlyOriginal - formData.priceMonthly) / formData.priceMonthlyOriginal) * 100)}% off)
+                        {Math.round(
+                          ((formData.priceMonthlyOriginal - formData.priceMonthly) / formData.priceMonthlyOriginal) *
+                            100
+                        )}
+                        % off)
                       </p>
                     )}
                     {formData.priceMonthlyOriginal !== null && formData.priceMonthlyOriginal < formData.priceMonthly && (
@@ -985,14 +1304,13 @@ function SuperAdminPlansPage() {
                     )}
                   </div>
 
-                  {/* 1 Year Pricing */}
                   <div className="p-2.5 rounded-md bg-background border space-y-2">
                     <span className="text-xs font-bold text-primary flex items-center gap-1">
                       <Tag className="h-3 w-3" />
                       1 Year Billing
                     </span>
                     <div className="space-y-1">
-                      <Label className="text-[11px]">Selling Price (₹) *</Label>
+                      <Label className="text-[11px]">Selling Price *</Label>
                       <Input
                         type="number"
                         min="0"
@@ -1004,24 +1322,29 @@ function SuperAdminPlansPage() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[11px]">Original Price (₹)</Label>
+                      <Label className="text-[11px]">Original Price</Label>
                       <Input
                         type="number"
                         min="0"
                         step="1"
                         placeholder="Leave blank if no discount"
                         value={formData.priceAnnualOriginal ?? ""}
-                        onChange={(e) => setFormData({
-                          ...formData,
-                          priceAnnualOriginal: e.target.value === "" ? null : Number(e.target.value),
-                        })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            priceAnnualOriginal: e.target.value === "" ? null : Number(e.target.value),
+                          })
+                        }
                         className="h-8 text-xs font-mono"
                       />
                     </div>
                     {formData.priceAnnualOriginal !== null && formData.priceAnnualOriginal > formData.priceAnnual && (
                       <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
                         Discount: {formatSystemAmount(formData.priceAnnualOriginal - formData.priceAnnual)} (
-                        {Math.round(((formData.priceAnnualOriginal - formData.priceAnnual) / formData.priceAnnualOriginal) * 100)}% off)
+                        {Math.round(
+                          ((formData.priceAnnualOriginal - formData.priceAnnual) / formData.priceAnnualOriginal) * 100
+                        )}
+                        % off)
                       </p>
                     )}
                     {formData.priceAnnualOriginal !== null && formData.priceAnnualOriginal < formData.priceAnnual && (
@@ -1034,10 +1357,11 @@ function SuperAdminPlansPage() {
               </div>
             )}
 
-            {/* COMBINED USER LIMIT */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label htmlFor="combined-users" className="text-xs font-semibold">Combined User Limit (Admins + Employees)</Label>
+                <Label htmlFor="combined-users" className="text-xs font-semibold">
+                  Combined User Limit (Admins + Employees)
+                </Label>
                 <span className="text-[11px] text-muted-foreground">Leave empty or 0 for unlimited</span>
               </div>
               <Input
@@ -1048,19 +1372,17 @@ function SuperAdminPlansPage() {
                 onChange={(e) => setFormData({ ...formData, combinedUserLimit: Number(e.target.value) || 0 })}
                 className="h-9 text-xs"
               />
-              <p className="text-[11px] text-muted-foreground">
-                Authoritative combined quota enforced across tenant admins, HR managers, and employees.
-              </p>
             </div>
 
-            {/* INTERNAL ENTITLEMENT QUOTAS (Hidden from public card) */}
             <div className="p-3 rounded-lg border border-border/60 bg-muted/10 space-y-2">
               <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                 <Shield className="h-3.5 w-3.5" />
                 Internal Entitlement Quota (Hidden from Public Cards)
               </div>
               <div className="space-y-1">
-                <Label htmlFor="storage-limit" className="text-xs">Storage Quota (GB)</Label>
+                <Label htmlFor="storage-limit" className="text-xs">
+                  Storage Quota (GB)
+                </Label>
                 <Input
                   id="storage-limit"
                   type="number"
@@ -1072,12 +1394,15 @@ function SuperAdminPlansPage() {
               </div>
             </div>
 
-            {/* 3-DAY FREE TRIAL CONFIGURATION */}
             <div className="p-3 rounded-lg border bg-emerald-500/5 border-emerald-500/20 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label className="text-xs font-semibold text-emerald-800 dark:text-emerald-400">3-Day Free Trial Eligibility</Label>
-                  <p className="text-[11px] text-muted-foreground">Allow new tenants to activate an exact 3-day evaluation on this plan</p>
+                  <Label className="text-xs font-semibold text-emerald-800 dark:text-emerald-400">
+                    3-Day Free Trial Eligibility
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Allow new tenants to activate an exact 3-day evaluation on this plan
+                  </p>
                 </div>
                 <Switch
                   checked={formData.isTrial}
@@ -1088,12 +1413,13 @@ function SuperAdminPlansPage() {
               {formData.isTrial && (
                 <div className="pt-2 flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400">
                   <Clock className="h-3.5 w-3.5" />
-                  <span>Fixed trial duration: <strong>3 Days</strong> from tenant activation timestamp.</span>
+                  <span>
+                    Fixed trial duration: <strong>3 Days</strong> from tenant activation timestamp.
+                  </span>
                 </div>
               )}
             </div>
 
-            {/* FEATURES LIST */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="plan-features">Features & Entitlements (One per line)</Label>
@@ -1109,7 +1435,6 @@ function SuperAdminPlansPage() {
               />
             </div>
 
-            {/* TOGGLES: Popular, Public, Sort Order */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t">
               <div className="flex items-center justify-between p-2 rounded-md border">
                 <div className="space-y-0.5">
@@ -1157,11 +1482,7 @@ function SuperAdminPlansPage() {
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={savePlanMutation.isPending}
-                className="gap-2"
-              >
+              <Button type="submit" disabled={savePlanMutation.isPending} className="gap-2">
                 {savePlanMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
                 {editingPlan?.id ? "Update Plan" : "Create Plan"}
               </Button>
@@ -1181,9 +1502,7 @@ function SuperAdminPlansPage() {
               <Building2 className="h-5 w-5 text-primary" />
               Subscribers: {selectedSubscribersPlan?.name}
             </DialogTitle>
-            <DialogDescription>
-              Active and past tenant workspaces subscribed to this plan.
-            </DialogDescription>
+            <DialogDescription>Active and past tenant workspaces subscribed to this plan.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 pt-2">
@@ -1227,6 +1546,35 @@ function SuperAdminPlansPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* DELETE PLAN CONFIRMATION DIALOG */}
+      <ConfirmationDialog
+        open={Boolean(planToDelete)}
+        onOpenChange={(open) => !open && setPlanToDelete(null)}
+        title={`Delete plan "${planToDelete?.name}"?`}
+        description="This permanently removes the subscription plan from the catalog. Plans with active subscribers cannot be deleted."
+        confirmLabel="Delete Plan"
+        variant="destructive"
+        isLoading={deletePlanMutation.isPending}
+        onConfirm={() => {
+          if (planToDelete) deletePlanMutation.mutate(planToDelete.id);
+        }}
+      />
+
+      {/* MAKE DEFAULT PLAN CONFIRMATION DIALOG */}
+      <ConfirmationDialog
+        open={Boolean(planToMakeDefault)}
+        onOpenChange={(open) => !open && setPlanToMakeDefault(null)}
+        title={`Set "${planToMakeDefault?.name}" as Default Signup Plan?`}
+        description="New workspaces created during self-service onboarding will automatically inherit this plan unless another tier is explicitly selected."
+        confirmLabel="Set as Default"
+        variant="default"
+        icon={<Star className="size-5" />}
+        isLoading={makeDefaultMutation.isPending}
+        onConfirm={() => {
+          if (planToMakeDefault) makeDefaultMutation.mutate(planToMakeDefault.id);
+        }}
+      />
     </div>
   );
 }

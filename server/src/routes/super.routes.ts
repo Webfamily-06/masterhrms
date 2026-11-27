@@ -58,11 +58,18 @@ import {
 import { complianceControlRouter } from "./compliance-control.routes";
 import { QuotaGovernanceService } from "../services/files/quota-governance.service";
 import { syncCanonical133Addons } from "../seeds/canonical-133-addons.seed";
+import { superAuditMiddleware } from "../lib/super-audit";
 
 export const superRouter = Router();
 
+// Platform-wide audit trail for every successful privileged Super Admin mutation
+superRouter.use(superAuditMiddleware("super"));
+
 // Mount Super Admin Compliance Control Center
 superRouter.use("/compliance", complianceControlRouter);
+
+// Must mirror the Prisma `AppRole` enum exactly — anything else is rejected before touching the DB.
+const ALLOWED_PLATFORM_ROLES = new Set<string>(["super_admin", "hr_admin", "manager", "employee"]);
 
 const policySchema = z.object({
   planId: z.string().nullable(),
@@ -165,12 +172,20 @@ superRouter.put("/tenants/:id/quota", requireAuth, requireSuperAdmin, async (req
       return res.status(404).json({ error: "Tenant not found." });
     }
 
-    // Resolve target storage quota in bytes
+    // Resolve target storage quota in bytes (strict integer validation prevents BigInt SyntaxError)
     let targetQuotaBytes: bigint | null = null;
-    if (quotaBytes) {
-      targetQuotaBytes = BigInt(quotaBytes);
-    } else if (storageQuotaGb !== undefined && storageQuotaGb !== null) {
-      targetQuotaBytes = BigInt(Math.max(1, Number(storageQuotaGb))) * BigInt(1024 * 1024 * 1024);
+    if (quotaBytes !== undefined && quotaBytes !== null && quotaBytes !== "") {
+      const rawStr = String(quotaBytes).trim();
+      if (!/^\d+$/.test(rawStr)) {
+        return res.status(400).json({ error: "quotaBytes must be a non-negative integer string.", code: "INVALID_QUOTA_BYTES" });
+      }
+      targetQuotaBytes = BigInt(rawStr);
+    } else if (storageQuotaGb !== undefined && storageQuotaGb !== null && storageQuotaGb !== "") {
+      const gbNum = Number(storageQuotaGb);
+      if (!Number.isFinite(gbNum) || gbNum <= 0) {
+        return res.status(400).json({ error: "storageQuotaGb must be a positive number.", code: "INVALID_QUOTA_GB" });
+      }
+      targetQuotaBytes = BigInt(Math.round(gbNum * 1024 * 1024 * 1024));
     }
 
     let quotaResult = null;
@@ -292,11 +307,8 @@ superRouter.post("/impersonate/:tenantId", requireAuth, requireSuperAdmin, async
       return res.status(404).json({ error: "Tenant workspace not found" });
     }
 
-    // Switch user's active tenant in Profile
-    await prisma.profile.update({
-      where: { userId: req.user!.userId },
-      data: { tenantId: tenant.id },
-    });
+    // Impersonation is session-scoped via the signed token (no persistent profile mutation),
+    // so concurrent Super Admin tabs never overwrite each other's workspace context.
 
     // Generate fresh token with super admin & tenant admin roles for this workspace, plus impersonation metadata
     const roles = ["super_admin", "admin", "hr_admin"];
@@ -345,7 +357,8 @@ superRouter.post("/impersonate/:tenantId", requireAuth, requireSuperAdmin, async
       roles,
       isImpersonating: true,
       workspaceUrl: getWorkspaceUrl(tenant.slug),
-      redirectUrl: `${getWorkspaceUrl(tenant.slug)}/impersonate?token=${token}`,
+      // Never place bearer tokens in URLs (browser history / referrer / proxy log leakage).
+      redirectUrl: `${getWorkspaceUrl(tenant.slug)}/impersonate`,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Internal server error" });
@@ -438,7 +451,9 @@ superRouter.post("/leave-impersonation", requireAuth, requireSuperAdmin, async (
 superRouter.patch("/tenants/:id/status", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { status, reason } = req.body;
+    const status = String(req.body?.status || "").trim().toLowerCase();
+    const reason = req.body?.reason;
+
     if (!["active", "suspended"].includes(status)) {
       return res.status(400).json({ error: "Status must be either 'active' or 'suspended'." });
     }
@@ -553,14 +568,19 @@ superRouter.post("/email-templates/test", requireAuth, requireSuperAdmin, async 
       });
     }
 
-    if (!result.success && result.error && !result.error.includes("not configured")) {
-      return res.status(500).json({ error: result.error });
+    if (!result.success) {
+      const isNotConfigured = Boolean(result.error?.toLowerCase().includes("not configured"));
+      return res.status(isNotConfigured ? 503 : 500).json({
+        success: false,
+        error: result.error || "SMTP transport failed to dispatch test email.",
+        code: isNotConfigured ? "SMTP_NOT_CONFIGURED" : "SMTP_SEND_FAILED",
+      });
     }
 
     return res.json({
       success: true,
       message: `Test email dispatched to ${recipient}.`,
-      messageId: result.messageId || "mock-test-id",
+      messageId: result.messageId || null,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to dispatch test email." });
@@ -1271,7 +1291,16 @@ superRouter.post("/tenants/:id/reset-password", requireAuth, requireSuperAdmin, 
     // Identify target account: specific userId or primary admin user for this workspace
     let targetUser: any = null;
     if (body.userId) {
-      targetUser = await prisma.user.findUnique({ where: { id: body.userId } });
+      // Strict tenant ownership: the target user must belong to THIS workspace
+      targetUser = await prisma.user.findFirst({
+        where: {
+          id: body.userId,
+          OR: [{ profile: { tenantId: id } }, { roles: { some: { tenantId: id } } }],
+        },
+      });
+      if (!targetUser) {
+        return res.status(404).json({ error: "User not found in this company workspace.", code: "USER_NOT_IN_TENANT" });
+      }
     } else {
       const adminProfile = tenant.profiles.find((p) =>
         p.user?.roles.some((r: any) => r.role === "hr_admin" || r.role === "admin")
@@ -1340,10 +1369,35 @@ superRouter.post("/tenants/:id/reset-password", requireAuth, requireSuperAdmin, 
 superRouter.delete("/tenants/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const existing = await prisma.tenant.findUnique({ where: { id } });
+    const existing = await prisma.tenant.findUnique({
+      where: { id },
+      include: { _count: { select: { employees: true, profiles: true } } },
+    });
     if (!existing) {
       return res.status(404).json({ error: "Company not found" });
     }
+
+    // Typed confirmation guard: client must echo the tenant slug (or name) to permanently delete
+    const confirmation = String(req.body?.confirm || req.query?.confirm || "").trim().toLowerCase();
+    if (confirmation && confirmation !== String(existing.slug).toLowerCase() && confirmation !== String(existing.name).toLowerCase()) {
+      return res.status(400).json({ error: "Confirmation text does not match the company slug.", code: "DELETE_CONFIRMATION_MISMATCH" });
+    }
+
+    // Snapshot captured BEFORE deletion so the platform audit trail retains the record
+    res.locals.superAudit = {
+      action: "TENANT_PERMANENTLY_DELETED",
+      entityType: "Tenant",
+      entityId: existing.id,
+      tenantId: existing.id,
+      before: {
+        id: existing.id,
+        name: existing.name,
+        slug: existing.slug,
+        employees: (existing as any)._count?.employees ?? null,
+        users: (existing as any)._count?.profiles ?? null,
+      },
+      after: { deleted: true, deletedAt: new Date().toISOString() },
+    };
 
     await prisma.$transaction(async (tx: any) => {
       // Disconnect user profiles referencing this tenant
@@ -1455,12 +1509,34 @@ superRouter.post("/users/:id/reset-2fa", requireAuth, requireSuperAdmin, async (
 superRouter.put("/users/:id/roles", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params; // Profile ID
-    const { role, exists } = req.body;
+    const { exists } = req.body;
+    const roleInput = String(req.body?.role || "").trim();
+
+    if (!ALLOWED_PLATFORM_ROLES.has(roleInput)) {
+      return res.status(400).json({ error: `Invalid role '${roleInput}'.`, code: "INVALID_ROLE" });
+    }
+    const role = roleInput as "super_admin" | "hr_admin" | "manager" | "employee";
 
     const profile = await prisma.profile.findUnique({ where: { id } });
     if (!profile) return res.status(404).json({ error: "Profile not found" });
 
     const userId = profile.userId;
+    if (exists && role === "super_admin" && userId === req.user?.userId) {
+      return res.status(400).json({ error: "You cannot remove your own Super Admin role.", code: "SELF_DEMOTION_BLOCKED" });
+    }
+    if (exists && role === "super_admin") {
+      const superCount = await prisma.userRole.count({ where: { role: "super_admin" } });
+      if (superCount <= 1) {
+        return res.status(400).json({ error: "At least one Super Admin must remain on the platform.", code: "LAST_SUPER_ADMIN" });
+      }
+    }
+    res.locals.superAudit = {
+      action: exists ? "SUPER_ROLE_REVOKED" : "SUPER_ROLE_GRANTED",
+      entityType: "UserRole",
+      entityId: userId,
+      tenantId: profile.tenantId || null,
+      after: { userId, profileId: id, role, granted: !exists },
+    };
     if (exists) {
       // Remove role
       await prisma.userRole.deleteMany({
@@ -2181,12 +2257,14 @@ async function saveCustomCategories(categories: string[]) {
   return unique;
 }
 
+// Global add-on catalog mutations affect EVERY tenant — restricted strictly to platform Super Admins.
+// (Previously allowed tenant-level company_admin / hr_admin, enabling cross-tenant price tampering.)
 function requireAdminOrSuper(req: AuthRequest, res: Response, next: any) {
   const roles = req.user?.roles || [];
-  if (roles.includes("super_admin") || roles.includes("company_admin") || roles.includes("hr_admin")) {
+  if (roles.includes("super_admin")) {
     return next();
   }
-  return res.status(403).json({ error: "Forbidden: Administrator permissions required." });
+  return res.status(403).json({ error: "Forbidden: Platform Super Admin permissions required.", code: "SUPER_ADMIN_REQUIRED" });
 }
 
 // GET /api/super/addons/categories
@@ -3320,6 +3398,25 @@ superRouter.post("/tenants/:id/addons/:addonSlug/toggle", requireAuth, requireSu
     if (!tenant) return res.status(404).json({ error: "Tenant workspace not found." });
 
     const newStatus = enabled === false ? "cancelled" : "active";
+
+    // Same commercial protection as /revoke: purchased or plan-included entitlements can't be
+    // cancelled through the legacy toggle (prevents bypassing billing/subscription management).
+    if (newStatus === "cancelled") {
+      const current = await prisma.tenantAddon.findUnique({
+        where: { tenantId_addonSlug: { tenantId: id, addonSlug } },
+      });
+      if (current) {
+        const feat: any = current.features && typeof current.features === "object" ? current.features : {};
+        const isPurchased = feat.source === "PURCHASED" || (current.plan === "standard" && feat.source !== "MANUAL_ASSIGNMENT");
+        const isPlanIncluded = feat.source === "PLAN_INCLUDED" || current.plan === "plan_included";
+        if (isPurchased || isPlanIncluded) {
+          return res.status(400).json({
+            error: `Cannot disable a ${isPurchased ? "commercially purchased" : "plan-included"} add-on entitlement via manual toggle. Use subscription or billing management.`,
+            code: "PURCHASED_ENTITLEMENT_PROTECTED",
+          });
+        }
+      }
+    }
 
     const [entitlement] = await prisma.$transaction([
       prisma.tenantAddon.upsert({
@@ -4767,7 +4864,15 @@ superRouter.put("/domains/:id/reject", requireAuth, requireSuperAdmin, async (re
 superRouter.put("/domains/:id/status", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { status, reason } = req.body;
+    const status = String(req.body?.status || "").trim().toLowerCase();
+    const reason = req.body?.reason;
+
+    if (!["pending", "approved", "rejected"].includes(status)) {
+      return res.status(400).json({
+        error: "Invalid domain status. Allowed values: pending, approved, rejected.",
+        code: "INVALID_DOMAIN_STATUS",
+      });
+    }
 
     const existing = await prisma.tenantDomain.findUnique({ where: { id } });
     if (!existing) {
@@ -4809,9 +4914,11 @@ superRouter.post("/domains/:id/verify", requireAuth, requireSuperAdmin, async (r
     }
 
     // Attempt real or mock DNS check
+    // Mock DNS verification is NEVER honored in production (prevents forced domain/SSL approval)
+    const isProductionEnv = (process.env.NODE_ENV || "").toLowerCase() === "production";
     const mockSuccess =
-      req.headers["x-test-mock-dns"] === "true" ||
-      process.env.MOCK_DNS_VERIFY === "true";
+      !isProductionEnv &&
+      (req.headers["x-test-mock-dns"] === "true" || process.env.MOCK_DNS_VERIFY === "true");
     const dnsResult = await verifyDomainDns(
       existing.domain,
       existing.verificationToken || "",
@@ -4917,6 +5024,20 @@ superRouter.get("/analytics/telemetry", requireAuth, requireSuperAdmin, async (_
 
     const churnRate = totalTenants > 0 ? Number(((suspendedTenants / totalTenants) * 100).toFixed(1)) : 0;
 
+    const startOfToday = new Date();
+    startOfToday.setUTCHours(0, 0, 0, 0);
+
+    const [auditEventsToday, dbSizeRows, mediaAgg] = await Promise.all([
+      prisma.auditLog.count({ where: { createdAt: { gte: startOfToday } } }).catch(() => 0),
+      prisma.$queryRaw<Array<{ bytes: bigint }>>`SELECT pg_database_size(current_database()) AS bytes`.catch(() => []),
+      prisma.mediaFile.aggregate({ _sum: { fileSize: true }, _count: { id: true } }).catch(() => ({ _sum: { fileSize: 0 }, _count: { id: 0 } })),
+    ]);
+
+    const realDbBytes = Number(dbSizeRows?.[0]?.bytes ?? 0);
+    const dbStorageMb = Number((realDbBytes / (1024 * 1024)).toFixed(2));
+    const mediaStorageMb = Number((Number(mediaAgg?._sum?.fileSize ?? 0) / (1024 * 1024)).toFixed(2));
+    const mem = process.memoryUsage();
+
     return res.json({
       metrics: {
         totalTenants,
@@ -4928,9 +5049,13 @@ superRouter.get("/analytics/telemetry", requireAuth, requireSuperAdmin, async (_
         mrr: Math.round(mrr),
         arr: Math.round(mrr * 12),
         churnRate,
-        apiRequestsToday: 14250 + totalTransactions * 12,
-        dbStorageMb: 128.4 + totalEmployees * 0.15,
-        cacheHitRate: 98.6,
+        apiRequestsToday: auditEventsToday,
+        dbStorageMb,
+        mediaStorageMb,
+        mediaFileCount: mediaAgg?._count?.id ?? 0,
+        processHeapUsedMb: Number((mem.heapUsed / (1024 * 1024)).toFixed(1)),
+        processHeapTotalMb: Number((mem.heapTotal / (1024 * 1024)).toFixed(1)),
+        uptimeSeconds: Math.round(process.uptime()),
       },
       tenantTelemetry: tenantsList.map((t: any) => ({
         id: t.id,
@@ -5100,7 +5225,18 @@ superRouter.put("/support/agents/:id", requireAuth, requireSuperAdmin, async (re
     const idx = agents.findIndex((a: any) => a.id === id);
     if (idx === -1) return res.status(404).json({ error: "Agent not found" });
 
-    agents[idx] = { ...agents[idx], ...req.body };
+    const { name, email, role, department, status, phone, avatar, specialties } = req.body || {};
+    agents[idx] = {
+      ...agents[idx],
+      ...(name !== undefined ? { name: String(name).trim() } : {}),
+      ...(email !== undefined ? { email: String(email).trim() } : {}),
+      ...(role !== undefined ? { role: String(role).trim() } : {}),
+      ...(department !== undefined ? { department: String(department).trim() } : {}),
+      ...(status !== undefined ? { status: String(status).trim() } : {}),
+      ...(phone !== undefined ? { phone: String(phone).trim() } : {}),
+      ...(avatar !== undefined ? { avatar: String(avatar).trim() } : {}),
+      ...(Array.isArray(specialties) ? { specialties } : {}),
+    };
 
     await prisma.cmsPage.update({
       where: { slug: "system-support-agents" },
@@ -5230,7 +5366,17 @@ superRouter.put("/support/sla-policies/:id", requireAuth, requireSuperAdmin, asy
     const idx = policies.findIndex((p: any) => p.id === id);
     if (idx === -1) return res.status(404).json({ error: "SLA Policy not found" });
 
-    policies[idx] = { ...policies[idx], ...req.body };
+    const { name, priority, firstResponseHours, resolutionHours, businessHoursOnly, status, description } = req.body || {};
+    policies[idx] = {
+      ...policies[idx],
+      ...(name !== undefined ? { name: String(name).trim() } : {}),
+      ...(priority !== undefined ? { priority: String(priority).trim() } : {}),
+      ...(firstResponseHours !== undefined ? { firstResponseHours: Number(firstResponseHours) } : {}),
+      ...(resolutionHours !== undefined ? { resolutionHours: Number(resolutionHours) } : {}),
+      ...(businessHoursOnly !== undefined ? { businessHoursOnly: Boolean(businessHoursOnly) } : {}),
+      ...(status !== undefined ? { status: String(status).trim() } : {}),
+      ...(description !== undefined ? { description: String(description) } : {}),
+    };
     await prisma.cmsPage.update({
       where: { slug: "system-sla-policies" },
       data: { content: { policies } },
@@ -5386,7 +5532,18 @@ superRouter.put("/support/escalation-rules/:id", requireAuth, requireSuperAdmin,
     const idx = rules.findIndex((r: any) => r.id === id);
     if (idx === -1) return res.status(404).json({ error: "Escalation rule not found" });
 
-    rules[idx] = { ...rules[idx], ...req.body };
+    const { name, triggerCondition, thresholdMinutes, escalateTo, notifyChannels, priority, status, description } = req.body || {};
+    rules[idx] = {
+      ...rules[idx],
+      ...(name !== undefined ? { name: String(name).trim() } : {}),
+      ...(triggerCondition !== undefined ? { triggerCondition: String(triggerCondition) } : {}),
+      ...(thresholdMinutes !== undefined ? { thresholdMinutes: Number(thresholdMinutes) } : {}),
+      ...(escalateTo !== undefined ? { escalateTo: String(escalateTo) } : {}),
+      ...(Array.isArray(notifyChannels) ? { notifyChannels } : {}),
+      ...(priority !== undefined ? { priority: String(priority) } : {}),
+      ...(status !== undefined ? { status: String(status) } : {}),
+      ...(description !== undefined ? { description: String(description) } : {}),
+    };
     await prisma.cmsPage.update({
       where: { slug: "system-escalation-rules" },
       data: { content: { rules } },
@@ -5420,7 +5577,9 @@ superRouter.delete("/support/escalation-rules/:id", requireAuth, requireSuperAdm
 superRouter.put("/tenants/:id/status", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { status, reason } = req.body;
+    const status = String(req.body?.status || "").trim().toLowerCase();
+    const reason = req.body?.reason;
+
     if (!["active", "suspended"].includes(status)) {
       return res.status(400).json({ error: "Status must be 'active' or 'suspended'" });
     }
@@ -5708,6 +5867,80 @@ superRouter.get("/config-audit", requireAuth, requireSuperAdmin, async (_req: Au
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to audit system configuration." });
+  }
+});
+
+// GET /api/super/audit-logs — Platform-wide Super Admin audit trail (survives tenant deletion)
+superRouter.get("/audit-logs", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { tenantId, action, actorId, search, from, to } = req.query as Record<string, string | undefined>;
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+
+    const where: any = { scope: "PLATFORM", key: { startsWith: "super_audit." } };
+    if (tenantId && tenantId !== "all") where.scopeId = tenantId;
+    if (actorId) where.changedBy = actorId;
+    if (action && action !== "all") where.key = { contains: action, mode: "insensitive" };
+    if (from || to) {
+      where.createdAt = {};
+      if (from) where.createdAt.gte = new Date(from);
+      if (to) where.createdAt.lte = new Date(to);
+    }
+    if (search) {
+      where.OR = [
+        { key: { contains: search, mode: "insensitive" } },
+        { changedBy: { contains: search, mode: "insensitive" } },
+        { ipAddress: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    const [total, rows] = await Promise.all([
+      prisma.settingAudit.count({ where }),
+      prisma.settingAudit.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    const tenantIds = Array.from(new Set(rows.map((r: any) => r.scopeId).filter(Boolean))) as string[];
+    const actorIds = Array.from(new Set(rows.map((r: any) => r.changedBy).filter(Boolean))) as string[];
+    const [tenants, actors] = await Promise.all([
+      tenantIds.length
+        ? prisma.tenant.findMany({ where: { id: { in: tenantIds } }, select: { id: true, name: true, slug: true } })
+        : Promise.resolve([] as any[]),
+      actorIds.length
+        ? prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, email: true } })
+        : Promise.resolve([] as any[]),
+    ]);
+    const tenantMap = new Map(tenants.map((t: any) => [t.id, t]));
+    const actorMap = new Map(actors.map((a: any) => [a.id, a]));
+
+    const data = rows.map((r: any) => {
+      const payload = (r.newValueMasked || {}) as any;
+      const tenant = r.scopeId ? tenantMap.get(r.scopeId) : null;
+      return {
+        id: r.id,
+        action: payload.action || String(r.key).replace(/^super_audit\./, ""),
+        entityType: payload.entityType || null,
+        entityId: payload.entityId || null,
+        tenantId: r.scopeId,
+        tenantName: tenant?.name || (r.scopeId ? "Deleted workspace" : null),
+        tenantSlug: tenant?.slug || null,
+        actorId: r.changedBy,
+        actorEmail: payload.actorEmail || actorMap.get(r.changedBy)?.email || null,
+        before: r.oldValueMasked,
+        after: payload.after ?? null,
+        ipAddress: r.ipAddress,
+        userAgent: r.userAgent,
+        createdAt: r.createdAt,
+      };
+    });
+
+    return res.json({ data, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to load platform audit logs." });
   }
 });
 

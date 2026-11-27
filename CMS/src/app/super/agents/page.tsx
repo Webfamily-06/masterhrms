@@ -1,28 +1,46 @@
 'use client';
-import {  createFileRoute  } from "@/src/lib/router-compat";
+
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-  Users,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import {
   Plus,
   Search,
   FileSpreadsheet,
-  ChevronDown,
   Edit2,
   Trash2,
   CheckCircle2,
   XCircle,
-  X,
   Loader2,
-  AlertTriangle,
-  UserCheck,
-  ShieldAlert,
-  Headphones
+  Headphones,
+  Users,
+  CheckSquare,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
-
-
 
 export type AgentRecord = {
   id: string;
@@ -36,6 +54,19 @@ export type AgentRecord = {
   avatar?: string;
 };
 
+const AGENT_ROLES = [
+  "Senior Support Agent",
+  "Junior Support Agent",
+  "Technical Lead",
+  "Billing Specialist",
+  "Customer Success",
+];
+
+function escapeCsvCell(value: string | number | undefined | null): string {
+  const str = String(value ?? "");
+  return `"${str.replace(/"/g, '""')}"`;
+}
+
 export default function SuperAgentsPage() {
   const queryClient = useQueryClient();
 
@@ -48,6 +79,7 @@ export default function SuperAgentsPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editAgent, setEditAgent] = useState<AgentRecord | null>(null);
   const [deleteAgent, setDeleteAgent] = useState<AgentRecord | null>(null);
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
 
   // New agent form
   const [newAgent, setNewAgent] = useState({
@@ -60,22 +92,17 @@ export default function SuperAgentsPage() {
   const { data: agents = [], isLoading } = useQuery<AgentRecord[]>({
     queryKey: ["super-support-agents"],
     queryFn: async () => {
-      try {
-        const res = await api.get("/api/super/support/agents");
-        return Array.isArray(res) ? res : res?.data || [];
-      } catch (err) {
-        console.error("Failed to load support agents", err);
-        return [];
-      }
+      const res = await api.get("/super/support/agents");
+      return Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (payload: typeof newAgent) => {
-      return api.post("/api/super/support/agents", payload);
+      return api.post("/super/support/agents", payload);
     },
     onSuccess: () => {
-      toast.success("Support agent added successfully");
+      toast.success("Support agent added successfully.");
       queryClient.invalidateQueries({ queryKey: ["super-support-agents"] });
       setIsAddModalOpen(false);
       setNewAgent({
@@ -86,59 +113,109 @@ export default function SuperAgentsPage() {
       });
     },
     onError: (err: any) => {
-      toast.error(err.message || "Failed to create agent");
+      toast.error(err?.message || "Failed to create agent.");
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<AgentRecord> }) => {
-      return api.put(`/api/super/support/agents/${id}`, data);
+      return api.put(`/super/support/agents/${id}`, data);
     },
     onSuccess: () => {
-      toast.success("Agent details updated");
+      toast.success("Agent details updated.");
       queryClient.invalidateQueries({ queryKey: ["super-support-agents"] });
       setEditAgent(null);
     },
     onError: (err: any) => {
-      toast.error(err.message || "Failed to update agent");
+      toast.error(err?.message || "Failed to update agent.");
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return api.delete(`/api/super/support/agents/${id}`);
+      return api.delete(`/super/support/agents/${id}`);
     },
-    onSuccess: () => {
-      toast.success("Agent removed from directory");
+    onSuccess: (_data, deletedId) => {
+      toast.success("Agent removed from directory.");
+      setSelectedIds((prev) => prev.filter((id) => id !== deletedId));
       queryClient.invalidateQueries({ queryKey: ["super-support-agents"] });
       setDeleteAgent(null);
     },
     onError: (err: any) => {
-      toast.error(err.message || "Failed to delete agent");
+      toast.error(err?.message || "Failed to delete agent.");
+    },
+  });
+
+  const bulkAvailabilityMutation = useMutation({
+    mutationFn: async ({ ids, availability }: { ids: string[]; availability: "Available" | "Not Available" }) => {
+      await Promise.all(
+        ids.map((id) => api.put(`/super/support/agents/${id}`, { availability })),
+      );
+      return { count: ids.length, availability };
+    },
+    onSuccess: ({ count, availability }) => {
+      toast.success(`Updated ${count} ${count === 1 ? "agent" : "agents"} to "${availability}".`);
+      setSelectedIds([]);
+      queryClient.invalidateQueries({ queryKey: ["super-support-agents"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Bulk availability update failed.");
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      await Promise.all(ids.map((id) => api.delete(`/super/support/agents/${id}`)));
+      return ids.length;
+    },
+    onSuccess: (count) => {
+      toast.success(`Removed ${count} ${count === 1 ? "agent" : "agents"} from directory.`);
+      setSelectedIds([]);
+      setIsBulkDeleteOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["super-support-agents"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Bulk delete failed.");
     },
   });
 
   const filteredAgents = useMemo(() => {
-    return agents.filter((a) => {
-      const matchSearch =
-        a.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.agentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.role.toLowerCase().includes(searchTerm.toLowerCase());
+    const q = searchTerm.trim().toLowerCase();
+    return agents
+      .filter((a) => {
+        const matchSearch =
+          !q ||
+          a.name.toLowerCase().includes(q) ||
+          a.email.toLowerCase().includes(q) ||
+          a.agentId.toLowerCase().includes(q) ||
+          a.role.toLowerCase().includes(q);
 
-      const matchStatus =
-        statusFilter === "all" ? true : a.availability.toLowerCase() === statusFilter.toLowerCase();
+        const matchStatus =
+          statusFilter === "all" ? true : a.availability.toLowerCase() === statusFilter.toLowerCase();
 
-      return matchSearch && matchStatus;
-    }).sort((a, b) => {
-      if (sortBy === "asc") return a.name.localeCompare(b.name);
-      if (sortBy === "desc") return b.name.localeCompare(a.name);
-      return b.ticketsAssigned - a.ticketsAssigned;
-    });
+        return matchSearch && matchStatus;
+      })
+      .sort((a, b) => {
+        if (sortBy === "asc") return a.name.localeCompare(b.name);
+        if (sortBy === "desc") return b.name.localeCompare(a.name);
+        return (b.ticketsAssigned || 0) - (a.ticketsAssigned || 0);
+      });
   }, [agents, searchTerm, statusFilter, sortBy]);
 
+  const availableCount = useMemo(
+    () => agents.filter((a) => a.availability === "Available").length,
+    [agents],
+  );
+  const totalResolved = useMemo(
+    () => agents.reduce((sum, a) => sum + (Number(a.ticketsResolved) || 0), 0),
+    [agents],
+  );
+
+  const allFilteredSelected =
+    filteredAgents.length > 0 && filteredAgents.every((a) => selectedIds.includes(a.id));
+
   const toggleSelectAll = () => {
-    if (selectedIds.length === filteredAgents.length) {
+    if (allFilteredSelected) {
       setSelectedIds([]);
     } else {
       setSelectedIds(filteredAgents.map((a) => a.id));
@@ -147,238 +224,306 @@ export default function SuperAgentsPage() {
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
 
   const exportCSV = () => {
-    const headers = ["Agent ID", "Name", "Email", "Role", "Assigned", "Resolved", "Availability"];
+    if (filteredAgents.length === 0) {
+      toast.error("No agents to export.");
+      return;
+    }
+    const headers = ["Agent ID", "Name", "Email", "Role", "Tickets Assigned", "Tickets Resolved", "Availability"];
     const rows = filteredAgents.map((a) => [
-      `"${a.agentId}"`,
-      `"${a.name}"`,
-      `"${a.email}"`,
-      `"${a.role}"`,
-      a.ticketsAssigned,
-      a.ticketsResolved,
-      `"${a.availability}"`,
+      escapeCsvCell(a.agentId),
+      escapeCsvCell(a.name),
+      escapeCsvCell(a.email),
+      escapeCsvCell(a.role),
+      escapeCsvCell(a.ticketsAssigned ?? 0),
+      escapeCsvCell(a.ticketsResolved ?? 0),
+      escapeCsvCell(a.availability),
     ]);
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
+    const csvString = [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `support_agents_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.href = url;
+    link.download = `support_agents_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success("Agents list exported to CSV");
+    window.URL.revokeObjectURL(url);
+    toast.success(`Exported ${filteredAgents.length} support agents to CSV.`);
   };
 
   return (
-    <div className="space-y-6">
-      {/* Breadcrumb Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Agents</h2>
-          <nav className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
-            <span className="hover:text-primary cursor-pointer">Tickets</span>
-            <span>/</span>
-            <span className="font-medium text-slate-700 dark:text-slate-300">Agents</span>
-          </nav>
-        </div>
+    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+      <PageHeader
+        title="Support Agents Directory"
+        description="Manage platform support engineers, availability status, and cross-tenant ticket coverage."
+        icon={Headphones}
+        badge={
+          <Badge variant="soft">
+            {agents.length} {agents.length === 1 ? "Agent" : "Agents"}
+          </Badge>
+        }
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={exportCSV}>
+              <FileSpreadsheet className="size-3.5 text-emerald-600" />
+              Export CSV
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setIsAddModalOpen(true)}>
+              <Plus className="size-3.5" />
+              Add New Agent
+            </Button>
+          </>
+        }
+      />
 
-        <div className="flex items-center gap-2">
-          {/* Export Dropdown */}
-          <button
-            onClick={exportCSV}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors shadow-sm text-slate-700 dark:text-slate-200"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Export</span>
-            <ChevronDown className="w-3 h-3 text-slate-400" />
-          </button>
-
-          {/* Add New Agent Button */}
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors shadow-sm shadow-primary/20"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add New Agent</span>
-          </button>
-        </div>
+      {/* KPI Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard
+          label="Total Agents"
+          value={agents.length}
+          description="Registered platform support staff"
+          icon={Users}
+          variant="primary"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Available Online"
+          value={availableCount}
+          description={`${agents.length - availableCount} currently unavailable`}
+          icon={CheckCircle2}
+          variant="success"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="Tickets Resolved"
+          value={totalResolved}
+          description="Cumulative resolutions across directory"
+          icon={Headphones}
+          variant="info"
+          isLoading={isLoading}
+        />
       </div>
 
-      {/* Main Table Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
-        {/* Card Header & Filter Bar */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-base text-slate-800 dark:text-slate-100">Agents List</h3>
-            <span className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full font-medium">
-              {filteredAgents.length} agents
+      {/* Bulk Action Bar */}
+      {selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border border-primary/25 bg-primary/5">
+          <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+            <CheckSquare className="size-4 text-primary" />
+            <span>
+              {selectedIds.length} {selectedIds.length === 1 ? "agent" : "agents"} selected
             </span>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={bulkAvailabilityMutation.isPending}
+              onClick={() =>
+                bulkAvailabilityMutation.mutate({ ids: selectedIds, availability: "Available" })
+              }
+            >
+              <CheckCircle2 className="size-3 text-emerald-600" />
+              Mark Available
+            </Button>
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={bulkAvailabilityMutation.isPending}
+              onClick={() =>
+                bulkAvailabilityMutation.mutate({ ids: selectedIds, availability: "Not Available" })
+              }
+            >
+              <XCircle className="size-3 text-rose-600" />
+              Mark Unavailable
+            </Button>
+            <Button
+              size="xs"
+              variant="destructive"
+              disabled={bulkDeleteMutation.isPending}
+              onClick={() => setIsBulkDeleteOpen(true)}
+            >
+              <Trash2 className="size-3" />
+              Delete Selected
+            </Button>
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => setSelectedIds([])}
+              aria-label="Clear selection"
+            >
+              <X className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
 
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {/* Search Input */}
-            <div className="relative min-w-[200px]">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
+      {/* Main Table Card */}
+      <Card className="border border-border/80 rounded-xl bg-card shadow-xs overflow-hidden">
+        <div className="p-4 border-b border-border/70 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold text-foreground">Agents Roster</h2>
+            <Badge variant="secondary" className="text-[11px]">
+              {filteredAgents.length} shown
+            </Badge>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[220px]">
+              <Search className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
                 placeholder="Search agent name, ID, role..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-slate-800 dark:text-slate-100"
+                className="pl-8 h-8 text-xs"
               />
             </div>
 
-            {/* Select Status */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none"
-            >
-              <option value="all">Select Status</option>
-              <option value="available">Available</option>
-              <option value="not available">Not Available</option>
-            </select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-8 text-xs w-40">
+                <SelectValue placeholder="Availability" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="available">Available</SelectItem>
+                <SelectItem value="not available">Not Available</SelectItem>
+              </SelectContent>
+            </Select>
 
-            {/* Sort by */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none"
-            >
-              <option value="recent">Sort By: Highest Assigned</option>
-              <option value="asc">Ascending</option>
-              <option value="desc">Descending</option>
-            </select>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="h-8 text-xs w-44">
+                <SelectValue placeholder="Sort By" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recent">Highest Assigned</SelectItem>
+                <SelectItem value="asc">Name (A-Z)</SelectItem>
+                <SelectItem value="desc">Name (Z-A)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        {/* Table Content */}
         <div className="overflow-x-auto">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center p-12 text-slate-500">
-              <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
+            <div className="flex flex-col items-center justify-center p-14 text-muted-foreground">
+              <Loader2 className="size-7 animate-spin text-primary mb-2" />
               <p className="text-xs">Loading support agents directory...</p>
             </div>
           ) : filteredAgents.length === 0 ? (
-            <div className="text-center py-12 text-slate-500">
-              <Headphones className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No agents found</p>
-              <p className="text-xs text-slate-400">Click "Add New Agent" to register staff.</p>
+            <div className="text-center py-14 text-muted-foreground">
+              <Headphones className="size-9 text-muted-foreground/40 mx-auto mb-2" />
+              <p className="text-sm font-medium text-foreground">No support agents found</p>
+              <p className="text-xs mt-1">
+                {searchTerm || statusFilter !== "all"
+                  ? "Adjust your search or availability filter."
+                  : 'Click "Add New Agent" to register platform support staff.'}
+              </p>
             </div>
           ) : (
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-slate-50/75 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  <th className="py-3 px-4 w-10">
+                <tr className="border-b border-border/80">
+                  <th className="bg-muted/50 p-3 pl-4 w-10">
                     <input
                       type="checkbox"
-                      checked={selectedIds.length === filteredAgents.length && filteredAgents.length > 0}
+                      aria-label="Select all agents"
+                      checked={allFilteredSelected}
                       onChange={toggleSelectAll}
-                      className="rounded border-slate-300 text-primary focus:ring-primary/20 h-3.5 w-3.5 cursor-pointer"
+                      className="rounded border-border text-primary focus:ring-primary/20 h-3.5 w-3.5 cursor-pointer"
                     />
                   </th>
-                  <th className="py-3 px-4">Agent ID</th>
-                  <th className="py-3 px-4">Agent Name</th>
-                  <th className="py-3 px-4">Email</th>
-                  <th className="py-3 px-4">Role</th>
-                  <th className="py-3 px-4">Tickets Assigned</th>
-                  <th className="py-3 px-4">Tickets Resolved</th>
-                  <th className="py-3 px-4">Availability</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3">
+                    Agent ID
+                  </th>
+                  <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3">
+                    Agent Name
+                  </th>
+                  <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3">
+                    Email
+                  </th>
+                  <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3">
+                    Role
+                  </th>
+                  <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3">
+                    Assigned
+                  </th>
+                  <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3">
+                    Resolved
+                  </th>
+                  <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3">
+                    Availability
+                  </th>
+                  <th className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold p-3 pr-4 text-right">
+                    Actions
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
-                {filteredAgents.map((a, idx) => (
-                  <tr
-                    key={a.id}
-                    className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
-                  >
-                    <td className="py-3 px-4">
+              <tbody className="divide-y divide-border/60">
+                {filteredAgents.map((a) => (
+                  <tr key={a.id} className="hover:bg-muted/40 transition-colors">
+                    <td className="p-3 pl-4">
                       <input
                         type="checkbox"
+                        aria-label={`Select ${a.name}`}
                         checked={selectedIds.includes(a.id)}
                         onChange={() => toggleSelect(a.id)}
-                        className="rounded border-slate-300 text-primary focus:ring-primary/20 h-3.5 w-3.5 cursor-pointer"
+                        className="rounded border-border text-primary focus:ring-primary/20 h-3.5 w-3.5 cursor-pointer"
                       />
                     </td>
-
-                    {/* Agent ID */}
-                    <td className="py-3 px-4 font-mono font-bold text-primary">
-                      <a href="javascript:void(0);" className="hover:underline">
+                    <td className="p-3 font-mono font-bold text-primary">
+                      <button
+                        type="button"
+                        onClick={() => setEditAgent(a)}
+                        className="hover:underline cursor-pointer"
+                      >
                         {a.agentId}
-                      </a>
+                      </button>
                     </td>
-
-                    {/* Agent Name with Avatar */}
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-xs text-primary shrink-0 overflow-hidden">
+                    <td className="p-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="size-8 rounded-full border border-border bg-muted flex items-center justify-center font-bold text-[11px] text-primary shrink-0 overflow-hidden">
                           {a.avatar ? (
                             <img src={a.avatar} alt={a.name} className="w-full h-full object-cover" />
                           ) : (
                             a.name.slice(0, 2).toUpperCase()
                           )}
                         </div>
-                        <span className="font-medium text-slate-800 dark:text-slate-100">
-                          {a.name}
-                        </span>
+                        <span className="font-medium text-foreground">{a.name}</span>
                       </div>
                     </td>
-
-                    {/* Email */}
-                    <td className="py-3 px-4 text-slate-600 dark:text-slate-300">{a.email}</td>
-
-                    {/* Role */}
-                    <td className="py-3 px-4 text-slate-700 dark:text-slate-200 font-medium">
-                      {a.role}
+                    <td className="p-3 text-muted-foreground">{a.email}</td>
+                    <td className="p-3 font-medium text-foreground">{a.role}</td>
+                    <td className="p-3 font-mono font-semibold text-foreground">{a.ticketsAssigned ?? 0}</td>
+                    <td className="p-3 font-mono font-semibold text-foreground">{a.ticketsResolved ?? 0}</td>
+                    <td className="p-3">
+                      <Badge variant={a.availability === "Available" ? "success" : "destructive"} className="text-[10px]">
+                        {a.availability}
+                      </Badge>
                     </td>
-
-                    {/* Assigned */}
-                    <td className="py-3 px-4 text-slate-700 dark:text-slate-200 font-semibold">
-                      {a.ticketsAssigned}
-                    </td>
-
-                    {/* Resolved */}
-                    <td className="py-3 px-4 text-slate-700 dark:text-slate-200 font-semibold">
-                      {a.ticketsResolved}
-                    </td>
-
-                    {/* Availability */}
-                    <td className="py-3 px-4">
-                      {a.availability === "Available" ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          Available
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/40">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                          Not Available
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-3 px-4 text-right">
-                      <div className="inline-flex items-center gap-2">
-                        <button
+                    <td className="p-3 pr-4 text-right">
+                      <div className="inline-flex items-center gap-1">
+                        <Button
+                          size="xs"
+                          variant="ghost"
                           title="Edit Agent"
                           onClick={() => setEditAgent(a)}
-                          className="p-1 text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+                          className="px-2"
                         >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
+                          <Edit2 className="size-3.5" />
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="ghost"
                           title="Delete Agent"
                           onClick={() => setDeleteAgent(a)}
-                          className="p-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded transition-colors"
+                          className="px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-500/10"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          <Trash2 className="size-3.5" />
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -387,264 +532,247 @@ export default function SuperAgentsPage() {
             </table>
           )}
         </div>
-      </div>
+      </Card>
 
-      {/* Add New Agent Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-md w-full overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h4 className="font-semibold text-base text-slate-900 dark:text-white">Add New Support Agent</h4>
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md"
-              >
-                <X className="w-4 h-4" />
-              </button>
+      {/* Add New Agent Dialog */}
+      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base">Add New Support Agent</DialogTitle>
+            <DialogDescription className="text-xs">
+              Register a support engineer into the Super Admin ticket desk roster.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!newAgent.name.trim() || !newAgent.email.trim()) {
+                toast.error("Please fill in agent name and email.");
+                return;
+              }
+              createMutation.mutate({
+                ...newAgent,
+                name: newAgent.name.trim(),
+                email: newAgent.email.trim(),
+              });
+            }}
+            className="space-y-4 text-xs"
+          >
+            <div className="space-y-1.5">
+              <Label>Full Name *</Label>
+              <Input
+                placeholder="e.g. William Parsons"
+                value={newAgent.name}
+                onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })}
+                required
+              />
             </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!newAgent.name || !newAgent.email) {
-                  toast.error("Please fill in agent name and email");
-                  return;
-                }
-                createMutation.mutate(newAgent);
-              }}
-              className="p-5 space-y-4 text-xs"
-            >
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. William Parsons"
-                  value={newAgent.name}
-                  onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                  Email Address *
-                </label>
-                <input
-                  type="email"
-                  placeholder="e.g. william@example.com"
-                  value={newAgent.email}
-                  onChange={(e) => setNewAgent({ ...newAgent, email: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                    Role
-                  </label>
-                  <select
-                    value={newAgent.role}
-                    onChange={(e) => setNewAgent({ ...newAgent, role: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
-                  >
-                    <option value="Senior Support Agent">Senior Support Agent</option>
-                    <option value="Junior Support Agent">Junior Support Agent</option>
-                    <option value="Technical Lead">Technical Lead</option>
-                    <option value="Billing Specialist">Billing Specialist</option>
-                    <option value="Customer Success">Customer Success</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                    Availability
-                  </label>
-                  <select
-                    value={newAgent.availability}
-                    onChange={(e) =>
-                      setNewAgent({
-                        ...newAgent,
-                        availability: e.target.value as "Available" | "Not Available",
-                      })
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
-                  >
-                    <option value="Available">Available</option>
-                    <option value="Not Available">Not Available</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={createMutation.isPending}
-                  className="px-4 py-2 text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-primary/20"
-                >
-                  {createMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Register Agent
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Agent Modal */}
-      {editAgent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-md w-full overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h4 className="font-semibold text-base text-slate-900 dark:text-white">Edit Agent: {editAgent.name}</h4>
-              <button
-                onClick={() => setEditAgent(null)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md"
-              >
-                <X className="w-4 h-4" />
-              </button>
+            <div className="space-y-1.5">
+              <Label>Email Address *</Label>
+              <Input
+                type="email"
+                placeholder="e.g. william@company.com"
+                value={newAgent.email}
+                onChange={(e) => setNewAgent({ ...newAgent, email: e.target.value })}
+                required
+              />
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Role</Label>
+                <Select
+                  value={newAgent.role}
+                  onValueChange={(val) => setNewAgent({ ...newAgent, role: val })}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AGENT_ROLES.map((role) => (
+                      <SelectItem key={role} value={role}>
+                        {role}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Availability</Label>
+                <Select
+                  value={newAgent.availability}
+                  onValueChange={(val) =>
+                    setNewAgent({
+                      ...newAgent,
+                      availability: val as "Available" | "Not Available",
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Available">Available</SelectItem>
+                    <SelectItem value="Not Available">Not Available</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsAddModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" size="sm" disabled={createMutation.isPending}>
+                {createMutation.isPending && <Loader2 className="size-3.5 animate-spin" />}
+                Register Agent
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Agent Dialog */}
+      <Dialog open={Boolean(editAgent)} onOpenChange={(open) => !open && setEditAgent(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base">Edit Agent: {editAgent?.name}</DialogTitle>
+            <DialogDescription className="text-xs font-mono">
+              {editAgent?.agentId}
+            </DialogDescription>
+          </DialogHeader>
+
+          {editAgent && (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 updateMutation.mutate({
                   id: editAgent.id,
                   data: {
-                    name: editAgent.name,
-                    email: editAgent.email,
+                    name: editAgent.name.trim(),
+                    email: editAgent.email.trim(),
                     role: editAgent.role,
                     availability: editAgent.availability,
                   },
                 });
               }}
-              className="p-5 space-y-4 text-xs"
+              className="space-y-4 text-xs"
             >
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                  Full Name
-                </label>
-                <input
-                  type="text"
+              <div className="space-y-1.5">
+                <Label>Full Name</Label>
+                <Input
                   value={editAgent.name}
                   onChange={(e) => setEditAgent({ ...editAgent, name: e.target.value })}
                   required
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
                 />
               </div>
 
-              <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                  Email Address
-                </label>
-                <input
+              <div className="space-y-1.5">
+                <Label>Email Address</Label>
+                <Input
                   type="email"
                   value={editAgent.email}
                   onChange={(e) => setEditAgent({ ...editAgent, email: e.target.value })}
                   required
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                    Role
-                  </label>
-                  <select
+                <div className="space-y-1.5">
+                  <Label>Role</Label>
+                  <Select
                     value={editAgent.role}
-                    onChange={(e) => setEditAgent({ ...editAgent, role: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
+                    onValueChange={(val) => setEditAgent({ ...editAgent, role: val })}
                   >
-                    <option value="Senior Support Agent">Senior Support Agent</option>
-                    <option value="Junior Support Agent">Junior Support Agent</option>
-                    <option value="Technical Lead">Technical Lead</option>
-                    <option value="Billing Specialist">Billing Specialist</option>
-                    <option value="Customer Success">Customer Success</option>
-                  </select>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AGENT_ROLES.map((role) => (
+                        <SelectItem key={role} value={role}>
+                          {role}
+                        </SelectItem>
+                      ))}
+                      {!AGENT_ROLES.includes(editAgent.role) && (
+                        <SelectItem value={editAgent.role}>{editAgent.role}</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                    Availability
-                  </label>
-                  <select
+                <div className="space-y-1.5">
+                  <Label>Availability</Label>
+                  <Select
                     value={editAgent.availability}
-                    onChange={(e) =>
+                    onValueChange={(val) =>
                       setEditAgent({
                         ...editAgent,
-                        availability: e.target.value as "Available" | "Not Available",
+                        availability: val as "Available" | "Not Available",
                       })
                     }
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
                   >
-                    <option value="Available">Available</option>
-                    <option value="Not Available">Not Available</option>
-                  </select>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Available">Available</SelectItem>
+                      <SelectItem value="Not Available">Not Available</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditAgent(null)}
-                  className="px-4 py-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-                >
+              <DialogFooter className="pt-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setEditAgent(null)}>
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={updateMutation.isPending}
-                  className="px-4 py-2 text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-primary/20"
-                >
-                  {updateMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                </Button>
+                <Button type="submit" variant="primary" size="sm" disabled={updateMutation.isPending}>
+                  {updateMutation.isPending && <Loader2 className="size-3.5 animate-spin" />}
                   Save Changes
-                </button>
-              </div>
+                </Button>
+              </DialogFooter>
             </form>
-          </div>
-        </div>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
 
-      {/* Delete Confirmation Modal */}
-      {deleteAgent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-sm w-full p-5 text-center">
-            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-3">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <h4 className="font-semibold text-base text-slate-900 dark:text-white">Delete Agent?</h4>
-            <p className="text-xs text-slate-500 mt-1">
-              Are you sure you want to remove <strong className="text-slate-700 dark:text-slate-200">{deleteAgent.name}</strong> ({deleteAgent.agentId}) from the staff directory?
-            </p>
-            <div className="flex items-center justify-center gap-2 mt-5">
-              <button
-                onClick={() => setDeleteAgent(null)}
-                className="px-4 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => deleteMutation.mutate(deleteAgent.id)}
-                disabled={deleteMutation.isPending}
-                className="px-4 py-1.5 text-xs font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-rose-600/20"
-              >
-                {deleteMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-                Confirm Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Single Delete ConfirmationDialog */}
+      <ConfirmationDialog
+        open={Boolean(deleteAgent)}
+        onOpenChange={(open) => {
+          if (!open && !deleteMutation.isPending) setDeleteAgent(null);
+        }}
+        title="Delete Support Agent?"
+        description={
+          deleteAgent ? (
+            <>
+              Are you sure you want to remove{" "}
+              <strong className="text-foreground">{deleteAgent.name}</strong> ({deleteAgent.agentId}) from the support staff directory?
+            </>
+          ) : undefined
+        }
+        confirmLabel="Remove Agent"
+        variant="destructive"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => {
+          if (deleteAgent) deleteMutation.mutate(deleteAgent.id);
+        }}
+      />
+
+      {/* Bulk Delete ConfirmationDialog */}
+      <ConfirmationDialog
+        open={isBulkDeleteOpen}
+        onOpenChange={(open) => {
+          if (!open && !bulkDeleteMutation.isPending) setIsBulkDeleteOpen(false);
+        }}
+        title={`Delete ${selectedIds.length} Selected Agents?`}
+        description="Selected agents will be permanently removed from the support directory. This action cannot be undone."
+        confirmLabel="Delete Selected"
+        variant="destructive"
+        isLoading={bulkDeleteMutation.isPending}
+        onConfirm={() => bulkDeleteMutation.mutate(selectedIds)}
+      />
     </div>
   );
 }

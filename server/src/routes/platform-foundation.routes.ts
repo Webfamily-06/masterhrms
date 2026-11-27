@@ -1,5 +1,6 @@
 import { Router, Response } from "express";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { requireTenantAdmin } from "../lib/super-audit";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { getTenantDb } from "../context/tenant-context";
 import { NotificationService } from "../services/notification.service";
@@ -248,10 +249,10 @@ platformFoundationRouter.post(
 // 3. WORKFLOW DEFINITIONS & APPROVAL INBOX
 // =========================================================================
 
-// List workflow definitions
+// List workflow definitions (HR / workspace administrators only)
 platformFoundationRouter.get(
   "/hr/workflows",
-  requireAuth,
+  requireTenantAdmin,
   async (req: AuthRequest, res: Response) => {
     try {
       const tenantId = req.user?.tenantId!;
@@ -267,14 +268,17 @@ platformFoundationRouter.get(
   }
 );
 
-// Create workflow definition
+// Create workflow definition (HR / workspace administrators only)
 platformFoundationRouter.post(
   "/hr/workflows",
-  requireAuth,
+  requireTenantAdmin,
   async (req: AuthRequest, res: Response) => {
     try {
       const tenantId = req.user?.tenantId!;
-      const { entityType, name, description, isDefault, steps } = req.body;
+      const { entityType, name, description, steps } = req.body;
+      if (!entityType || !name) {
+        return res.status(400).json({ error: "entityType and name are required." });
+      }
       const db = getTenantDb();
 
       const created = await db.workflowDefinition.create({
@@ -286,13 +290,16 @@ platformFoundationRouter.post(
           description: description ?? null,
           isActive: true,
           steps: {
-            create: (steps || []).map((step: any, index: number) => ({
-              stepOrder: step.stepOrder || index + 1,
+            create: (Array.isArray(steps) ? steps : []).map((step: any, index: number) => ({
+              stepOrder: Number(step.stepOrder) || index + 1,
               name: step.name || `Step ${index + 1}`,
-              approverType: step.approverType || "ROLE",
-              approverRole: step.approverRole ?? null,
-              specificUserId: step.specificUserId ?? null,
+              approverType: String(step.approverType || "ROLE").toUpperCase(),
+              // Schema column is approverValue (role key, user id, or MANAGER marker)
+              approverValue: step.approverValue ?? step.approverRole ?? step.specificUserId ?? null,
+              approvalMode: step.approvalMode || "ANY",
               slaHours: step.slaHours ?? null,
+              escalateTo: step.escalateTo ?? null,
+              canSkip: Boolean(step.canSkip),
             })),
           },
         },
@@ -306,10 +313,10 @@ platformFoundationRouter.post(
   }
 );
 
-// Unified HR Approval Inbox (All pending requests in tenant)
+// Unified HR Approval Inbox (All pending requests in tenant — HR / workspace administrators only)
 platformFoundationRouter.get(
   "/hr/approvals",
-  requireAuth,
+  requireTenantAdmin,
   async (req: AuthRequest, res: Response) => {
     try {
       const tenantId = req.user?.tenantId!;
@@ -374,17 +381,50 @@ platformFoundationRouter.get(
         orderBy: { createdAt: "desc" },
       });
 
-      // 2. Requests awaiting my action (where I am approver or manager)
-      const toApprove = await db.approvalRequest.findMany({
+      // 2. Requests awaiting MY action: current step must target me (USER), one of my roles (ROLE),
+      //    or me as the requester's reporting manager (MANAGER). Own requests are excluded.
+      const pendingCandidates = await db.approvalRequest.findMany({
         where: {
           tenantId,
           status: "PENDING",
+          requesterId: { not: userId },
         },
         include: {
           workflow: { include: { steps: true } },
           actions: { orderBy: { createdAt: "desc" } },
         },
         orderBy: { createdAt: "desc" },
+        take: 200,
+      });
+
+      const myRoleKeys = new Set(
+        (req.user?.roles || []).map((r) => String(r).toLowerCase().replace(/[-\s]/g, "_"))
+      );
+      const needsManagerCheck = pendingCandidates.some((r: any) => {
+        const step = r.workflow?.steps?.find((s: any) => s.stepOrder === r.currentStep);
+        return step && /MANAGER/i.test(String(step.approverType));
+      });
+      const reportUserIds = new Set<string>();
+      if (needsManagerCheck) {
+        const me = await db.employee.findFirst({ where: { tenantId, userId }, select: { id: true } });
+        if (me) {
+          const reports = await db.employee.findMany({
+            where: { tenantId, managerId: me.id, userId: { not: null } },
+            select: { userId: true },
+          });
+          reports.forEach((e: any) => e.userId && reportUserIds.add(e.userId));
+        }
+      }
+
+      const toApprove = pendingCandidates.filter((r: any) => {
+        const step = r.workflow?.steps?.find((s: any) => s.stepOrder === r.currentStep);
+        if (!step) return false;
+        const type = String(step.approverType || "").toUpperCase();
+        const value = String(step.approverValue || "");
+        if (type === "USER" || type === "SPECIFIC_USER") return value === userId;
+        if (type === "ROLE") return myRoleKeys.has(value.toLowerCase().replace(/[-\s]/g, "_"));
+        if (type.includes("MANAGER")) return reportUserIds.has(r.requesterId);
+        return false;
       });
 
       return res.json({

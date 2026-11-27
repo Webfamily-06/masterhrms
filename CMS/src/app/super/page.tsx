@@ -1,45 +1,203 @@
-'use client';
-import {  createFileRoute, Link, useNavigate  } from "@/src/lib/router-compat";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, setToken } from "@/lib/api";
-import { useCurrentProfile } from "@/lib/session";
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+"use client";
+
+import dynamic from "next/dynamic";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Link } from "@/src/lib/router-compat";
+import { api } from "@/lib/api";
+import { useCurrentProfile } from "@/lib/session";
+import { PageHeader } from "@/components/ui/page-header";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Plus, Send } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Loader2, RefreshCw } from "lucide-react";
 
-// Lazy load react-apexcharts for SSR safety
-const Chart = lazy(() => import("react-apexcharts"));
+const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
+interface InsightsOverview {
+  totals: {
+    totalTenants: number;
+    activeTenants: number;
+    suspendedTenants: number;
+    trialTenants: number;
+    expiredTenants: number;
+    todayNewTenants: number;
+    tenantsThisMonth: number;
+    tenantsLastMonth: number;
+    tenantsDeltaPercent: number | null;
+    totalUsers: number;
+    totalEmployees: number;
+    totalEarnings: number;
+  };
+  revenue: {
+    year: number;
+    currency: string;
+    thisMonth: number;
+    lastMonth: number;
+    deltaPercent: number | null;
+    yearTotal: number;
+    previousYearTotal: number;
+    yearDeltaPercent: number | null;
+    monthlySeries: Array<{
+      month: string;
+      monthIndex: number;
+      revenue: number;
+      count: number;
+    }>;
+  };
+  companiesRegistered: {
+    range: "week" | "month" | "year";
+    categories: string[];
+    counts: number[];
+    periodTotal: number;
+    previousPeriodTotal: number;
+    deltaPercent: number | null;
+  };
+  planDistribution: {
+    range: "month" | "year";
+    items: Array<{
+      planId: string | null;
+      name: string;
+      count: number;
+      percentage: number;
+    }>;
+    allTimeItems: Array<{
+      planId: string | null;
+      name: string;
+      count: number;
+      percentage: number;
+    }>;
+    totalInRange: number;
+    totalAllTime: number;
+  };
+  recentTransactions: Array<{
+    id: string;
+    invoiceId: string;
+    tenantId: string;
+    tenantName: string;
+    tenantSlug: string;
+    companyLogo: string | null;
+    amount: number;
+    currency: string;
+    status: "Paid" | "Unpaid" | "Failed";
+    rawStatus: string;
+    planName: string;
+    billingCycle: string;
+    paymentMethod: string;
+    createdAt: string;
+  }>;
+  recentlyRegistered: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    logoUrl: string | null;
+    planName: string;
+    billingCycle: string;
+    usersCount: number;
+    employeesCount: number;
+    domain: string;
+    createdAt: string;
+  }>;
+  recentlyExpired: Array<{
+    id: string;
+    tenantId: string;
+    tenantName: string;
+    tenantSlug: string;
+    companyLogo: string | null;
+    planName: string;
+    billingCycle: string;
+    status: string;
+    expiresAt: string | null;
+    adminEmail: string | null;
+  }>;
+  pendingRequests: Array<{
+    id: string;
+    ticketCode: string;
+    tenantId: string;
+    tenantName: string;
+    tenantSlug: string;
+    companyLogo: string | null;
+    domain: string;
+    subject: string;
+    requestType: string;
+    targetAddonSlug: string | null;
+    priority: string;
+    status: string;
+    createdAt: string;
+  }>;
+  sparklines: {
+    tenants: number[];
+    revenue: number[];
+  };
+  measuredAt: string;
+}
 
+const PLAN_COLORS = ["#0d6efd", "#16a34a", "#f59e0b", "#7c3aed", "#0284c7", "#e11d48"];
 
-/**
- * Mini Sparkline Bar Chart (replicates peity bar charts)
- */
-function SparklineBar({ data, color = "#FF6F28" }: { data: number[]; color?: string }) {
+function formatINR(amount: number, decimals = 0): string {
+  const safe = Number.isFinite(amount) ? amount : 0;
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(safe);
+}
+
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function DeltaBadge({ delta }: { delta: number | null | undefined }) {
+  if (delta === null || delta === undefined || !Number.isFinite(delta)) {
+    return (
+      <Badge variant="outline" className="text-[11px] font-medium text-muted-foreground">
+        No prior data
+      </Badge>
+    );
+  }
+  const positive = delta >= 0;
+  return (
+    <Badge variant={positive ? "success" : "destructive"} className="text-[11px] font-semibold">
+      {positive ? `+${delta}%` : `${delta}%`}
+    </Badge>
+  );
+}
+
+function SparklineBar({ data, color = "#0d6efd" }: { data: number[]; color?: string }) {
+  if (!data || data.length === 0) return null;
   const max = Math.max(...data, 1);
   return (
-    <div className="flex items-end gap-1 h-7 shrink-0">
+    <div className="flex items-end gap-1 h-7 shrink-0" aria-hidden="true">
       {data.map((val, idx) => {
-        const heightPct = Math.max(15, (val / max) * 100);
+        const heightPct = val <= 0 ? 12 : Math.max(18, Math.round((val / max) * 100));
         return (
           <div
             key={idx}
-            className="w-1.5 rounded-xs transition-all duration-300 hover:opacity-80"
+            className="w-1.5 rounded-xs transition-all duration-300"
             style={{
               height: `${heightPct}%`,
               backgroundColor: color,
+              opacity: val <= 0 ? 0.25 : 0.9,
             }}
           />
         );
@@ -48,1056 +206,1003 @@ function SparklineBar({ data, color = "#FF6F28" }: { data: number[]; color?: str
   );
 }
 
-function SuperDashboard() {
+function TenantAvatar({ name, logoUrl }: { name: string; logoUrl?: string | null }) {
+  const initials = (name || "W")
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase() || "")
+    .join("");
+  if (logoUrl) {
+    return (
+      <div className="size-9 rounded-lg bg-muted/60 border border-border/60 flex items-center justify-center overflow-hidden shrink-0">
+        <img src={logoUrl} alt={name} className="size-full object-contain p-1" />
+      </div>
+    );
+  }
+  return (
+    <div className="size-9 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center justify-center text-xs font-bold shrink-0">
+      {initials || "W"}
+    </div>
+  );
+}
+
+export default function SuperDashboard() {
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const { data: profile } = useCurrentProfile();
   const [isMounted, setIsMounted] = useState(false);
+
+  const currentYear = new Date().getFullYear();
+  const yearOptions = useMemo(
+    () => [String(currentYear), String(currentYear - 1), String(currentYear - 2)],
+    [currentYear]
+  );
+
+  const [companyRange, setCompanyRange] = useState<"week" | "month" | "year">("week");
+  const [revenueYear, setRevenueYear] = useState<string>(String(currentYear));
+  const [plansRange, setPlansRange] = useState<"month" | "year">("month");
+  const [expiredTab, setExpiredTab] = useState<"expired" | "request">("expired");
+  const [remindingTenantId, setRemindingTenantId] = useState<string | null>(null);
+
+  const [ticketActionDialog, setTicketActionDialog] = useState<{
+    open: boolean;
+    mode: "approve" | "reject";
+    ticket: InsightsOverview["pendingRequests"][number] | null;
+    note: string;
+  }>({
+    open: false,
+    mode: "approve",
+    ticket: null,
+    note: "",
+  });
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Filter dropdown states
-  const [companyFilter, setCompanyFilter] = useState("This Week");
-  const [revenueYear, setRevenueYear] = useState("2025");
-  const [plansFilter, setPlansFilter] = useState("This Month");
-  const [expiredTab, setExpiredTab] = useState<"expired" | "request">("expired");
-
-  // Quick Action Dialog States
-  const [isCreateTenantOpen, setIsCreateTenantOpen] = useState(false);
-  const [newTenantName, setNewTenantName] = useState("");
-  const [newTenantSlug, setNewTenantSlug] = useState("");
-  const [isCreatingTenant, setIsCreatingTenant] = useState(false);
-
-  const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
-  const [broadcastTitle, setBroadcastTitle] = useState("");
-  const [broadcastMessage, setBroadcastMessage] = useState("");
-  const [isSendingBroadcast, setIsSendingBroadcast] = useState(false);
-
-  // 1. Fetch Real Stats & Data from Backend
-  const { data: stats } = useQuery({
-    queryKey: ["super-realtime-stats"],
+  const {
+    data: overview,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useQuery<InsightsOverview>({
+    queryKey: ["super-insights-overview", revenueYear, companyRange, plansRange],
     staleTime: 60 * 1000,
     queryFn: async () => {
-      try {
-        const [superStats, tenants, txns] = await Promise.all([
-          api.get("/super/stats").catch(() => null),
-          api.get("/super/tenants").catch(() => []),
-          api.get("/super/transactions").catch(() => []),
-        ]);
-        return {
-          totalTenants: superStats?.totalTenants ?? tenants?.length ?? 0,
-          activeTenants: superStats?.activeTenants ?? 0,
-          totalUsers: superStats?.totalUsers ?? 0,
-          mrr: superStats?.mrr ?? 0,
-          todayNewTenants: tenants?.filter((t: any) => {
-            const today = new Date().toDateString();
-            return new Date(t.createdAt).toDateString() === today;
-          }).length || 0,
-          tenantsList: tenants || [],
-          transactionsList: txns || [],
-        };
-      } catch {
-        return {
-          totalTenants: 0,
-          activeTenants: 0,
-          totalUsers: 0,
-          mrr: 0,
-          todayNewTenants: 0,
-          tenantsList: [],
-          transactionsList: [],
-        };
-      }
+      const res = await api.get(
+        `/super/insights/overview?year=${encodeURIComponent(revenueYear)}&companyRange=${encodeURIComponent(
+          companyRange
+        )}&plansRange=${encodeURIComponent(plansRange)}`
+      );
+      return (res?.data || res || {}) as InsightsOverview;
     },
   });
 
-  // Create New Tenant Handler
-  async function handleCreateTenant() {
-    if (!newTenantName || !newTenantSlug) {
-      return toast.error("Please fill in workspace name and slug");
-    }
-    setIsCreatingTenant(true);
-    try {
-      await api.post("/super/tenants", {
-        name: newTenantName,
-        slug: newTenantSlug.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
-      });
-      toast.success(`ERP Workspace "${newTenantName}" provisioned successfully!`);
-      setNewTenantName("");
-      setNewTenantSlug("");
-      setIsCreateTenantOpen(false);
-      qc.invalidateQueries({ queryKey: ["super-realtime-stats"] });
-    } catch (e: any) {
-      toast.error(e.message || "Failed to provision workspace");
-    } finally {
-      setIsCreatingTenant(false);
-    }
-  }
+  const remindMutation = useMutation({
+    mutationFn: async (tenantId: string) => {
+      setRemindingTenantId(tenantId);
+      const res = await api.post(`/super/insights/tenants/${encodeURIComponent(tenantId)}/remind`, {});
+      return res?.data || res || {};
+    },
+    onSuccess: (data: any) => {
+      toast.success(data?.message || "Subscription renewal reminder email dispatched.");
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to send renewal reminder email.");
+    },
+    onSettled: () => {
+      setRemindingTenantId(null);
+    },
+  });
 
-  // Send Broadcast Handler
-  async function handleSendBroadcast() {
-    if (!broadcastTitle || !broadcastMessage) {
-      return toast.error("Please provide both title and message");
-    }
-    setIsSendingBroadcast(true);
-    try {
-      await api.put("/cms/pages/system-platform-broadcast", {
-        title: broadcastTitle,
-        content: { title: broadcastTitle, message: broadcastMessage, sentAt: new Date().toISOString() },
-        published: true,
-      });
-      toast.success("Broadcast message transmitted to all tenants!");
-      setBroadcastTitle("");
-      setBroadcastMessage("");
-      setIsBroadcastOpen(false);
-    } catch (e: any) {
-      toast.error(e.message || "Failed to broadcast");
-    } finally {
-      setIsSendingBroadcast(false);
-    }
-  }
+  const ticketActionMutation = useMutation({
+    mutationFn: async (payload: {
+      ticketId: string;
+      mode: "approve" | "reject";
+      targetAddonSlug: string | null;
+      note: string;
+    }) => {
+      const isApprove = payload.mode === "approve";
+      const body = isApprove
+        ? {
+            action: payload.targetAddonSlug ? "activate_addon" : "approved",
+            status: "resolved",
+            adminNotes: payload.note.trim() || "Approved from Super Admin Dashboard",
+            replyMessage:
+              payload.note.trim() ||
+              "Your upgrade/addon request has been reviewed and approved by Platform Administration.",
+          }
+        : {
+            action: "rejected",
+            status: "closed",
+            adminNotes: payload.note.trim() || "Rejected from Super Admin Dashboard",
+            replyMessage:
+              payload.note.trim() ||
+              "Your request could not be approved at this time. Please contact platform support for details.",
+          };
 
-  // Action feedback handlers
-  const handleSendReminder = (companyName: string) => {
-    toast.success(`Subscription renewal reminder dispatched to ${companyName}!`);
-  };
+      const res = await api.post(`/support/platform/tickets/${encodeURIComponent(payload.ticketId)}/action`, body);
+      return res?.data || res || {};
+    },
+    onSuccess: (_data, variables) => {
+      toast.success(
+        variables.mode === "approve"
+          ? "Request approved and ticket resolved."
+          : "Request rejected and ticket closed."
+      );
+      setTicketActionDialog({ open: false, mode: "approve", ticket: null, note: "" });
+      qc.invalidateQueries({ queryKey: ["super-insights-overview"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to process ticket action.");
+    },
+  });
 
-  const handleApproveRequest = (companyName: string) => {
-    toast.success(`Plan upgrade request for ${companyName} approved successfully!`);
-  };
+  const totals = overview?.totals;
+  const revenue = overview?.revenue;
+  const companiesReg = overview?.companiesRegistered;
+  const planDist = overview?.planDistribution;
 
-  const handleRejectRequest = (companyName: string) => {
-    toast.info(`Plan upgrade request for ${companyName} was rejected.`);
-  };
+  const activePlanItems = useMemo(() => {
+    if (!planDist) return [];
+    return planDist.items && planDist.items.length > 0 ? planDist.items : [];
+  }, [planDist]);
 
-  // ─── APEX CHARTS CONFIGURATIONS ─────────────────────────────
-  // 1. Weekly Companies Bar Chart
   const companyChartOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
       chart: {
-        height: 270,
         type: "bar",
         toolbar: { show: false },
+        fontFamily: "inherit",
       },
-      colors: ["#212529"],
+      colors: ["#0d6efd"],
       plotOptions: {
         bar: {
-          borderRadius: 8,
-          borderRadiusWhenStacked: "all",
-          columnWidth: "40%",
-          horizontal: false,
-          colors: {
-            backgroundBarColors: ["#f3f4f6"],
-            backgroundBarOpacity: 0.6,
-            hover: {
-              enabled: true,
-              borderColor: "#F26522",
-            },
-          },
+          borderRadius: 6,
+          columnWidth: "46%",
         },
       },
-      series: [
-        {
-          name: "Company",
-          data: [40, 60, 20, 80, 60, 60, 60],
-        },
-      ],
       xaxis: {
-        categories: ["M", "T", "W", "T", "F", "S", "S"],
-        labels: {
-          style: {
-            colors: "#6B7280",
-            fontSize: "12px",
-          },
-        },
-        axisBorder: { show: false },
-        axisTicks: { show: false },
-      },
-      yaxis: {
-        show: false,
-      },
-      grid: {
-        borderColor: "#E5E7EB",
-        strokeDashArray: 4,
-        padding: { left: -5, right: 0, top: -10, bottom: 0 },
-      },
-      legend: { show: false },
-      dataLabels: { enabled: false },
-      tooltip: {
-        theme: "dark",
-        y: {
-          formatter: (val: number) => `${val} Companies`,
-        },
-      },
-    }),
-    []
-  );
-
-  // 2. Revenue Stacked Bar Chart
-  const revenueChartOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: {
-        height: 270,
-        type: "bar",
-        stacked: true,
-        toolbar: { show: false },
-      },
-      colors: ["#f26522", "#0c4b5e", "#1b84ff", "#F3F4F6"],
-      plotOptions: {
-        bar: {
-          borderRadius: 5,
-          borderRadiusWhenStacked: "last",
-          columnWidth: "50%",
-          horizontal: false,
-        },
-      },
-      series: [
-        {
-          name: "Income Base (25%)",
-          data: [25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 20, 25],
-        },
-        {
-          name: "Income Mid (30%)",
-          data: [30, 5, 20, 30, 30, 30, 30, 30, 30, 30, 0, 30],
-        },
-        {
-          name: "Income Top (5%)",
-          data: [5, 0, 0, 25, 30, 35, 25, 25, 25, 30, 0, 25],
-        },
-        {
-          name: "Remaining/Expenses",
-          data: [40, 70, 55, 20, 15, 10, 20, 20, 20, 15, 80, 20],
-        },
-      ],
-      xaxis: {
-        categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-        labels: {
-          style: { colors: "#6B7280", fontSize: "11px" },
-        },
+        categories: companiesReg?.categories || [],
+        labels: { style: { colors: "#64748b", fontSize: "11px" } },
         axisBorder: { show: false },
         axisTicks: { show: false },
       },
       yaxis: {
         min: 0,
-        max: 100,
+        forceNiceScale: true,
         labels: {
-          style: { colors: "#6B7280", fontSize: "11px" },
-          formatter: (value: number) => `${value}K`,
+          style: { colors: "#64748b", fontSize: "11px" },
+          formatter: (val: number) => String(Math.round(val)),
         },
       },
       grid: {
-        borderColor: "transparent",
-        padding: { left: -5, right: 0 },
+        borderColor: "rgba(148, 163, 184, 0.2)",
+        strokeDashArray: 4,
       },
-      legend: { show: false },
       dataLabels: { enabled: false },
+      legend: { show: false },
       tooltip: {
-        shared: true,
-        intersect: false,
         theme: "dark",
         y: {
-          formatter: (val: number) => `$${val}K`,
+          formatter: (val: number) => `${val} ${val === 1 ? "Workspace" : "Workspaces"}`,
         },
       },
     }),
-    []
+    [companiesReg]
   );
 
-  // 3. Top Plans Donut Chart
-  const planChartOptions: ApexCharts.ApexOptions = useMemo(
+  const companyChartSeries = useMemo(
+    () => [
+      {
+        name: "Registered",
+        data: companiesReg?.counts || [],
+      },
+    ],
+    [companiesReg]
+  );
+
+  const revenueChartOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
       chart: {
-        height: 230,
-        type: "donut",
+        type: "bar",
         toolbar: { show: false },
+        fontFamily: "inherit",
       },
-      colors: ["#FFC107", "#1B84FF", "#F26522"],
-      series: [20, 60, 20],
-      labels: ["Enterprise", "Premium", "Basic"],
+      colors: ["#0d6efd"],
       plotOptions: {
-        pie: {
-          donut: {
-            size: "62%",
-            labels: { show: false },
+        bar: {
+          borderRadius: 6,
+          columnWidth: "52%",
+        },
+      },
+      xaxis: {
+        categories: (revenue?.monthlySeries || []).map((m) => m.month),
+        labels: { style: { colors: "#64748b", fontSize: "11px" } },
+        axisBorder: { show: false },
+        axisTicks: { show: false },
+      },
+      yaxis: {
+        min: 0,
+        labels: {
+          style: { colors: "#64748b", fontSize: "11px" },
+          formatter: (val: number) => {
+            if (val >= 100000) return `₹${(val / 100000).toFixed(1)}L`;
+            if (val >= 1000) return `₹${(val / 1000).toFixed(0)}k`;
+            return `₹${Math.round(val)}`;
           },
         },
       },
-      stroke: {
-        width: 0,
+      grid: {
+        borderColor: "rgba(148, 163, 184, 0.2)",
+        strokeDashArray: 4,
       },
+      dataLabels: { enabled: false },
+      legend: { show: false },
+      tooltip: {
+        theme: "dark",
+        y: {
+          formatter: (val: number) => formatINR(val, 2),
+        },
+      },
+    }),
+    [revenue]
+  );
+
+  const revenueChartSeries = useMemo(
+    () => [
+      {
+        name: `Revenue (${revenueYear})`,
+        data: (revenue?.monthlySeries || []).map((m) => m.revenue),
+      },
+    ],
+    [revenue, revenueYear]
+  );
+
+  const planChartOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: {
+        type: "donut",
+        toolbar: { show: false },
+        fontFamily: "inherit",
+      },
+      colors: PLAN_COLORS,
+      labels: activePlanItems.map((p) => p.name),
+      plotOptions: {
+        pie: {
+          donut: {
+            size: "64%",
+            labels: {
+              show: true,
+              total: {
+                show: true,
+                label: "Plans",
+                formatter: () => String(planDist?.totalInRange || 0),
+              },
+            },
+          },
+        },
+      },
+      stroke: { width: 0 },
       legend: { show: false },
       dataLabels: { enabled: false },
       tooltip: {
         theme: "dark",
         y: {
-          formatter: (val: number) => `${val}%`,
+          formatter: (val: number) => `${val} ${val === 1 ? "tenant" : "tenants"}`,
         },
       },
     }),
-    []
+    [activePlanItems, planDist]
   );
 
+  const planChartSeries = useMemo(() => activePlanItems.map((p) => p.count), [activePlanItems]);
+
+  const adminGreetingName =
+    profile?.full_name?.trim()?.split(/\s+/)[0] ||
+    profile?.email?.split("@")[0] ||
+    "Administrator";
+
+  const activeRatio =
+    totals && totals.totalTenants > 0
+      ? Math.round((totals.activeTenants / totals.totalTenants) * 100)
+      : 0;
+
   return (
-    <div className="space-y-6">
-      {/* ─── Breadcrumb & Top Bar ─────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 page-breadcrumb">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100 mb-1">
-            Dashboard
-          </h2>
-          <nav aria-label="breadcrumb">
-            <ol className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <li>
-                <Link to="/super" className="hover:text-primary transition-colors flex items-center">
-                  <i className="ti ti-smart-home text-sm"></i>
-                </Link>
-              </li>
-              <li>/</li>
-              <li className="text-gray-600 dark:text-gray-400">Super Admin</li>
-              <li>/</li>
-              <li className="font-semibold text-gray-900 dark:text-gray-200">Dashboard</li>
-            </ol>
-          </nav>
-        </div>
+    <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
+      <PageHeader
+        title="Super Admin Dashboard"
+        description={`Welcome back, ${adminGreetingName}. Real-time platform telemetry across tenants, subscriptions, billing, and support requests.`}
+        icon={<i className="ph-duotone ph-squares-four text-2xl" />}
+        badge={
+          <Badge variant="soft" className="text-[11px]">
+            <i className="ph ph-pulse mr-1" />
+            Live Telemetry
+          </Badge>
+        }
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="gap-1.5"
+            >
+              <RefreshCw className={`size-3.5 ${isFetching ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            <Button asChild variant="outline" size="sm" className="gap-1.5">
+              <Link to="/super/notifications">
+                <i className="ph ph-megaphone text-sm" />
+                Broadcast Alert
+              </Link>
+            </Button>
+            <Button asChild variant="primary" size="sm" className="gap-1.5">
+              <Link to="/super/tenants">
+                <i className="ph ph-plus text-sm" />
+                Create Tenant
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
-        {/* Right Toolbar: Date Range Picker & Controls */}
-        <div className="flex items-center gap-2">
-          <div className="relative inline-flex items-center">
-            <span className="absolute left-3 text-muted-foreground pointer-events-none">
-              <i className="ti ti-calendar text-sm"></i>
-            </span>
-            <input
-              type="text"
-              readOnly
-              value="01/09/2026 - 30/09/2026"
-              className="pl-9 pr-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-border rounded-md shadow-2xs font-medium text-gray-700 dark:text-gray-300 w-56 focus:outline-none"
-            />
+      {error && (
+        <Card className="p-4 border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <i className="ph ph-warning-circle text-base shrink-0" />
+            <span>Failed to load live dashboard metrics. Check your network or server connection.</span>
           </div>
+          <Button variant="outline" size="xs" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </Card>
+      )}
 
-          <button
-            type="button"
-            className="size-8 rounded-md border border-border bg-white dark:bg-slate-900 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors shadow-2xs"
-            title="Collapse Header"
-          >
-            <i className="ti ti-chevrons-up text-sm"></i>
-          </button>
-        </div>
-      </div>
-
-      {/* ─── Welcome Wrap Banner ──────────────────────────────────────────── */}
-      <div className="welcome-wrap relative rounded-lg p-6 sm:p-8 overflow-hidden text-white shadow-md">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* ─── Welcome Summary Strip ─────────────────────────────────────────── */}
+      <Card className="border border-border/80 rounded-xl bg-slate-900 text-white p-5 sm:p-6 shadow-xs overflow-hidden relative">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div className="space-y-1">
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white drop-shadow-xs">
-              Welcome Back, {profile?.full_name?.split(" ")[0] || "Adrian"}
+            <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white">
+              Welcome back, {adminGreetingName}
             </h2>
-            <p className="text-sm sm:text-base text-orange-100 font-medium">
-              {stats?.todayNewTenants ?? 14} New Companies Subscribed Today !!!
+            <p className="text-xs sm:text-sm text-slate-300">
+              {isLoading ? (
+                "Syncing workspace registrations..."
+              ) : (
+                <>
+                  <span className="font-semibold text-white">{totals?.todayNewTenants ?? 0}</span>{" "}
+                  {(totals?.todayNewTenants ?? 0) === 1 ? "new workspace" : "new workspaces"} provisioned today
+                  {" · "}
+                  <span className="font-semibold text-white">{totals?.suspendedTenants ?? 0}</span> suspended
+                  {" · "}
+                  <span className="font-semibold text-white">{totals?.trialTenants ?? 0}</span> on trial
+                </>
+              )}
             </p>
           </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <Link
-              to="/super/tenants"
-              className="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold rounded-md bg-[#212529] hover:bg-black text-white shadow-xs transition-colors"
-            >
-              Companies
-            </Link>
-            <Link
-              to="/super/plans"
-              className="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold rounded-md bg-white hover:bg-slate-100 text-gray-900 shadow-xs transition-colors"
-            >
-              All Packages
-            </Link>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button asChild variant="secondary" size="sm">
+              <Link to="/super/tenants">
+                <i className="ph ph-buildings text-sm" />
+                Companies
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm" className="bg-transparent border-slate-700 text-white hover:bg-slate-800 hover:text-white">
+              <Link to="/super/plans">
+                <i className="ph ph-package text-sm" />
+                All Packages
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm" className="bg-transparent border-slate-700 text-white hover:bg-slate-800 hover:text-white">
+              <Link to="/super/referrals">
+                <i className="ph ph-gift text-sm" />
+                Referrals
+              </Link>
+            </Button>
           </div>
         </div>
+      </Card>
 
-        {/* Vector Background Illustrations */}
-        <div className="welcome-bg absolute inset-0 pointer-events-none overflow-hidden select-none">
-          <img
-            src="/ui-assets/bg/welcome-bg-02.svg"
-            alt="bg shape"
-            className="welcome-bg-01 absolute top-0 left-0 w-auto h-full opacity-80"
-          />
-          <img
-            src="/ui-assets/bg/welcome-bg-03.svg"
-            alt="bg shape"
-            className="welcome-bg-02 absolute top-[20%] left-[40%] w-auto h-auto opacity-75"
-          />
-          <img
-            src="/ui-assets/bg/welcome-bg-01.svg"
-            alt="bg shape"
-            className="welcome-bg-03 absolute bottom-0 right-0 w-auto h-full opacity-80"
-          />
-        </div>
+      {/* ─── ROW 1: 4 Live KPI Stat Cards ─────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* KPI 1: Total Companies */}
+        <Card className="border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col justify-between gap-4">
+          <div className="flex items-center justify-between gap-2">
+            <span className="size-10 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center justify-center">
+              <i className="ph ph-buildings text-lg" />
+            </span>
+            <DeltaBadge delta={totals?.tenantsDeltaPercent} />
+          </div>
+          <div className="flex items-end justify-between gap-2">
+            <div>
+              {isLoading ? (
+                <Skeleton className="h-7 w-20 mb-1" />
+              ) : (
+                <div className="text-2xl font-bold tracking-tight text-foreground">
+                  {(totals?.totalTenants ?? 0).toLocaleString("en-IN")}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground font-medium">Total Companies</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {totals?.tenantsThisMonth ?? 0} this month
+              </p>
+            </div>
+            <SparklineBar data={overview?.sparklines?.tenants || []} color="#0d6efd" />
+          </div>
+        </Card>
+
+        {/* KPI 2: Active Companies */}
+        <Card className="border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col justify-between gap-4">
+          <div className="flex items-center justify-between gap-2">
+            <span className="size-10 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center justify-center">
+              <i className="ph ph-check-circle text-lg" />
+            </span>
+            <Badge variant="success" className="text-[11px]">
+              {activeRatio}% active
+            </Badge>
+          </div>
+          <div className="flex items-end justify-between gap-2">
+            <div>
+              {isLoading ? (
+                <Skeleton className="h-7 w-20 mb-1" />
+              ) : (
+                <div className="text-2xl font-bold tracking-tight text-foreground">
+                  {(totals?.activeTenants ?? 0).toLocaleString("en-IN")}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground font-medium">Active Companies</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {totals?.expiredTenants ?? 0} expired · {totals?.suspendedTenants ?? 0} suspended
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* KPI 3: Total Platform Users & Employees */}
+        <Card className="border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col justify-between gap-4">
+          <div className="flex items-center justify-between gap-2">
+            <span className="size-10 rounded-lg bg-sky-500/10 text-sky-600 border border-sky-500/20 flex items-center justify-center">
+              <i className="ph ph-users-three text-lg" />
+            </span>
+            <Badge variant="info" className="text-[11px]">
+              {(totals?.totalEmployees ?? 0).toLocaleString("en-IN")} employees
+            </Badge>
+          </div>
+          <div className="flex items-end justify-between gap-2">
+            <div>
+              {isLoading ? (
+                <Skeleton className="h-7 w-20 mb-1" />
+              ) : (
+                <div className="text-2xl font-bold tracking-tight text-foreground">
+                  {(totals?.totalUsers ?? 0).toLocaleString("en-IN")}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground font-medium">Total Platform Users</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Across all tenant workspaces
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* KPI 4: Revenue This Month (INR) */}
+        <Card className="border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col justify-between gap-4">
+          <div className="flex items-center justify-between gap-2">
+            <span className="size-10 rounded-lg bg-amber-500/10 text-amber-600 border border-amber-500/20 flex items-center justify-center">
+              <i className="ph ph-currency-inr text-lg" />
+            </span>
+            <DeltaBadge delta={revenue?.deltaPercent} />
+          </div>
+          <div className="flex items-end justify-between gap-2">
+            <div>
+              {isLoading ? (
+                <Skeleton className="h-7 w-28 mb-1" />
+              ) : (
+                <div className="text-2xl font-bold tracking-tight text-foreground">
+                  {formatINR(revenue?.thisMonth ?? 0)}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground font-medium">Revenue This Month</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                All-time: {formatINR(totals?.totalEarnings ?? 0)}
+              </p>
+            </div>
+            <SparklineBar data={overview?.sparklines?.revenue || []} color="#f59e0b" />
+          </div>
+        </Card>
       </div>
 
-      {/* ─── ROW 1: 4 Top KPI Stat Cards ──────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-5 items-stretch">
-        {/* Card 1: Total Companies */}
-        <div className="lg:col-span-3 flex">
-          <div className="card flex-1 h-full bg-white dark:bg-slate-900 border border-border rounded-lg p-5 flex flex-col justify-between shadow-2xs">
-            <div className="flex items-center justify-between mb-4">
-              <span className="size-10 rounded-full bg-[#212529] text-white flex items-center justify-center">
-                <i className="ti ti-building text-base"></i>
-              </span>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                +19.01%
-              </span>
-            </div>
-            <div className="flex items-end justify-between">
-              <div>
-                <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100 mb-0.5">
-                  {(stats?.totalTenants ?? 5468).toLocaleString()}
-                </h2>
-                <p className="text-xs text-muted-foreground font-medium">Total Companies</p>
-              </div>
-              <SparklineBar data={[5, 10, 7, 5, 10, 7, 5]} color="#FF6F28" />
-            </div>
-          </div>
-        </div>
-
-        {/* Card 2: Active Companies */}
-        <div className="lg:col-span-3 flex">
-          <div className="card flex-1 h-full bg-white dark:bg-slate-900 border border-border rounded-lg p-5 flex flex-col justify-between shadow-2xs">
-            <div className="flex items-center justify-between mb-4">
-              <span className="size-10 rounded-full bg-[#212529] text-white flex items-center justify-center">
-                <i className="ti ti-carousel-vertical text-base"></i>
-              </span>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                -12%
-              </span>
-            </div>
-            <div className="flex items-end justify-between">
-              <div>
-                <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100 mb-0.5">
-                  {(stats?.activeTenants ?? 4598).toLocaleString()}
-                </h2>
-                <p className="text-xs text-muted-foreground font-medium">Active Companies</p>
-              </div>
-              <SparklineBar data={[5, 3, 7, 6, 3, 10, 5]} color="#FF6F28" />
-            </div>
-          </div>
-        </div>
-
-        {/* Card 3: Total Subscribers */}
-        <div className="lg:col-span-3 flex">
-          <div className="card flex-1 h-full bg-white dark:bg-slate-900 border border-border rounded-lg p-5 flex flex-col justify-between shadow-2xs">
-            <div className="flex items-center justify-between mb-4">
-              <span className="size-10 rounded-full bg-[#212529] text-white flex items-center justify-center">
-                <i className="ti ti-chalkboard-off text-base"></i>
-              </span>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                +6%
-              </span>
-            </div>
-            <div className="flex items-end justify-between">
-              <div>
-                <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100 mb-0.5">
-                  {(stats?.totalUsers ?? 3698).toLocaleString()}
-                </h2>
-                <p className="text-xs text-muted-foreground font-medium">Total Subscribers</p>
-              </div>
-              <SparklineBar data={[8, 10, 10, 8, 8, 10, 8]} color="#FF6F28" />
-            </div>
-          </div>
-        </div>
-
-        {/* Card 4: Total Earnings */}
-        <div className="lg:col-span-3 flex">
-          <div className="card flex-1 h-full bg-white dark:bg-slate-900 border border-border rounded-lg p-5 flex flex-col justify-between shadow-2xs">
-            <div className="flex items-center justify-between mb-4">
-              <span className="size-10 rounded-full bg-[#212529] text-white flex items-center justify-center">
-                <i className="ti ti-businessplan text-base"></i>
-              </span>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                -16%
-              </span>
-            </div>
-            <div className="flex items-end justify-between">
-              <div>
-                <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100 mb-0.5">
-                  $89,878.58
-                </h2>
-                <p className="text-xs text-muted-foreground font-medium">Total Earnings</p>
-              </div>
-              <SparklineBar data={[5, 10, 7, 5, 10, 7, 5]} color="#FF6F28" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── ROW 2: Analytics & Plans Row ─────────────────────────────────── */}
+      {/* ─── ROW 2: Live Charts (Companies, Revenue, Plan Distribution) ───── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-        {/* Left Card: Companies Weekly Activity */}
-        <div className="lg:col-span-3 flex min-w-0">
-          <div className="card flex-1 min-w-0 overflow-hidden h-full bg-white dark:bg-slate-900 border border-border rounded-lg p-5 flex flex-col justify-between shadow-2xs">
-            <div className="flex items-center justify-between pb-2 border-b border-border/60">
-              <h5 className="font-bold text-sm text-gray-900 dark:text-gray-100">Companies</h5>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setCompanyFilter(companyFilter === "This Week" ? "This Month" : "This Week")}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border border-border bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-slate-50 transition-colors shadow-2xs"
-                >
-                  <i className="ti ti-calendar text-xs"></i>
-                  {companyFilter}
-                </button>
-              </div>
-            </div>
+        {/* Companies Registered Chart */}
+        <Card className="lg:col-span-3 border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col justify-between min-w-0">
+          <div className="flex items-center justify-between gap-2 pb-3 border-b border-border/60">
+            <h3 className="text-sm font-semibold text-foreground">Companies</h3>
+            <Select
+              value={companyRange}
+              onValueChange={(v) => setCompanyRange(v as "week" | "month" | "year")}
+            >
+              <SelectTrigger className="h-7 w-[112px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="week">This Week</SelectItem>
+                <SelectItem value="month">This Month</SelectItem>
+                <SelectItem value="year">This Year</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-            <div className="my-2 min-h-[260px] flex items-center justify-center">
-              {isMounted ? (
-                <Suspense fallback={<div className="text-xs text-muted-foreground">Loading chart...</div>}>
+          <div className="my-2 min-h-[250px] flex items-center justify-center">
+            {isLoading ? (
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            ) : isMounted && (companiesReg?.counts?.some((c) => c > 0) ?? false) ? (
+              <div className="w-full">
+                <Suspense fallback={<div className="text-xs text-muted-foreground text-center">Loading chart...</div>}>
                   <Chart
                     options={companyChartOptions}
-                    series={companyChartOptions.series}
+                    series={companyChartSeries}
                     type="bar"
-                    height={260}
+                    height={250}
                     width="100%"
                   />
                 </Suspense>
-              ) : null}
-            </div>
-
-            <p className="text-xs text-muted-foreground flex items-center pt-2 border-t border-border/60">
-              <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 mr-1.5">
-                +6%
-              </span>
-              5 Companies from last month
-            </p>
+              </div>
+            ) : (
+              <div className="text-center py-8 px-4">
+                <i className="ph ph-chart-bar text-2xl text-muted-foreground/60 mb-2 block" />
+                <p className="text-xs font-medium text-muted-foreground">No registrations in this period</p>
+              </div>
+            )}
           </div>
-        </div>
 
-        {/* Center Card: Revenue Stacked Breakdown */}
-        <div className="lg:col-span-6 flex min-w-0">
-          <div className="card flex-1 min-w-0 overflow-hidden h-full bg-white dark:bg-slate-900 border border-border rounded-lg p-5 flex flex-col justify-between shadow-2xs">
-            <div className="flex items-center justify-between pb-2 border-b border-border/60">
-              <h5 className="font-bold text-sm text-gray-900 dark:text-gray-100">Revenue</h5>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setRevenueYear(revenueYear === "2025" ? "2026" : "2025")}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border border-border bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-slate-50 transition-colors shadow-2xs"
-                >
-                  <i className="ti ti-calendar text-xs"></i>
-                  {revenueYear}
-                </button>
+          <div className="pt-3 border-t border-border/60 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>
+              <strong className="text-foreground">{companiesReg?.periodTotal ?? 0}</strong> new
+            </span>
+            <DeltaBadge delta={companiesReg?.deltaPercent} />
+          </div>
+        </Card>
+
+        {/* Monthly Revenue Chart */}
+        <Card className="lg:col-span-6 border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col justify-between min-w-0">
+          <div className="flex items-center justify-between gap-2 pb-3 border-b border-border/60">
+            <h3 className="text-sm font-semibold text-foreground">Revenue</h3>
+            <Select value={revenueYear} onValueChange={setRevenueYear}>
+              <SelectTrigger className="h-7 w-[92px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {yearOptions.map((y) => (
+                  <SelectItem key={y} value={y}>
+                    {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center justify-between flex-wrap gap-2 pt-3 pb-1">
+            <div>
+              <div className="text-xl font-bold tracking-tight text-foreground">
+                {formatINR(revenue?.yearTotal ?? 0)}
               </div>
+              <p className="text-xs text-muted-foreground">
+                Total paid revenue in {revenueYear} (vs {formatINR(revenue?.previousYearTotal ?? 0)} in{" "}
+                {Number(revenueYear) - 1})
+              </p>
             </div>
+            <DeltaBadge delta={revenue?.yearDeltaPercent} />
+          </div>
 
-            {/* Subheader: Revenue KPI & Legend */}
-            <div className="flex items-center justify-between flex-wrap gap-2 pt-3 pb-1">
-              <div>
-                <h4 className="text-xl font-extrabold text-gray-900 dark:text-gray-100">$45,787</h4>
-                <p className="text-xs text-muted-foreground">
-                  <span className="text-emerald-600 font-bold mr-1">+40%</span>
-                  increased from last year
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">
-                <i className="ti ti-circle-filled text-xs text-[#f26522]"></i>
-                Revenue
-              </div>
-            </div>
-
-            <div className="my-1 min-h-[260px] flex items-center justify-center">
-              {isMounted ? (
-                <Suspense fallback={<div className="text-xs text-muted-foreground">Loading chart...</div>}>
+          <div className="my-1 min-h-[250px] flex items-center justify-center">
+            {isLoading ? (
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            ) : isMounted && (revenue?.yearTotal ?? 0) > 0 ? (
+              <div className="w-full">
+                <Suspense fallback={<div className="text-xs text-muted-foreground text-center">Loading chart...</div>}>
                   <Chart
                     options={revenueChartOptions}
-                    series={revenueChartOptions.series}
+                    series={revenueChartSeries}
                     type="bar"
-                    height={260}
+                    height={250}
                     width="100%"
                   />
                 </Suspense>
-              ) : null}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Card: Top Plans Donut */}
-        <div className="lg:col-span-3 flex min-w-0">
-          <div className="card flex-1 min-w-0 overflow-hidden h-full bg-white dark:bg-slate-900 border border-border rounded-lg p-5 flex flex-col justify-between shadow-2xs">
-            <div className="flex items-center justify-between pb-2 border-b border-border/60">
-              <h5 className="font-bold text-sm text-gray-900 dark:text-gray-100">Top Plans</h5>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setPlansFilter(plansFilter === "This Month" ? "This Week" : "This Month")}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border border-border bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-slate-50 transition-colors shadow-2xs"
-                >
-                  <i className="ti ti-calendar text-xs"></i>
-                  {plansFilter}
-                </button>
               </div>
-            </div>
+            ) : (
+              <div className="text-center py-8 px-4">
+                <i className="ph ph-currency-inr text-2xl text-muted-foreground/60 mb-2 block" />
+                <p className="text-xs font-medium text-muted-foreground">
+                  No paid revenue recorded for {revenueYear}
+                </p>
+              </div>
+            )}
+          </div>
+        </Card>
 
-            <div className="my-2 min-h-[220px] flex items-center justify-center">
-              {isMounted ? (
-                <Suspense fallback={<div className="text-xs text-muted-foreground">Loading chart...</div>}>
+        {/* Top Plans Donut */}
+        <Card className="lg:col-span-3 border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col justify-between min-w-0">
+          <div className="flex items-center justify-between gap-2 pb-3 border-b border-border/60">
+            <h3 className="text-sm font-semibold text-foreground">Plan Distribution</h3>
+            <Select value={plansRange} onValueChange={(v) => setPlansRange(v as "month" | "year")}>
+              <SelectTrigger className="h-7 w-[108px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="month">Last 30d</SelectItem>
+                <SelectItem value="year">This Year</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="my-2 min-h-[210px] flex items-center justify-center">
+            {isLoading ? (
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            ) : isMounted && activePlanItems.length > 0 ? (
+              <div className="w-full">
+                <Suspense fallback={<div className="text-xs text-muted-foreground text-center">Loading chart...</div>}>
                   <Chart
                     options={planChartOptions}
-                    series={planChartOptions.series}
+                    series={planChartSeries}
                     type="donut"
-                    height={220}
+                    height={210}
                     width="100%"
                   />
                 </Suspense>
-              ) : null}
-            </div>
-
-            {/* Plan Breakdown Percentages */}
-            <div className="space-y-2 pt-2 border-t border-border/60">
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300 font-medium">
-                  <i className="ti ti-circle-filled text-xs text-[#F26522]"></i>
-                  Basic
-                </span>
-                <span className="font-bold text-gray-900 dark:text-gray-100">60%</span>
               </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300 font-medium">
-                  <i className="ti ti-circle-filled text-xs text-[#1B84FF]"></i>
-                  Premium
-                </span>
-                <span className="font-bold text-gray-900 dark:text-gray-100">20%</span>
+            ) : (
+              <div className="text-center py-6 px-4">
+                <i className="ph ph-chart-donut text-2xl text-muted-foreground/60 mb-2 block" />
+                <p className="text-xs font-medium text-muted-foreground">
+                  No subscription activity in selected range
+                </p>
               </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300 font-medium">
-                  <i className="ti ti-circle-filled text-xs text-[#FFC107]"></i>
-                  Enterprise
-                </span>
-                <span className="font-bold text-gray-900 dark:text-gray-100">20%</span>
-              </div>
-            </div>
+            )}
           </div>
-        </div>
+
+          <div className="space-y-1.5 pt-3 border-t border-border/60">
+            {activePlanItems.length > 0 ? (
+              activePlanItems.slice(0, 4).map((item, idx) => (
+                <div key={item.planId || item.name} className="flex items-center justify-between text-xs gap-2">
+                  <span className="flex items-center gap-1.5 text-muted-foreground truncate">
+                    <span
+                      className="size-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: PLAN_COLORS[idx % PLAN_COLORS.length] }}
+                    />
+                    <span className="truncate">{item.name}</span>
+                  </span>
+                  <span className="font-semibold text-foreground shrink-0">
+                    {item.count} ({item.percentage}%)
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="text-[11px] text-muted-foreground text-center">
+                Total active subscriptions all-time: {planDist?.totalAllTime ?? 0}
+              </p>
+            )}
+          </div>
+        </Card>
       </div>
 
-      {/* ─── ROW 3: Operational Monitoring (3 Equal Columns) ──────────────── */}
+      {/* ─── ROW 3: Live Operational Monitoring (3 Equal Columns) ─────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
         {/* Column 1: Recent Transactions */}
-        <div className="lg:col-span-4 flex">
-          <div className="card flex-1 h-full bg-white dark:bg-slate-900 border border-border rounded-lg p-5 flex flex-col justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-border/60 mb-3">
-                <h5 className="font-bold text-sm text-gray-900 dark:text-gray-100">Recent Transactions</h5>
-                <Link
-                  to="/super/transactions"
-                  className="px-2.5 py-1 text-xs font-semibold rounded-md border border-border bg-slate-50 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-slate-100 transition-colors shadow-2xs"
-                >
-                  View All
-                </Link>
-              </div>
+        <Card className="lg:col-span-4 border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col">
+          <div className="flex items-center justify-between pb-3 border-b border-border/60 mb-3">
+            <h3 className="text-sm font-semibold text-foreground">Recent Transactions</h3>
+            <Button asChild variant="outline" size="xs">
+              <Link to="/super/transactions">View All</Link>
+            </Button>
+          </div>
 
-              {/* Transactions List */}
-              <div className="space-y-4">
-                {[
-                  {
-                    name: "Stellar Dynamics",
-                    id: "#12457",
-                    date: "14 Jan 2025",
-                    amount: "+$245",
-                    plan: "Basic (Monthly)",
-                    img: "/ui-assets/company/company-02.svg",
-                  },
-                  {
-                    name: "Quantum Nexus",
-                    id: "#65974",
-                    date: "14 Jan 2025",
-                    amount: "+$395",
-                    plan: "Enterprise (Yearly)",
-                    img: "/ui-assets/company/company-03.svg",
-                  },
-                  {
-                    name: "Aurora Technologies",
-                    id: "#22457",
-                    date: "14 Jan 2025",
-                    amount: "+$145",
-                    plan: "Advanced (Monthly)",
-                    img: "/ui-assets/company/company-05.svg",
-                  },
-                  {
-                    name: "TerraFusion Energy",
-                    id: "#43412",
-                    date: "14 Jan 2025",
-                    amount: "+$145",
-                    plan: "Enterprise (Monthly)",
-                    img: "/ui-assets/company/company-07.svg",
-                  },
-                  {
-                    name: "Epicurean Delights",
-                    id: "#43567",
-                    date: "14 Jan 2025",
-                    amount: "+$977",
-                    plan: "Premium (Yearly)",
-                    img: "/ui-assets/company/company-08.svg",
-                  },
-                ].map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center p-2 shrink-0 border border-border/40">
-                        <img src={item.img} alt={item.name} className="w-full h-full object-contain" />
-                      </div>
-                      <div className="min-w-0">
-                        <h6 className="font-semibold text-gray-900 dark:text-gray-100 truncate hover:text-primary transition-colors cursor-pointer">
-                          {item.name}
-                        </h6>
-                        <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                          <span className="text-sky-600 dark:text-sky-400 font-medium">{item.id}</span>
-                          <span>•</span>
-                          <span>{item.date}</span>
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <h6 className="font-bold text-gray-900 dark:text-gray-100">{item.amount}</h6>
-                      <p className="text-[11px] text-muted-foreground">{item.plan}</p>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((n) => (
+                <Skeleton key={n} className="h-11 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : (overview?.recentTransactions?.length ?? 0) === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center py-10 text-center">
+              <i className="ph ph-receipt text-2xl text-muted-foreground/60 mb-2" />
+              <p className="text-xs font-medium text-muted-foreground">No transactions recorded yet</p>
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {overview!.recentTransactions.map((tx) => (
+                <div key={tx.id} className="flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <TenantAvatar name={tx.tenantName} logoUrl={tx.companyLogo} />
+                    <div className="min-w-0">
+                      <p className="font-semibold text-foreground truncate">{tx.tenantName}</p>
+                      <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5 truncate">
+                        <span className="font-mono text-sky-600 dark:text-sky-400">{tx.invoiceId}</span>
+                        <span>·</span>
+                        <span>{formatDate(tx.createdAt)}</span>
+                      </p>
                     </div>
                   </div>
-                ))}
-              </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-bold text-foreground">{formatINR(tx.amount)}</p>
+                    <Badge
+                      variant={
+                        tx.status === "Paid"
+                          ? "success"
+                          : tx.status === "Failed"
+                          ? "destructive"
+                          : "warning"
+                      }
+                      className="text-[10px] px-1.5 py-0 mt-0.5"
+                    >
+                      {tx.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        </div>
+          )}
+        </Card>
 
         {/* Column 2: Recently Registered */}
-        <div className="lg:col-span-4 flex">
-          <div className="card flex-1 h-full bg-white dark:bg-slate-900 border border-border rounded-lg p-5 flex flex-col justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-border/60 mb-3">
-                <h5 className="font-bold text-sm text-gray-900 dark:text-gray-100">Recently Registered</h5>
-                <Link
-                  to="/super/tenants"
-                  className="px-2.5 py-1 text-xs font-semibold rounded-md border border-border bg-slate-50 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-slate-100 transition-colors shadow-2xs"
-                >
-                  View All
-                </Link>
-              </div>
+        <Card className="lg:col-span-4 border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col">
+          <div className="flex items-center justify-between pb-3 border-b border-border/60 mb-3">
+            <h3 className="text-sm font-semibold text-foreground">Recently Registered</h3>
+            <Button asChild variant="outline" size="xs">
+              <Link to="/super/tenants">View All</Link>
+            </Button>
+          </div>
 
-              {/* Registered Companies List */}
-              <div className="space-y-4">
-                {[
-                  {
-                    name: "Pitch",
-                    plan: "Basic (Monthly)",
-                    users: "150 Users",
-                    domain: "pitch.example.com",
-                    img: "/ui-assets/icons/company-icon-11.svg",
-                  },
-                  {
-                    name: "Initech",
-                    plan: "Enterprise (Yearly)",
-                    users: "200 Users",
-                    domain: "initech.example.com",
-                    img: "/ui-assets/icons/company-icon-12.svg",
-                  },
-                  {
-                    name: "Umbrella Corp",
-                    plan: "Advanced (Monthly)",
-                    users: "129 Users",
-                    domain: "umbcorp.example.com",
-                    img: "/ui-assets/icons/company-icon-13.svg",
-                  },
-                  {
-                    name: "Capital Partners",
-                    plan: "Enterprise (Monthly)",
-                    users: "103 Users",
-                    domain: "capitalpart.example.com",
-                    img: "/ui-assets/icons/company-icon-14.svg",
-                  },
-                  {
-                    name: "Massive Dynamic",
-                    plan: "Premium (Yearly)",
-                    users: "108 Users",
-                    domain: "msdynamic.example.com",
-                    img: "/ui-assets/icons/company-icon-15.svg",
-                  },
-                ].map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center p-2 shrink-0 border border-border/40">
-                        <img src={item.img} alt={item.name} className="w-full h-full object-contain" />
-                      </div>
-                      <div className="min-w-0">
-                        <h6 className="font-semibold text-gray-900 dark:text-gray-100 truncate hover:text-primary transition-colors cursor-pointer">
-                          {item.name}
-                        </h6>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">{item.plan}</p>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-0.5">{item.users}</p>
-                      <h6 className="text-[11px] text-muted-foreground font-mono">{item.domain}</h6>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((n) => (
+                <Skeleton key={n} className="h-11 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : (overview?.recentlyRegistered?.length ?? 0) === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center py-10 text-center">
+              <i className="ph ph-buildings text-2xl text-muted-foreground/60 mb-2" />
+              <p className="text-xs font-medium text-muted-foreground">No workspaces registered yet</p>
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {overview!.recentlyRegistered.map((tenant) => (
+                <div key={tenant.id} className="flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <TenantAvatar name={tenant.name} logoUrl={tenant.logoUrl} />
+                    <div className="min-w-0">
+                      <Link
+                        to="/super/tenants"
+                        className="font-semibold text-foreground hover:text-primary transition-colors truncate block"
+                      >
+                        {tenant.name}
+                      </Link>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                        {tenant.planName} ({tenant.billingCycle})
+                      </p>
                     </div>
                   </div>
-                ))}
-              </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-[11px] font-medium text-foreground">
+                      {tenant.usersCount} {tenant.usersCount === 1 ? "User" : "Users"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground font-mono truncate max-w-[130px]">
+                      {tenant.domain}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Column 3: Recently Expired & Pending Requests */}
+        <Card className="lg:col-span-4 border border-border/80 rounded-xl bg-card p-5 shadow-xs flex flex-col">
+          <div className="flex items-center justify-between gap-2 pb-3 border-b border-border/60 mb-3">
+            <h3 className="text-sm font-semibold text-foreground">
+              {expiredTab === "expired" ? "Expired Plans" : "Pending Requests"}
+            </h3>
+
+            <div className="flex items-center p-0.5 bg-muted rounded-md border border-border/60">
+              <button
+                type="button"
+                onClick={() => setExpiredTab("expired")}
+                className={`px-2 py-0.5 text-xs font-semibold rounded transition-colors cursor-pointer ${
+                  expiredTab === "expired"
+                    ? "bg-background text-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Expired ({overview?.recentlyExpired?.length ?? 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setExpiredTab("request")}
+                className={`px-2 py-0.5 text-xs font-semibold rounded transition-colors cursor-pointer ${
+                  expiredTab === "request"
+                    ? "bg-background text-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Requests ({overview?.pendingRequests?.length ?? 0})
+              </button>
             </div>
           </div>
-        </div>
 
-        {/* Column 3: Recent Plan Expired & Request */}
-        <div className="lg:col-span-4 flex">
-          <div className="card flex-1 h-full bg-white dark:bg-slate-900 border border-border rounded-lg p-5 flex flex-col justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-border/60 mb-3">
-                <h5 className="font-bold text-sm text-gray-900 dark:text-gray-100">Recent Plan Expired</h5>
-
-                {/* Tab Switcher */}
-                <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-md border border-border/60">
-                  <button
-                    type="button"
-                    onClick={() => setExpiredTab("expired")}
-                    className={`px-2 py-0.5 text-xs font-semibold rounded transition-all ${
-                      expiredTab === "expired"
-                        ? "bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 shadow-2xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Expired
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExpiredTab("request")}
-                    className={`px-2 py-0.5 text-xs font-semibold rounded transition-all ${
-                      expiredTab === "request"
-                        ? "bg-white dark:bg-slate-700 text-gray-900 dark:text-gray-100 shadow-2xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Request
-                  </button>
-                </div>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((n) => (
+                <Skeleton key={n} className="h-11 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : expiredTab === "expired" ? (
+            (overview?.recentlyExpired?.length ?? 0) === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center py-10 text-center">
+                <i className="ph ph-check-circle text-2xl text-emerald-600/70 mb-2" />
+                <p className="text-xs font-medium text-muted-foreground">No expired subscriptions</p>
               </div>
-
-              {/* Expired Tab List */}
-              {expiredTab === "expired" ? (
-                <div className="space-y-4">
-                  {[
-                    {
-                      name: "Silicon Corp",
-                      expiry: "Expired : 10 Apr 2025",
-                      plan: "Basic (Monthly)",
-                      img: "/ui-assets/icons/company-icon-16.svg",
-                    },
-                    {
-                      name: "Hubspot",
-                      expiry: "Expired : 12 Jun 2025",
-                      plan: "Enterprise (Yearly)",
-                      img: "/ui-assets/icons/company-icon-14.svg",
-                    },
-                    {
-                      name: "Licon Industries",
-                      expiry: "Expired : 16 Jun 2025",
-                      plan: "Advanced (Monthly)",
-                      img: "/ui-assets/icons/company-icon-18.svg",
-                    },
-                    {
-                      name: "TerraFusion Energy",
-                      expiry: "Expired : 12 May 2025",
-                      plan: "Enterprise (Monthly)",
-                      img: "/ui-assets/company/company-07.svg",
-                    },
-                    {
-                      name: "Epicurean Delights",
-                      expiry: "Expired : 15 May 2025",
-                      plan: "Premium (Yearly)",
-                      img: "/ui-assets/company/company-08.svg",
-                    },
-                  ].map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between gap-3 text-xs">
+            ) : (
+              <div className="space-y-3.5">
+                {overview!.recentlyExpired.map((item) => {
+                  const isSending = remindingTenantId === item.tenantId;
+                  return (
+                    <div key={item.id} className="flex items-center justify-between gap-3 text-xs">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center p-2 shrink-0 border border-border/40">
-                          <img src={item.img} alt={item.name} className="w-full h-full object-contain" />
-                        </div>
+                        <TenantAvatar name={item.tenantName} logoUrl={item.companyLogo} />
                         <div className="min-w-0">
-                          <h6 className="font-semibold text-gray-900 dark:text-gray-100 truncate hover:text-primary transition-colors cursor-pointer">
-                            {item.name}
-                          </h6>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">{item.expiry}</p>
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleSendReminder(item.name)}
-                          className="text-[11px] text-sky-600 dark:text-sky-400 underline font-medium hover:text-sky-700 transition-colors block mb-0.5"
-                        >
-                          Send Reminder
-                        </button>
-                        <p className="text-[11px] text-muted-foreground">{item.plan}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                /* Request Tab List */
-                <div className="space-y-4">
-                  {[
-                    {
-                      name: "Silicon Corp",
-                      domain: "silicon.example.com",
-                      img: "/ui-assets/icons/company-icon-16.svg",
-                    },
-                    {
-                      name: "Hubspot",
-                      domain: "hubspot.example.com",
-                      img: "/ui-assets/icons/company-icon-14.svg",
-                    },
-                    {
-                      name: "Licon Industries",
-                      domain: "licon.example.com",
-                      img: "/ui-assets/icons/company-icon-18.svg",
-                    },
-                    {
-                      name: "TerraFusion Energy",
-                      domain: "fusion.example.com",
-                      img: "/ui-assets/company/company-07.svg",
-                    },
-                    {
-                      name: "Epicurean Delights",
-                      domain: "epicuran.example.com",
-                      img: "/ui-assets/company/company-08.svg",
-                    },
-                  ].map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between gap-3 text-xs">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center p-2 shrink-0 border border-border/40">
-                          <img src={item.img} alt={item.name} className="w-full h-full object-contain" />
-                        </div>
-                        <div className="min-w-0">
-                          <h6 className="font-semibold text-gray-900 dark:text-gray-100 truncate">
-                            {item.name}
-                          </h6>
-                          <p className="text-[11px] text-sky-600 dark:text-sky-400 font-mono mt-0.5 truncate">
-                            {item.domain}
+                          <p className="font-semibold text-foreground truncate">{item.tenantName}</p>
+                          <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-0.5">
+                            Expired: {formatDate(item.expiresAt)}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleApproveRequest(item.name)}
-                          className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 underline transition-colors"
+                      <div className="text-right shrink-0 space-y-0.5">
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          disabled={isSending}
+                          onClick={() => remindMutation.mutate(item.tenantId)}
+                          className="h-6 px-2 text-[11px] text-primary hover:text-primary"
                         >
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRejectRequest(item.name)}
-                          className="text-xs font-semibold text-rose-600 hover:text-rose-700 underline transition-colors"
-                        >
-                          Reject
-                        </button>
+                          {isSending ? (
+                            <Loader2 className="size-3 animate-spin" />
+                          ) : (
+                            <i className="ph ph-envelope-simple text-xs" />
+                          )}
+                          Send Reminder
+                        </Button>
+                        <p className="text-[11px] text-muted-foreground truncate max-w-[120px]">
+                          {item.planName}
+                        </p>
                       </div>
                     </div>
-                  ))}
+                  );
+                })}
+              </div>
+            )
+          ) : (overview?.pendingRequests?.length ?? 0) === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center py-10 text-center">
+              <i className="ph ph-tray text-2xl text-muted-foreground/60 mb-2" />
+              <p className="text-xs font-medium text-muted-foreground">
+                No pending plan or add-on upgrade requests
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              {overview!.pendingRequests.map((ticket) => (
+                <div key={ticket.id} className="flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <TenantAvatar name={ticket.tenantName} logoUrl={ticket.companyLogo} />
+                    <div className="min-w-0">
+                      <p className="font-semibold text-foreground truncate">{ticket.tenantName}</p>
+                      <p className="text-[11px] text-muted-foreground truncate" title={ticket.subject}>
+                        {ticket.subject}
+                      </p>
+                      <p className="text-[10px] font-mono text-sky-600 dark:text-sky-400 mt-0.5">
+                        {ticket.ticketCode} · {ticket.requestType}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button
+                      variant="soft"
+                      size="xs"
+                      onClick={() =>
+                        setTicketActionDialog({
+                          open: true,
+                          mode: "approve",
+                          ticket,
+                          note: "",
+                        })
+                      }
+                      className="h-7 px-2 text-[11px] text-emerald-700 bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20 dark:text-emerald-400"
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() =>
+                        setTicketActionDialog({
+                          open: true,
+                          mode: "reject",
+                          ticket,
+                          note: "",
+                        })
+                      }
+                      className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-500/10 hover:text-rose-600 dark:text-rose-400"
+                    >
+                      Reject
+                    </Button>
+                  </div>
                 </div>
-              )}
+              ))}
             </div>
-          </div>
+          )}
+        </Card>
+      </div>
+
+      {/* ─── Ticket Approve / Reject Confirmation Dialog ───────────────────── */}
+      <ConfirmationDialog
+        open={ticketActionDialog.open}
+        onOpenChange={(open) =>
+          setTicketActionDialog((prev) => ({ ...prev, open }))
+        }
+        variant={ticketActionDialog.mode === "reject" ? "destructive" : "default"}
+        icon={
+          ticketActionDialog.mode === "approve" ? (
+            <i className="ph ph-check-circle text-xl" />
+          ) : (
+            <i className="ph ph-x-circle text-xl" />
+          )
+        }
+        title={
+          ticketActionDialog.mode === "approve"
+            ? `Approve request from ${ticketActionDialog.ticket?.tenantName || "tenant"}?`
+            : `Reject request from ${ticketActionDialog.ticket?.tenantName || "tenant"}?`
+        }
+        description={
+          ticketActionDialog.ticket
+            ? `Ticket ${ticketActionDialog.ticket.ticketCode}: ${ticketActionDialog.ticket.subject}${
+                ticketActionDialog.mode === "approve" && ticketActionDialog.ticket.targetAddonSlug
+                  ? ` — This will automatically activate add-on "${ticketActionDialog.ticket.targetAddonSlug}".`
+                  : ""
+              }`
+            : ""
+        }
+        confirmLabel={ticketActionDialog.mode === "approve" ? "Approve Request" : "Reject Request"}
+        isLoading={ticketActionMutation.isPending}
+        onConfirm={() => {
+          if (!ticketActionDialog.ticket) return;
+          ticketActionMutation.mutate({
+            ticketId: ticketActionDialog.ticket.id,
+            mode: ticketActionDialog.mode,
+            targetAddonSlug: ticketActionDialog.ticket.targetAddonSlug,
+            note: ticketActionDialog.note,
+          });
+        }}
+      >
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium">
+            {ticketActionDialog.mode === "approve" ? "Approval Note (optional)" : "Rejection Reason (optional)"}
+          </Label>
+          <Textarea
+            rows={2}
+            value={ticketActionDialog.note}
+            onChange={(e) =>
+              setTicketActionDialog((prev) => ({ ...prev, note: e.target.value }))
+            }
+            placeholder={
+              ticketActionDialog.mode === "approve"
+                ? "Add a note for the workspace admin..."
+                : "Explain why this request was declined..."
+            }
+            className="text-xs"
+          />
         </div>
-      </div>
-
-      {/* ─── Footer ───────────────────────────────────────────────────────── */}
-      <div className="footer flex flex-col sm:flex-row items-center justify-between border-t border-border pt-4 pb-2 text-xs text-muted-foreground">
-        <p className="mb-1 sm:mb-0">&copy; {new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.</p>
-        <p>
-          Maintained &amp; Secured By{" "}
-          <span className="text-primary font-medium">Webfamily Tech Solutions</span>
-        </p>
-      </div>
-
-      {/* ─── Quick Actions Dialogs (Preserved) ─────────────────────────────── */}
-      {/* Create Tenant Modal */}
-      <Dialog open={isCreateTenantOpen} onOpenChange={setIsCreateTenantOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Provision New ERP Tenant Workspace</DialogTitle>
-            <DialogDescription>
-              Create an isolated organization tenant with dedicated database records, employee records,
-              and default admin credentials.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Workspace Name</Label>
-              <Input
-                placeholder="Apex Technologies Inc."
-                value={newTenantName}
-                onChange={(e) => {
-                  setNewTenantName(e.target.value);
-                  setNewTenantSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"));
-                }}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Workspace Slug (URL Subdomain)</Label>
-              <Input
-                placeholder="apex-global"
-                value={newTenantSlug}
-                onChange={(e) => setNewTenantSlug(e.target.value)}
-                className="font-mono text-xs"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateTenantOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateTenant} disabled={isCreatingTenant} className="bg-purple-600 hover:bg-purple-700 text-white">
-              {isCreatingTenant ? <Loader2 className="size-4 animate-spin mr-2" /> : <Plus className="size-4 mr-2" />}
-              Provision Tenant
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Broadcast Announcement Modal */}
-      <Dialog open={isBroadcastOpen} onOpenChange={setIsBroadcastOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Broadcast System Announcement</DialogTitle>
-            <DialogDescription>
-              Publish an immediate system-wide banner notification to all ERP & HRMS active workspaces.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Announcement Title</Label>
-              <Input
-                placeholder="Scheduled Maintenance & Platform Upgrade"
-                value={broadcastTitle}
-                onChange={(e) => setBroadcastTitle(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Announcement Content</Label>
-              <Textarea
-                placeholder="We are upgrading the core ERP database engine on Sunday at 02:00 UTC. Systems will remain operational."
-                value={broadcastMessage}
-                onChange={(e) => setBroadcastMessage(e.target.value)}
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsBroadcastOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSendBroadcast} disabled={isSendingBroadcast} className="bg-purple-600 hover:bg-purple-700 text-white">
-              {isSendingBroadcast ? <Loader2 className="size-4 animate-spin mr-2" /> : <Send className="size-4 mr-2" />}
-              Broadcast Banner
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      </ConfirmationDialog>
     </div>
   );
 }
-
-export default SuperDashboard;
