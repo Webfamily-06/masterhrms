@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -39,6 +40,7 @@ import {
   FileText,
   Upload,
   Eye,
+  EyeOff,
   Trash2,
   Lock,
   Loader2,
@@ -49,11 +51,21 @@ import {
   Plus,
 } from "lucide-react";
 import { EMPLOYEE_DOCUMENT_CATEGORIES, getDocumentCategorySlug } from "@/lib/constants/employee-documents";
-import { COUNTRIES } from "@/lib/address/countries";
+import { CountrySelect } from "@/components/ui/country-select";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { getStatesByCountry } from "@/lib/address/india-states";
 import { getDistrictsByState } from "@/lib/address/india-districts";
 import { lookupPincode } from "@/lib/address/address-lookup";
 import { UniversalFilePicker } from "@/components/files/file-picker";
+import { cn } from "@/lib/utils";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+
+function extractDigits(val: string): string {
+  return String(val || "").replace(/\D/g, "");
+}
 
 const BLOOD_GROUPS = [
   "A+",
@@ -140,21 +152,32 @@ function EmployeeEditWizardPage() {
     state: "",
     country: "India",
     postalCode: "",
+    maritalStatus: "single",
     emergencyContactName: "",
     emergencyContactRelationship: "",
     emergencyContactRelationshipOther: "",
     emergencyContactPhone: "",
 
-    // Step 4: Banking
+    // Step 4: Banking & Statutory
     bankName: "",
     accountHolderName: "",
     bankAccount: "",
     bicSwift: "",
     bankBranch: "",
     taxPayerId: "",
+    taxRegime: "new",
+    aadhaar: "",
+    uan: "",
+    esiNumber: "",
+    pfNumber: "",
+    pfEligible: true,
+    esiEligible: true,
+    ptEligible: true,
+    tdsEligible: true,
     salary: "",
   });
 
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
@@ -258,6 +281,7 @@ function EmployeeEditWizardPage() {
         state: emp.state || "",
         country: emp.country || "India",
         postalCode: emp.postalCode || "",
+        maritalStatus: emp.maritalStatus || "single",
         emergencyContactName: emp.emergencyContactName || "",
         emergencyContactRelationship: emp.emergencyContactRelationship || "",
         emergencyContactRelationshipOther: emp.emergencyContactRelationshipOther || "",
@@ -270,6 +294,15 @@ function EmployeeEditWizardPage() {
         bicSwift: emp.bicSwift || emp.bankIfsc || "",
         bankBranch: emp.bankBranch || "",
         taxPayerId: emp.taxPayerId || emp.pan || "",
+        taxRegime: emp.taxRegime || "new",
+        aadhaar: emp.aadhaar || "",
+        uan: emp.uan || "",
+        esiNumber: emp.esiNumber || "",
+        pfNumber: emp.pfNumber || "",
+        pfEligible: emp.pfEligible !== undefined ? Boolean(emp.pfEligible) : true,
+        esiEligible: emp.esiEligible !== undefined ? Boolean(emp.esiEligible) : true,
+        ptEligible: emp.ptEligible !== undefined ? Boolean(emp.ptEligible) : true,
+        tdsEligible: emp.tdsEligible !== undefined ? Boolean(emp.tdsEligible) : true,
         salary: emp.salary !== undefined && emp.salary !== null ? String(emp.salary) : "",
       });
     }
@@ -384,51 +417,98 @@ function EmployeeEditWizardPage() {
     }
   };
 
-  // Step Validation Logic
+  // Step Validation Logic (aligned 1:1 with Create Employee page)
   const validateStep = (stepNumber: number): boolean => {
     const newErrors: Record<string, string> = {};
 
     if (stepNumber === 1) {
-      if (!formData.firstName.trim()) newErrors.firstName = "First name is required";
-      if (!formData.lastName.trim()) newErrors.lastName = "Last name is required";
-      if (!formData.employeeCode.trim()) newErrors.employeeCode = "Employee code is required";
-      if (!formData.email.trim()) {
-        newErrors.email = "Email address is required";
-      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
-        newErrors.email = "Invalid email format";
+      const fn = formData.firstName.trim();
+      if (!fn) {
+        newErrors.firstName = "First name is required.";
+      } else if (fn.length < 2) {
+        newErrors.firstName = "First name must be at least 2 characters.";
+      } else if (/^\d+$/.test(fn)) {
+        newErrors.firstName = "First name cannot be numbers only.";
       }
-      if (!formData.phone.trim()) newErrors.phone = "Phone number is required";
-      if (!formData.dateOfBirth) newErrors.dateOfBirth = "Date of birth is required";
-      if (!formData.gender) newErrors.gender = "Gender is required";
+
+      if (!formData.employeeCode.trim()) {
+        newErrors.employeeCode = "Employee code is required.";
+      } else if (!/^[A-Za-z0-9_-]{2,32}$/.test(formData.employeeCode.trim())) {
+        newErrors.employeeCode = "Use 2–32 letters, numbers, hyphens, or underscores.";
+      }
+
+      if (!formData.email.trim()) {
+        newErrors.email = "Email address is required.";
+      } else if (!EMAIL_REGEX.test(formData.email.trim())) {
+        newErrors.email = "Enter a valid email address.";
+      }
+
+      if (formData.password && formData.password.length < 6) {
+        newErrors.password = "New password must be at least 6 characters.";
+      }
+
+      if (formData.phone.trim()) {
+        const phoneDigits = extractDigits(formData.phone);
+        if (phoneDigits.length < 10 || phoneDigits.length > 15) {
+          newErrors.phone = "Enter a valid phone number (10–15 digits).";
+        }
+      }
+
+      if (formData.dateOfBirth) {
+        const dob = new Date(formData.dateOfBirth);
+        const now = new Date();
+        const ageYears = (now.getTime() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+        if (isNaN(dob.getTime()) || dob > now) {
+          newErrors.dateOfBirth = "Date of birth cannot be in the future.";
+        } else if (ageYears < 14) {
+          newErrors.dateOfBirth = "Employee must be at least 14 years old.";
+        }
+      }
+
+      if (!formData.gender) newErrors.gender = "Please select a gender.";
     } else if (stepNumber === 2) {
-      if (branches?.length > 0 && !formData.branchId) newErrors.branchId = "Branch selection is required";
-      if (departments?.length > 0 && !formData.departmentId) newErrors.departmentId = "Department selection is required";
-      if (designations?.length > 0 && !formData.designationId) newErrors.designationId = "Designation selection is required";
-      if (!formData.joinedAt) newErrors.joinedAt = "Date of joining is required";
-      if (!formData.employmentType) newErrors.employmentType = "Employment type is required";
-      if (!formData.status) newErrors.status = "Employee status is required";
+      if (!formData.joinedAt) newErrors.joinedAt = "Date of joining is required.";
+      if (!formData.employmentType) newErrors.employmentType = "Employment type is required.";
+      if (!formData.status) newErrors.status = "Employee status is required.";
     } else if (stepNumber === 3) {
-      if (!formData.addressLine1.trim()) newErrors.addressLine1 = "Address Line 1 is required";
-      if (!formData.city.trim()) newErrors.city = "City is required";
-      if (!formData.state.trim()) newErrors.state = "State / Province is required";
-      if (!formData.country.trim()) newErrors.country = "Country is required";
-      if (!formData.postalCode.trim()) newErrors.postalCode = "Postal / ZIP Code is required";
-      if (!formData.emergencyContactName.trim())
-        newErrors.emergencyContactName = "Emergency contact name is required";
-      if (!formData.emergencyContactRelationship.trim())
-        newErrors.emergencyContactRelationship = "Relationship is required";
-      if (!formData.emergencyContactPhone.trim())
-        newErrors.emergencyContactPhone = "Emergency contact phone is required";
+      if (formData.postalCode.trim()) {
+        const zip = formData.postalCode.trim();
+        if (!/^\d+$/.test(zip)) {
+          newErrors.postalCode = "Pincode / ZIP must contain digits only.";
+        } else if (formData.country === "India" && zip.length !== 6) {
+          newErrors.postalCode = "Indian pincode must be exactly 6 digits.";
+        } else if (zip.length < 4 || zip.length > 10) {
+          newErrors.postalCode = "Postal code must be 4–10 digits.";
+        }
+      }
+      if (formData.emergencyContactPhone.trim()) {
+        const emDigits = extractDigits(formData.emergencyContactPhone);
+        if (emDigits.length < 10 || emDigits.length > 15) {
+          newErrors.emergencyContactPhone = "Enter a valid emergency phone (10–15 digits).";
+        }
+      }
     } else if (stepNumber === 4) {
       if (canEditSensitive) {
-        if (!formData.bankName.trim()) newErrors.bankName = "Bank name is required";
-        if (!formData.accountHolderName.trim())
-          newErrors.accountHolderName = "Account holder name is required";
-        if (!formData.bicSwift.trim())
-          newErrors.bicSwift = "Bank Identifier Code (BIC/SWIFT) is required";
-        if (!formData.bankBranch.trim()) newErrors.bankBranch = "Bank branch is required";
-        if (!formData.salary || isNaN(Number(formData.salary)) || Number(formData.salary) < 0) {
-          newErrors.salary = "Base salary must be a valid non-negative number";
+        if (formData.salary && (!/^\d+(\.\d{1,2})?$/.test(formData.salary) || Number(formData.salary) < 0)) {
+          newErrors.salary = "Enter a valid numeric salary amount.";
+        }
+        if (formData.taxPayerId.trim() && !PAN_REGEX.test(formData.taxPayerId.trim().toUpperCase())) {
+          newErrors.taxPayerId = "Invalid PAN format (e.g. ABCDE1234F).";
+        }
+        if (formData.aadhaar.trim() && !/^\d{12}$/.test(formData.aadhaar.trim())) {
+          newErrors.aadhaar = "Aadhaar number must be exactly 12 digits.";
+        }
+        if (formData.uan.trim() && !/^\d{12}$/.test(formData.uan.trim())) {
+          newErrors.uan = "UAN must be exactly 12 digits.";
+        }
+        if (formData.esiNumber.trim() && !/^\d{10,17}$/.test(formData.esiNumber.trim())) {
+          newErrors.esiNumber = "ESI number must be 10–17 digits.";
+        }
+        if (formData.bankAccount.trim() && !/^\d{9,18}$/.test(formData.bankAccount.trim())) {
+          newErrors.bankAccount = "Account number must be 9–18 digits.";
+        }
+        if (formData.bicSwift.trim() && !IFSC_REGEX.test(formData.bicSwift.trim().toUpperCase())) {
+          newErrors.bicSwift = "Invalid IFSC format (e.g. HDFC0001234).";
         }
       }
     }
@@ -523,20 +603,21 @@ function EmployeeEditWizardPage() {
       shiftId: formData.shiftId || null,
       attendancePolicyId: formData.attendancePolicyId || null,
 
-      addressLine1: formData.addressLine1.trim(),
+      addressLine1: formData.addressLine1.trim() || null,
       addressLine2: formData.addressLine2.trim() || null,
-      city: formData.city.trim(),
+      city: formData.city.trim() || null,
       district: formData.district?.trim() || null,
-      state: formData.state.trim(),
-      country: formData.country.trim(),
-      postalCode: formData.postalCode.trim(),
-      emergencyContactName: formData.emergencyContactName.trim(),
+      state: formData.state.trim() || null,
+      country: formData.country.trim() || null,
+      postalCode: formData.postalCode.trim() || null,
+      maritalStatus: formData.maritalStatus || null,
+      emergencyContactName: formData.emergencyContactName.trim() || null,
       emergencyContactRelationship:
         formData.emergencyContactRelationship === "Other" && formData.emergencyContactRelationshipOther
           ? formData.emergencyContactRelationshipOther.trim()
-          : formData.emergencyContactRelationship.trim(),
+          : formData.emergencyContactRelationship.trim() || null,
       emergencyContactRelationshipOther: formData.emergencyContactRelationshipOther?.trim() || null,
-      emergencyContactPhone: formData.emergencyContactPhone.trim(),
+      emergencyContactPhone: formData.emergencyContactPhone.trim() || null,
     };
 
     if (formData.password && formData.password.trim().length > 0) {
@@ -544,12 +625,23 @@ function EmployeeEditWizardPage() {
     }
 
     if (canEditSensitive) {
-      payload.bankName = formData.bankName.trim();
-      payload.accountHolderName = formData.accountHolderName.trim();
+      payload.bankName = formData.bankName.trim() || null;
+      payload.accountHolderName = formData.accountHolderName.trim() || null;
       payload.bankAccount = formData.bankAccount.trim() || null;
-      payload.bicSwift = formData.bicSwift.trim();
-      payload.bankBranch = formData.bankBranch.trim();
-      payload.taxPayerId = formData.taxPayerId.trim() || null;
+      payload.bicSwift = formData.bicSwift.trim().toUpperCase() || null;
+      payload.bankIfsc = formData.bicSwift.trim().toUpperCase() || null;
+      payload.bankBranch = formData.bankBranch.trim() || null;
+      payload.taxPayerId = formData.taxPayerId.trim().toUpperCase() || null;
+      payload.pan = formData.taxPayerId.trim().toUpperCase() || null;
+      payload.taxRegime = formData.taxRegime || "new";
+      payload.aadhaar = formData.aadhaar.trim() || null;
+      payload.uan = formData.uan.trim() || null;
+      payload.esiNumber = formData.esiNumber.trim() || null;
+      payload.pfNumber = formData.pfNumber.trim() || null;
+      payload.pfEligible = formData.pfEligible;
+      payload.esiEligible = formData.esiEligible;
+      payload.ptEligible = formData.ptEligible;
+      payload.tdsEligible = formData.tdsEligible;
       payload.salary = formData.salary ? Number(formData.salary) : null;
     }
 
@@ -905,30 +997,46 @@ function EmployeeEditWizardPage() {
                   <Label htmlFor="password" className="text-xs font-medium">
                     Password <span className="text-xs text-muted-foreground font-normal">(Optional replacement)</span>
                   </Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => updateField("password", e.target.value)}
-                    placeholder="Leave blank to preserve current password"
-                    autoComplete="new-password"
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    Blank preserves the existing login password without alteration.
-                  </p>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => updateField("password", e.target.value)}
+                      placeholder="Leave blank to preserve current password"
+                      autoComplete="new-password"
+                      className={cn("pr-10", errors.password && "border-destructive focus-visible:ring-destructive")}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {errors.password ? (
+                    <p className="text-[11px] text-destructive">{errors.password}</p>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">
+                      Blank preserves the existing login password without alteration.
+                    </p>
+                  )}
                 </div>
 
-                {/* Phone Number */}
+                {/* Phone Number (Country Flags + Dial Code — identical to Create Employee) */}
                 <div className="space-y-1.5">
                   <Label htmlFor="phone" className="text-xs font-medium">
-                    Phone Number <span className="text-destructive">*</span>
+                    Phone Number
                   </Label>
-                  <Input
+                  <PhoneInput
                     id="phone"
                     value={formData.phone}
-                    onChange={(e) => updateField("phone", e.target.value)}
-                    placeholder="+91 98765 43210"
-                    className={errors.phone ? "border-destructive focus-visible:ring-destructive" : ""}
+                    onChange={(val) => updateField("phone", val)}
+                    defaultCountry="IN"
+                    placeholder="e.g. 98765 43210"
+                    className={cn("h-10", errors.phone && "border-destructive")}
                   />
                   {errors.phone && <p className="text-[11px] text-destructive">{errors.phone}</p>}
                 </div>
@@ -936,11 +1044,12 @@ function EmployeeEditWizardPage() {
                 {/* Date of Birth */}
                 <div className="space-y-1.5">
                   <Label htmlFor="dateOfBirth" className="text-xs font-medium">
-                    Date of Birth <span className="text-destructive">*</span>
+                    Date of Birth
                   </Label>
                   <Input
                     id="dateOfBirth"
                     type="date"
+                    max={new Date().toISOString().split("T")[0]}
                     value={formData.dateOfBirth}
                     onChange={(e) => updateField("dateOfBirth", e.target.value)}
                     className={errors.dateOfBirth ? "border-destructive focus-visible:ring-destructive" : ""}
@@ -1249,30 +1358,20 @@ function EmployeeEditWizardPage() {
                     />
                   </div>
 
-                  {/* Country */}
+                  {/* Country (Searchable with Flags — identical to Create Employee) */}
                   <div className="space-y-1.5">
                     <Label htmlFor="country" className="text-xs font-medium">
-                      Country <span className="text-destructive">*</span>
+                      Country
                     </Label>
-                    <Select
+                    <CountrySelect
                       value={formData.country}
                       onValueChange={(val) => {
                         updateField("country", val);
                         updateField("state", "");
                         updateField("district", "");
                       }}
-                    >
-                      <SelectTrigger id="country" className={errors.country ? "border-destructive focus-visible:ring-destructive" : ""}>
-                        <SelectValue placeholder="Select Country" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-60">
-                        {COUNTRIES.map((c) => (
-                          <SelectItem key={c.code} value={c.name}>
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select Country"
+                    />
                     {errors.country && <p className="text-[11px] text-destructive">{errors.country}</p>}
                   </div>
 
@@ -1358,19 +1457,21 @@ function EmployeeEditWizardPage() {
                     {errors.city && <p className="text-[11px] text-destructive">{errors.city}</p>}
                   </div>
 
-                  {/* Postal / ZIP Code */}
+                  {/* Postal / ZIP Code (Digits Only + India Auto-Lookup) */}
                   <div className="space-y-1.5">
                     <Label htmlFor="postalCode" className="text-xs font-medium">
-                      Postal / ZIP Code <span className="text-destructive">*</span>
+                      Pincode / ZIP Code
                     </Label>
                     <Input
                       id="postalCode"
+                      inputMode="numeric"
+                      maxLength={formData.country === "India" ? 6 : 10}
                       value={formData.postalCode}
                       onChange={async (e) => {
-                        const val = e.target.value;
-                        updateField("postalCode", val);
-                        const cleaned = val.trim();
-                        if (formData.country === "India" && cleaned.length === 6 && /^\d+$/.test(cleaned)) {
+                        const maxLen = formData.country === "India" ? 6 : 10;
+                        const cleaned = e.target.value.replace(/\D/g, "").slice(0, maxLen);
+                        updateField("postalCode", cleaned);
+                        if (formData.country === "India" && cleaned.length === 6) {
                           const match = await lookupPincode(cleaned);
                           if (match) {
                             if (!formData.city || formData.city === match.city) updateField("city", match.city);
@@ -1386,6 +1487,27 @@ function EmployeeEditWizardPage() {
                     {errors.postalCode && (
                       <p className="text-[11px] text-destructive">{errors.postalCode}</p>
                     )}
+                  </div>
+
+                  {/* Marital Status */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="maritalStatus" className="text-xs font-medium">
+                      Marital Status
+                    </Label>
+                    <Select
+                      value={formData.maritalStatus || "single"}
+                      onValueChange={(val) => updateField("maritalStatus", val)}
+                    >
+                      <SelectTrigger id="maritalStatus">
+                        <SelectValue placeholder="Select marital status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="single">Single</SelectItem>
+                        <SelectItem value="married">Married</SelectItem>
+                        <SelectItem value="divorced">Divorced</SelectItem>
+                        <SelectItem value="widowed">Widowed</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -1458,18 +1580,15 @@ function EmployeeEditWizardPage() {
 
                   <div className="space-y-1.5">
                     <Label htmlFor="emergencyContactPhone" className="text-xs font-medium">
-                      Phone Number <span className="text-destructive">*</span>
+                      Phone Number
                     </Label>
-                    <Input
+                    <PhoneInput
                       id="emergencyContactPhone"
                       value={formData.emergencyContactPhone}
-                      onChange={(e) => updateField("emergencyContactPhone", e.target.value)}
-                      placeholder="+91 98765 43210"
-                      className={
-                        errors.emergencyContactPhone
-                          ? "border-destructive focus-visible:ring-destructive"
-                          : ""
-                      }
+                      onChange={(val) => updateField("emergencyContactPhone", val)}
+                      defaultCountry="IN"
+                      placeholder="e.g. 98765 43210"
+                      className={cn("h-10", errors.emergencyContactPhone && "border-destructive")}
                     />
                     {errors.emergencyContactPhone && (
                       <p className="text-[11px] text-destructive">{errors.emergencyContactPhone}</p>
@@ -1576,22 +1695,27 @@ function EmployeeEditWizardPage() {
                   </Label>
                   <Input
                     id="bankAccount"
+                    inputMode="numeric"
+                    maxLength={18}
                     value={formData.bankAccount}
-                    onChange={(e) => updateField("bankAccount", e.target.value)}
+                    onChange={(e) => updateField("bankAccount", e.target.value.replace(/\D/g, "").slice(0, 18))}
                     placeholder="e.g. 50100234567890"
                     disabled={!canEditSensitive}
+                    className={errors.bankAccount ? "border-destructive focus-visible:ring-destructive" : ""}
                   />
+                  {errors.bankAccount && <p className="text-[11px] text-destructive">{errors.bankAccount}</p>}
                 </div>
 
-                {/* Bank Identifier Code (BIC / SWIFT / IFSC) */}
+                {/* Bank Identifier Code (IFSC / BIC / SWIFT) */}
                 <div className="space-y-1.5">
                   <Label htmlFor="bicSwift" className="text-xs font-medium">
-                    Bank Identifier Code (BIC / SWIFT / IFSC) <span className="text-destructive">*</span>
+                    IFSC / BIC Code
                   </Label>
                   <Input
                     id="bicSwift"
+                    maxLength={11}
                     value={formData.bicSwift}
-                    onChange={(e) => updateField("bicSwift", e.target.value)}
+                    onChange={(e) => updateField("bicSwift", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11))}
                     placeholder="e.g. HDFC0001234"
                     disabled={!canEditSensitive}
                     className={errors.bicSwift ? "border-destructive focus-visible:ring-destructive" : ""}
@@ -1602,7 +1726,7 @@ function EmployeeEditWizardPage() {
                 {/* Bank Branch */}
                 <div className="space-y-1.5">
                   <Label htmlFor="bankBranch" className="text-xs font-medium">
-                    Bank Branch <span className="text-destructive">*</span>
+                    Bank Branch
                   </Label>
                   <Input
                     id="bankBranch"
@@ -1620,21 +1744,112 @@ function EmployeeEditWizardPage() {
                 {/* Tax Payer ID (PAN) */}
                 <div className="space-y-1.5">
                   <Label htmlFor="taxPayerId" className="text-xs font-medium">
-                    Tax Payer ID (PAN / Tax ID)
+                    PAN / Tax Payer ID
                   </Label>
                   <Input
                     id="taxPayerId"
+                    maxLength={10}
                     value={formData.taxPayerId}
-                    onChange={(e) => updateField("taxPayerId", e.target.value)}
+                    onChange={(e) => updateField("taxPayerId", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10))}
                     placeholder="e.g. ABCDE1234F"
+                    disabled={!canEditSensitive}
+                    className={errors.taxPayerId ? "border-destructive focus-visible:ring-destructive" : ""}
+                  />
+                  {errors.taxPayerId && <p className="text-[11px] text-destructive">{errors.taxPayerId}</p>}
+                </div>
+
+                {/* Aadhaar Number */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="aadhaar" className="text-xs font-medium">
+                    Aadhaar Number
+                  </Label>
+                  <Input
+                    id="aadhaar"
+                    inputMode="numeric"
+                    maxLength={12}
+                    value={formData.aadhaar}
+                    onChange={(e) => updateField("aadhaar", e.target.value.replace(/\D/g, "").slice(0, 12))}
+                    placeholder="12-digit Aadhaar number"
+                    disabled={!canEditSensitive}
+                    className={errors.aadhaar ? "border-destructive focus-visible:ring-destructive" : ""}
+                  />
+                  {errors.aadhaar && <p className="text-[11px] text-destructive">{errors.aadhaar}</p>}
+                </div>
+
+                {/* UAN Number */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="uan" className="text-xs font-medium">
+                    UAN (Universal Account Number)
+                  </Label>
+                  <Input
+                    id="uan"
+                    inputMode="numeric"
+                    maxLength={12}
+                    value={formData.uan}
+                    onChange={(e) => updateField("uan", e.target.value.replace(/\D/g, "").slice(0, 12))}
+                    placeholder="12-digit UAN"
+                    disabled={!canEditSensitive}
+                    className={errors.uan ? "border-destructive focus-visible:ring-destructive" : ""}
+                  />
+                  {errors.uan && <p className="text-[11px] text-destructive">{errors.uan}</p>}
+                </div>
+
+                {/* ESI Number */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="esiNumber" className="text-xs font-medium">
+                    ESI Number
+                  </Label>
+                  <Input
+                    id="esiNumber"
+                    inputMode="numeric"
+                    maxLength={17}
+                    value={formData.esiNumber}
+                    onChange={(e) => updateField("esiNumber", e.target.value.replace(/\D/g, "").slice(0, 17))}
+                    placeholder="10–17 digit ESI number"
+                    disabled={!canEditSensitive}
+                    className={errors.esiNumber ? "border-destructive focus-visible:ring-destructive" : ""}
+                  />
+                  {errors.esiNumber && <p className="text-[11px] text-destructive">{errors.esiNumber}</p>}
+                </div>
+
+                {/* PF Number */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="pfNumber" className="text-xs font-medium">
+                    PF Number
+                  </Label>
+                  <Input
+                    id="pfNumber"
+                    value={formData.pfNumber}
+                    onChange={(e) => updateField("pfNumber", e.target.value)}
+                    placeholder="e.g. TN/MAS/0012345/000/0001234"
                     disabled={!canEditSensitive}
                   />
                 </div>
 
+                {/* Tax Regime */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="taxRegime" className="text-xs font-medium">
+                    Income Tax Regime
+                  </Label>
+                  <Select
+                    value={formData.taxRegime || "new"}
+                    onValueChange={(val) => updateField("taxRegime", val)}
+                    disabled={!canEditSensitive}
+                  >
+                    <SelectTrigger id="taxRegime">
+                      <SelectValue placeholder="Select tax regime" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="new">New Tax Regime</SelectItem>
+                      <SelectItem value="old">Old Tax Regime</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Base Salary */}
-                <div className="space-y-1.5 md:col-span-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="salary" className="text-xs font-medium">
-                    Base Salary (Annual CTC in INR) <span className="text-destructive">*</span>
+                    Base Salary (Annual CTC in INR)
                   </Label>
                   <div className="relative">
                     <span className="absolute left-3 top-2.5 text-xs text-muted-foreground font-semibold">
@@ -1653,6 +1868,28 @@ function EmployeeEditWizardPage() {
                     />
                   </div>
                   {errors.salary && <p className="text-[11px] text-destructive">{errors.salary}</p>}
+                </div>
+
+                {/* Statutory Eligibility Checkboxes */}
+                <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t">
+                  {[
+                    { key: "pfEligible", label: "PF Eligible" },
+                    { key: "esiEligible", label: "ESI Eligible" },
+                    { key: "ptEligible", label: "PT Eligible" },
+                    { key: "tdsEligible", label: "TDS Eligible" },
+                  ].map((item) => (
+                    <div key={item.key} className="flex items-center gap-2">
+                      <Checkbox
+                        id={item.key}
+                        checked={Boolean((formData as any)[item.key])}
+                        onCheckedChange={(c) => updateField(item.key, Boolean(c))}
+                        disabled={!canEditSensitive}
+                      />
+                      <Label htmlFor={item.key} className="text-xs font-medium cursor-pointer">
+                        {item.label}
+                      </Label>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
