@@ -165,6 +165,61 @@ async function pullEnrichedBundle(ip, port) {
   });
 }
 
+async function pushBundleChunked(serverUrl, serialNumber, users, logs) {
+  const base = normalizeServerUrl(serverUrl);
+  const endpoint = `${base}/api/public/biometric/device-sync-bundle`;
+
+  // 1. Push ALL enrolled users & auth modes FIRST (tiny ~5KB payload -> instant <1s persistence of real names!)
+  const userResp = await postJsonToUrl(endpoint, {
+    serialNumber,
+    users: users || [],
+    logs: [],
+  });
+  if (userResp.status !== 200) {
+    return { ok: false, status: userResp.status, body: userResp.body };
+  }
+
+  // 2. Push attendance logs in safe 150-record batches (newest first) so Vercel proxy never times out
+  const allLogs = Array.isArray(logs) ? logs : [];
+  const sortedNewestFirst = [...allLogs].reverse();
+  const BATCH_SIZE = 150;
+  let totalAccepted = 0;
+  let totalDuplicate = 0;
+
+  // Cap single manual push to latest 600 logs (~2-3 weeks) for instant UX; auto-sync keeps everything up to date
+  const logsToPush = sortedNewestFirst.slice(0, 600);
+  for (let i = 0; i < logsToPush.length; i += BATCH_SIZE) {
+    const batch = logsToPush.slice(i, i + BATCH_SIZE);
+    const batchResp = await postJsonToUrl(endpoint, {
+      serialNumber,
+      users: [],
+      logs: batch,
+    });
+    if (batchResp.status !== 200) {
+      return {
+        ok: false,
+        status: batchResp.status,
+        body: batchResp.body,
+      };
+    }
+    totalAccepted += Number(batchResp.body?.logsAccepted || 0);
+    totalDuplicate += Number(batchResp.body?.logsDuplicate || 0);
+  }
+
+  return {
+    ok: true,
+    status: 200,
+    body: {
+      ok: true,
+      serialNumber,
+      usersSynced: (users || []).length,
+      logsAccepted: totalAccepted,
+      logsDuplicate: totalDuplicate,
+      message: `Synced ${(users || []).length} hardware users (real names & auth modes) and ${totalAccepted} new punch logs (${totalDuplicate} duplicates skipped).`,
+    },
+  };
+}
+
 // ── Background Auto-Sync Scheduler ──────────────────────────────────────────
 async function runBackgroundAutoSync(trigger = "scheduled") {
   if (isAutoSyncRunning) return { ok: false, skipped: true, message: "Sync already in progress." };
@@ -179,14 +234,8 @@ async function runBackgroundAutoSync(trigger = "scheduled") {
     const sn = bundle.info?.serialNumber;
     if (!sn) throw new Error("Device did not return a Serial Number.");
 
-    const base = String(appConfig.serverUrl).trim().replace(/\/+$/, "");
-    const resp = await postJsonToUrl(`${base}/api/public/biometric/device-sync-bundle`, {
-      serialNumber: sn,
-      users: bundle.users,
-      logs: bundle.logs,
-    });
-
-    const ok = resp.status === 200;
+    const resp = await pushBundleChunked(appConfig.serverUrl, sn, bundle.users, bundle.logs);
+    const ok = resp.ok;
     const msg = ok
       ? (resp.body?.message || `Synced ${bundle.users.length} users & ${bundle.logs.length} logs (SN: ${sn})`)
       : (resp.body?.error || `Server returned HTTP ${resp.status}`);
@@ -286,7 +335,7 @@ const server = http.createServer(async (req, res) => {
     if (urlPath === "/api/autosync/config") {
       if (body.ip !== undefined) appConfig.ip = String(body.ip).trim();
       if (body.port !== undefined) appConfig.port = Number(body.port) || 4370;
-      if (body.serverUrl !== undefined) appConfig.serverUrl = String(body.serverUrl).trim();
+      if (body.serverUrl !== undefined) appConfig.serverUrl = normalizeServerUrl(body.serverUrl);
       if (body.autoSyncEnabled !== undefined) appConfig.autoSyncEnabled = Boolean(body.autoSyncEnabled);
       if (body.intervalMinutes !== undefined) appConfig.intervalMinutes = Math.max(1, Number(body.intervalMinutes) || 5);
       saveConfig();
@@ -297,7 +346,7 @@ const server = http.createServer(async (req, res) => {
     if (urlPath === "/api/autosync/run-now") {
       if (body.ip) appConfig.ip = String(body.ip).trim();
       if (body.port) appConfig.port = Number(body.port) || 4370;
-      if (body.serverUrl) appConfig.serverUrl = String(body.serverUrl).trim();
+      if (body.serverUrl) appConfig.serverUrl = normalizeServerUrl(body.serverUrl);
       saveConfig();
       const result = await runBackgroundAutoSync("manual");
       return sendJson(res, result.ok ? 200 : 500, { ...result, config: appConfig });
@@ -364,12 +413,8 @@ const server = http.createServer(async (req, res) => {
       const base = normalizeServerUrl(body.serverUrl || appConfig.serverUrl);
       appConfig.serverUrl = base;
       saveConfig();
-      const resp = await postJsonToUrl(`${base}/api/public/biometric/device-sync-bundle`, {
-        serialNumber: body.serialNumber,
-        users: body.users || [],
-        logs: body.logs || [],
-      });
-      return sendJson(res, resp.status, { ok: resp.status === 200, response: resp.body });
+      const resp = await pushBundleChunked(base, body.serialNumber, body.users || [], body.logs || []);
+      return sendJson(res, resp.status, { ok: resp.ok, response: resp.body });
     }
 
     return sendJson(res, 404, { error: "Unknown endpoint" });
