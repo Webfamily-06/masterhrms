@@ -238,7 +238,7 @@ export default function HrAssetsListPage() {
             const q = appliedFilters.search.toLowerCase();
             return (
               String(a.name || "").toLowerCase().includes(q) ||
-              String(a.assetCode || "").toLowerCase().includes(q) ||
+              String(a.assetTag || "").toLowerCase().includes(q) ||
               String(a.serialNumber || "").toLowerCase().includes(q)
             );
           }

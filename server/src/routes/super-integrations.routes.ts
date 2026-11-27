@@ -70,7 +70,11 @@ async function saveStoredIntegrations(
 function safeDecrypt(encrypted?: string): string {
   if (!encrypted) return "";
   try {
-    return decryptSecret(encrypted);
+    const parsed = JSON.parse(encrypted);
+    if (parsed && parsed.ciphertext && parsed.iv && parsed.authTag) {
+      return decryptSecret(parsed.ciphertext, parsed.iv, parsed.authTag, parsed.keyVersion);
+    }
+    return encrypted;
   } catch {
     return encrypted;
   }
@@ -214,7 +218,7 @@ superIntegrationsRouter.put("/:appId", requireAuth, requireSuperAdmin, async (re
     // Preserve existing encrypted secret if input is omitted or masked
     let encryptedSecret = existing?.encryptedSecret;
     if (cleanSecret && !cleanSecret.includes("••••")) {
-      encryptedSecret = encryptSecret(cleanSecret);
+      encryptedSecret = JSON.stringify(encryptSecret(cleanSecret));
     }
 
     const nowIso = new Date().toISOString();
@@ -287,8 +291,13 @@ superIntegrationsRouter.put("/:appId", requireAuth, requireSuperAdmin, async (re
       action: "super.integration.configure",
       entityType: "PlatformIntegration",
       entityId: appId,
-      summary: `Updated ${appId} platform integration (${normalizedEnv}, enabled=${Boolean(connected)})`,
-      after: { appId, environment: normalizedEnv, connected: Boolean(connected), hasSecret: Boolean(encryptedSecret) },
+      after: {
+        appId,
+        environment: normalizedEnv,
+        connected: Boolean(connected),
+        hasSecret: Boolean(encryptedSecret),
+        summary: `Updated ${appId} platform integration (${normalizedEnv}, enabled=${Boolean(connected)})`,
+      },
     });
 
     return res.json({
@@ -345,8 +354,11 @@ superIntegrationsRouter.patch("/:appId/toggle", requireAuth, requireSuperAdmin, 
       action: "super.integration.toggle",
       entityType: "PlatformIntegration",
       entityId: appId,
-      summary: `${nextConnected ? "Enabled" : "Disabled"} platform integration ${appId}`,
-      after: { appId, connected: nextConnected },
+      after: {
+        appId,
+        connected: nextConnected,
+        summary: `${nextConnected ? "Enabled" : "Disabled"} platform integration ${appId}`,
+      },
     });
 
     return res.json({

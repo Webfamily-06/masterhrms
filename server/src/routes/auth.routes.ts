@@ -2454,7 +2454,7 @@ authRouter.post("/bootstrap-tenant", requireAuth, async (req: AuthRequest, res: 
       const role = await tx.workspaceRole.create({
         data: { tenantId: created.id, name: "Workspace Admin", description: "Full access to workspace", isSystem: true, isActive: true },
       });
-      const allPermissions = await tx.permission.findMany({ select: { id: true, key: true } });
+      const allPermissions = await tx.permission.findMany({ select: { id: true, code: true } });
       if (allPermissions.length > 0) {
         await tx.rolePermission.createMany({
           data: allPermissions.map((p) => ({ roleId: role.id, permissionId: p.id })),
@@ -2465,7 +2465,7 @@ authRouter.post("/bootstrap-tenant", requireAuth, async (req: AuthRequest, res: 
         data: { tenantId: created.id, name: "HR Manager", description: "Manages employees, attendance, leave and payroll", isSystem: true, isActive: true },
       });
       const hrPerms = allPermissions.filter((p) =>
-        p.key.startsWith("hrm.") || p.key.startsWith("analytics.") || p.key.startsWith("assets.") || p.key.startsWith("documents.")
+        p.code.startsWith("hrm.") || p.code.startsWith("analytics.") || p.code.startsWith("assets.") || p.code.startsWith("documents.")
       );
       if (hrPerms.length > 0) {
         await tx.rolePermission.createMany({
