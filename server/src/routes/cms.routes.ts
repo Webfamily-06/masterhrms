@@ -902,14 +902,28 @@ cmsRouter.put(["/pages/:slug", "/page/:slug"], requireAuth, async (req: AuthRequ
       const existingPage = await prisma.cmsPage.findUnique({ where: { slug } });
       const existingContent = (existingPage?.content as any) || {};
 
-      // Credential validation: fail-closed if live keys in sandbox
-      const isLivePaymentAuthorized = process.env.ENABLE_LIVE_PAYMENTS === "true";
-      const keyId = content?.razorpayKeyId || "";
-      const keySecret = content?.razorpayKeySecret || "";
-      if (!isLivePaymentAuthorized && (keyId.startsWith("rzp_live_") || (keySecret && !keySecret.includes("••••") && keySecret.startsWith("rzp_live_")))) {
+      // Credential validation: only prohibit live keys when Razorpay is explicitly configured in sandbox/test mode
+      const keyId = String(content?.razorpayKeyId || "").trim();
+      const keySecret = String(content?.razorpayKeySecret || "").trim();
+      const explicitMode = String(
+        content?.razorpayMode || content?.razorpayEnvironment || ""
+      )
+        .trim()
+        .toLowerCase();
+      const isExplicitSandbox = explicitMode === "sandbox" || explicitMode === "test";
+      if (
+        isExplicitSandbox &&
+        (keyId.startsWith("rzp_live_") ||
+          (keySecret && !keySecret.includes("••••") && keySecret.startsWith("rzp_live_")))
+      ) {
         return res.status(400).json({
-          error: "Live Razorpay credentials (rzp_live_*) are strictly prohibited in sandbox mode.",
+          error:
+            "Live Razorpay credentials (rzp_live_*) cannot be used while Razorpay Environment Mode is set to Sandbox. Switch Razorpay Mode to Live (Production) to save live keys.",
         });
+      }
+      // Auto-sync razorpayMode to match key prefix when not explicitly set
+      if (content && !content.razorpayMode && keyId) {
+        content.razorpayMode = keyId.startsWith("rzp_live_") ? "live" : "sandbox";
       }
 
       // Preserve existing secrets when omitted or masked

@@ -420,24 +420,103 @@ function renderBrandLogo(app: IntegrationApp) {
 
 const TENANT_PERSISTED_SECTIONS = new Set(['slack', 'telegram', 'twilio', 'zoom']);
 
+const APP_FIELD_LABELS: Record<
+  string,
+  { idLabel: string; idPlaceholder: string; secretLabel: string; secretPlaceholder: string; webhookLabel?: string; webhookEditable?: boolean; webhookPlaceholder?: string }
+> = {
+  razorpay: {
+    idLabel: 'Razorpay Key ID',
+    idPlaceholder: 'rzp_live_... or rzp_test_...',
+    secretLabel: 'Razorpay Key Secret',
+    secretPlaceholder: 'Enter Razorpay Key Secret',
+    webhookLabel: 'Webhook Callback URL',
+  },
+  stripe: {
+    idLabel: 'Stripe Publishable Key',
+    idPlaceholder: 'pk_live_... or pk_test_...',
+    secretLabel: 'Stripe Secret Key',
+    secretPlaceholder: 'sk_live_... or sk_test_...',
+    webhookLabel: 'Webhook Callback URL',
+  },
+  slack: {
+    idLabel: 'Default Channel / App ID',
+    idPlaceholder: '#hr-updates',
+    secretLabel: 'Slack Bot User OAuth Token',
+    secretPlaceholder: 'xoxb-...',
+    webhookLabel: 'Incoming Webhook URL',
+    webhookEditable: true,
+    webhookPlaceholder: 'https://hooks.slack.com/services/...',
+  },
+  telegram: {
+    idLabel: 'Target Chat / Group ID',
+    idPlaceholder: '-1001234567890',
+    secretLabel: 'Telegram Bot Token (@BotFather)',
+    secretPlaceholder: '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11',
+  },
+  twilio: {
+    idLabel: 'Twilio Account SID',
+    idPlaceholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    secretLabel: 'Twilio Auth Token',
+    secretPlaceholder: 'Enter Twilio Auth Token',
+    webhookLabel: 'Sender Phone Number (From)',
+    webhookEditable: true,
+    webhookPlaceholder: '+15551234567',
+  },
+  github: {
+    idLabel: 'GitHub Organization / App ID',
+    idPlaceholder: 'my-enterprise-org',
+    secretLabel: 'Personal Access Token / App Token',
+    secretPlaceholder: 'ghp_... or github_pat_...',
+  },
+  'webhook-gateway': {
+    idLabel: 'Webhook Signing Key ID',
+    idPlaceholder: 'whsec_platform_primary',
+    secretLabel: 'HMAC-SHA256 Signing Secret',
+    secretPlaceholder: 'Enter signing secret',
+    webhookLabel: 'Target Webhook Endpoint URL',
+    webhookEditable: true,
+    webhookPlaceholder: 'https://your-service.example.com/webhooks/hrms',
+  },
+};
+
 export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'tenant' }) {
-  const [apps, setApps] = useState<IntegrationApp[]>(DEFAULT_INTEGRATIONS);
-  const [tenantSettingsMap, setTenantSettingsMap] = useState<Record<string, any>>({});
+  const [apps, setApps] = useState<IntegrationApp[]>(() =>
+    DEFAULT_INTEGRATIONS.map((a) => ({ ...a, connected: false, lastSync: 'Not configured' }))
+  );
+  const [savedConfigMap, setSavedConfigMap] = useState<Record<string, any>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
 
-  useEffect(() => {
-    if (mode !== 'tenant') return;
-    let active = true;
-    api
-      .get('/workspace/system-settings')
-      .then((res: any) => {
-        if (!active) return;
+  async function loadIntegrations() {
+    setIsLoading(true);
+    try {
+      if (mode === 'super') {
+        const res: any = await api.get('/super/integrations');
+        const map = res?.integrations || res?.data?.integrations || {};
+        setSavedConfigMap(map);
+        setApps(
+          DEFAULT_INTEGRATIONS.map((app) => {
+            const saved = map[app.id];
+            if (!saved) {
+              return { ...app, connected: false, lastSync: 'Not configured' };
+            }
+            return {
+              ...app,
+              connected: Boolean(saved.connected),
+              lastSync: saved.lastSync || (saved.connected ? 'Configured' : 'Disconnected'),
+            };
+          })
+        );
+      } else {
+        const res: any = await api.get('/workspace/system-settings');
         const s = res?.data?.settings || res?.settings || {};
-        setTenantSettingsMap(s);
-        setApps((prev) =>
-          prev.map((app) => {
+        setSavedConfigMap(s);
+        setApps(
+          DEFAULT_INTEGRATIONS.map((app) => {
             if (TENANT_PERSISTED_SECTIONS.has(app.id) && s[app.id]) {
               return {
                 ...app,
@@ -445,17 +524,22 @@ export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'te
                 lastSync: s[app.id].enabled ? 'Configured' : 'Disabled',
               };
             }
-            return app;
+            return { ...app, connected: false, lastSync: 'Not configured' };
           })
         );
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to load integrations status');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadIntegrations();
   }, [mode]);
 
-  // Modal State (Reference C)
+  // Modal State
   const [settingsApp, setSettingsApp] = useState<IntegrationApp | null>(null);
   const [detailsApp, setDetailsApp] = useState<IntegrationApp | null>(null);
 
@@ -492,36 +576,66 @@ export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'te
 
   const categories = ['all', 'Communication', 'Productivity', 'Accounting', 'Payment', 'Developer', 'Biometric'];
 
-  // Toggle App Connected Status
-  function handleToggleApp(appId: string) {
-    setApps((prev) =>
-      prev.map((a) => {
-        if (a.id === appId) {
-          const nextState = !a.connected;
-          if (mode === 'tenant' && TENANT_PERSISTED_SECTIONS.has(appId)) {
-            const existing = tenantSettingsMap[appId] || {};
-            const updated = { ...existing, enabled: nextState };
-            setTenantSettingsMap((m) => ({ ...m, [appId]: updated }));
-            api.put(`/workspace/system-settings/${appId}`, updated).catch(() => {});
-          }
-          toast.success(`${a.name} integration ${nextState ? 'enabled' : 'disabled'}`);
-          return {
-            ...a,
-            connected: nextState,
-            lastSync: nextState ? 'Just now' : 'Disabled',
-          };
+  // Toggle App Connected Status (Persisted to Backend)
+  async function handleToggleApp(appId: string) {
+    const current = apps.find((a) => a.id === appId);
+    if (!current || togglingId) return;
+    const nextState = !current.connected;
+    setTogglingId(appId);
+
+    try {
+      if (mode === 'super') {
+        const res: any = await api.patch(`/super/integrations/${appId}/toggle`, {
+          connected: nextState,
+        });
+        const updated = res?.integration;
+        if (updated) {
+          setSavedConfigMap((m) => ({ ...m, [appId]: updated }));
         }
-        return a;
-      })
-    );
+      } else if (TENANT_PERSISTED_SECTIONS.has(appId)) {
+        const existing = savedConfigMap[appId] || {};
+        const updated = { ...existing, enabled: nextState };
+        await api.put(`/workspace/system-settings/${appId}`, updated);
+        setSavedConfigMap((m) => ({ ...m, [appId]: updated }));
+      }
+
+      setApps((prev) =>
+        prev.map((a) =>
+          a.id === appId
+            ? { ...a, connected: nextState, lastSync: nextState ? 'Enabled just now' : 'Disabled' }
+            : a
+        )
+      );
+      toast.success(`${current.name} integration ${nextState ? 'enabled' : 'disabled'}`);
+    } catch (err: any) {
+      toast.error(err?.message || `Failed to update ${current.name}`);
+    } finally {
+      setTogglingId(null);
+    }
   }
 
   // Open Settings Modal
   function handleOpenSettings(app: IntegrationApp) {
     setSettingsApp(app);
-    setFormEnv('production');
-    const saved = mode === 'tenant' ? tenantSettingsMap[app.id] || {} : {};
-    if (mode === 'tenant' && TENANT_PERSISTED_SECTIONS.has(app.id)) {
+    const saved = savedConfigMap[app.id] || {};
+    const defaultCallback =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/api/v1/webhooks/${app.id}/callback`
+        : `https://api.masterhrms.com/v1/webhooks/${app.id}/callback`;
+
+    if (mode === 'super') {
+      setFormEnv(saved.environment === 'sandbox' ? 'sandbox' : 'production');
+      setFormClientId(saved.clientId || '');
+      setFormClientSecret(saved.hasSecret ? '••••••••••••••••••••' : '');
+      setFormWebhookUrl(saved.webhookUrl || (APP_FIELD_LABELS[app.id]?.webhookEditable ? '' : defaultCallback));
+      setSelectedEvents(Array.isArray(saved.events) && saved.events.length > 0 ? saved.events : app.defaultEvents || []);
+      setTestResult(
+        saved.lastTestStatus && saved.lastTestStatus !== 'idle' && saved.lastTestMessage
+          ? { status: saved.lastTestStatus, message: saved.lastTestMessage }
+          : { status: 'idle', message: '' }
+      );
+    } else if (TENANT_PERSISTED_SECTIONS.has(app.id)) {
+      setFormEnv('production');
       if (app.id === 'slack') {
         setFormClientId(saved.defaultChannel || '#hr-updates');
         setFormClientSecret(saved.botToken || '');
@@ -539,72 +653,129 @@ export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'te
         setFormClientSecret(saved.clientSecret || '');
         setFormWebhookUrl(saved.accountId || '');
       }
+      setSelectedEvents(app.defaultEvents || []);
+      setTestResult({ status: 'idle', message: '' });
     } else {
-      // Security compliance: Do NOT reproduce real secrets or demo secrets
-      setFormClientId(app.connected ? `mstr_${app.id}_client_prod` : '');
-      setFormClientSecret(app.connected ? '••••••••••••••••••••' : '');
-      setFormWebhookUrl(`https://api.masterhrms.com/v1/webhooks/${app.id}/callback`);
+      setFormEnv('production');
+      setFormClientId('');
+      setFormClientSecret('');
+      setFormWebhookUrl(defaultCallback);
+      setSelectedEvents(app.defaultEvents || []);
+      setTestResult({ status: 'idle', message: '' });
     }
     setShowSecret(false);
-    setSelectedEvents(app.defaultEvents || []);
-    setTestResult({ status: 'idle', message: '' });
   }
 
-  // Simulate Connection Test
-  function handleTestConnection() {
+  // Real Live Connection Test via Backend
+  async function handleTestConnection() {
+    if (!settingsApp) return;
     setIsTesting(true);
     setTestResult({ status: 'idle', message: '' });
 
-    setTimeout(() => {
+    try {
+      if (mode === 'super') {
+        const res: any = await api.post(`/super/integrations/${settingsApp.id}/test`, {
+          environment: formEnv,
+          clientId: formClientId,
+          clientSecret: formClientSecret,
+          webhookUrl: formWebhookUrl,
+        });
+        if (res?.ok || res?.success) {
+          const msg = res.message || 'Connection verified successfully.';
+          setTestResult({ status: 'success', message: msg });
+          toast.success(msg);
+        } else {
+          const msg = res?.message || res?.error || 'Connection test failed.';
+          setTestResult({ status: 'failed', message: msg });
+          toast.error(msg);
+        }
+      } else {
+        const res: any = await api.post(`/integrations/${settingsApp.id}/test`, {
+          environment: formEnv,
+          keyId: formClientId,
+          keySecret: formClientSecret,
+          clientId: formClientId,
+          clientSecret: formClientSecret,
+          webhookUrl: formWebhookUrl,
+        });
+        if (res?.ok || res?.success) {
+          const msg = res.message || 'Connection verified successfully.';
+          setTestResult({ status: 'success', message: msg });
+          toast.success(msg);
+        } else {
+          const msg = res?.message || res?.error || 'Connection test failed.';
+          setTestResult({ status: 'failed', message: msg });
+          toast.error(msg);
+        }
+      }
+    } catch (err: any) {
+      const msg = err?.message || 'Connection test failed — check credentials and endpoint.';
+      setTestResult({ status: 'failed', message: msg });
+      toast.error(msg);
+    } finally {
       setIsTesting(false);
-      setTestResult({
-        status: 'success',
-        message: 'HTTP 200 OK — OAuth2 handshake verified successfully. Handshake latency: 142ms.',
-      });
-      toast.success('Connection verified successfully!');
-    }, 900);
+    }
   }
 
-  // Save Settings
+  // Save Settings (Persisted to Backend)
   async function handleSaveSettings() {
     if (!settingsApp) return;
+    setIsSaving(true);
 
-    if (mode === 'tenant' && TENANT_PERSISTED_SECTIONS.has(settingsApp.id)) {
-      const existing = tenantSettingsMap[settingsApp.id] || {};
-      let payload: Record<string, any> = { ...existing, enabled: true };
-      if (settingsApp.id === 'slack') {
-        payload = { ...payload, defaultChannel: formClientId, botToken: formClientSecret, webhookUrl: formWebhookUrl };
-      } else if (settingsApp.id === 'telegram') {
-        payload = { ...payload, chatId: formClientId, botToken: formClientSecret };
-      } else if (settingsApp.id === 'twilio') {
-        payload = { ...payload, accountSid: formClientId, authToken: formClientSecret, fromNumber: formWebhookUrl };
-      } else if (settingsApp.id === 'zoom') {
-        payload = { ...payload, clientId: formClientId, clientSecret: formClientSecret, accountId: formWebhookUrl };
-      }
-      try {
-        await api.put(`/workspace/system-settings/${settingsApp.id}`, payload);
-        setTenantSettingsMap((m) => ({ ...m, [settingsApp.id]: payload }));
-      } catch (err: any) {
-        toast.error(err?.message || `Failed to save ${settingsApp.name} settings`);
-        return;
-      }
-    }
-
-    setApps((prev) =>
-      prev.map((a) => {
-        if (a.id === settingsApp.id) {
-          return {
-            ...a,
-            connected: true,
-            lastSync: 'Just now',
-          };
+    try {
+      if (mode === 'super') {
+        const res: any = await api.put(`/super/integrations/${settingsApp.id}`, {
+          environment: formEnv,
+          clientId: formClientId,
+          clientSecret: formClientSecret,
+          webhookUrl: formWebhookUrl,
+          events: selectedEvents,
+          connected: true,
+        });
+        const updated = res?.integration;
+        if (updated) {
+          setSavedConfigMap((m) => ({ ...m, [settingsApp.id]: updated }));
         }
-        return a;
-      })
-    );
+      } else if (TENANT_PERSISTED_SECTIONS.has(settingsApp.id)) {
+        const existing = savedConfigMap[settingsApp.id] || {};
+        let payload: Record<string, any> = { ...existing, enabled: true };
+        if (settingsApp.id === 'slack') {
+          payload = { ...payload, defaultChannel: formClientId, botToken: formClientSecret, webhookUrl: formWebhookUrl };
+        } else if (settingsApp.id === 'telegram') {
+          payload = { ...payload, chatId: formClientId, botToken: formClientSecret };
+        } else if (settingsApp.id === 'twilio') {
+          payload = { ...payload, accountSid: formClientId, authToken: formClientSecret, fromNumber: formWebhookUrl };
+        } else if (settingsApp.id === 'zoom') {
+          payload = { ...payload, clientId: formClientId, clientSecret: formClientSecret, accountId: formWebhookUrl };
+        }
+        await api.put(`/workspace/system-settings/${settingsApp.id}`, payload);
+        setSavedConfigMap((m) => ({ ...m, [settingsApp.id]: payload }));
+      } else {
+        await api.post(`/integrations/${settingsApp.id}/config`, {
+          environment: formEnv,
+          keyId: formClientId,
+          keySecret: formClientSecret,
+          clientId: formClientId,
+          clientSecret: formClientSecret,
+          webhookUrl: formWebhookUrl,
+        });
+      }
 
-    toast.success(`${settingsApp.name} configuration updated successfully.`);
-    setSettingsApp(null);
+      setApps((prev) =>
+        prev.map((a) =>
+          a.id === settingsApp.id
+            ? { ...a, connected: true, lastSync: 'Saved just now' }
+            : a
+        )
+      );
+
+      toast.success(`${settingsApp.name} configuration saved securely.`);
+      setSettingsApp(null);
+    } catch (err: any) {
+      toast.error(err?.message || `Failed to save ${settingsApp.name} settings`);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -627,16 +798,27 @@ export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'te
           </div>
         </div>
 
-        {/* Quick Metrics Pills */}
-        <div className="flex items-center gap-2 self-start md:self-auto">
-          <div className="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-2xs">
+        {/* Quick Metrics Pills & Refresh */}
+        <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+          <div className="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-2xs tabular-nums">
             <span className="size-2 rounded-full bg-emerald-500" />
             <span>{apps.filter((a) => a.connected).length} Connected</span>
           </div>
-          <div className="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-2xs">
+          <div className="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-2xs tabular-nums">
             <span className="size-2 rounded-full bg-slate-400" />
             <span>{apps.filter((a) => !a.connected).length} Available</span>
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => loadIntegrations()}
+            disabled={isLoading}
+            className="h-9 px-3 text-xs gap-1.5"
+          >
+            <RefreshCw className={`size-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
       </div>
 
@@ -801,6 +983,7 @@ export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'te
               <div className="flex items-center gap-1.5">
                 <Switch
                   checked={app.connected}
+                  disabled={togglingId === app.id}
                   onCheckedChange={() => handleToggleApp(app.id)}
                   aria-label={`Enable or disable ${app.name} integration`}
                 />
@@ -862,14 +1045,18 @@ export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'te
                 {/* Client ID / API Key Input */}
                 <div className="space-y-1.5">
                   <Label htmlFor="integration-client-id" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    {settingsApp.authType === 'oauth' ? 'OAuth Client ID / App ID' : 'API Key'} <span className="text-destructive">*</span>
+                    {APP_FIELD_LABELS[settingsApp.id]?.idLabel ||
+                      (settingsApp.authType === 'oauth' ? 'OAuth Client ID / App ID' : 'API Key')}{' '}
+                    <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="integration-client-id"
                     value={formClientId}
                     onChange={(e) => setFormClientId(e.target.value)}
-                    placeholder={`e.g. ${settingsApp.id}_live_prod_key`}
-                    className="h-9 text-xs font-mono border-slate-200 dark:border-slate-800"
+                    placeholder={
+                      APP_FIELD_LABELS[settingsApp.id]?.idPlaceholder || `e.g. ${settingsApp.id}_live_prod_key`
+                    }
+                    className="h-9 text-xs border-slate-200 dark:border-slate-800"
                   />
                 </div>
 
@@ -877,7 +1064,9 @@ export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'te
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="integration-client-secret" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      {settingsApp.authType === 'oauth' ? 'Client Secret' : 'API Secret Token'} <span className="text-destructive">*</span>
+                      {APP_FIELD_LABELS[settingsApp.id]?.secretLabel ||
+                        (settingsApp.authType === 'oauth' ? 'Client Secret' : 'API Secret Token')}{' '}
+                      <span className="text-destructive">*</span>
                     </Label>
                     <span className="text-[10px] text-slate-400 flex items-center gap-1">
                       <ShieldCheck className="size-3 text-emerald-500" /> AES-256 Encrypted
@@ -889,8 +1078,10 @@ export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'te
                       type={showSecret ? 'text' : 'password'}
                       value={formClientSecret}
                       onChange={(e) => setFormClientSecret(e.target.value)}
-                      placeholder="Enter secure secret token"
-                      className="h-9 text-xs font-mono pr-10 border-slate-200 dark:border-slate-800"
+                      placeholder={
+                        APP_FIELD_LABELS[settingsApp.id]?.secretPlaceholder || 'Enter secure secret token'
+                      }
+                      className="h-9 text-xs pr-10 border-slate-200 dark:border-slate-800"
                     />
                     <button
                       type="button"
@@ -902,17 +1093,19 @@ export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'te
                   </div>
                 </div>
 
-                {/* Webhook Callback URL */}
+                {/* Webhook Callback / Endpoint URL */}
                 <div className="space-y-1.5">
                   <Label htmlFor="integration-webhook" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Webhook Callback URL
+                    {APP_FIELD_LABELS[settingsApp.id]?.webhookLabel || 'Webhook Callback URL'}
                   </Label>
                   <div className="flex items-center gap-2">
                     <Input
                       id="integration-webhook"
                       value={formWebhookUrl}
-                      readOnly
-                      className="h-9 text-xs font-mono bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800"
+                      onChange={(e) => setFormWebhookUrl(e.target.value)}
+                      readOnly={!APP_FIELD_LABELS[settingsApp.id]?.webhookEditable}
+                      placeholder={APP_FIELD_LABELS[settingsApp.id]?.webhookPlaceholder || ''}
+                      className="h-9 text-xs bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800"
                     />
                     <Button
                       type="button"
@@ -920,7 +1113,7 @@ export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'te
                       size="sm"
                       onClick={() => {
                         navigator.clipboard.writeText(formWebhookUrl);
-                        toast.success('Webhook URL copied to clipboard');
+                        toast.success('Copied to clipboard');
                       }}
                       className="h-9 px-3 shrink-0 text-xs gap-1 border-slate-200 dark:border-slate-800"
                     >
@@ -928,7 +1121,9 @@ export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'te
                     </Button>
                   </div>
                   <p className="text-[11px] text-slate-400">
-                    Paste this callback URL into your {settingsApp.name} developer portal webhook settings.
+                    {APP_FIELD_LABELS[settingsApp.id]?.webhookEditable
+                      ? `Configure the target endpoint or sender identifier for ${settingsApp.name}.`
+                      : `Paste this callback URL into your ${settingsApp.name} developer portal webhook settings.`}
                   </p>
                 </div>
 
@@ -996,8 +1191,15 @@ export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'te
                   </div>
 
                   {testResult.status === 'success' && (
-                    <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded border border-emerald-200 dark:border-emerald-800">
+                    <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded border border-emerald-200 dark:border-emerald-800">
                       <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                      <span>{testResult.message}</span>
+                    </div>
+                  )}
+
+                  {testResult.status === 'failed' && (
+                    <div className="flex items-center gap-2 text-xs text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 p-2 rounded border border-rose-200 dark:border-rose-800">
+                      <AlertCircle className="size-4 shrink-0 text-rose-600" />
                       <span>{testResult.message}</span>
                     </div>
                   )}
@@ -1009,15 +1211,18 @@ export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'te
                 <Button
                   variant="outline"
                   onClick={() => setSettingsApp(null)}
+                  disabled={isSaving}
                   className="text-xs h-9 border-slate-200 dark:border-slate-800"
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleSaveSettings}
+                  disabled={isSaving}
                   className="text-xs h-9 gap-1.5"
                 >
-                  <CheckCircle2 className="size-3.5" /> Save Changes
+                  {isSaving ? <RefreshCw className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                  {isSaving ? 'Saving...' : 'Save Changes'}
                 </Button>
               </DialogFooter>
             </>
@@ -1051,7 +1256,7 @@ export function IntegrationsHubStudio({ mode = 'super' }: { mode?: 'super' | 'te
               <div className="space-y-3.5 py-3 text-xs text-slate-600 dark:text-slate-300">
                 <p className="leading-relaxed">{detailsApp.description}</p>
 
-                <div className="space-y-2 p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 font-mono text-[11px]">
+                <div className="space-y-2 p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-[11px] tabular-nums">
                   <div className="flex justify-between">
                     <span className="text-slate-400">Status:</span>
                     <span className={detailsApp.connected ? 'text-emerald-600 font-bold' : 'text-slate-500'}>

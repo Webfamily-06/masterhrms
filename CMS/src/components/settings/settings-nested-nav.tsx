@@ -205,7 +205,7 @@ export function SettingsNestedNav({
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-mono text-muted-foreground/60 px-1.5 py-0.5 rounded bg-muted/40">
+                      <span className="text-[10px] tabular-nums text-muted-foreground/60 px-1.5 py-0.5 rounded bg-muted/40">
                         {cat.items.length}
                       </span>
                       {isOpen ? (

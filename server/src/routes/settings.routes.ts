@@ -217,35 +217,67 @@ settingsRouter.post("/:scope/:group/test", requireAuth, async (req: AuthRequest,
     }
 
     if (group === "payments") {
-      const latencyMs = Date.now() - startTime;
       const paymentSettings = await SettingsService.getGroup(scope, scopeId, "payments", { decryptSecrets: true });
       const values = paymentSettings?.values || {};
-      const rzpKey = values["payments.razorpay_key_id"];
-      const rzpSecret = values["payments.razorpay_key_secret"];
+      const rzpKey = String(req.body?.razorpayKeyId || req.body?.["payments.razorpay_key_id"] || values["payments.razorpay_key_id"] || "").trim();
+      const rawSecret = req.body?.razorpayKeySecret || req.body?.["payments.razorpay_key_secret"];
+      const rzpSecret = String(
+        rawSecret && !String(rawSecret).includes("••••") ? rawSecret : values["payments.razorpay_key_secret"] || ""
+      ).trim();
+      const requestedMode = String(req.body?.razorpayMode || req.body?.environment || "").toLowerCase();
 
       if (!rzpKey || !rzpSecret) {
         return res.status(400).json({
           success: false,
           error: "Razorpay Key ID and Secret must be configured before testing",
-          latencyMs,
+          latencyMs: Date.now() - startTime,
         });
       }
 
-      if (typeof rzpKey === "string" && rzpKey.startsWith("rzp_live_") && process.env.NODE_ENV !== "production") {
+      if ((requestedMode === "sandbox" || requestedMode === "test") && rzpKey.startsWith("rzp_live_")) {
         return res.status(400).json({
           success: false,
-          error: "Live Razorpay credentials (rzp_live_*) cannot be activated in local test/sandbox environment",
-          latencyMs,
+          error: "Live Razorpay key (rzp_live_*) cannot be tested in Sandbox mode. Switch Razorpay Environment Mode to Live.",
+          latencyMs: Date.now() - startTime,
         });
       }
 
-      return res.json({
-        success: true,
-        message: "Payment gateway credentials format and sandbox HMAC integrity verified",
-        provider: "razorpay",
-        keyIdPrefix: typeof rzpKey === "string" ? rzpKey.slice(0, 8) + "..." : "configured",
-        latencyMs,
-      });
+      const detectedMode = rzpKey.startsWith("rzp_live_") ? "live" : "sandbox";
+      try {
+        const authHeader = "Basic " + Buffer.from(`${rzpKey}:${rzpSecret}`).toString("base64");
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 7000);
+        const rzpRes = await fetch("https://api.razorpay.com/v1/payments?count=1", {
+          method: "GET",
+          headers: { Authorization: authHeader, Accept: "application/json" },
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        const latencyMs = Date.now() - startTime;
+        if (rzpRes.status === 401 || rzpRes.status === 403) {
+          return res.status(400).json({
+            success: false,
+            error: "Razorpay rejected these credentials (HTTP 401 Unauthorized). Check Key ID and Key Secret.",
+            mode: detectedMode,
+            latencyMs,
+          });
+        }
+        return res.json({
+          success: true,
+          message: `Razorpay ${detectedMode === "live" ? "Live (Production)" : "Sandbox (Test)"} API handshake verified (HTTP ${rzpRes.status})`,
+          provider: "razorpay",
+          mode: detectedMode,
+          keyIdPrefix: rzpKey.slice(0, 12) + "...",
+          latencyMs,
+        });
+      } catch (netErr: any) {
+        return res.status(502).json({
+          success: false,
+          error: `Could not reach api.razorpay.com: ${netErr?.message || "Network timeout"}`,
+          mode: detectedMode,
+          latencyMs: Date.now() - startTime,
+        });
+      }
     }
 
     if (group === "pusher") {
