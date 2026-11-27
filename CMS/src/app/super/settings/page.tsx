@@ -86,12 +86,14 @@ import { getPlatformBaseDomain } from "@/lib/platform-domain";
 import { MediaImageUploader } from "@/components/settings/media-image-uploader";
 import { LivePreviewDock } from "@/components/settings/live-preview-dock";
 import { UnsavedChangesBar } from "@/components/settings/unsaved-changes-bar";
-import {
-  SettingsNestedNav,
-  SettingsSectionBreadcrumb,
-  type SettingsNavCategory,
-} from "@/components/settings/settings-nested-nav";
-import { SharedSettingsShell } from "@/components/settings/shared-settings-shell";
+import { StorageSettingsCard } from "@/components/super/settings/StorageSettingsCard";
+import { SecurityAndTurnstileCard } from "@/components/super/settings/SecurityAndTurnstileCard";
+import { SmsAndWhatsappCard } from "@/components/super/settings/SmsAndWhatsappCard";
+import { AiGovernanceCard } from "@/components/super/settings/AiGovernanceCard";
+import { CallingTurnCard } from "@/components/super/settings/CallingTurnCard";
+import { SeoAndProvisioningCard } from "@/components/super/settings/SeoAndProvisioningCard";
+import { EnterpriseOAuthProvidersCard } from "@/components/super/settings/EnterpriseOAuthProvidersCard";
+import { StripeAndBillingRulesCard } from "@/components/super/settings/StripeAndBillingRulesCard";
 import { cn } from "@/lib/utils";
 
 
@@ -419,62 +421,103 @@ function SuperSettingsAdmin() {
     | "addresses"
     | "currency"
     | "payments"
+    | "storage"
     | "smtp"
+    | "messaging"
     | "oauth"
+    | "security"
     | "pusher"
     | "firebase"
+    | "calling"
+    | "ai"
+    | "seo-provisioning"
     | "system"
-    | "runtime-factories"
     | "media";
 
-  const SUPER_NAV_ITEMS: Array<{
-    id: SuperSectionId;
-    label: string;
-    icon: string;
-    badge?: string;
+  const SUPER_NAV_GROUPS: Array<{
+    groupLabel: string;
+    items: Array<{
+      id: SuperSectionId;
+      label: string;
+      icon: string;
+      badge?: string;
+    }>;
   }> = useMemo(
     () => [
-      { id: "branding", label: "Brand Settings", icon: "ph-palette" },
-      { id: "addresses", label: "Company & Dispatch", icon: "ph-buildings" },
-      { id: "currency", label: "Currency & Locale", icon: "ph-currency-inr" },
       {
-        id: "payments",
-        label: "Payment Gateways",
-        icon: "ph-credit-card",
-        badge: form.razorpayEnabled ? (form.razorpayMode === "live" ? "Live" : "Test") : undefined,
+        groupLabel: "Core Identity",
+        items: [
+          { id: "branding", label: "Brand & Appearance", icon: "ph-palette" },
+          { id: "addresses", label: "Company & Dispatch", icon: "ph-buildings" },
+          { id: "currency", label: "Currency & Locale", icon: "ph-currency-inr" },
+        ],
       },
-      { id: "smtp", label: "Email Settings", icon: "ph-envelope-simple" },
-      { id: "oauth", label: "OAuth 2.0 Settings", icon: "ph-key" },
-      { id: "pusher", label: "WebSockets & Events", icon: "ph-broadcast" },
-      { id: "firebase", label: "Firebase Push & FCM", icon: "ph-bell-ringing" },
       {
-        id: "system",
-        label: "Maintenance & System",
-        icon: "ph-wrench",
-        badge: form.maintenanceMode ? "Active" : undefined,
+        groupLabel: "Commerce & Storage",
+        items: [
+          {
+            id: "payments",
+            label: "Payments & Billing",
+            icon: "ph-credit-card",
+            badge: form.razorpayEnabled ? (form.razorpayMode === "live" ? "Live" : "Test") : undefined,
+          },
+          { id: "storage", label: "Cloud Storage (S3/R2)", icon: "ph-hard-drives" },
+        ],
       },
-      { id: "runtime-factories", label: "S3 & Runtime Gateways", icon: "ph-sliders-horizontal" },
-      { id: "media", label: "Media Gallery", icon: "ph-images" },
+      {
+        groupLabel: "Communications",
+        items: [
+          { id: "smtp", label: "Email (SMTP) Engine", icon: "ph-envelope-simple" },
+          { id: "messaging", label: "SMS & WhatsApp", icon: "ph-chat-teardrop-text" },
+        ],
+      },
+      {
+        groupLabel: "Auth & Security",
+        items: [
+          { id: "oauth", label: "OAuth 2.0 & SSO", icon: "ph-key" },
+          { id: "security", label: "Security & Turnstile", icon: "ph-shield-check" },
+        ],
+      },
+      {
+        groupLabel: "Realtime, Calling & AI",
+        items: [
+          { id: "pusher", label: "WebSockets (Pusher)", icon: "ph-broadcast" },
+          { id: "firebase", label: "Firebase Push (FCM)", icon: "ph-bell-ringing" },
+          { id: "calling", label: "WebRTC Calling (TURN)", icon: "ph-phone-call" },
+          { id: "ai", label: "AI Platform & Quotas", icon: "ph-sparkle" },
+        ],
+      },
+      {
+        groupLabel: "Platform Operations",
+        items: [
+          { id: "seo-provisioning", label: "SEO, Domains & Retention", icon: "ph-globe-hemisphere-west" },
+          {
+            id: "system",
+            label: "Maintenance & System",
+            icon: "ph-wrench",
+            badge: form.maintenanceMode ? "Active" : undefined,
+          },
+          { id: "media", label: "Media Gallery", icon: "ph-images" },
+        ],
+      },
     ],
     [form.maintenanceMode, form.razorpayEnabled, form.razorpayMode],
   );
 
   const [activeSection, setActiveSection] = useState<SuperSectionId>(
-    (searchParams.tab && searchParams.tab !== "overview" && searchParams.tab !== "media"
-      ? (searchParams.tab as SuperSectionId)
-      : "branding"),
+    searchParams.tab === "runtime-factories"
+      ? "storage"
+      : searchParams.tab && searchParams.tab !== "overview" && searchParams.tab !== "media"
+        ? (searchParams.tab as SuperSectionId)
+        : "branding",
   );
   const [showRazorpaySecret, setShowRazorpaySecret] = useState(false);
   const [isTestingRazorpay, setIsTestingRazorpay] = useState(false);
-  const [showRuntimeSuite, setShowRuntimeSuite] = useState(searchParams.tab === "runtime-factories");
 
   const scrollToSection = (id: SuperSectionId) => {
     if (id === "media") {
       navigate({ to: "/super/media" as any });
       return;
-    }
-    if (id === "runtime-factories") {
-      setShowRuntimeSuite(true);
     }
     setActiveSection(id);
     const el = document.getElementById(`settings-section-${id}`);
@@ -490,8 +533,8 @@ function SuperSettingsAdmin() {
       return;
     }
     if (searchParams.tab && searchParams.tab !== "overview") {
-      const target = searchParams.tab as SuperSectionId;
-      if (target === "runtime-factories") setShowRuntimeSuite(true);
+      const target: SuperSectionId =
+        searchParams.tab === "runtime-factories" ? "storage" : (searchParams.tab as SuperSectionId);
       setActiveSection(target);
       setTimeout(() => {
         const el = document.getElementById(`settings-section-${target}`);
@@ -892,12 +935,17 @@ function SuperSettingsAdmin() {
       "addresses",
       "currency",
       "payments",
+      "storage",
       "smtp",
+      "messaging",
       "oauth",
+      "security",
       "pusher",
       "firebase",
+      "calling",
+      "ai",
+      "seo-provisioning",
       "system",
-      "runtime-factories",
     ];
     const observer = new IntersectionObserver(
       (entries) => {
@@ -1189,46 +1237,53 @@ function SuperSettingsAdmin() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Sticky Sidebar Navigation (1:1 Tenant Settings UI) */}
+          {/* Left Sticky Sidebar Navigation (1:1 Tenant Settings UI, cleanly grouped) */}
           <aside className="lg:col-span-3 lg:sticky lg:top-20">
             <Card className="border border-border/80 rounded-xl bg-card shadow-xs">
-              <CardContent className="p-2 space-y-0.5">
-                {SUPER_NAV_ITEMS.map((item) => {
-                  const active = activeSection === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => scrollToSection(item.id)}
-                      className={cn(
-                        "w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-xs font-medium text-left transition-colors cursor-pointer",
-                        active
-                          ? "bg-muted text-foreground font-semibold"
-                          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-                      )}
-                    >
-                      <span className="flex items-center gap-2.5 min-w-0">
-                        <i className={cn("ph text-base shrink-0", item.icon)} />
-                        <span className="truncate">{item.label}</span>
-                      </span>
-                      {item.badge && (
-                        <Badge
-                          variant="outline"
+              <CardContent className="p-2 space-y-2.5 max-h-[calc(100vh-6rem)] overflow-y-auto">
+                {SUPER_NAV_GROUPS.map((group) => (
+                  <div key={group.groupLabel} className="space-y-0.5">
+                    <div className="px-3 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/75">
+                      {group.groupLabel}
+                    </div>
+                    {group.items.map((item) => {
+                      const active = activeSection === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => scrollToSection(item.id)}
                           className={cn(
-                            "text-[10px] px-1.5 py-0 h-4 shrink-0",
-                            item.id === "system"
-                              ? "bg-rose-500/10 text-rose-600 border-rose-500/20"
-                              : item.badge === "Live"
-                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                                : "bg-amber-500/10 text-amber-600 border-amber-500/20",
+                            "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs font-medium text-left transition-colors cursor-pointer",
+                            active
+                              ? "bg-muted text-foreground font-semibold"
+                              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
                           )}
                         >
-                          {item.badge}
-                        </Badge>
-                      )}
-                    </button>
-                  );
-                })}
+                          <span className="flex items-center gap-2.5 min-w-0">
+                            <i className={cn("ph text-base shrink-0", item.icon)} />
+                            <span className="truncate">{item.label}</span>
+                          </span>
+                          {item.badge && (
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-[10px] px-1.5 py-0 h-4 shrink-0",
+                                item.id === "system"
+                                  ? "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                                  : item.badge === "Live"
+                                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                    : "bg-amber-500/10 text-amber-600 border-amber-500/20",
+                              )}
+                            >
+                              {item.badge}
+                            </Badge>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
               </CardContent>
             </Card>
           </aside>
@@ -2519,7 +2574,11 @@ function SuperSettingsAdmin() {
               </div>
             </div>
           </Card>
+              <StripeAndBillingRulesCard />
             </section>
+
+            {/* SECTION: CLOUD STORAGE (S3 / R2 / GCS) */}
+            <StorageSettingsCard />
 
             {/* SECTION: EMAIL SETTINGS */}
             <section id="settings-section-smtp" className="scroll-mt-20 space-y-4">
@@ -3027,6 +3086,9 @@ function SuperSettingsAdmin() {
           </Card>
             </section>
 
+            {/* SECTION: SMS & WHATSAPP GATEWAYS */}
+            <SmsAndWhatsappCard />
+
             {/* SECTION: OAUTH 2.0 SETTINGS */}
             <Card id="settings-section-oauth" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
               <CardContent className="p-6 space-y-5">
@@ -3497,8 +3559,12 @@ function SuperSettingsAdmin() {
               </p>
             </div>
           </Card>
+                <EnterpriseOAuthProvidersCard />
               </CardContent>
             </Card>
+
+            {/* SECTION: SECURITY, 2FA & ANTI-BOT (TURNSTILE) */}
+            <SecurityAndTurnstileCard />
 
             {/* SECTION: WEBSOCKETS & EVENTS */}
             <section id="settings-section-pusher" className="scroll-mt-20 space-y-4">
@@ -3875,6 +3941,15 @@ function SuperSettingsAdmin() {
           </Card>
             </section>
 
+            {/* SECTION: WEBRTC CALLING (TURN / STUN) */}
+            <CallingTurnCard />
+
+            {/* SECTION: AI PLATFORM & QUOTAS */}
+            <AiGovernanceCard />
+
+            {/* SECTION: SEO, DOMAINS, PROVISIONING & RETENTION */}
+            <SeoAndProvisioningCard />
+
             {/* SECTION: MAINTENANCE & SYSTEM SETTINGS */}
             <section id="settings-section-system" className="scroll-mt-20 space-y-4">
               <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-3">
@@ -4008,37 +4083,6 @@ function SuperSettingsAdmin() {
           </Card>
             </section>
 
-            {/* SECTION: S3 & RUNTIME GATEWAYS */}
-            <Card id="settings-section-runtime-factories" className="border border-border/80 rounded-xl bg-card shadow-xs scroll-mt-20">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
-                  <div className="flex items-start gap-2.5">
-                    <i className="ph ph-sliders-horizontal text-xl text-primary mt-0.5 shrink-0" />
-                    <div>
-                      <h2 className="text-base font-bold text-foreground">S3 &amp; Runtime Gateways</h2>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Advanced 9-category runtime settings &amp; connection diagnostics (S3/MinIO storage, security, gateways).
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setShowRuntimeSuite((v) => !v)}
-                    className="gap-1.5 shrink-0"
-                  >
-                    <i className={cn("ph", showRuntimeSuite ? "ph-caret-up" : "ph-caret-down")} />
-                    {showRuntimeSuite ? "Collapse Suite" : "Open S3 Runtime Suite"}
-                  </Button>
-                </div>
-                {showRuntimeSuite && (
-                  <div className="pt-1">
-                    <SharedSettingsShell scope="PLATFORM" />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </div>
         </div>
       )}

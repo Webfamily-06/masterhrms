@@ -219,6 +219,57 @@ settingsRouter.post("/:scope/:group/test", requireAuth, async (req: AuthRequest,
     if (group === "payments") {
       const paymentSettings = await SettingsService.getGroup(scope, scopeId, "payments", { decryptSecrets: true });
       const values = paymentSettings?.values || {};
+      const provider = String(req.body?.provider || "razorpay").toLowerCase();
+
+      if (provider === "stripe") {
+        const rawStripeSecret = req.body?.stripeSecretKey || req.body?.["payments.stripe_secret_key"];
+        const stripeSecret = String(
+          rawStripeSecret && !String(rawStripeSecret).includes("••••")
+            ? rawStripeSecret
+            : values["payments.stripe_secret_key"] || ""
+        ).trim();
+        if (!stripeSecret) {
+          return res.status(400).json({
+            success: false,
+            error: "Stripe Secret Key must be configured before testing",
+            latencyMs: Date.now() - startTime,
+          });
+        }
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 7000);
+          const sRes = await fetch("https://api.stripe.com/v1/balance", {
+            method: "GET",
+            headers: { Authorization: `Bearer ${stripeSecret}` },
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          const latencyMs = Date.now() - startTime;
+          if (!sRes.ok) {
+            return res.status(400).json({
+              success: false,
+              error: `Stripe rejected API key (HTTP ${sRes.status}). Check your Secret Key.`,
+              provider: "stripe",
+              latencyMs,
+            });
+          }
+          return res.json({
+            success: true,
+            message: `Stripe ${stripeSecret.startsWith("sk_live_") ? "Live" : "Test"} API verified (HTTP ${sRes.status})`,
+            provider: "stripe",
+            mode: stripeSecret.startsWith("sk_live_") ? "live" : "sandbox",
+            latencyMs,
+          });
+        } catch (netErr: any) {
+          return res.status(502).json({
+            success: false,
+            error: `Could not reach api.stripe.com: ${netErr?.message || "Network timeout"}`,
+            provider: "stripe",
+            latencyMs: Date.now() - startTime,
+          });
+        }
+      }
+
       const rzpKey = String(req.body?.razorpayKeyId || req.body?.["payments.razorpay_key_id"] || values["payments.razorpay_key_id"] || "").trim();
       const rawSecret = req.body?.razorpayKeySecret || req.body?.["payments.razorpay_key_secret"];
       const rzpSecret = String(
@@ -376,6 +427,109 @@ settingsRouter.post("/:scope/:group/test", requireAuth, async (req: AuthRequest,
         message: `Firebase configuration verified for project [${projectId}]`,
         provider: "firebase",
         projectId,
+        latencyMs: Date.now() - startTime,
+      });
+    }
+
+    if (group === "ai") {
+      const aiSettings = await SettingsService.getGroup(scope, scopeId, "ai", { decryptSecrets: true });
+      const values = aiSettings?.values || {};
+      const provider = String(req.body?.provider || req.body?.["ai.provider"] || values["ai.provider"] || "openai").toLowerCase();
+      const rawKey = req.body?.apiKey || req.body?.["ai.api_key"];
+      const apiKey = String(
+        rawKey && !String(rawKey).includes("••••") ? rawKey : values["ai.api_key"] || ""
+      ).trim();
+
+      if (!apiKey) {
+        return res.status(400).json({
+          success: false,
+          error: "Enter a Platform Master AI API Key before testing.",
+          latencyMs: Date.now() - startTime,
+        });
+      }
+
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 7000);
+        let probeRes: globalThis.Response;
+        if (provider === "gemini") {
+          probeRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
+            { signal: controller.signal }
+          );
+        } else if (provider === "anthropic" || provider === "claude") {
+          probeRes = await fetch("https://api.anthropic.com/v1/models", {
+            headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+            signal: controller.signal,
+          });
+        } else if (provider === "groq") {
+          probeRes = await fetch("https://api.groq.com/openai/v1/models", {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: controller.signal,
+          });
+        } else if (provider === "deepseek") {
+          probeRes = await fetch("https://api.deepseek.com/v1/models", {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: controller.signal,
+          });
+        } else {
+          probeRes = await fetch("https://api.openai.com/v1/models", {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: controller.signal,
+          });
+        }
+        clearTimeout(timeout);
+        const latencyMs = Date.now() - startTime;
+        if (!probeRes.ok) {
+          return res.status(400).json({
+            success: false,
+            error: `AI provider [${provider}] rejected API key (HTTP ${probeRes.status}).`,
+            provider,
+            latencyMs,
+          });
+        }
+        return res.json({
+          success: true,
+          message: `AI provider [${provider}] authenticated successfully (HTTP ${probeRes.status}).`,
+          provider,
+          latencyMs,
+        });
+      } catch (netErr: any) {
+        return res.status(502).json({
+          success: false,
+          error: `Could not reach ${provider} API: ${netErr?.message || "Network timeout"}`,
+          latencyMs: Date.now() - startTime,
+        });
+      }
+    }
+
+    if (group === "calling") {
+      const callingSettings = await SettingsService.getGroup(scope, scopeId, "calling", { decryptSecrets: true });
+      const values = callingSettings?.values || {};
+      const urlsRaw = String(req.body?.["calling.turn_urls"] || values["calling.turn_urls"] || "").trim();
+      const urls = urlsRaw
+        .split(",")
+        .map((u) => u.trim())
+        .filter(Boolean);
+      if (urls.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: "Provide at least one STUN or TURN URI (e.g. stun:stun.l.google.com:19302).",
+          latencyMs: Date.now() - startTime,
+        });
+      }
+      const invalid = urls.filter((u) => !/^(stuns?|turns?):[^\s]+$/i.test(u));
+      if (invalid.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid ICE URI format: ${invalid.join(", ")}. Expected stun:, stuns:, turn:, or turns:.`,
+          latencyMs: Date.now() - startTime,
+        });
+      }
+      const hasTurn = urls.some((u) => /^turns?:/i.test(u));
+      return res.json({
+        success: true,
+        message: `Validated ${urls.length} ICE server(s)${hasTurn ? " (TURN relay enabled)" : " (STUN only — add a TURN server for strict enterprise NATs)"}.`,
         latencyMs: Date.now() - startTime,
       });
     }
