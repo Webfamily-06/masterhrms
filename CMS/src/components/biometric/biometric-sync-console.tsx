@@ -224,7 +224,7 @@ export function BiometricSyncConsole() {
         return [];
       }
     },
-    refetchInterval: 10000,
+    refetchInterval: 30000,
   });
 
   const { data: dbLogsResponse = [] } = useQuery({
@@ -237,7 +237,7 @@ export function BiometricSyncConsole() {
         return [];
       }
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
 
   const devices: BiometricDevice[] = useMemo(() => {

@@ -1,7 +1,26 @@
 import { PrismaClient } from "@prisma/client";
 import { prismaProxy, createDynamicPrismaProxy } from "./facade/prisma-proxy.facade";
 
-const dbUrl = process.env.DATABASE_URL;
+export function buildPooledDatabaseUrl(rawUrl?: string): string | undefined {
+  if (!rawUrl) return undefined;
+  try {
+    const u = new URL(rawUrl);
+    if (!u.searchParams.has("connection_limit")) {
+      u.searchParams.set("connection_limit", process.env.PRISMA_CONNECTION_LIMIT || "20");
+    }
+    if (!u.searchParams.has("pool_timeout")) {
+      u.searchParams.set("pool_timeout", process.env.PRISMA_POOL_TIMEOUT || "30");
+    }
+    if (!u.searchParams.has("connect_timeout")) {
+      u.searchParams.set("connect_timeout", "15");
+    }
+    return u.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
+const dbUrl = buildPooledDatabaseUrl(process.env.DATABASE_URL);
 
 if (!dbUrl) {
   console.warn("⚠️ [WARN] DATABASE_URL is not configured. Database operations will be unavailable until DATABASE_URL is provided.");

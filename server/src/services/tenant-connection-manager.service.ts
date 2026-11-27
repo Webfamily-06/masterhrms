@@ -2,6 +2,25 @@ import { PrismaClient } from "@prisma/client";
 import type { TenancyStrategy, WorkspaceStatus } from "../context/tenant-context";
 import { createTenantIsolationExtension } from "../extensions/tenant-isolation.extension";
 
+function buildPooledDatabaseUrl(rawUrl?: string): string | undefined {
+  if (!rawUrl) return undefined;
+  try {
+    const u = new URL(rawUrl);
+    if (!u.searchParams.has("connection_limit")) {
+      u.searchParams.set("connection_limit", process.env.PRISMA_CONNECTION_LIMIT || "20");
+    }
+    if (!u.searchParams.has("pool_timeout")) {
+      u.searchParams.set("pool_timeout", process.env.PRISMA_POOL_TIMEOUT || "30");
+    }
+    if (!u.searchParams.has("connect_timeout")) {
+      u.searchParams.set("connect_timeout", "15");
+    }
+    return u.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
 export interface TenantRegistrationConfig {
   tenantId: string;
   name: string;
@@ -26,7 +45,7 @@ export class TenantConnectionManager {
   private registry = new Map<string, TenantRegistrationConfig>();
 
   private constructor() {
-    const baseDbUrl = process.env.DATABASE_URL;
+    const baseDbUrl = buildPooledDatabaseUrl(process.env.DATABASE_URL);
     if (!baseDbUrl) {
       if (process.env.NODE_ENV === "production") {
         throw new Error("⚠️ [TenantConnectionManager] DATABASE_URL is strictly required in production.");
