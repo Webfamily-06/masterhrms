@@ -214,8 +214,7 @@ test.describe('MasterHRMS — Verified Critical Multi-Role E2E Workflows', () =>
     try {
       // Employee blocked from HR UI & Admin/Super APIs
       await emp1.page.goto(`${TENANT_BASE}/hr/employees`, { waitUntil: 'domcontentloaded' });
-      await waitWorkspaceReady(emp1.page);
-      expect(emp1.page.url()).not.toContain('/hr/employees');
+      await expect(emp1.page).not.toHaveURL(/\/hr\/employees/, { timeout: 15_000 });
 
       const empProbes = await emp1.page.evaluate(async () => {
         const token = localStorage.getItem('hrms_auth_token') || localStorage.getItem('auth_token');
