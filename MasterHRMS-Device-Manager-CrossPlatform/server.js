@@ -21,6 +21,7 @@ const DEFAULT_CONFIG = {
   lastSyncAt: null,
   lastSyncStatus: "idle",
   lastSyncMessage: "Waiting for first background sync...",
+  fullHistorySyncedSerials: {},
   history: [],
 };
 
@@ -88,7 +89,7 @@ function postJsonToUrl(targetUrl, payloadObj, redirectsLeft = 4) {
         port: urlObj.port || (urlObj.protocol === "https:" ? 443 : 80),
         path: urlObj.pathname + urlObj.search,
         method: "POST",
-        timeout: 30000,
+        timeout: 60000,
         headers: {
           "Content-Type": "application/json",
           "Content-Length": body.length,
@@ -165,9 +166,12 @@ async function pullEnrichedBundle(ip, port) {
   });
 }
 
-async function pushBundleChunked(serverUrl, serialNumber, users, logs) {
+async function pushBundleChunked(serverUrl, serialNumber, users, logs, options = {}) {
   const base = normalizeServerUrl(serverUrl);
   const endpoint = `${base}/api/public/biometric/device-sync-bundle`;
+  const forceFullHistory = options.forceFullHistory !== false;
+  const alreadyFullSynced = Boolean(appConfig.fullHistorySyncedSerials && appConfig.fullHistorySyncedSerials[serialNumber]);
+  const doFullHistory = forceFullHistory || !alreadyFullSynced;
 
   // 1. Push ALL enrolled users & auth modes FIRST (tiny ~5KB payload -> instant <1s persistence of real names!)
   const userResp = await postJsonToUrl(endpoint, {
@@ -179,32 +183,63 @@ async function pushBundleChunked(serverUrl, serialNumber, users, logs) {
     return { ok: false, status: userResp.status, body: userResp.body };
   }
 
-  // 2. Push attendance logs in safe 150-record batches (newest first) so Vercel proxy never times out
+  // 2. Push COMPLETE historical attendance logs (all 2+ years / all records on hardware) in 500-record batches.
+  //    Only subsequent 5-min scheduled background ticks use incremental latest-500 after initial full sync completes.
   const allLogs = Array.isArray(logs) ? logs : [];
-  const sortedNewestFirst = [...allLogs].reverse();
-  const BATCH_SIZE = 150;
+  const orderedLogs = doFullHistory ? [...allLogs] : [...allLogs].reverse().slice(0, 500);
+  const BATCH_SIZE = 500;
   let totalAccepted = 0;
   let totalDuplicate = 0;
+  let lastSummary = null;
 
-  // Cap single manual push to latest 600 logs (~2-3 weeks) for instant UX; auto-sync keeps everything up to date
-  const logsToPush = sortedNewestFirst.slice(0, 600);
-  for (let i = 0; i < logsToPush.length; i += BATCH_SIZE) {
-    const batch = logsToPush.slice(i, i + BATCH_SIZE);
-    const batchResp = await postJsonToUrl(endpoint, {
+  if (orderedLogs.length === 0) {
+    const finResp = await postJsonToUrl(endpoint, {
       serialNumber,
       users: [],
-      logs: batch,
+      logs: [],
+      finalizeFullSync: true,
     });
-    if (batchResp.status !== 200) {
-      return {
-        ok: false,
-        status: batchResp.status,
-        body: batchResp.body,
-      };
+    lastSummary = finResp.body;
+  } else {
+    const totalBatches = Math.ceil(orderedLogs.length / BATCH_SIZE);
+    for (let i = 0; i < orderedLogs.length; i += BATCH_SIZE) {
+      const batchIndex = Math.floor(i / BATCH_SIZE) + 1;
+      const isLastBatch = i + BATCH_SIZE >= orderedLogs.length;
+      const batch = orderedLogs.slice(i, i + BATCH_SIZE);
+      console.log(
+        `[SYNC ${serialNumber}] Pushing batch ${batchIndex}/${totalBatches} (${batch.length} logs${isLastBatch ? ", finalizing attendance/late/absent/sandwich" : ""})...`
+      );
+      const batchResp = await postJsonToUrl(endpoint, {
+        serialNumber,
+        users: [],
+        logs: batch,
+        finalizeFullSync: isLastBatch,
+      });
+      if (batchResp.status !== 200) {
+        return {
+          ok: false,
+          status: batchResp.status,
+          body: batchResp.body,
+        };
+      }
+      totalAccepted += Number(batchResp.body?.logsAccepted || 0);
+      totalDuplicate += Number(batchResp.body?.logsDuplicate || 0);
+      if (isLastBatch) lastSummary = batchResp.body;
     }
-    totalAccepted += Number(batchResp.body?.logsAccepted || 0);
-    totalDuplicate += Number(batchResp.body?.logsDuplicate || 0);
   }
+
+  if (doFullHistory && serialNumber) {
+    appConfig.fullHistorySyncedSerials = {
+      ...(appConfig.fullHistorySyncedSerials || {}),
+      [serialNumber]: new Date().toISOString(),
+    };
+    saveConfig();
+  }
+
+  const daysSynced = Number(lastSummary?.attendanceDaysSynced || 0);
+  const lateDays = Number(lastSummary?.lateDaysDetected || 0);
+  const absentDays = Number(lastSummary?.absentDaysMarked || 0);
+  const sandwichDays = Number(lastSummary?.sandwichDaysMarked || 0);
 
   return {
     ok: true,
@@ -212,10 +247,17 @@ async function pushBundleChunked(serverUrl, serialNumber, users, logs) {
     body: {
       ok: true,
       serialNumber,
+      fullHistorySynced: doFullHistory,
+      totalMachineLogs: allLogs.length,
+      logsPushed: orderedLogs.length,
       usersSynced: (users || []).length,
       logsAccepted: totalAccepted,
       logsDuplicate: totalDuplicate,
-      message: `Synced ${(users || []).length} hardware users (real names & auth modes) and ${totalAccepted} new punch logs (${totalDuplicate} duplicates skipped).`,
+      attendanceDaysSynced: daysSynced,
+      lateDaysDetected: lateDays,
+      absentDaysMarked: absentDays,
+      sandwichDaysMarked: sandwichDays,
+      message: `Synced ${(users || []).length} users & ALL ${orderedLogs.length}/${allLogs.length} logs (${totalAccepted} new, ${totalDuplicate} duplicates). Attendance: ${daysSynced} days (${lateDays} late, ${absentDays} absent, ${sandwichDays} sandwich).`,
     },
   };
 }
@@ -234,7 +276,9 @@ async function runBackgroundAutoSync(trigger = "scheduled") {
     const sn = bundle.info?.serialNumber;
     if (!sn) throw new Error("Device did not return a Serial Number.");
 
-    const resp = await pushBundleChunked(appConfig.serverUrl, sn, bundle.users, bundle.logs);
+    const resp = await pushBundleChunked(appConfig.serverUrl, sn, bundle.users, bundle.logs, {
+      forceFullHistory: trigger === "manual",
+    });
     const ok = resp.ok;
     const msg = ok
       ? (resp.body?.message || `Synced ${bundle.users.length} users & ${bundle.logs.length} logs (SN: ${sn})`)
@@ -413,7 +457,9 @@ const server = http.createServer(async (req, res) => {
       const base = normalizeServerUrl(body.serverUrl || appConfig.serverUrl);
       appConfig.serverUrl = base;
       saveConfig();
-      const resp = await pushBundleChunked(base, body.serialNumber, body.users || [], body.logs || []);
+      const resp = await pushBundleChunked(base, body.serialNumber, body.users || [], body.logs || [], {
+        forceFullHistory: true,
+      });
       return sendJson(res, resp.status, { ok: resp.ok, response: resp.body });
     }
 

@@ -15,6 +15,10 @@ import {
   type CosecPunchEvent,
 } from "../services/matrix-cosec.adapter";
 import { getBaseDomain } from "../lib/workspace-host";
+import {
+  evaluateSingleDayBiometricAttendance,
+  syncEmployeeBiometricAttendanceAndPolicies,
+} from "../services/biometric-attendance-evaluator.service";
 
 export const biometricRouter = Router();
 export const publicBiometricRouter = Router();
@@ -265,6 +269,14 @@ export async function processBiometricPunch({
     });
 
     if (!existing) {
+      const initialMetrics = await evaluateSingleDayBiometricAttendance({
+        tenantId,
+        employee,
+        dateUtc: punchDateOnly,
+        checkIn: punchTime,
+        checkOut: null,
+        deviceLabel: `[${deviceRecord.deviceName}] (${verificationMode})`,
+      });
       try {
         await db.attendance.create({
           data: {
@@ -272,8 +284,15 @@ export async function processBiometricPunch({
             employeeId: employee.id,
             date: punchDateOnly,
             checkIn: punchTime,
-            status: "present",
-            notes: `Biometric check-in via [${deviceRecord.deviceName}] (${verificationMode})`,
+            hours: initialMetrics.hours,
+            status: initialMetrics.status,
+            lateMinutes: initialMetrics.lateMinutes,
+            earlyOutMinutes: initialMetrics.earlyOutMinutes,
+            overtimeMinutes: initialMetrics.overtimeMinutes,
+            policyId: initialMetrics.policyId,
+            shiftId: initialMetrics.shiftId,
+            source: "BIOMETRIC",
+            notes: initialMetrics.notes,
           },
         });
       } catch (attCreateErr: any) {
@@ -345,39 +364,35 @@ export async function processBiometricPunch({
         }
       }
 
-      // ── Calculate hours (checkIn to checkOut only) ──────────────────────
-      let calculatedHours: number = existing.hours != null ? Number(existing.hours) : 0;
-      if (newCheckIn && newCheckOut && newCheckOut.getTime() > newCheckIn.getTime()) {
-        const diffMs = newCheckOut.getTime() - newCheckIn.getTime();
-        calculatedHours = Number((diffMs / (1000 * 60 * 60)).toFixed(2));
-      }
-
-      // Status based on hours worked
-      let calculatedStatus: string = existing.status ?? "present";
-      if (calculatedHours >= 4) {
-        calculatedStatus = "present";
-      } else if (calculatedHours > 0 && calculatedHours < 4) {
-        calculatedStatus = "half_day";
-      }
-
       // ── Only write back if something actually changed ─────────────────────
       const checkInChanged  = newCheckIn?.getTime()  !== currentCheckIn?.getTime();
       const checkOutChanged = newCheckOut?.getTime() !== currentCheckOut?.getTime();
 
       if (checkInChanged || checkOutChanged) {
-        const deviceLabel = `[${deviceRecord.deviceName}]`;
-        const punchLabel  = resolvedPunchType === "check_in"  ? "In"
-                          : resolvedPunchType === "check_out" ? "Out"
-                          : (checkOutChanged ? "Out" : "In");
+        const evalCheckIn = newCheckIn || punchTime;
+        const evalMetrics = await evaluateSingleDayBiometricAttendance({
+          tenantId,
+          employee,
+          dateUtc: punchDateOnly,
+          checkIn: evalCheckIn,
+          checkOut: newCheckOut,
+          deviceLabel: `[${deviceRecord.deviceName}]`,
+        });
 
         await db.attendance.update({
           where: { id: existing.id },
           data: {
-            checkIn:  newCheckIn,
-            checkOut: newCheckOut,
-            hours:    calculatedHours,
-            status:   calculatedStatus as any,
-            notes: `${existing.notes ? existing.notes + " | " : ""}${punchLabel}: ${deviceLabel} ${punchTime.toTimeString().slice(0, 5)}`,
+            checkIn:         newCheckIn,
+            checkOut:        newCheckOut,
+            hours:           evalMetrics.hours,
+            status:          evalMetrics.status as any,
+            lateMinutes:     evalMetrics.lateMinutes,
+            earlyOutMinutes: evalMetrics.earlyOutMinutes,
+            overtimeMinutes: evalMetrics.overtimeMinutes,
+            policyId:        evalMetrics.policyId,
+            shiftId:         evalMetrics.shiftId,
+            source:          existing.source || "BIOMETRIC",
+            notes:           evalMetrics.notes,
           },
         });
       }
@@ -1944,38 +1959,206 @@ publicBiometricRouter.post("/device-sync-bundle", async (req: Request, res: Resp
       }
     }
 
-    // 2. Process attendance punch logs
+    // 2. High-Speed Bulk Ingestion of attendance punch logs (supports 2+ years / 50,000+ historical logs without timeouts)
     let accepted = 0;
     let duplicates = 0;
     let failed = 0;
+    let attendanceDaysSynced = 0;
+    let lateDaysDetected = 0;
+    let absentDaysMarked = 0;
+    let sandwichDaysMarked = 0;
 
-    if (Array.isArray(logs)) {
-      for (const l of logs) {
-        const empCode = String(l.employeeCode || l.userId || "").trim();
-        if (!empCode) continue;
-        const punchTime = l.punchTime ? new Date(l.punchTime) : new Date();
-        if (Number.isNaN(punchTime.getTime())) continue;
-        try {
-          const result: any = await processBiometricPunch({
-            tenantId: device.tenantId,
-            deviceId: device.id,
-            employeeCode: empCode,
-            punchTime,
-            punchType: l.punchType || "auto",
-            verificationMode: l.verificationMode || "fingerprint",
-            rawPayload: JSON.stringify(l),
-          });
-          if (result?.isDuplicate) duplicates++;
-          else accepted++;
-        } catch {
-          failed++;
+    const finalizeFullSync = Boolean(req.body?.finalizeFullSync);
+    const incomingLogs = Array.isArray(logs) ? logs : [];
+
+    // Preload PIN mappings & employees once per batch
+    const [mappings, employees] = await Promise.all([
+      rawPrisma.biometricEmployeeMapping.findMany({
+        where: { tenantId: device.tenantId, isActive: true },
+        select: { devicePin: true, employeeId: true, deviceId: true },
+      }),
+      rawPrisma.employee.findMany({
+        where: { tenantId: device.tenantId },
+        select: { id: true, employeeCode: true },
+      }),
+    ]);
+
+    const pinToEmployeeId = new Map<string, string>();
+    for (const emp of employees) {
+      if (!emp.employeeCode) continue;
+      const code = String(emp.employeeCode).trim();
+      const stripped = code.replace(/^0+/, "") || code;
+      pinToEmployeeId.set(code, emp.id);
+      pinToEmployeeId.set(stripped, emp.id);
+      const numMatch = code.match(/(\d+)$/);
+      if (numMatch) {
+        pinToEmployeeId.set(numMatch[1], emp.id);
+        pinToEmployeeId.set(numMatch[1].replace(/^0+/, "") || numMatch[1], emp.id);
+      }
+    }
+    // Explicit device mappings override code-based matching
+    for (const m of mappings) {
+      if (m.deviceId && m.deviceId !== device.id) continue;
+      const pin = String(m.devicePin).trim();
+      const stripped = pin.replace(/^0+/, "") || pin;
+      pinToEmployeeId.set(pin, m.employeeId);
+      pinToEmployeeId.set(stripped, m.employeeId);
+    }
+
+    const parsedLogs: Array<{
+      employeeCode: string;
+      employeeId: string | null;
+      punchTime: Date;
+      punchType: string;
+      verificationMode: string;
+      rawPayload: string;
+    }> = [];
+
+    let minTimeMs = Infinity;
+    let maxTimeMs = -Infinity;
+
+    for (const l of incomingLogs) {
+      const empCode = String(l.employeeCode || l.userId || "").trim();
+      if (!empCode) continue;
+      const punchTime = l.punchTime ? new Date(l.punchTime) : new Date();
+      if (Number.isNaN(punchTime.getTime())) {
+        failed++;
+        continue;
+      }
+      const stripped = empCode.replace(/^0+/, "") || empCode;
+      const employeeId = pinToEmployeeId.get(empCode) || pinToEmployeeId.get(stripped) || null;
+      let resolvedPunchType = l.punchType || "auto";
+      if (device.purpose === "check_in_only") resolvedPunchType = "check_in";
+      else if (device.purpose === "check_out_only") resolvedPunchType = "check_out";
+
+      const ms = punchTime.getTime();
+      if (ms < minTimeMs) minTimeMs = ms;
+      if (ms > maxTimeMs) maxTimeMs = ms;
+
+      parsedLogs.push({
+        employeeCode: empCode,
+        employeeId,
+        punchTime,
+        punchType: resolvedPunchType,
+        verificationMode: l.verificationMode || "fingerprint",
+        rawPayload: JSON.stringify(l),
+      });
+    }
+
+    const affectedEmployeePins = new Map<string, Set<string>>();
+
+    if (parsedLogs.length > 0) {
+      // Single query to find already-stored punches in this batch's time window
+      const existingInWindow = await rawPrisma.biometricPunchLog.findMany({
+        where: {
+          tenantId: device.tenantId,
+          punchTime: {
+            gte: new Date(minTimeMs - 1000),
+            lte: new Date(maxTimeMs + 1000),
+          },
+        },
+        select: { employeeCode: true, punchTime: true },
+      });
+
+      const existingKeys = new Set(
+        existingInWindow.map((e) => `${e.employeeCode}::${e.punchTime.getTime()}`)
+      );
+      const seenInBatch = new Set<string>();
+      const rowsToInsert: Array<{
+        tenantId: string;
+        deviceId: string;
+        employeeCode: string;
+        employeeId: string | null;
+        punchTime: Date;
+        punchType: string;
+        verificationMode: string;
+        syncStatus: string;
+        rawPayload: string;
+      }> = [];
+
+      for (const item of parsedLogs) {
+        const key = `${item.employeeCode}::${item.punchTime.getTime()}`;
+        if (existingKeys.has(key) || seenInBatch.has(key)) {
+          duplicates++;
+          continue;
         }
+        seenInBatch.add(key);
+        rowsToInsert.push({
+          tenantId: device.tenantId,
+          deviceId: device.id,
+          employeeCode: item.employeeCode,
+          employeeId: item.employeeId,
+          punchTime: item.punchTime,
+          punchType: item.punchType,
+          verificationMode: item.verificationMode,
+          syncStatus: item.employeeId ? "processed" : "unmatched_employee",
+          rawPayload: item.rawPayload,
+        });
+        if (item.employeeId) {
+          if (!affectedEmployeePins.has(item.employeeId)) {
+            affectedEmployeePins.set(item.employeeId, new Set());
+          }
+          affectedEmployeePins.get(item.employeeId)!.add(item.employeeCode);
+        }
+      }
+
+      if (rowsToInsert.length > 0) {
+        const created = await rawPrisma.biometricPunchLog.createMany({
+          data: rowsToInsert,
+          skipDuplicates: true,
+        });
+        accepted = created.count;
       }
     }
 
+    // 3. Reconcile company-time attendance (late, early-out, half-day, absent, sandwich)
+    // On final full-sync batch, reconcile ALL mapped/matched employees across the full history!
+    if (finalizeFullSync) {
+      const empToPins = new Map<string, Set<string>>();
+      for (const m of mappings) {
+        if (!empToPins.has(m.employeeId)) empToPins.set(m.employeeId, new Set());
+        empToPins.get(m.employeeId)!.add(String(m.devicePin).trim());
+      }
+      for (const emp of employees) {
+        if (!emp.employeeCode) continue;
+        if (!empToPins.has(emp.id)) empToPins.set(emp.id, new Set());
+        empToPins.get(emp.id)!.add(String(emp.employeeCode).trim());
+      }
+      for (const [empId, pins] of empToPins.entries()) {
+        const r = await syncEmployeeBiometricAttendanceAndPolicies({
+          tenantId: device.tenantId,
+          employeeId: empId,
+          biometricPins: Array.from(pins),
+          deviceName: device.deviceName,
+          reconcileAbsentAndSandwich: true,
+        }).catch(() => ({ logsLinked: 0, daysSynced: 0, lateDays: 0, absentDays: 0, sandwichDays: 0 }));
+        attendanceDaysSynced += r.daysSynced;
+        lateDaysDetected += r.lateDays;
+        absentDaysMarked += r.absentDays;
+        sandwichDaysMarked += r.sandwichDays;
+      }
+    } else if (affectedEmployeePins.size > 0 && accepted > 0) {
+      // Incremental sync (e.g. background 5-min sync): update affected employees' attendance with company shift timing
+      for (const [empId, pins] of affectedEmployeePins.entries()) {
+        const r = await syncEmployeeBiometricAttendanceAndPolicies({
+          tenantId: device.tenantId,
+          employeeId: empId,
+          biometricPins: Array.from(pins),
+          deviceName: device.deviceName,
+          reconcileAbsentAndSandwich: false,
+        }).catch(() => ({ logsLinked: 0, daysSynced: 0, lateDays: 0, absentDays: 0, sandwichDays: 0 }));
+        attendanceDaysSynced += r.daysSynced;
+        lateDaysDetected += r.lateDays;
+      }
+    }
+
+    const totalDeviceLogs = await rawPrisma.biometricPunchLog.count({
+      where: { deviceId: device.id },
+    });
+
     await rawPrisma.biometricDevice.update({
       where: { id: device.id },
-      data: { status: "online", lastSyncAt: new Date() },
+      data: { status: "online", lastSyncAt: new Date(), totalPunchLogs: totalDeviceLogs },
     });
 
     return res.status(200).json({
@@ -1986,7 +2169,13 @@ publicBiometricRouter.post("/device-sync-bundle", async (req: Request, res: Resp
       logsAccepted: accepted,
       logsDuplicate: duplicates,
       logsFailed: failed,
-      message: `Synced ${normalizedUsers.length} hardware users and ${accepted} new punch logs (${duplicates} duplicates skipped).`,
+      attendanceDaysSynced,
+      lateDaysDetected,
+      absentDaysMarked,
+      sandwichDaysMarked,
+      message: finalizeFullSync
+        ? `Full sync complete: ${accepted} new logs, ${attendanceDaysSynced} attendance days (${lateDaysDetected} late, ${absentDaysMarked} absent, ${sandwichDaysMarked} sandwich).`
+        : `Synced ${normalizedUsers.length} hardware users and ${accepted} new punch logs (${duplicates} duplicates skipped).`,
     });
   } catch (err: any) {
     console.error("[POST /api/public/biometric/device-sync-bundle] error:", err);
@@ -2173,86 +2362,19 @@ export async function backfillAttendanceForBiometricPin(
   devicePin: string,
   employeeId: string,
   deviceName = "Biometric Terminal"
-): Promise<{ logsLinked: number; daysSynced: number }> {
+): Promise<{ logsLinked: number; daysSynced: number; lateDays: number; absentDays: number; sandwichDays: number }> {
   const db = rawPrisma;
   const trimmedPin = String(devicePin || "").trim();
   const strippedPin = trimmedPin.replace(/^0+/, "") || trimmedPin;
-  if (!trimmedPin) return { logsLinked: 0, daysSynced: 0 };
+  if (!trimmedPin) return { logsLinked: 0, daysSynced: 0, lateDays: 0, absentDays: 0, sandwichDays: 0 };
 
-  const [tenantRecord, logs] = await Promise.all([
-    db.tenant.findUnique({ where: { id: tenantId }, select: { timezone: true } }),
-    db.biometricPunchLog.findMany({
-      where: {
-        tenantId,
-        OR: [{ employeeCode: trimmedPin }, { employeeCode: strippedPin }],
-      },
-      orderBy: { punchTime: "asc" },
-    }),
-  ]);
-
-  if (logs.length === 0) return { logsLinked: 0, daysSynced: 0 };
-
-  // 1. Mark all matching punch logs as linked & processed
-  await db.biometricPunchLog.updateMany({
-    where: { id: { in: logs.map((l) => l.id) } },
-    data: { employeeId, syncStatus: "processed" },
+  return await syncEmployeeBiometricAttendanceAndPolicies({
+    tenantId,
+    employeeId,
+    biometricPins: [trimmedPin, strippedPin],
+    deviceName,
+    reconcileAbsentAndSandwich: true,
   });
-
-  // 2. Group punches by tenant calendar date (First-In / Last-Out)
-  const byDate = new Map<string, { dateUtc: Date; punches: Date[] }>();
-  for (const log of logs) {
-    const dateUtc = getTenantAttendanceDateUtc(log.punchTime, tenantRecord?.timezone);
-    const key = dateUtc.toISOString().slice(0, 10);
-    if (!byDate.has(key)) byDate.set(key, { dateUtc, punches: [] });
-    byDate.get(key)!.punches.push(log.punchTime);
-  }
-
-  let daysSynced = 0;
-  for (const { dateUtc, punches } of byDate.values()) {
-    punches.sort((a, b) => a.getTime() - b.getTime());
-    const firstPunch = punches[0];
-    const lastPunch = punches.length > 1 ? punches[punches.length - 1] : null;
-    const workHours = lastPunch
-      ? Number(((lastPunch.getTime() - firstPunch.getTime()) / (1000 * 60 * 60)).toFixed(2))
-      : undefined;
-
-    const existing = await db.attendance.findUnique({
-      where: {
-        tenantId_employeeId_date: { tenantId, employeeId, date: dateUtc },
-      },
-    });
-
-    if (!existing) {
-      await db.attendance.create({
-        data: {
-          tenantId,
-          employeeId,
-          date: dateUtc,
-          checkIn: firstPunch,
-          checkOut: lastPunch,
-          status: "present",
-          notes: `Synced from ${deviceName} (${punches.length} punch${punches.length > 1 ? "es" : ""})`,
-        },
-      }).catch(() => {});
-    } else {
-      const nextCheckIn = existing.checkIn && existing.checkIn < firstPunch ? existing.checkIn : firstPunch;
-      const nextCheckOut =
-        lastPunch && (!existing.checkOut || lastPunch > existing.checkOut)
-          ? lastPunch
-          : existing.checkOut;
-      await db.attendance.update({
-        where: { id: existing.id },
-        data: {
-          checkIn: nextCheckIn,
-          checkOut: nextCheckOut,
-          status: "present",
-        },
-      }).catch(() => {});
-    }
-    daysSynced++;
-  }
-
-  return { logsLinked: logs.length, daysSynced };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2384,32 +2506,49 @@ biometricRouter.post("/reprocess-attendance", requireAuth, async (req: AuthReque
 
     let totalLogs = 0;
     let totalDays = 0;
-    const processedKeys = new Set<string>();
+    let totalLate = 0;
+    let totalAbsent = 0;
+    let totalSandwich = 0;
+    const empPins = new Map<string, { pins: Set<string>; deviceName: string }>();
 
     for (const m of mappings) {
-      const key = `${m.devicePin}::${m.employeeId}`;
-      if (processedKeys.has(key)) continue;
-      processedKeys.add(key);
-      const r = await backfillAttendanceForBiometricPin(tenantId, m.devicePin, m.employeeId, m.device?.deviceName || "Biometric Terminal");
-      totalLogs += r.logsLinked;
-      totalDays += r.daysSynced;
+      if (!empPins.has(m.employeeId)) {
+        empPins.set(m.employeeId, { pins: new Set(), deviceName: m.device?.deviceName || "Biometric Terminal" });
+      }
+      empPins.get(m.employeeId)!.pins.add(String(m.devicePin).trim());
     }
 
     for (const emp of employees) {
       if (!emp.employeeCode) continue;
-      const key = `${emp.employeeCode}::${emp.id}`;
-      if (processedKeys.has(key)) continue;
-      processedKeys.add(key);
-      const r = await backfillAttendanceForBiometricPin(tenantId, emp.employeeCode, emp.id, "Biometric Terminal");
+      if (!empPins.has(emp.id)) {
+        empPins.set(emp.id, { pins: new Set(), deviceName: "Biometric Terminal" });
+      }
+      empPins.get(emp.id)!.pins.add(String(emp.employeeCode).trim());
+    }
+
+    for (const [empId, { pins, deviceName }] of empPins.entries()) {
+      const r = await syncEmployeeBiometricAttendanceAndPolicies({
+        tenantId,
+        employeeId: empId,
+        biometricPins: Array.from(pins),
+        deviceName,
+        reconcileAbsentAndSandwich: true,
+      });
       totalLogs += r.logsLinked;
       totalDays += r.daysSynced;
+      totalLate += r.lateDays;
+      totalAbsent += r.absentDays;
+      totalSandwich += r.sandwichDays;
     }
 
     return res.json({
       success: true,
       logsLinked: totalLogs,
       daysSynced: totalDays,
-      message: `Synced ${totalLogs} biometric machine punches into ${totalDays} employee attendance records.`,
+      lateDays: totalLate,
+      absentDays: totalAbsent,
+      sandwichDays: totalSandwich,
+      message: `Synced ${totalLogs} punches into ${totalDays} attendance days (${totalLate} late, ${totalAbsent} absent, ${totalSandwich} sandwich leave).`,
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to reprocess biometric attendance." });

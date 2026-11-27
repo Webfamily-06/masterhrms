@@ -1927,28 +1927,78 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Disable layout transitions during initial paint/hydration to prevent opening lag & shift */
+html.sidebar-no-transition .sidebar,
+html.sidebar-no-transition .navbar-header,
+html.sidebar-no-transition .page-wrapper,
+html.sidebar-no-transition .impersonation-top-banner {
+  transition: none !important;
+}
+
 html body :is(.main-wrapper, .workspace-shell, .super-layout) .sidebar {
   transition: width 0.24s cubic-bezier(0.22, 1, 0.36, 1),
               background-color 0.2s ease,
               box-shadow 0.2s ease !important;
 }
 
-/* FULL WIDTH MODE: Standard 252px sidebar visible on desktop */
+/* FULL WIDTH MODE: Standard 250px sidebar visible on desktop (only when NOT collapsed/mini or full-view) */
 @media (min-width: 992px) {
-  html[data-layout="full-width"]:not([dir="rtl"]) body #sidebar.sidebar {
+  html[data-layout="full-width"]:not([dir="rtl"]) body:not(.mini-sidebar):not(.full-view):not(.full-width) #sidebar.sidebar {
     left: 0 !important;
     margin-left: 0 !important;
     transform: none !important;
-    width: 252px !important;
-    min-width: 252px !important;
-    max-width: 252px !important;
+    width: var(--sidebar-width, 250px) !important;
+    min-width: var(--sidebar-width, 250px) !important;
+    max-width: var(--sidebar-width, 250px) !important;
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
   }
-  html[data-layout="full-width"]:not([dir="rtl"]) body :is(.main-wrapper, .workspace-shell, .super-layout) :is(.page-wrapper, .navbar-header) {
-    margin-left: 252px !important;
-    width: calc(100% - 252px) !important;
+  html[data-layout="full-width"]:not([dir="rtl"]) body:not(.mini-sidebar):not(.full-view):not(.full-width) :is(.main-wrapper, .workspace-shell, .super-layout):not(.mini-sidebar):not(.full-view):not(.full-width) :is(.page-wrapper, .navbar-header, .impersonation-top-banner) {
+    margin-left: var(--sidebar-width, 250px) !important;
+    width: calc(100% - var(--sidebar-width, 250px)) !important;
+  }
+
+  /* AUTHORITATIVE COLLAPSED / MINI-SIDEBAR OVERRIDE (beats data-layout="full-width" so collapsed rail is strictly 72px with zero excess whitespace) */
+  html:not([dir="rtl"]) body.mini-sidebar:not(.expand-menu) #sidebar.sidebar,
+  html:not([dir="rtl"]) body .main-wrapper.mini-sidebar:not(.expand-menu) #sidebar.sidebar {
+    left: 0 !important;
+    margin-left: 0 !important;
+    transform: none !important;
+    width: var(--sidebar-mini-width, 72px) !important;
+    min-width: var(--sidebar-mini-width, 72px) !important;
+    max-width: var(--sidebar-mini-width, 72px) !important;
+    overflow: hidden !important;
+  }
+  html:not([dir="rtl"]) body.mini-sidebar :is(.main-wrapper, .workspace-shell, .super-layout) :is(.page-wrapper, .navbar-header, .impersonation-top-banner),
+  html:not([dir="rtl"]) body .main-wrapper.mini-sidebar :is(.page-wrapper, .navbar-header, .impersonation-top-banner) {
+    margin-left: var(--sidebar-mini-width, 72px) !important;
+    width: calc(100% - var(--sidebar-mini-width, 72px)) !important;
+  }
+  html:not([dir="rtl"]) body.mini-sidebar.expand-menu #sidebar.sidebar,
+  html:not([dir="rtl"]) body .main-wrapper.mini-sidebar.expand-menu #sidebar.sidebar {
+    width: var(--sidebar-width, 250px) !important;
+    min-width: var(--sidebar-width, 250px) !important;
+    max-width: var(--sidebar-width, 250px) !important;
+    z-index: 1200 !important;
+    box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.28),
+                0 4px 12px -2px rgba(0, 0, 0, 0.12) !important;
+  }
+
+  /* AUTHORITATIVE FULL-VIEW (OFF-CANVAS) OVERRIDE */
+  html body.full-view #sidebar.sidebar,
+  html body .main-wrapper.full-view #sidebar.sidebar {
+    margin-left: -320px !important;
+    transform: translateX(-100%) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+  }
+  html body.full-view :is(.main-wrapper, .workspace-shell, .super-layout) :is(.page-wrapper, .navbar-header, .impersonation-top-banner),
+  html body .main-wrapper.full-view :is(.page-wrapper, .navbar-header, .impersonation-top-banner) {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
   }
 }
 

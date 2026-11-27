@@ -556,15 +556,13 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [leavingImpersonation, setLeavingImpersonation] = useState(false);
 
-  // Synchronize full-view, mini-sidebar classes on document.body and document.documentElement
+  // Synchronize full-view, mini-sidebar classes on document.body immediately without clobbering brand data-layout
   useEffect(() => {
     if (fullView) {
       document.body.classList.add("full-view", "full-width");
-      document.documentElement.setAttribute("data-layout", "full-width");
       document.body.classList.remove("mini-sidebar", "expand-menu");
     } else {
       document.body.classList.remove("full-view", "full-width");
-      document.documentElement.removeAttribute("data-layout");
       if (collapsed) {
         document.body.classList.add("mini-sidebar");
       } else {
