@@ -2145,11 +2145,12 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
 
     const isSuper = roles.includes("super_admin") && !isImpersonating;
 
+    let impersonatedTenantRecord: any = null;
     if (isImpersonating && tenantId) {
-      const impersonatedTenant = await db.tenant.findUnique({ where: { id: tenantId } });
-      if (impersonatedTenant && user!.profile) {
-        (user!.profile as any).tenantId = impersonatedTenant.id;
-        (user!.profile as any).tenant = impersonatedTenant;
+      impersonatedTenantRecord = await db.tenant.findUnique({ where: { id: tenantId } });
+      if (impersonatedTenantRecord && user!.profile) {
+        (user!.profile as any).tenantId = impersonatedTenantRecord.id;
+        (user!.profile as any).tenant = impersonatedTenantRecord;
       }
       roles = ["tenant_admin", "admin", "workspace_admin", "hr_admin"];
     }
@@ -2370,8 +2371,11 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
             ? "Team Manager"
             : "Employee");
 
+    const effectiveTenant = impersonatedTenantRecord || user!.profile?.tenant || null;
     const enhancedProfile = {
       ...user!.profile,
+      tenantId: tenantId || user!.profile?.tenantId || null,
+      tenant: effectiveTenant,
       designation: resolvedDesignation,
       position: matchingEmployee?.position || resolvedDesignation,
       department: matchingEmployee?.department?.name || null,
@@ -2380,6 +2384,9 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
     return res.json({
       id: user!.id,
       email: user!.email,
+      tenant_id: tenantId || null,
+      tenantId: tenantId || null,
+      tenant: effectiveTenant,
       profile: enhancedProfile,
       designation: resolvedDesignation,
       roles,

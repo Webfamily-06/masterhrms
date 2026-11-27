@@ -225,7 +225,12 @@ filesRouter.get("/nodes", requireAuth, async (req: any, res: Response) => {
     return res.json(result);
   } catch (err: any) {
     console.error("[Files Nodes Browse Error]:", err);
-    return res.status(err.status || 500).json({ error: err.message || "Failed to list file nodes." });
+    const status = err.status || 500;
+    const rawMsg = String(err?.message || "");
+    const safeMsg = /prisma|invocation|\/Users\/|\/src\//i.test(rawMsg)
+      ? "Failed to list file nodes."
+      : rawMsg || "Failed to list file nodes.";
+    return res.status(status).json({ error: safeMsg });
   }
 });
 
@@ -279,7 +284,12 @@ filesRouter.get("/", requireAuth, async (req: any, res: Response) => {
     return res.json(result);
   } catch (err: any) {
     console.error("[Files List Error]:", err);
-    return res.status(err.status || 500).json({ error: err.message || "Failed to list files." });
+    const status = err.status || 500;
+    const rawMsg = String(err?.message || "");
+    const safeMsg = /prisma|invocation|\/Users\/|\/src\//i.test(rawMsg)
+      ? "Failed to list files."
+      : rawMsg || "Failed to list files.";
+    return res.status(status).json({ error: safeMsg });
   }
 });
 
@@ -1141,7 +1151,19 @@ filesRouter.get("/:id/stream", requireAuth, async (req: any, res: Response) => {
 filesRouter.post(
   "/upload",
   requireAuth,
-  upload.array("files", 20),
+  (req: any, res: Response, next) => {
+    upload.fields([
+      { name: "files", maxCount: 20 },
+      { name: "file", maxCount: 20 },
+    ])(req, res, (err: any) => {
+      if (err) {
+        return res.status(400).json({ error: err.message || "Invalid file upload payload." });
+      }
+      const fieldMap = (req.files || {}) as Record<string, Express.Multer.File[]>;
+      req.files = [...(fieldMap.files || []), ...(fieldMap.file || [])];
+      return next();
+    });
+  },
   async (req: any, res: Response) => {
     try {
       const { isSuper, tenantId, userId, userRoles } = getAuthContext(req);

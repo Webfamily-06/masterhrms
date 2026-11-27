@@ -1,11 +1,17 @@
 import { Router, Response } from "express";
 import crypto from "crypto";
 import { requireAuth, AuthRequest } from "../middleware/auth.js";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware.js";
 import { MeetingService } from "../services/meeting.service.js";
+import { AuditService } from "../services/audit.service.js";
+import { NotificationService } from "../services/notification.service.js";
 import { prisma } from "../prisma.js";
 import { getIO } from "../socket.js";
 
 export const hrMeetingsRouter = Router();
+
+// REM-005 (DEFECT-017): Enforce tenant context across all HR Meetings routes so tenant-isolated Meeting queries execute cleanly
+hrMeetingsRouter.use(requireAuth, resolveTenantContext);
 
 // =========================================================================
 // 1. OVERVIEW
@@ -807,6 +813,15 @@ hrMeetingsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) 
       startTime: created.startTime,
       meetingUrl: autoMeetingUrl,
     });
+    // REM-011 (DEFECT-009): Record AuditLog entry on HR meeting creation
+    await AuditService.log({
+      tenantId,
+      actorId: req.user?.userId || null,
+      action: "MEETING_CREATED",
+      entityType: "Meeting",
+      entityId: created.id,
+      newData: { title: created.title, startTime: created.startTime, organizerId },
+    }).catch(() => {});
     return res.status(201).json(formatMeetingRecord(created));
   } catch (err: any) {
     return res.status(400).json({ error: err.message });
@@ -946,6 +961,25 @@ hrMeetingsRouter.post("/:id/attendees", requireAuth, async (req: AuthRequest, re
       startTime: meeting.startTime,
       meetingUrl: meeting.meetingUrl || `/hr/chat/calls?meeting=${meeting.id}`,
     });
+    // REM-011 (DEFECT-009): Dispatch persistent Notification to invited attendee
+    try {
+      const emp = await prisma.employee.findFirst({
+        where: { id: employeeId, tenantId },
+        select: { userId: true },
+      });
+      if (emp?.userId) {
+        await NotificationService.createNotification({
+          tenantId,
+          userId: emp.userId,
+          title: "Meeting Invitation",
+          message: `You have been invited to meeting: ${meeting.title}`,
+          type: "meeting",
+          actionUrl: "/me/meetings",
+        });
+      }
+    } catch (notifErr: any) {
+      console.warn("[hrMeetingsRouter] Attendee notification warning:", notifErr?.message);
+    }
     return res.status(201).json(created);
   } catch (err: any) {
     return res.status(400).json({ error: err.message });

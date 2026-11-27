@@ -60,8 +60,12 @@ export function useTenantBranding() {
   const currentPath = typeof window !== "undefined" ? window.location.pathname : "/";
   const currentHost = typeof window !== "undefined" ? window.location.host : "";
 
+  // REM-013 (DEFECT-005 / API-001): Scope branding cache by host + auth state (not currentPath) to eliminate redundant fetches on every route navigation
   const { data: rawBranding = DEFAULT_BRANDING, isLoading } = useQuery<TenantBranding>({
-    queryKey: ["tenant-branding", currentHost, currentPath, hasAuthToken],
+    queryKey: ["tenant-branding", currentHost, hasAuthToken],
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       try {
         // First check current host resolution via GET /api/public/workspace
@@ -171,7 +175,6 @@ export function useTenantBranding() {
         return DEFAULT_BRANDING;
       }
     },
-    staleTime: 60 * 1000,
   });
 
   const hasLoadedWsBrand = hasAuthToken && Boolean(ws?.tenant);

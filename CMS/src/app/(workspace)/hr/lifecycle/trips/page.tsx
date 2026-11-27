@@ -279,17 +279,21 @@ export default function HrTripsPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
 
+  // REM-004 (DEFECT-019): Use employee-scoped /v1/me/lifecycle/trips when rendered under Employee Portal (/me/*)
+  const tripsEndpoint = isEmployeePortal ? "/v1/me/lifecycle/trips" : "/hr/lifecycle/trips";
+
   // Queries
   const { data: trips = [], isLoading } = useQuery({
-    queryKey: ["hr-lifecycle-trips"],
+    queryKey: [isEmployeePortal ? "me-lifecycle-trips" : "hr-lifecycle-trips"],
     queryFn: async () => {
-      const res = await api.get("/hr/lifecycle/trips");
+      const res = await api.get(tripsEndpoint);
       return unwrapArray(res);
     },
   });
 
   const { data: employees = [] } = useQuery({
     queryKey: ["hr-employees-list-quick"],
+    enabled: !isEmployeePortal,
     queryFn: async () => {
       const res = await api.get("/hr/employees?limit=300");
       return unwrapArray(res);
@@ -298,9 +302,9 @@ export default function HrTripsPage() {
 
   // Mutations
   const createMutation = useMutation({
-    mutationFn: async (payload: any) => api.post("/hr/lifecycle/trips", payload),
+    mutationFn: async (payload: any) => api.post(tripsEndpoint, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["hr-lifecycle-trips"] });
+      queryClient.invalidateQueries({ queryKey: [isEmployeePortal ? "me-lifecycle-trips" : "hr-lifecycle-trips"] });
       toast.success("Trip created successfully.");
       setIsFormOpen(false);
       setFormData(emptyForm);
@@ -440,8 +444,8 @@ export default function HrTripsPage() {
   };
 
   const handleSave = () => {
-    if (!formData.employeeId || !formData.purpose.trim() || !formData.destination.trim()) {
-      toast.error("Employee, Purpose, and Destination are required.");
+    if ((!isEmployeePortal && !formData.employeeId) || !formData.purpose.trim() || !formData.destination.trim()) {
+      toast.error(isEmployeePortal ? "Purpose and Destination are required." : "Employee, Purpose, and Destination are required.");
       return;
     }
     if (!formData.fromDate || !formData.toDate) {
@@ -565,25 +569,27 @@ export default function HrTripsPage() {
             />
           </div>
 
-          <Select
-            value={employeeFilter}
-            onValueChange={(val) => {
-              setEmployeeFilter(val);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-[180px] h-9">
-              <SelectValue placeholder="All Employees" />
-            </SelectTrigger>
-            <SelectContent className="max-h-60">
-              <SelectItem value="all">All Employees</SelectItem>
-              {employees.map((emp: any) => (
-                <SelectItem key={emp.id} value={emp.id}>
-                  {emp.firstName} {emp.lastName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!isEmployeePortal && (
+            <Select
+              value={employeeFilter}
+              onValueChange={(val) => {
+                setEmployeeFilter(val);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[180px] h-9">
+                <SelectValue placeholder="All Employees" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                <SelectItem value="all">All Employees</SelectItem>
+                {employees.map((emp: any) => (
+                  <SelectItem key={emp.id} value={emp.id}>
+                    {emp.firstName} {emp.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           <Input
             type="date"
@@ -993,26 +999,28 @@ export default function HrTripsPage() {
             <DialogTitle>{editingItem ? "Edit Trip" : "Add New Trip"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>
-                Employee <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={formData.employeeId}
-                onValueChange={(val) => setFormData({ ...formData, employeeId: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select employee" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {employees.map((emp: any) => (
-                    <SelectItem key={emp.id} value={emp.id}>
-                      {emp.firstName} {emp.lastName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!isEmployeePortal && (
+              <div className="space-y-1.5">
+                <Label>
+                  Employee <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={formData.employeeId}
+                  onValueChange={(val) => setFormData({ ...formData, employeeId: val })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select employee" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {employees.map((emp: any) => (
+                      <SelectItem key={emp.id} value={emp.id}>
+                        {emp.firstName} {emp.lastName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label>

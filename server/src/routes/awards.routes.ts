@@ -737,7 +737,11 @@ awardsRouter.post("/nominations", async (req: AuthRequest, res: Response) => {
 
     return res.status(201).json({ success: true, data: nomination });
   } catch (err: any) {
-    return res.status(400).json({ error: err.message || "Failed to submit nomination." });
+    const rawMsg = String(err?.message || "");
+    const safeMsg = /prisma|invocation|\/Users\/|\/src\//i.test(rawMsg)
+      ? "Failed to submit nomination due to an internal workflow error."
+      : rawMsg || "Failed to submit nomination.";
+    return res.status(400).json({ error: safeMsg });
   }
 });
 

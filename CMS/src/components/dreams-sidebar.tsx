@@ -1333,7 +1333,7 @@ export function DreamsSidebar({
                     </Link>
                   </li>
                   <li>
-                    <Link to="/apps/file-manager" onClick={onCloseMobile} className={cn((currentPath === "/apps/file-manager" || currentPath === "/tenant/files") && "active")}>
+                    <Link to="/hr/files" onClick={onCloseMobile} className={cn((currentPath === "/hr/files" || currentPath === "/tenant/files") && "active")}>
                       File Manager
                     </Link>
                   </li>
@@ -1689,9 +1689,9 @@ export function DreamsSidebar({
                 </Link>
               </li>
               <li>
-                <Link to="/payments" onClick={onCloseMobile} className={cn(currentPath === "/payments" && "active")}>
+                <Link to="/invoices" onClick={onCloseMobile} className={cn(currentPath === "/invoices" && "active")}>
                   <i className="ph-duotone ph-credit-card"></i>
-                  <span>Payments</span>
+                  <span>Payments & Invoices</span>
                 </Link>
               </li>
               <li>
@@ -2019,9 +2019,9 @@ export function DreamsSidebar({
                 </Link>
               </li>
               <li>
-                <Link to="/document-types" onClick={onCloseMobile} className={cn(currentPath === "/document-types" && "active")}>
+                <Link to="/hr/documents" onClick={onCloseMobile} className={cn(currentPath === "/hr/documents" && "active")}>
                   <i className="ph-duotone ph-file-text"></i>
-                  <span>Document Types</span>
+                  <span>Document Types & Library</span>
                 </Link>
               </li>
 

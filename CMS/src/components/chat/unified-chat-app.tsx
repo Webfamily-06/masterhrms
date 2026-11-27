@@ -1924,15 +1924,19 @@ export function UnifiedChatApp({
         return [];
       }
     },
-    refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false,
   });
 
-  // Immediately broadcast active online status on mount, tab focus & visibility restore
+  // Immediately broadcast active online status on mount, tab focus & visibility restore (debounced 10s to stop duplicate presence storms — REM-013)
   useEffect(() => {
     if (!currentUserId || typeof window === "undefined") return;
     const pingOnline = () => {
       if (document.visibilityState === "hidden") return;
+      const w = window as any;
+      const now = Date.now();
+      if (w.__hrmsLastPresencePing && now - w.__hrmsLastPresencePing < 10000) return;
+      w.__hrmsLastPresencePing = now;
       api
         .post("/api/chat/presence", { status: "online" })
         .then((res: any) => {

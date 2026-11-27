@@ -1,4 +1,5 @@
 import { getTenantDb } from "../context/tenant-context";
+import { rawPrisma } from "../prisma";
 import { AuditService } from "./audit.service";
 import { OutboxService } from "./outbox.service";
 
@@ -62,24 +63,27 @@ export class WorkflowService {
     }
 
     // If no workflow definition configured, auto-create a single-step default workflow
+    // REM-002 (DEFECT-011): Create parent & WorkflowStep separately so tenant-extension never injects tenantId into WorkflowStep
     if (!workflow) {
-      workflow = await db.workflowDefinition.create({
+      const createdDef = await rawPrisma.workflowDefinition.create({
         data: {
           tenantId: params.tenantId,
           module: params.module || "SYSTEM",
           entityType: params.entityType,
           name: `Default ${params.entityType} Workflow`,
           isActive: true,
-          steps: {
-            create: [
-              {
-                stepOrder: 1,
-                name: "Manager Approval",
-                approverType: "MANAGER",
-              },
-            ],
-          },
         },
+      });
+      await rawPrisma.workflowStep.create({
+        data: {
+          workflowId: createdDef.id,
+          stepOrder: 1,
+          name: "Manager Approval",
+          approverType: "MANAGER",
+        },
+      });
+      workflow = await rawPrisma.workflowDefinition.findUnique({
+        where: { id: createdDef.id },
         include: { steps: { orderBy: { stepOrder: "asc" } } },
       });
     }

@@ -3,6 +3,7 @@ import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { TodoNotificationService } from "../services/todo-notification.service";
+import { AuditService } from "../services/audit.service";
 
 export const todosRouter = Router();
 
@@ -897,6 +898,16 @@ todosRouter.post("/", async (req: AuthRequest, res: Response) => {
       },
     });
 
+    // REM-011 (DEFECT-009): Record AuditLog for todo creation
+    AuditService.log({
+      tenantId,
+      userId,
+      action: "TODO_CREATED",
+      entityType: "WorkspaceTodo",
+      entityId: todo.id,
+      details: { title: todo.title, priority: todo.priority, assigneesCount: resolvedAssignees.length },
+    }).catch(() => {});
+
     // Dispatch asynchronous task creation notifications (in-app + email)
     TodoNotificationService.dispatchTaskCreated({
       tenantId,
@@ -951,7 +962,9 @@ todosRouter.put("/:id", async (req: AuthRequest, res: Response) => {
       tag,
       dueDate,
       startDate,
-      completed,
+      completed: rawCompleted,
+      isCompleted,
+      status: rawStatus,
       assignedTo,
       assigneeId,
       progress,
@@ -960,6 +973,21 @@ todosRouter.put("/:id", async (req: AuthRequest, res: Response) => {
       comments,
       attachments,
     } = req.body;
+
+    // REM-007 (DEFECT-018): Normalize completed boolean across completed / isCompleted / status / progress=100
+    const normalizedStatus = typeof rawStatus === "string" ? rawStatus.toLowerCase().trim() : undefined;
+    const completed =
+      rawCompleted !== undefined
+        ? Boolean(rawCompleted)
+        : isCompleted !== undefined
+        ? Boolean(isCompleted)
+        : normalizedStatus === "completed" || normalizedStatus === "done"
+        ? true
+        : normalizedStatus === "pending" || normalizedStatus === "in_progress" || normalizedStatus === "open"
+        ? false
+        : progress !== undefined && Number(progress) >= 100
+        ? true
+        : undefined;
 
     const existing = await prisma.workspaceTodo.findFirst({
       where: { id, tenantId },
@@ -1136,6 +1164,16 @@ todosRouter.put("/:id", async (req: AuthRequest, res: Response) => {
       where: { id },
       data: updateData,
     });
+
+    // REM-011 (DEFECT-009): Record AuditLog for todo mutation
+    AuditService.log({
+      tenantId,
+      userId,
+      action: "TODO_UPDATED",
+      entityType: "WorkspaceTodo",
+      entityId: updated.id,
+      details: { title: updated.title, completed: updated.completed, progress: updatedProgress },
+    }).catch(() => {});
 
     const finalMeta = parseTodoMeta(updated.description);
 

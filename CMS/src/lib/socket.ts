@@ -319,6 +319,45 @@ function broadcastNotifications(items: RealtimeNotification[]) {
   subscribers.forEach((fn) => fn(memoryNotifications));
 }
 
+// REM-013 (DEFECT-005): Module-level deduplication for initial notifications & Pusher config
+let lastNotifFetchTs = 0;
+let inflightNotifFetch: Promise<any> | null = null;
+let cachedPusherConfig: { ts: number; data: any } | null = null;
+let inflightPusherConfig: Promise<any> | null = null;
+
+function fetchSharedNotificationsDedup(): Promise<any> {
+  const now = Date.now();
+  if (inflightNotifFetch) return inflightNotifFetch;
+  if (now - lastNotifFetchTs < 15000 && memoryNotifications.length > 0) {
+    return Promise.resolve({ notifications: [] });
+  }
+  lastNotifFetchTs = now;
+  inflightNotifFetch = api
+    .get<any>("/shared/notifications", { params: { limit: 30 } })
+    .finally(() => {
+      inflightNotifFetch = null;
+    });
+  return inflightNotifFetch;
+}
+
+function fetchPusherConfigDedup(): Promise<any> {
+  const now = Date.now();
+  if (cachedPusherConfig && now - cachedPusherConfig.ts < 5 * 60 * 1000) {
+    return Promise.resolve(cachedPusherConfig.data);
+  }
+  if (inflightPusherConfig) return inflightPusherConfig;
+  inflightPusherConfig = api
+    .get<any>("/pusher/config")
+    .then((res) => {
+      cachedPusherConfig = { ts: Date.now(), data: res };
+      return res;
+    })
+    .finally(() => {
+      inflightPusherConfig = null;
+    });
+  return inflightPusherConfig;
+}
+
 export function useRealtimeSocket() {
   const { user } = useSession();
   const { data: profile } = useCurrentProfile(user);
@@ -343,8 +382,7 @@ export function useRealtimeSocket() {
   useEffect(() => {
     if (!tenantId) return;
 
-    api
-      .get<any>("/shared/notifications", { params: { limit: 30 } })
+    fetchSharedNotificationsDedup()
       .then((res) => {
         const serverList = res?.notifications || [];
         if (!Array.isArray(serverList) || serverList.length === 0) return;
@@ -609,8 +647,7 @@ export function useRealtimeSocket() {
         if (eventName === "chat:message") onChatMessageBgAlert(data);
         window.dispatchEvent(new CustomEvent("hrms:pusher", { detail: { eventName, data } }));
       };
-      api
-        .get<any>("/pusher/config")
+      fetchPusherConfigDedup()
         .then(async (res) => {
           const cfg = res?.data || res;
           if (!cfg?.enabled || !cfg?.key) return;

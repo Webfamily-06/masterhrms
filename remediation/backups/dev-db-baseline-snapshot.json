@@ -1,0 +1,32 @@
+{
+  "capturedAt": "2026-11-27T18:21:01.858Z",
+  "gitCommit": "677676f9",
+  "branch": "remediation/qa-stabilization-p14-p21",
+  "counts": {
+    "tenants": 77,
+    "users": 703,
+    "profiles": 382,
+    "employees": 78,
+    "workspaceTodos": 13,
+    "leaveRequests": 12,
+    "holidays": 3,
+    "meetings": 1,
+    "awards": 7,
+    "employeeTrips": 2,
+    "employeeExits": 7,
+    "notifications": 1008,
+    "auditLogs": 812
+  },
+  "gokulTenant": {
+    "id": "a429fe03-02b6-430d-a3bc-b1185e1b92c1",
+    "name": "Gokul Manufacturings Private Limited",
+    "slug": "gokul-manufacturings-private-limited",
+    "isOnboarded": true
+  },
+  "kovaiTenant": {
+    "id": "c7555c85-1e9e-42d1-97cf-3a5a20bacf6e",
+    "name": "Kovai Textails",
+    "slug": "kovai-textails",
+    "isOnboarded": false
+  }
+}

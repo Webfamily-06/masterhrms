@@ -1,7 +1,8 @@
 import { Router, Response } from "express";
-import { requireAuth, AuthRequest, requireRole } from "../middleware/auth";
+import { requireAuth, AuthRequest, requireRole, invalidateAuthCache } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { getTenantDb } from "../context/tenant-context";
+import { rawPrisma } from "../prisma";
 import { LifecycleService } from "../services/lifecycle.service";
 import { ProbationService } from "../services/probation.service.js";
 import { AuditService } from "../services/audit.service";
@@ -1202,9 +1203,29 @@ hrLifecycleRouter.patch("/terminations/:id/status", requireHrAdmin, async (req: 
     });
 
     if (normalized === "completed") {
-      await (db.employee as any).update({
+      const terminatedEmp = await (db.employee as any).update({
         where: { id: existing.employeeId },
         data: { status: "terminated" },
+        select: { id: true, userId: true, email: true },
+      }).catch(() => null);
+
+      // REM-001 (DEFECT-016): Immediately revoke all active sessions & invalidate auth cache on termination completion
+      const targetUserId = terminatedEmp?.userId || (updated as any)?.employee?.userId;
+      if (targetUserId) {
+        await rawPrisma.deviceSession.updateMany({
+          where: { userId: targetUserId, revoked: false },
+          data: { revoked: true },
+        }).catch(() => {});
+        invalidateAuthCache(targetUserId, tenantId);
+      }
+
+      await AuditService.log({
+        tenantId,
+        actorId: req.user?.userId || null,
+        action: "TERMINATION_COMPLETED_SESSIONS_REVOKED",
+        entityType: "EmployeeExit",
+        entityId: id,
+        newData: { employeeId: existing.employeeId, userId: targetUserId || null, status: "completed" },
       }).catch(() => {});
     }
 

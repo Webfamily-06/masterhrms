@@ -392,11 +392,14 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       subscription?.isExpired === true ||
       (!!subscription?.expiresAt && new Date(subscription.expiresAt).getTime() < Date.now()));
 
+  // REM-013 (DEFECT-005 / API-003): Back off maintenance polling from 15s -> 120s and pause in background tabs
   const { data: maintenanceStatus } = useQuery({
     queryKey: ["platform-maintenance-guard"],
     queryFn: () => api.get("/system/maintenance-status"),
-    staleTime: 10000,
-    refetchInterval: 15000,
+    staleTime: 60000,
+    refetchInterval: 120000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
   });
 
   const isMaintenanceActive =

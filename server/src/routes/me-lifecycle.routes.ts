@@ -297,10 +297,38 @@ meLifecycleRouter.post("/trips", requireAuth, async (req: AuthRequest, res: Resp
     const employee = await resolveEmployee(req);
     if (!employee) return res.status(404).json({ error: "Employee profile not found." });
 
-    const trip = await LifecycleService.createTrip(tenantId, employee.id, req.body);
+    // REM-008 (DEFECT-012): Validate required trip fields & dates cleanly instead of throwing 500 Prisma trace
+    const body = req.body || {};
+    const purpose = String(body.purpose || "").trim();
+    const destination = String(body.destination || "").trim();
+    const rawFrom = body.fromDate || body.startDate;
+    const rawTo = body.toDate || body.endDate;
+    if (!purpose || !destination || !rawFrom || !rawTo) {
+      return res.status(400).json({ error: "Purpose, destination, fromDate, and toDate are required." });
+    }
+    const parsedFrom = new Date(rawFrom);
+    const parsedTo = new Date(rawTo);
+    if (Number.isNaN(parsedFrom.getTime()) || Number.isNaN(parsedTo.getTime())) {
+      return res.status(400).json({ error: "Invalid fromDate or toDate format." });
+    }
+    if (parsedTo < parsedFrom) {
+      return res.status(400).json({ error: "toDate cannot be earlier than fromDate." });
+    }
+
+    const trip = await LifecycleService.createTrip(tenantId, employee.id, {
+      ...body,
+      purpose,
+      destination,
+      fromDate: parsedFrom,
+      toDate: parsedTo,
+    });
     return res.status(201).json(trip);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to create trip request." });
+    const rawMsg = String(err?.message || "");
+    const safeMsg = /prisma|invocation|\/Users\/|\/src\//i.test(rawMsg)
+      ? "Failed to create trip request."
+      : rawMsg || "Failed to create trip request.";
+    return res.status(400).json({ error: safeMsg });
   }
 });
 

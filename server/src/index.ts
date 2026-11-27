@@ -649,6 +649,7 @@ app.use("/api/staffing", contractBillingRouter);
 app.use("/api/payroll/billing", contractBillingRouter);
 app.use("/api/invoices", invoicesRouter);
 app.use("/api/crm", crmRouter);
+app.use("/api/v1/super", superRouter);
 app.use("/api/super", superRouter);
 app.use("/api/addons", addonsRouter);
 app.use(["/api/addons/okr", "/api/okr"], okrRouter);
