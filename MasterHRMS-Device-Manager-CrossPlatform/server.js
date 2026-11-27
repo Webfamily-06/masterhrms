@@ -24,10 +24,19 @@ const DEFAULT_CONFIG = {
   history: [],
 };
 
+function normalizeServerUrl(url) {
+  let u = String(url || DEFAULT_CONFIG.serverUrl).trim().replace(/\/+$/, "");
+  // Auto-correct legacy unbound api.masterhrms.com to active www.masterhrms.com proxy
+  u = u.replace(/^https?:\/\/api\.masterhrms\.com$/i, "https://www.masterhrms.com");
+  return u;
+}
+
 function loadConfig() {
   try {
     if (fs.existsSync(CONFIG_FILE)) {
-      return { ...DEFAULT_CONFIG, ...JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8")) };
+      const parsed = { ...DEFAULT_CONFIG, ...JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8")) };
+      parsed.serverUrl = normalizeServerUrl(parsed.serverUrl);
+      return parsed;
     }
   } catch {}
   return { ...DEFAULT_CONFIG };
@@ -346,13 +355,13 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (urlPath === "/api/cloud/test-server") {
-      const base = String(body.serverUrl || appConfig.serverUrl).trim().replace(/\/+$/, "");
+      const base = normalizeServerUrl(body.serverUrl || appConfig.serverUrl);
       const resp = await postJsonToUrl(`${base}/api/public/biometric/server-time`, { client: "MasterHRMS-CrossPlatform-Manager" });
       return sendJson(res, resp.status, { ok: resp.status === 200, response: resp.body });
     }
 
     if (urlPath === "/api/cloud/push-bundle") {
-      const base = String(body.serverUrl || appConfig.serverUrl).trim().replace(/\/+$/, "");
+      const base = normalizeServerUrl(body.serverUrl || appConfig.serverUrl);
       appConfig.serverUrl = base;
       saveConfig();
       const resp = await postJsonToUrl(`${base}/api/public/biometric/device-sync-bundle`, {

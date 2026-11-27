@@ -702,8 +702,29 @@ biometricRouter.get("/devices/:id/hardware-users", requireAuth, async (req: Auth
       }
     }
 
-    // 2. Merge with cached enrolled users pushed by MasterHRMS-Device-Manager.exe (includes exact Fingerprint/Face/Card/PIN modes)
-    const cachedSnapshot = hardwareUsersCache.get(device.id) || hardwareUsersCache.get(device.serialNumber);
+    // 2. Merge with cached/persisted enrolled users pushed by MasterHRMS-Device-Manager (includes real names & Fingerprint/Face/Card/PIN modes)
+    let cachedSnapshot = hardwareUsersCache.get(device.id) || hardwareUsersCache.get(device.serialNumber);
+    if (!cachedSnapshot) {
+      try {
+        const persisted = await rawPrisma.setting.findUnique({
+          where: {
+            scope_scopeId_key: {
+              scope: "TENANT",
+              scopeId: tenantId,
+              key: `biometric_hw_users_${device.id}`,
+            },
+          },
+        });
+        const val: any = persisted?.valueJson;
+        if (val && Array.isArray(val.users) && val.users.length > 0) {
+          cachedSnapshot = { syncedAt: val.syncedAt || new Date().toISOString(), users: val.users };
+          hardwareUsersCache.set(device.id, cachedSnapshot);
+          if (device.serialNumber) hardwareUsersCache.set(device.serialNumber, cachedSnapshot);
+        }
+      } catch {
+        // Non-fatal fallback
+      }
+    }
     const mergedByBioId = new Map<string, any>();
 
     for (const u of hardwareUsers) {
@@ -1894,6 +1915,33 @@ publicBiometricRouter.post("/device-sync-bundle", async (req: Request, res: Resp
       const snapshot = { syncedAt: new Date().toISOString(), users: normalizedUsers };
       hardwareUsersCache.set(device.id, snapshot);
       hardwareUsersCache.set(device.serialNumber, snapshot);
+      // Persist in PostgreSQL so enrolled machine names & auth modes survive server restarts
+      try {
+        await rawPrisma.setting.upsert({
+          where: {
+            scope_scopeId_key: {
+              scope: "TENANT",
+              scopeId: device.tenantId,
+              key: `biometric_hw_users_${device.id}`,
+            },
+          },
+          create: {
+            scope: "TENANT",
+            scopeId: device.tenantId,
+            group: "biometric",
+            key: `biometric_hw_users_${device.id}`,
+            valueJson: snapshot as any,
+            valueType: "json",
+            isSecret: false,
+          },
+          update: {
+            valueJson: snapshot as any,
+            version: { increment: 1 },
+          },
+        });
+      } catch (persistErr) {
+        console.warn("[device-sync-bundle] Failed to persist hardware users snapshot:", persistErr);
+      }
     }
 
     // 2. Process attendance punch logs

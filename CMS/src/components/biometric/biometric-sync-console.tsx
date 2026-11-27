@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useCurrentProfile } from "@/lib/session";
@@ -52,6 +53,7 @@ import {
   CheckCircle2,
   Cloud,
   Link2,
+  ExternalLink,
 } from "lucide-react";
 
 type BiometricDevice = {
@@ -123,6 +125,7 @@ const EMPTY_FORM = {
 };
 
 export function BiometricSyncConsole() {
+  const router = useRouter();
   const { isEntitled, isLoading: isNavLoading } = useNavigationResolver();
   const hasEntitlement = isEntitled("biometric-sync");
   const qc = useQueryClient();
@@ -188,11 +191,23 @@ export function BiometricSyncConsole() {
   });
 
   const { data: dbDepartments = [] } = useQuery({
-    queryKey: ["departments-for-biometric"],
+    queryKey: ["departments-for-biometric", tenantId],
     queryFn: async () => {
       try {
         const res = await api.get("/employees/departments");
-        return Array.isArray(res) ? res : res?.data || [];
+        return Array.isArray(res) ? res : res?.departments || res?.data || [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const { data: dbDesignations = [] } = useQuery({
+    queryKey: ["designations-for-biometric", tenantId],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/organization/designations");
+        return Array.isArray(res) ? res : res?.designations || res?.data || [];
       } catch {
         return [];
       }
@@ -243,13 +258,48 @@ export function BiometricSyncConsole() {
     }));
   }, [dbDevices]);
 
+  const activeMappingDeviceId = selectedMappingDeviceId || devices[0]?.id || "";
+  const [inlineLinkSelection, setInlineLinkSelection] = useState<Record<string, string>>({});
+
+  const {
+    data: hardwareUsersData,
+    isFetching: isFetchingHardwareUsers,
+    refetch: refetchHardwareUsers,
+  } = useQuery({
+    queryKey: ["biometric-hardware-users", activeMappingDeviceId],
+    enabled: !!activeMappingDeviceId,
+    queryFn: async () => {
+      try {
+        const res = await api.get(`/biometric/devices/${activeMappingDeviceId}/hardware-users`);
+        return res?.data || res || { users: [] };
+      } catch {
+        return { users: [] };
+      }
+    },
+  });
+
+  const hardwareUsers: any[] = hardwareUsersData?.users || [];
+
+  const hardwareNameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const u of hardwareUsers) {
+      if (u?.biometricId && u?.name && !/^user\s+\d+$/i.test(String(u.name).trim())) {
+        m.set(String(u.biometricId).trim(), String(u.name).trim());
+      }
+    }
+    return m;
+  }, [hardwareUsers]);
+
   const allPunches: EmployeePunchLog[] = useMemo(() => {
     return (dbLogsResponse || []).map((l: any) => {
       const punchDate = new Date(l.punchTime);
       const isRegistered = !!l.employeeId;
+      const hwName = hardwareNameMap.get(String(l.employeeCode || "").trim());
       const empName = l.employee
         ? `${l.employee.firstName} ${l.employee.lastName}`
-        : `Unregistered User (${l.employeeCode})`;
+        : hwName
+          ? `${hwName} (Machine ID: ${l.employeeCode})`
+          : `Unregistered User (${l.employeeCode})`;
       return {
         id: l.id,
         deviceId: l.deviceId,
@@ -459,37 +509,50 @@ export function BiometricSyncConsole() {
     setQuickRegModalPunch(punch);
   }
 
-  async function handleQuickRegister() {
+  async function handleQuickRegister(openProfileAfter = false) {
     if (!quickRegModalPunch) return;
     if (!quickRegForm.firstName.trim() || !quickRegForm.lastName.trim()) {
       return toast.error("First name and last name are required.");
     }
     setIsRegisteringUser(true);
     try {
-      const newEmp = await api.post("/employees", {
+      const selectedDesig = dbDesignations.find(
+        (d: any) => d.id === quickRegForm.position || d.name === quickRegForm.position
+      );
+      const newEmpRes = await api.post("/employees", {
         employeeCode: quickRegModalPunch.employeeCode,
         firstName: quickRegForm.firstName.trim(),
         lastName: quickRegForm.lastName.trim(),
         email: quickRegForm.email.trim() || `${quickRegModalPunch.employeeCode.toLowerCase()}@workspace.com`,
-        position: quickRegForm.position || "Staff Member",
+        position: selectedDesig?.name || quickRegForm.position || "Staff Member",
+        designationId: selectedDesig?.id || undefined,
         departmentId: quickRegForm.departmentId || null,
         employmentType: "full_time",
         status: "active",
       });
+      const newEmp = newEmpRes?.employee || newEmpRes?.data || newEmpRes;
 
-      if (quickRegModalPunch.deviceId) {
+      if (quickRegModalPunch.deviceId && newEmp?.id) {
         try {
-          await api.post(`/biometric/devices/${quickRegModalPunch.deviceId}/map-employee`, {
-            hardwareUserId: quickRegModalPunch.employeeCode,
-            employeeId: newEmp?.id,
+          await api.post(`/biometric/devices/${quickRegModalPunch.deviceId}/mappings`, {
+            employeeId: newEmp.id,
+            devicePin: quickRegModalPunch.employeeCode,
+            vendorType: "zkteco_adms",
           });
         } catch {}
       }
 
       qc.invalidateQueries({ queryKey: ["biometric-logs", tenantId] });
+      qc.invalidateQueries({ queryKey: ["biometric-hardware-users", activeMappingDeviceId] });
+      qc.invalidateQueries({ queryKey: ["biometric-mappings", activeMappingDeviceId] });
       qc.invalidateQueries({ queryKey: ["employees"] });
+      qc.invalidateQueries({ queryKey: ["employees-for-biometric-mapping", tenantId] });
       setQuickRegModalPunch(null);
       toast.success(`Registered ${quickRegForm.firstName} ${quickRegForm.lastName} (${quickRegModalPunch.employeeCode}).`);
+
+      if (openProfileAfter && newEmp?.id) {
+        router.push(`/hr/employees/${newEmp.id}/edit`);
+      }
     } catch (err: any) {
       toast.error(err?.message || "Failed to register employee.");
     } finally {
@@ -502,28 +565,6 @@ export function BiometricSyncConsole() {
     navigator.clipboard.writeText(val);
     toast.success(`Copied ${label}: ${val}`);
   }
-
-  const activeMappingDeviceId = selectedMappingDeviceId || devices[0]?.id || "";
-  const [inlineLinkSelection, setInlineLinkSelection] = useState<Record<string, string>>({});
-
-  const {
-    data: hardwareUsersData,
-    isFetching: isFetchingHardwareUsers,
-    refetch: refetchHardwareUsers,
-  } = useQuery({
-    queryKey: ["biometric-hardware-users", activeMappingDeviceId],
-    enabled: !!activeMappingDeviceId,
-    queryFn: async () => {
-      try {
-        const res = await api.get(`/biometric/devices/${activeMappingDeviceId}/hardware-users`);
-        return res?.data || res || { users: [] };
-      } catch {
-        return { users: [] };
-      }
-    },
-  });
-
-  const hardwareUsers: any[] = hardwareUsersData?.users || [];
 
   const { data: deviceMappings = [] } = useQuery({
     queryKey: ["biometric-mappings", activeMappingDeviceId],
@@ -558,14 +599,16 @@ export function BiometricSyncConsole() {
   }
 
   function openQuickRegisterFromHardwareUser(hwUser: any) {
-    const parts = String(hwUser.name || "").trim().split(/\s+/);
-    const firstName = parts[0] && !/^user$/i.test(parts[0]) ? parts[0] : "";
+    const rawName = String(hwUser.name || "").trim();
+    const isPlaceholder = !rawName || /^user\s+\d+$/i.test(rawName);
+    const parts = isPlaceholder ? [] : rawName.split(/\s+/);
+    const firstName = parts[0] || "";
     const lastName = parts.length > 1 ? parts.slice(1).join(" ") : "";
     setQuickRegForm({
       firstName,
       lastName,
       email: `emp.${String(hwUser.biometricId).toLowerCase()}@workspace.com`,
-      position: "Staff Member",
+      position: dbDesignations[0]?.name || "",
       departmentId: dbDepartments[0]?.id || "",
     });
     setQuickRegModalPunch({
@@ -1069,8 +1112,15 @@ export function BiometricSyncConsole() {
                             )}
                           </td>
                           <td className="p-3 text-right">
-                            {u.isMatched ? (
-                              <span className="text-xs text-emerald-600 font-medium">Ready</span>
+                            {u.isMatched && u.matchedEmployee ? (
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                onClick={() => router.push(`/hr/employees/${u.matchedEmployee.id}/edit`)}
+                                className="gap-1"
+                              >
+                                <ExternalLink className="size-3" /> Edit Profile
+                              </Button>
                             ) : (
                               <div className="flex items-center justify-end gap-1.5 flex-wrap">
                                 <Select
@@ -1467,16 +1517,62 @@ export function BiometricSyncConsole() {
                 <Label>Email</Label>
                 <Input value={quickRegForm.email} onChange={(e) => setQuickRegForm({ ...quickRegForm, email: e.target.value })} />
               </div>
-              <div className="space-y-1">
-                <Label>Designation</Label>
-                <Input value={quickRegForm.position} onChange={(e) => setQuickRegForm({ ...quickRegForm, position: e.target.value })} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Department</Label>
+                  <Select
+                    value={quickRegForm.departmentId}
+                    onValueChange={(v) => setQuickRegForm({ ...quickRegForm, departmentId: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select department..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {dbDepartments.map((dept: any) => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Designation</Label>
+                  {dbDesignations.length > 0 ? (
+                    <Select
+                      value={quickRegForm.position}
+                      onValueChange={(v) => setQuickRegForm({ ...quickRegForm, position: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select designation..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dbDesignations.map((desig: any) => (
+                          <SelectItem key={desig.id} value={desig.name}>
+                            {desig.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={quickRegForm.position}
+                      onChange={(e) => setQuickRegForm({ ...quickRegForm, position: e.target.value })}
+                      placeholder="e.g. Software Engineer"
+                    />
+                  )}
+                </div>
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex-wrap gap-2">
               <Button variant="outline" onClick={() => setQuickRegModalPunch(null)}>Cancel</Button>
-              <Button onClick={handleQuickRegister} disabled={isRegisteringUser}>
+              <Button variant="secondary" onClick={() => handleQuickRegister(false)} disabled={isRegisteringUser}>
                 {isRegisteringUser && <Loader2 className="size-4 mr-1.5 animate-spin" />}
-                Create & Link Employee
+                Create &amp; Link
+              </Button>
+              <Button onClick={() => handleQuickRegister(true)} disabled={isRegisteringUser} className="gap-1.5">
+                {isRegisteringUser ? <Loader2 className="size-4 animate-spin" /> : <ExternalLink className="size-3.5" />}
+                Create &amp; Edit Full Profile
               </Button>
             </DialogFooter>
           </DialogContent>
