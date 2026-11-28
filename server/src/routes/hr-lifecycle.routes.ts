@@ -1225,7 +1225,7 @@ hrLifecycleRouter.patch("/terminations/:id/status", requireHrAdmin, async (req: 
         action: "TERMINATION_COMPLETED_SESSIONS_REVOKED",
         entityType: "EmployeeExit",
         entityId: id,
-        newData: { employeeId: existing.employeeId, userId: targetUserId || null, status: "completed" },
+        details: { employeeId: existing.employeeId, userId: targetUserId || null, status: "completed" },
       }).catch(() => {});
     }
 

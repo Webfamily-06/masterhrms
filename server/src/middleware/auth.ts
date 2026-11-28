@@ -202,9 +202,10 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
     const baseRoles: string[] = account.roles
       .filter((r: any) => r.role === "super_admin" || r.tenantId === tenantId)
       .map((r: any) => r.role);
+    // P22-SEC-001: Strictly sandbox impersonation sessions to target tenant admin scope (strip super_admin privileges)
     const roles: string[] =
       isSuper && isImpersonating && tenantId
-        ? Array.from(new Set([...baseRoles, "admin", "tenant_admin", "workspace_admin", "hr_admin"]))
+        ? ["tenant_admin", "admin", "workspace_admin", "hr_admin"]
         : [...baseRoles];
     const isSafeRoute =
       req.originalUrl?.startsWith("/api/billing") ||

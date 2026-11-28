@@ -314,8 +314,8 @@ superRouter.post("/impersonate/:tenantId", requireAuth, requireSuperAdmin, async
     // Impersonation is session-scoped via the signed token (no persistent profile mutation),
     // so concurrent Super Admin tabs never overwrite each other's workspace context.
 
-    // Generate fresh token with super admin & tenant admin roles for this workspace, plus impersonation metadata
-    const roles = ["super_admin", "admin", "hr_admin"];
+    // P22-SEC-001: Issue tenant-sandboxed impersonation token without super_admin role
+    const roles = ["tenant_admin", "admin", "workspace_admin", "hr_admin"];
     const token = generateToken({
       userId: req.user!.userId,
       email: req.user!.email,
@@ -384,10 +384,9 @@ superRouter.get("/tenants/:tenantId/slug-history", requireAuth, requireSuperAdmi
 });
 
 // POST /api/super/leave-impersonation (Restore Original Super Admin Session)
-// requireSuperAdmin is safe here: the impersonating JWT issued by /impersonate/:tenantId
-// always includes "super_admin" in its roles array, so this adds defense-in-depth
-// without breaking the impersonation exit workflow.
-superRouter.post("/leave-impersonation", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+// P22-SEC-001: Impersonation tokens no longer carry "super_admin" in roles; verify impersonator's
+// authoritative super_admin role directly from Postgres before restoring the platform token.
+superRouter.post("/leave-impersonation", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user?.isImpersonating) {
       return res.status(400).json({ error: "Active session is not an impersonation session." });
@@ -401,6 +400,11 @@ superRouter.post("/leave-impersonation", requireAuth, requireSuperAdmin, async (
 
     if (!superAdminUser) {
       return res.status(404).json({ error: "Original Super Admin account not found." });
+    }
+
+    const isOriginalSuperAdmin = superAdminUser.roles.some((r: any) => r.role === "super_admin");
+    if (!isOriginalSuperAdmin) {
+      return res.status(403).json({ error: "Access denied: Original impersonator lacks Super Admin privileges." });
     }
 
     // Reset profile tenantId to null (Super Admin global mode)

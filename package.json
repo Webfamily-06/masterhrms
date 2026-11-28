@@ -36,7 +36,7 @@
     "preview:cms": "npm --prefix CMS run start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "typecheck:server": "npm --prefix server exec tsc -- --noEmit",
+    "typecheck:server": "npm --prefix server exec -- tsc -p tsconfig.json --noEmit",
     "typecheck:all": "npm run typecheck && npm run typecheck:server && npm run cms:typecheck",
     "test:security": "npm --prefix server run test:security",
     "test:calling": "./server/node_modules/.bin/tsx server/src/tests/chat-calling-verification.test.ts",

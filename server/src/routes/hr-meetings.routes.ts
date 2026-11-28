@@ -1,4 +1,4 @@
-import { Router, Response } from "express";
+import { Router, Response, NextFunction } from "express";
 import crypto from "crypto";
 import { requireAuth, AuthRequest } from "../middleware/auth.js";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware.js";
@@ -12,6 +12,29 @@ export const hrMeetingsRouter = Router();
 
 // REM-005 (DEFECT-017): Enforce tenant context across all HR Meetings routes so tenant-isolated Meeting queries execute cleanly
 hrMeetingsRouter.use(requireAuth, resolveTenantContext);
+
+// P22-SEC-002: Enforce HR/Admin role authorization on all mutating HR Meetings routes
+hrMeetingsRouter.use((req: AuthRequest, res: Response, next: NextFunction) => {
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") {
+    return next();
+  }
+  const roles = (req.user?.roles || []).map((r) => String(r).toLowerCase());
+  const wsRole = String((req.user as any)?.workspaceRole || "").toLowerCase();
+  const perms = (req.user?.permissions || []).map((p) => String(p).toLowerCase());
+  const isHrOrAdmin =
+    roles.some((r) =>
+      ["super_admin", "tenant_admin", "workspace_admin", "admin", "owner", "hr_admin", "hr_manager", "hr", "manager"].includes(r)
+    ) ||
+    ["workspace admin", "tenant admin", "hr admin", "hr manager", "administrator"].includes(wsRole) ||
+    perms.some((p) => p.includes("hrm.meetings") || p.includes("meetings.manage"));
+  if (!isHrOrAdmin) {
+    return res.status(403).json({
+      error: "Access denied: HR Administrator or Manager privileges are required to manage meetings.",
+      code: "HR_ROLE_REQUIRED",
+    });
+  }
+  return next();
+});
 
 // =========================================================================
 // 1. OVERVIEW
@@ -820,7 +843,7 @@ hrMeetingsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) 
       action: "MEETING_CREATED",
       entityType: "Meeting",
       entityId: created.id,
-      newData: { title: created.title, startTime: created.startTime, organizerId },
+      details: { title: created.title, startTime: created.startTime, organizerId },
     }).catch(() => {});
     return res.status(201).json(formatMeetingRecord(created));
   } catch (err: any) {
