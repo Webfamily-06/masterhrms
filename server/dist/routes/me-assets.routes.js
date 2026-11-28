@@ -42,6 +42,23 @@ exports.meAssetsRouter.get("/dashboard", auth_js_1.requireAuth, async (req, res)
         return res.status(500).json({ error: err.message });
     }
 });
+// Read-only Asset Types / Categories for Employee Self-Service filters & request forms
+exports.meAssetsRouter.get("/types", auth_js_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.json([]);
+        const db = (0, tenant_context_js_1.getTenantDb)();
+        const categories = await db.assetCategory.findMany({
+            where: { tenantId },
+            orderBy: { name: "asc" },
+        });
+        return res.json(categories);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
 // My Assets List
 exports.meAssetsRouter.get("/", auth_js_1.requireAuth, async (req, res) => {
     try {

@@ -123,9 +123,15 @@ exports.paymentsRouter.post("/razorpay/config", auth_1.requireAuth, async (req, 
             environment: environment || existingContent.config?.environment || "sandbox",
             updatedAt: new Date().toISOString(),
         };
-        if (newConfig.environment === "sandbox" &&
-            ((newConfig.keyId && newConfig.keyId.startsWith("rzp_live_")) ||
-                (newConfig.keySecret && newConfig.keySecret.startsWith("rzp_live_")))) {
+        const hasLiveKey = (newConfig.keyId && newConfig.keyId.startsWith("rzp_live_")) ||
+            (newConfig.keySecret && newConfig.keySecret.startsWith("rzp_live_"));
+        if (process.env.NODE_ENV !== "production" && hasLiveKey) {
+            return res.status(400).json({
+                error: "Live Razorpay credentials (rzp_live_*) are strictly prohibited in non-production environments.",
+                code: "LIVE_KEYS_PROHIBITED_IN_NON_PRODUCTION",
+            });
+        }
+        if (newConfig.environment === "sandbox" && hasLiveKey) {
             return res.status(400).json({
                 error: "Live Razorpay credentials (rzp_live_*) are strictly prohibited in sandbox mode.",
                 code: "LIVE_KEYS_PROHIBITED_IN_SANDBOX",
@@ -154,6 +160,7 @@ exports.paymentsRouter.post("/razorpay/config", auth_1.requireAuth, async (req, 
             const paymentUpdates = {
                 "payments.currency": newConfig.currency,
                 "payments.razorpay_enabled": Boolean(newConfig.keyId),
+                "payments.razorpay_mode": newConfig.environment === "sandbox" ? "sandbox" : "live",
                 "payments.razorpay_key_id": newConfig.keyId || "",
             };
             if (keySecret && !keySecret.includes("••••")) {

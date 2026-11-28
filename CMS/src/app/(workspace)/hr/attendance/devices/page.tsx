@@ -47,14 +47,14 @@ export default function HrAttendanceDevicesPage() {
     queryKey: ["hr-biometric-devices"],
     queryFn: async () => {
       const res = await api.get("/api/v1/hr/attendance/devices");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (payload: any) => {
       const res = await api.post("/api/v1/hr/attendance/devices", payload);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Biometric device registered successfully");
@@ -70,19 +70,19 @@ export default function HrAttendanceDevicesPage() {
         location: "Main Entrance",
       });
     },
-    onError: (err: any) => toast.error(err.response?.data?.error || "Failed to register device"),
+    onError: (err: any) => toast.error((err?.response?.data?.error || err?.message) || "Failed to register device"),
   });
 
   const syncMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await api.post(`/api/v1/hr/attendance/devices/${id}/sync`, {});
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Device sync triggered successfully");
       queryClient.invalidateQueries({ queryKey: ["hr-biometric-devices"] });
     },
-    onError: (err: any) => toast.error(err.response?.data?.error || "Device sync failed"),
+    onError: (err: any) => toast.error((err?.response?.data?.error || err?.message) || "Device sync failed"),
   });
 
   const onlineCount = devices.filter((d: any) => d.status === "online").length;

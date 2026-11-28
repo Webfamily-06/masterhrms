@@ -61,7 +61,7 @@ export default function HrDocumentCompliancePage() {
     queryKey: ["hr-document-compliance-summary"],
     queryFn: async () => {
       const res = await api.get("/documents/compliance/summary");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -77,7 +77,7 @@ export default function HrDocumentCompliancePage() {
         params.search = searchTerm.trim();
       }
       const res = await api.get("/documents/compliance/expiring", { params });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -85,7 +85,7 @@ export default function HrDocumentCompliancePage() {
   const verifyMutation = useMutation({
     mutationFn: async (docId: string) => {
       const res = await api.post(`/documents/${docId}/verify`);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: (data) => {
       toast.success(data.message || "Document verified successfully!");
@@ -93,7 +93,7 @@ export default function HrDocumentCompliancePage() {
       queryClient.invalidateQueries({ queryKey: ["hr-document-compliance-expiring"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to verify document.");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to verify document.");
     },
   });
 
@@ -101,7 +101,7 @@ export default function HrDocumentCompliancePage() {
   const rejectMutation = useMutation({
     mutationFn: async ({ docId, reason }: { docId: string; reason: string }) => {
       const res = await api.post(`/documents/${docId}/reject`, { reason });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: (data) => {
       toast.success(data.message || "Document marked as rejected.");
@@ -111,7 +111,7 @@ export default function HrDocumentCompliancePage() {
       queryClient.invalidateQueries({ queryKey: ["hr-document-compliance-expiring"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to reject document.");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to reject document.");
     },
   });
 
@@ -119,7 +119,7 @@ export default function HrDocumentCompliancePage() {
   const renewMutation = useMutation({
     mutationFn: async ({ docId, payload }: { docId: string; payload: any }) => {
       const res = await api.post(`/documents/${docId}/renew`, payload);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: (data) => {
       toast.success(data.message || "Document renewal submitted successfully!");
@@ -129,7 +129,7 @@ export default function HrDocumentCompliancePage() {
       queryClient.invalidateQueries({ queryKey: ["hr-document-compliance-expiring"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to submit document renewal.");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to submit document renewal.");
     },
   });
 

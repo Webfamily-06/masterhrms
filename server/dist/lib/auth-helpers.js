@@ -6,8 +6,31 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.provisionEmployeeUser = provisionEmployeeUser;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const workspace_policy_service_1 = require("../services/workspace-policy.service");
+function normalizeLegacyAppRole(input) {
+    const raw = String(input || "").toLowerCase().trim();
+    if (["hr_admin", "hr_manager", "hr admin", "hr manager", "hr administrator", "admin", "tenant_admin", "workspace_admin", "workspace admin"].includes(raw)) {
+        return "hr_admin";
+    }
+    if (["manager", "team lead", "department head"].includes(raw)) {
+        return "manager";
+    }
+    return "employee";
+}
+function targetWorkspaceRoleNames(input) {
+    const raw = String(input || "").toLowerCase().trim();
+    if (["admin", "tenant_admin", "workspace_admin", "workspace admin", "owner"].includes(raw)) {
+        return ["Workspace Admin", "Tenant Admin"];
+    }
+    if (["hr_admin", "hr_manager", "hr admin", "hr manager", "hr administrator"].includes(raw)) {
+        return ["HR Manager", "HR Admin", "HR Administrator"];
+    }
+    if (["manager", "team lead", "department head"].includes(raw)) {
+        return ["Manager", "Employee"];
+    }
+    return ["Employee"];
+}
 /**
- * Automatically provisions or links a User login account, Profile, and UserRole
+ * Automatically provisions or links a User login account, Profile, UserRole, and WorkspaceRole assignment
  * whenever an employee is created via UI, Biometric sync, or Recruitment.
  */
 async function provisionEmployeeUser(prisma, options) {
@@ -15,6 +38,8 @@ async function provisionEmployeeUser(prisma, options) {
     const rawPassword = options.password?.trim() || "Password@123";
     const passwordHash = await bcryptjs_1.default.hash(rawPassword, 10);
     const fullName = `${options.firstName || ""} ${options.lastName || ""}`.trim() || email.split("@")[0];
+    const requestedRole = options.workspaceRole || options.userRole || null;
+    const legacyRole = normalizeLegacyAppRole(requestedRole);
     let user = await prisma.user.findUnique({
         where: { email },
         include: { profile: true, roles: true },
@@ -52,7 +77,7 @@ async function provisionEmployeeUser(prisma, options) {
                 },
                 roles: {
                     create: {
-                        role: "employee",
+                        role: legacyRole,
                         tenantId: options.tenantId,
                     },
                 },
@@ -94,16 +119,45 @@ async function provisionEmployeeUser(prisma, options) {
                 },
             });
         }
-        const hasEmployeeRole = user.roles.some((r) => r.role === "employee" || r.role === "super_admin" || r.role === "admin");
-        if (!hasEmployeeRole) {
+        const hasDesiredRole = user.roles.some((r) => r.role === legacyRole && r.tenantId === options.tenantId);
+        if (!hasDesiredRole) {
             await prisma.userRole.create({
                 data: {
                     userId: user.id,
-                    role: "employee",
+                    role: legacyRole,
                     tenantId: options.tenantId,
                 },
             });
         }
+    }
+    // Sync WorkspaceRole assignment inside the same transaction (DEFECT-018 / DEFECT-019)
+    try {
+        let resolvedWorkspaceRole = null;
+        if (options.roleId) {
+            resolvedWorkspaceRole = await prisma.workspaceRole.findFirst({
+                where: { id: options.roleId, tenantId: options.tenantId, isActive: true },
+            });
+        }
+        if (!resolvedWorkspaceRole) {
+            const candidateNames = targetWorkspaceRoleNames(requestedRole);
+            for (const name of candidateNames) {
+                resolvedWorkspaceRole = await prisma.workspaceRole.findFirst({
+                    where: { tenantId: options.tenantId, name: { equals: name, mode: "insensitive" }, isActive: true },
+                });
+                if (resolvedWorkspaceRole)
+                    break;
+            }
+        }
+        if (resolvedWorkspaceRole) {
+            await prisma.userRoleAssignment.upsert({
+                where: { userId_tenantId: { userId: user.id, tenantId: options.tenantId } },
+                create: { userId: user.id, tenantId: options.tenantId, roleId: resolvedWorkspaceRole.id },
+                update: { roleId: resolvedWorkspaceRole.id },
+            });
+        }
+    }
+    catch (roleSyncErr) {
+        console.warn("[provisionEmployeeUser] WorkspaceRole sync warning:", roleSyncErr?.message || roleSyncErr);
     }
     return user.id;
 }

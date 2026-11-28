@@ -1074,29 +1074,85 @@ announcementsRouter.post("/bulk", async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: "Action and non-empty ids array are required." });
     }
 
+    const uniqueIds = Array.from(new Set(ids.map(String).filter(Boolean)));
     const db = getTenantDb(req);
 
+    // PARTIAL-003: Report actual affected count vs missing/foreign IDs (HTTP 207 on partial match)
     if (action === "publish") {
-      await db.announcement.updateMany({
-        where: { tenantId, id: { in: ids } },
+      const existing = await db.announcement.findMany({
+        where: { tenantId, id: { in: uniqueIds } },
+        select: { id: true },
+      });
+      const existingIds = new Set(existing.map((a: any) => a.id));
+      const notFoundIds = uniqueIds.filter((id) => !existingIds.has(id));
+      const result = await db.announcement.updateMany({
+        where: { tenantId, id: { in: Array.from(existingIds) } },
         data: { status: "published", publishDate: new Date() },
       });
-      return res.json({ success: true, message: `Successfully published ${ids.length} announcements.` });
+      const isPartial = result.count > 0 && notFoundIds.length > 0;
+      if (result.count === 0) {
+        return res.status(404).json({ success: false, error: "No matching announcements found in this workspace.", notFoundIds });
+      }
+      return res.status(isPartial ? 207 : 200).json({
+        success: !isPartial,
+        partial: isPartial,
+        requestedCount: uniqueIds.length,
+        updatedCount: result.count,
+        notFoundCount: notFoundIds.length,
+        notFoundIds: notFoundIds.length > 0 ? notFoundIds : undefined,
+        message: `Successfully published ${result.count} of ${uniqueIds.length} announcement(s).`,
+      });
     }
 
     if (action === "archive") {
-      await db.announcement.updateMany({
-        where: { tenantId, id: { in: ids } },
+      const existing = await db.announcement.findMany({
+        where: { tenantId, id: { in: uniqueIds } },
+        select: { id: true },
+      });
+      const existingIds = new Set(existing.map((a: any) => a.id));
+      const notFoundIds = uniqueIds.filter((id) => !existingIds.has(id));
+      const result = await db.announcement.updateMany({
+        where: { tenantId, id: { in: Array.from(existingIds) } },
         data: { status: "archived" },
       });
-      return res.json({ success: true, message: `Successfully archived ${ids.length} announcements.` });
+      const isPartial = result.count > 0 && notFoundIds.length > 0;
+      if (result.count === 0) {
+        return res.status(404).json({ success: false, error: "No matching announcements found in this workspace.", notFoundIds });
+      }
+      return res.status(isPartial ? 207 : 200).json({
+        success: !isPartial,
+        partial: isPartial,
+        requestedCount: uniqueIds.length,
+        updatedCount: result.count,
+        notFoundCount: notFoundIds.length,
+        notFoundIds: notFoundIds.length > 0 ? notFoundIds : undefined,
+        message: `Successfully archived ${result.count} of ${uniqueIds.length} announcement(s).`,
+      });
     }
 
     if (action === "delete") {
-      await db.announcement.deleteMany({
-        where: { tenantId, id: { in: ids } },
+      const existing = await db.announcement.findMany({
+        where: { tenantId, id: { in: uniqueIds } },
+        select: { id: true },
       });
-      return res.json({ success: true, message: `Successfully deleted ${ids.length} announcements.` });
+      const existingIds = new Set(existing.map((a: any) => a.id));
+      const notFoundIds = uniqueIds.filter((id) => !existingIds.has(id));
+      const result = await db.announcement.deleteMany({
+        where: { tenantId, id: { in: Array.from(existingIds) } },
+      });
+      const isPartial = result.count > 0 && notFoundIds.length > 0;
+      if (result.count === 0) {
+        return res.status(404).json({ success: false, error: "No matching announcements found in this workspace.", notFoundIds });
+      }
+      return res.status(isPartial ? 207 : 200).json({
+        success: !isPartial,
+        partial: isPartial,
+        requestedCount: uniqueIds.length,
+        deletedCount: result.count,
+        notFoundCount: notFoundIds.length,
+        notFoundIds: notFoundIds.length > 0 ? notFoundIds : undefined,
+        message: `Successfully deleted ${result.count} of ${uniqueIds.length} announcement(s).`,
+      });
     }
 
     return res.status(400).json({ error: `Unsupported bulk action: ${action}` });

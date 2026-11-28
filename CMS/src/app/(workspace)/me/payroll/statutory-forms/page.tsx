@@ -23,7 +23,7 @@ export default function MeStatutoryFormsPage() {
     queryKey: ["me-payroll-statutory-forms"],
     queryFn: async () => {
       const res = await api.get("/api/v1/me/payroll/statutory-forms");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 

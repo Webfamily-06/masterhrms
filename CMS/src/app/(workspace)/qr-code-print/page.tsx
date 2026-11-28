@@ -32,7 +32,7 @@ export default function QrCodePrintPage() {
     queryKey: ['qr-products'],
     queryFn: async () => {
       const res = await api.get<any>('/api/products?limit=50');
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 

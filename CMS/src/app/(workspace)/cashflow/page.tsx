@@ -31,7 +31,7 @@ export default function CashflowPage() {
     queryKey: ['cashflow-statement'],
     queryFn: async () => {
       const res = await api.get<any>('/api/accounting/dashboard');
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 

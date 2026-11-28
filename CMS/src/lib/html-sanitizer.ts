@@ -1,13 +1,14 @@
 /**
- * MASTERHRMS — Safe HTML Sanitization Utility
+ * MASTERHRMS — Safe HTML Sanitization Utility (PENTEST-001 Hardened)
  *
- * Enforces strict XSS security for CMS page HTML:
- * 1. Strips dangerous elements: <script>, <style>, <iframe>, <object>, <embed>, <applet>, <base>, <link>, <meta>
- * 2. Strips all inline event handlers (on* attributes like onerror, onclick, onload, etc.)
- * 3. Strips javascript:, vbscript:, and malicious data: URLs
- * 4. Preserves safe semantic markup: h1-h6, p, div, span, section, article, header, footer,
- *    table, thead, tbody, tr, th, td, ul, ol, li, blockquote, strong, em, b, i, u, s,
- *    a (safe hrefs), img (safe srcs), hr, br, etc.
+ * Enforces strict multi-pass XSS security for CMS, Careers, Recruitment, HR Letters, and Document Previews:
+ * 1. Multi-pass stripping of dangerous elements (<script>, <style>, <iframe>, <object>, <embed>, <applet>,
+ *    <base>, <link>, <meta>, <form>, <input>, <textarea>, <button>, <select>, <svg>, <math>, <template>, <noscript>)
+ *    to defeat nested obfuscation like <scr<script>ipt>.
+ * 2. Strips all inline event handler attributes (on*= including quoted, unquoted, backtick, and whitespace variants).
+ * 3. Strips srcdoc, formaction, xlink:href, and unsafe javascript:/vbscript:/data: URIs.
+ * 4. Strips dangerous CSS expressions / javascript URLs inside inline style attributes.
+ * 5. Preserves safe semantic markup (h1-h6, p, div, span, section, table, ul, ol, li, strong, em, a, img, br, hr).
  */
 
 const DANGEROUS_TAGS = [
@@ -25,35 +26,101 @@ const DANGEROUS_TAGS = [
   'textarea',
   'button',
   'select',
+  'svg',
+  'math',
+  'template',
+  'noscript',
+  'portal',
 ];
 
-const SAFE_SCHEMES = ['http:', 'https:', 'mailto:', 'tel:'];
 /**
- * Strips dangerous HTML tags, attributes, and URL protocols from an HTML string
+ * Strips dangerous HTML tags, attributes, event handlers, and unsafe URL protocols (multi-pass).
  */
 export function sanitizeHtml(rawHtml: string): string {
   if (!rawHtml || typeof rawHtml !== 'string') return '';
 
-  let html = rawHtml;
+  let html = rawHtml.replace(/\0/g, '');
+  let previous = '';
+  let passes = 0;
 
-  // 1. Remove dangerous tags and their contents completely
-  for (const tag of DANGEROUS_TAGS) {
-    const tagRegex = new RegExp(`<${tag}[^>]*>[\\s\\S]*?<\\/${tag}>`, 'gi');
-    html = html.replace(tagRegex, '');
-    const selfClosingRegex = new RegExp(`<${tag}[^>]*\\/?>`, 'gi');
-    html = html.replace(selfClosingRegex, '');
+  // Multi-pass loop prevents nested tag reconstruction (e.g. <scr<script>ipt>)
+  while (html !== previous && passes < 5) {
+    previous = html;
+    passes++;
+
+    // 1. Remove HTML comments (can conceal conditional/mXSS payloads)
+    html = html.replace(/<!--[\s\S]*?-->/g, '');
+
+    // 2. Remove dangerous tags and their contents completely
+    for (const tag of DANGEROUS_TAGS) {
+      const pairedRegex = new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}\\s*>`, 'gi');
+      html = html.replace(pairedRegex, '');
+      const openOrSelfClosingRegex = new RegExp(`<\\/?${tag}\\b[^>]*\\/?>`, 'gi');
+      html = html.replace(openOrSelfClosingRegex, '');
+    }
+
+    // 3. Remove all on* event handlers and dangerous attributes (srcdoc, formaction, xlink:href)
+    html = html.replace(
+      /\s+(?:on[a-zA-Z0-9_-]+|srcdoc|formaction|xlink:href)\s*=\s*(?:"[^"]*"|'[^']*'|`[^`]*`|[^\s>]+)/gi,
+      ''
+    );
+    // Also remove bare/valueless event attributes
+    html = html.replace(/\s+on[a-zA-Z0-9_-]+(?=\s|>|\/)/gi, '');
+
+    // 4. Neutralize javascript:, vbscript:, and non-image data: URIs in href/src/action/poster
+    html = html.replace(
+      /\s+(href|src|action|poster)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi,
+      (_match, attr: string, dVal?: string, sVal?: string, uVal?: string) => {
+        const rawVal = (dVal ?? sVal ?? uVal ?? '').trim();
+        // Normalize control chars & whitespace inside scheme check (defeats java\tscript:)
+        const compact = rawVal.replace(/[\u0000-\u0020]+/g, '').toLowerCase();
+        const isSafeDataImage =
+          attr.toLowerCase() === 'src' &&
+          /^data:image\/(?:png|jpeg|jpg|gif|webp);base64,/i.test(compact);
+        if (
+          compact.startsWith('javascript:') ||
+          compact.startsWith('vbscript:') ||
+          (compact.startsWith('data:') && !isSafeDataImage)
+        ) {
+          return ` ${attr}="#"`;
+        }
+        return ` ${attr}="${rawVal.replace(/"/g, '&quot;')}"`;
+      }
+    );
+
+    // 5. Strip dangerous CSS constructs (expression(), behavior:, -moz-binding, javascript: urls)
+    html = html.replace(/\s+style\s*=\s*(?:"([^"]*)"|'([^']*)')/gi, (_m, dVal?: string, sVal?: string) => {
+      const val = dVal ?? sVal ?? '';
+      if (/expression\s*\(|javascript:|vbscript:|behavior\s*:|-moz-binding|@import/i.test(val)) {
+        return '';
+      }
+      return ` style="${val.replace(/"/g, '&quot;')}"`;
+    });
   }
 
-  // 2. Remove all on* event handler attributes (e.g. onerror="...", onclick='...')
-  html = html.replace(/\s+on[a-zA-Z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-
-  // 3. Remove href/src containing javascript: or vbscript:
-  html = html.replace(
-    /\s+(href|src)\s*=\s*(?:"\s*(?:javascript|vbscript):[^"]*"|'\s*(?:javascript|vbscript):[^']*'|(?:javascript|vbscript):[^\s>]+)/gi,
-    ' $1="#"'
-  );
-
   return html;
+}
+
+/**
+ * Converts raw SVG text into a sandboxed image data URI so SVG scripts/event handlers CANNOT execute.
+ */
+export function toSafeSvgImageSrc(svgContent: string): string {
+  if (!svgContent || typeof svgContent !== 'string') return '';
+  const cleaned = svgContent
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
+    .replace(/<foreignObject\b[^>]*>[\s\S]*?<\/foreignObject\s*>/gi, '')
+    .replace(/\s+on[a-zA-Z0-9_-]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  if (typeof window !== 'undefined' && typeof window.btoa === 'function') {
+    try {
+      const utf8Bytes = new TextEncoder().encode(cleaned);
+      let binary = '';
+      utf8Bytes.forEach((b) => { binary += String.fromCharCode(b); });
+      return `data:image/svg+xml;base64,${window.btoa(binary)}`;
+    } catch {
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(cleaned)}`;
+    }
+  }
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(cleaned)}`;
 }
 
 /**
@@ -61,12 +128,13 @@ export function sanitizeHtml(rawHtml: string): string {
  */
 export function generateSandboxedIframeDoc(bodyHtml: string, title = 'Page Preview'): string {
   const sanitized = sanitizeHtml(bodyHtml);
+  const safeTitle = String(title || 'Page Preview').replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c] || c));
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${title}</title>
+  <title>${safeTitle}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -160,45 +228,10 @@ export function generateSandboxedIframeDoc(bodyHtml: string, title = 'Page Previ
       max-width: 700px;
       margin: 0 auto 1.5rem;
     }
-    .cta-button {
-      display: inline-block;
-      padding: 0.75rem 1.5rem;
-      font-size: 0.875rem;
-      font-weight: 600;
-      color: #ffffff !important;
-      background: #2563eb;
-      border-radius: 0.5rem;
-      text-decoration: none !important;
-      transition: background 0.2s;
-    }
-    .cta-button:hover { background: #1d4ed8; }
-    .cards-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.5rem;
-      margin: 2rem 0;
-    }
-    .card {
-      border: 1px solid rgba(148, 163, 184, 0.2);
-      border-radius: 0.75rem;
-      padding: 1.5rem;
-      background: rgba(148, 163, 184, 0.03);
-    }
-    .card h3 { margin-top: 0; font-size: 1.125rem; }
-    .faq-item {
-      border: 1px solid rgba(148, 163, 184, 0.2);
-      border-radius: 0.5rem;
-      padding: 1rem 1.25rem;
-      margin-bottom: 1rem;
-    }
-    .faq-item h4 { margin: 0 0 0.5rem; font-size: 1rem; }
-    .faq-item p { margin: 0; color: #64748b; font-size: 0.875rem; }
   </style>
 </head>
 <body>
-  <div class="preview-container">
-    ${sanitized}
-  </div>
+  <div class="preview-container">${sanitized}</div>
 </body>
 </html>`;
 }

@@ -108,10 +108,10 @@ export default function SuppliersPage() {
     mutationFn: async (payload: typeof formData) => {
       if (editingSupplier) {
         const res = await api.put(`/api/suppliers/${editingSupplier.id}`, payload);
-        return res.data;
+        return (res as any)?.data ?? res;
       } else {
         const res = await api.post("/api/suppliers", payload);
-        return res.data;
+        return (res as any)?.data ?? res;
       }
     },
     onSuccess: () => {
@@ -121,7 +121,7 @@ export default function SuppliersPage() {
       queryClient.invalidateQueries({ queryKey: ["suppliers-list"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to save supplier");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to save supplier");
     },
   });
 
@@ -129,14 +129,14 @@ export default function SuppliersPage() {
   const deleteSupplierMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await api.delete(`/api/suppliers/${id}`);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Supplier deleted successfully!");
       queryClient.invalidateQueries({ queryKey: ["suppliers-list"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to delete supplier");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to delete supplier");
     },
   });
 

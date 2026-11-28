@@ -50,14 +50,14 @@ export default function MeDocumentRequestsPage() {
     queryKey: ["me-document-requests-list"],
     queryFn: async () => {
       const res = await api.get("/me/documents/requests");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (payload: any) => {
       const res = await api.post("/me/documents/requests", payload);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Document request submitted to HR");
@@ -66,7 +66,7 @@ export default function MeDocumentRequestsPage() {
       setFormData({ letterType: "EXPERIENCE", purpose: "" });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to submit request");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to submit request");
     },
   });
 

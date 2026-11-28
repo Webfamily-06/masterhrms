@@ -1,5 +1,6 @@
 import { Router, Response } from "express";
-import { requireAuth, requirePermission, requireRole, AuthRequest } from "../middleware/auth";
+import { requireAuth, requirePermission, requireRole, AuthRequest, invalidateAuthCache } from "../middleware/auth";
+import { rawPrisma } from "../prisma";
 import { requireWithinLimit } from "../middleware/limits";
 import { getTenantDb } from "../context/tenant-context";
 import { EmployeeService } from "../services/employee.service";
@@ -392,6 +393,16 @@ hrEmployeesRouter.post("/:id/toggle-status", requireAuth, handleToggleAccountSta
 // =========================================================================
 const requireHrEmployeeAdmin = requireRole("admin", "super_admin", "tenant_admin", "hr_admin");
 
+const ALLOWED_BULK_EMPLOYEE_STATUSES = new Set([
+  "active",
+  "inactive",
+  "on_leave",
+  "probation",
+  "terminated",
+  "resigned",
+  "suspended",
+]);
+
 hrEmployeesRouter.post("/bulk-status", requireAuth, requireHrEmployeeAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
@@ -400,14 +411,59 @@ hrEmployeesRouter.post("/bulk-status", requireAuth, requireHrEmployeeAdmin, asyn
     if (!Array.isArray(ids) || ids.length === 0 || !status) {
       return res.status(400).json({ error: "ids array and status are required" });
     }
+    const normalizedStatus = String(status).trim().toLowerCase();
+    if (!ALLOWED_BULK_EMPLOYEE_STATUSES.has(normalizedStatus)) {
+      return res.status(400).json({
+        error: `Invalid employee status '${status}'. Allowed: ${Array.from(ALLOWED_BULK_EMPLOYEE_STATUSES).join(", ")}`,
+        code: "INVALID_STATUS",
+      });
+    }
+
+    const uniqueIds = Array.from(new Set(ids.map(String).filter(Boolean)));
     const db = getTenantDb();
-    const result = await db.employee.updateMany({
-      where: { tenantId, id: { in: ids } },
-      data: { status },
+    const matched = await db.employee.findMany({
+      where: { tenantId, id: { in: uniqueIds } },
+      select: { id: true, userId: true },
     });
-    return res.json({ success: true, updatedCount: result.count, message: `Successfully updated status for ${result.count} employee(s).` });
+    const matchedSet = new Set(matched.map((e: any) => e.id));
+    const notFoundIds = uniqueIds.filter((id) => !matchedSet.has(id));
+
+    if (matched.length === 0) {
+      return res.status(404).json({ success: false, error: "No matching employees found in this workspace.", notFoundIds });
+    }
+
+    const result = await db.employee.updateMany({
+      where: { tenantId, id: { in: Array.from(matchedSet) } },
+      data: { status: normalizedStatus as any },
+    });
+
+    // Revoke active sessions immediately if bulk-status deactivates/terminates employees (SREM-001 parity)
+    let revokedSessions = 0;
+    if (["inactive", "terminated", "resigned", "suspended"].includes(normalizedStatus)) {
+      const userIds = matched.map((m: any) => m.userId).filter(Boolean);
+      if (userIds.length > 0) {
+        const rev = await rawPrisma.deviceSession.updateMany({
+          where: { userId: { in: userIds }, revoked: false },
+          data: { revoked: true },
+        });
+        revokedSessions = rev.count;
+        for (const uid of userIds) invalidateAuthCache(uid, tenantId);
+      }
+    }
+
+    const isPartial = notFoundIds.length > 0;
+    return res.status(isPartial ? 207 : 200).json({
+      success: !isPartial,
+      partial: isPartial,
+      requestedCount: uniqueIds.length,
+      updatedCount: result.count,
+      notFoundCount: notFoundIds.length,
+      notFoundIds: notFoundIds.length > 0 ? notFoundIds : undefined,
+      revokedSessions,
+      message: `Successfully updated status for ${result.count} of ${uniqueIds.length} employee(s).`,
+    });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to update employee status" });
+    return res.status(500).json({ error: "Failed to update employee status" });
   }
 });
 
@@ -419,13 +475,48 @@ hrEmployeesRouter.post("/bulk-delete", requireAuth, requireHrEmployeeAdmin, asyn
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: "ids array is required" });
     }
+    const uniqueIds = Array.from(new Set(ids.map(String).filter(Boolean)));
     const db = getTenantDb();
+    const matched = await db.employee.findMany({
+      where: { tenantId, id: { in: uniqueIds } },
+      select: { id: true, userId: true },
+    });
+    const matchedSet = new Set(matched.map((e: any) => e.id));
+    const notFoundIds = uniqueIds.filter((id) => !matchedSet.has(id));
+
+    if (matched.length === 0) {
+      return res.status(404).json({ success: false, error: "No matching employees found in this workspace.", notFoundIds });
+    }
+
     const result = await db.employee.updateMany({
-      where: { tenantId, id: { in: ids } },
+      where: { tenantId, id: { in: Array.from(matchedSet) } },
       data: { status: "inactive" },
     });
-    return res.json({ success: true, deletedCount: result.count, message: `Successfully deactivated ${result.count} employee(s).` });
+
+    // PARTIAL-003 / SREM-001 parity: revoke all active DeviceSessions immediately upon bulk deactivation
+    let revokedSessions = 0;
+    const userIds = matched.map((m: any) => m.userId).filter(Boolean);
+    if (userIds.length > 0) {
+      const rev = await rawPrisma.deviceSession.updateMany({
+        where: { userId: { in: userIds }, revoked: false },
+        data: { revoked: true },
+      });
+      revokedSessions = rev.count;
+      for (const uid of userIds) invalidateAuthCache(uid, tenantId);
+    }
+
+    const isPartial = notFoundIds.length > 0;
+    return res.status(isPartial ? 207 : 200).json({
+      success: !isPartial,
+      partial: isPartial,
+      requestedCount: uniqueIds.length,
+      deletedCount: result.count,
+      notFoundCount: notFoundIds.length,
+      notFoundIds: notFoundIds.length > 0 ? notFoundIds : undefined,
+      revokedSessions,
+      message: `Successfully deactivated ${result.count} of ${uniqueIds.length} employee(s).`,
+    });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || "Failed to delete employees" });
+    return res.status(500).json({ error: "Failed to deactivate employees" });
   }
 });

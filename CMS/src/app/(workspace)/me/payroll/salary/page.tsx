@@ -28,7 +28,7 @@ export default function MeSalaryPage() {
     queryKey: ["me-payroll-salary"],
     queryFn: async () => {
       const res = await api.get("/api/v1/me/payroll/salary");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 

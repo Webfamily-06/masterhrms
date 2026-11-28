@@ -24,7 +24,7 @@ export default function MeAssetsDashboardPage() {
     queryKey: ["me-assets-dashboard"],
     queryFn: async () => {
       const res = await api.get("/me/assets/dashboard");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 

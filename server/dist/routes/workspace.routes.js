@@ -38,7 +38,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.workspaceRouter = void 0;
 const express_1 = require("express");
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const nodemailer_1 = __importDefault(require("nodemailer"));
 const prisma_1 = require("../prisma");
 const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
@@ -46,8 +49,44 @@ const erp_modules_1 = require("../lib/erp-modules");
 const workspace_policy_service_1 = require("../services/workspace-policy.service");
 const settings_service_1 = require("../services/settings/settings.service");
 const company_profile_service_1 = require("../services/company-profile/company-profile.service");
+const jwt_1 = require("../lib/jwt");
+const device_session_service_1 = require("../services/device-session.service");
+const tenant_ip_restriction_service_1 = require("../services/tenant-ip-restriction.service");
+const hrm_permissions_catalog_1 = require("../lib/hrm-permissions-catalog");
 const entitlements_1 = require("../middleware/entitlements");
+const media_service_1 = require("../services/media/media.service");
+const email_templates_registry_1 = require("../lib/email-templates-registry");
+const branding_1 = require("../lib/email-design-system/branding");
+const email_design_system_1 = require("../lib/email-design-system");
+const hr_workflow_email_service_1 = require("../services/hr-workflow-email.service");
 exports.workspaceRouter = (0, express_1.Router)();
+// Allow Super Admin (tenantId: null) to read platform-default public settings without 403 (DEFECT-003)
+exports.workspaceRouter.get("/system-settings/public", auth_1.requireAuth, async (req, res, next) => {
+    if (!req.user?.tenantId && req.user?.roles?.includes("super_admin")) {
+        try {
+            const defaults = buildDefaultSystemSettings(null);
+            return res.json({
+                success: true,
+                data: {
+                    tenant: null,
+                    system: defaults.system,
+                    company: defaults.company,
+                    brand: defaults.brand,
+                    currency: defaults.currency,
+                    working_days: defaults.working_days,
+                    noc: defaults.noc,
+                    experience_certificate: defaults.experience_certificate,
+                    joining_letter: defaults.joining_letter,
+                    email_notifications: defaults.email_notifications,
+                },
+            });
+        }
+        catch (err) {
+            return res.status(500).json({ error: err.message || "Failed to load platform default settings." });
+        }
+    }
+    return next();
+});
 // All workspace routes require valid authentication and resolved tenant context
 exports.workspaceRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
 exports.workspaceRouter.get("/subscription", async (req, res) => {
@@ -327,6 +366,18 @@ exports.workspaceRouter.get("/roles", requireWorkspaceAdminGuard, async (req, re
                         permissions: true,
                     },
                 },
+                userAssignments: {
+                    take: 10,
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                email: true,
+                                profile: { select: { fullName: true, avatarUrl: true } },
+                            },
+                        },
+                    },
+                },
                 permissions: {
                     include: {
                         permission: {
@@ -340,10 +391,17 @@ exports.workspaceRouter.get("/roles", requireWorkspaceAdminGuard, async (req, re
         const formatted = roles.map((r) => ({
             id: r.id,
             name: r.name,
+            label: r.description || r.name,
             description: r.description,
             isActive: r.isActive,
             isSystem: r.isSystem,
             usersCount: r._count.userAssignments,
+            users: r.userAssignments.map((ua) => ({
+                id: ua.user.id,
+                name: ua.user.profile?.fullName || ua.user.email,
+                email: ua.user.email,
+                avatarUrl: ua.user.profile?.avatarUrl || null,
+            })),
             permissionsCount: r._count.permissions,
             permissionCodes: r.permissions.map((p) => p.permission.code),
             createdAt: r.createdAt,
@@ -593,20 +651,42 @@ exports.workspaceRouter.delete("/roles/:id", requireWorkspaceAdminGuard, async (
     }
 });
 // -------------------------------------------------------------
-// 7. GET /api/workspace/permissions - Catalog of all permissions
+// 7. GET /api/workspace/permissions - Catalog of all permissions (auto-seeds HRM catalog)
 // -------------------------------------------------------------
 exports.workspaceRouter.get("/permissions", requireWorkspaceAdminGuard, async (req, res) => {
     try {
+        await (0, hrm_permissions_catalog_1.ensureHrmPermissionsSeeded)();
         const permissions = await prisma_1.prisma.permission.findMany({
             orderBy: [{ module: "asc" }, { resource: "asc" }, { code: "asc" }],
         });
         return res.json({
             modules: erp_modules_1.ERP_MODULES,
             permissions,
+            hrDefaultPermissionCodes: hrm_permissions_catalog_1.HR_DEFAULT_PERMISSION_CODES,
         });
     }
     catch (err) {
         return res.status(500).json({ error: err.message || "Failed to fetch permissions" });
+    }
+});
+// -------------------------------------------------------------
+// 7b. POST /api/workspace/roles/sync-hr-defaults - Sync HRM defaults to HR role(s)
+// -------------------------------------------------------------
+exports.workspaceRouter.post("/roles/sync-hr-defaults", requireWorkspaceAdminGuard, async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const result = await (0, hrm_permissions_catalog_1.syncHrRoleDefaultPermissions)(tenantId);
+        (0, auth_1.invalidateAuthCache)(undefined, tenantId);
+        return res.json({
+            success: true,
+            message: result.updatedRoles.length > 0
+                ? `Synced ${result.permissionsAssigned} HRM permissions to: ${result.updatedRoles.join(", ")}`
+                : "No HR role found in this workspace yet.",
+            ...result,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to sync HR default permissions" });
     }
 });
 // -------------------------------------------------------------
@@ -695,7 +775,7 @@ exports.workspaceRouter.get("/users", requireWorkspaceAdminGuard, async (req, re
                         roles: true,
                         employees: {
                             where: { tenantId },
-                            select: { id: true, employeeCode: true, position: true },
+                            select: { id: true, employeeCode: true, position: true, phone: true, status: true },
                         },
                         workspaceRoleAssignments: {
                             where: { tenantId },
@@ -710,19 +790,19 @@ exports.workspaceRouter.get("/users", requireWorkspaceAdminGuard, async (req, re
             },
             orderBy: { createdAt: "desc" },
         });
-        // Filter out any orphaned user accounts where employee was deleted and not super_admin
-        const validProfiles = profiles.filter((p) => {
-            const isSuperAdmin = p.user?.roles?.some((r) => r.role === "super_admin");
-            const hasEmployee = (p.user?.employees || []).length > 0;
-            return isSuperAdmin || hasEmployee;
-        });
-        const result = validProfiles.map((p) => {
+        const result = profiles.map((p) => {
             const assignment = p.user?.workspaceRoleAssignments?.[0];
+            const emp = p.user?.employees?.[0];
+            const tenantRoles = (p.user?.roles || []).filter((r) => r.tenantId === tenantId || r.role === "super_admin");
+            const hasActiveAccess = tenantRoles.length > 0 || Boolean(assignment);
+            const loginStatus = emp?.status === "terminated" || !hasActiveAccess ? "disabled" : "enabled";
             return {
                 id: p.userId,
                 fullName: p.fullName || p.user?.email?.split("@")[0] || "User",
                 email: p.user?.email || p.email || "",
+                phone: p.phone || emp?.phone || "",
                 avatarUrl: p.avatarUrl,
+                loginStatus,
                 assignedRole: assignment
                     ? {
                         id: assignment.role.id,
@@ -784,6 +864,24 @@ exports.workspaceRouter.put("/users/:userId/role", requireWorkspaceAdminGuard, a
                 role: { select: { id: true, name: true } },
             },
         });
+        // Synchronize legacy UserRole to prevent dual-role split-brain (DEFECT-019)
+        try {
+            const roleNameLower = String(assignment.role?.name || "").toLowerCase().trim();
+            const syncedLegacyRole = ["workspace admin", "tenant admin", "administrator", "owner", "hr manager", "hr admin", "hr administrator"].includes(roleNameLower)
+                ? "hr_admin"
+                : ["manager", "team lead", "department head"].includes(roleNameLower)
+                    ? "manager"
+                    : "employee";
+            await prisma_1.prisma.userRole.deleteMany({
+                where: { userId, tenantId, role: { not: "super_admin" } },
+            });
+            await prisma_1.prisma.userRole.create({
+                data: { userId, tenantId, role: syncedLegacyRole },
+            });
+        }
+        catch (legacySyncErr) {
+            console.warn("[workspace/users/role] Legacy role sync warning:", legacySyncErr?.message || legacySyncErr);
+        }
         // Invalidate auth cache for this user so updated role takes effect immediately
         (0, auth_1.invalidateAuthCache)(userId, tenantId);
         return res.json({
@@ -804,7 +902,7 @@ exports.workspaceRouter.put("/users/:userId/role", requireWorkspaceAdminGuard, a
 exports.workspaceRouter.post("/users", requireWorkspaceAdminGuard, async (req, res) => {
     try {
         const tenantId = req.user.tenantId;
-        const { fullName, email, password, roleId, employeeId, legacyRole } = req.body;
+        const { fullName, email, phone, password, roleId, employeeId, legacyRole, loginStatus } = req.body;
         if (!email || typeof email !== "string" || !email.includes("@")) {
             return res.status(400).json({ error: "Valid email address is required" });
         }
@@ -836,15 +934,20 @@ exports.workspaceRouter.post("/users", requireWorkspaceAdminGuard, async (req, r
                     create: {
                         fullName: (fullName || cleanEmail.split("@")[0]).trim(),
                         email: cleanEmail,
+                        phone: phone ? String(phone).trim() : null,
                         tenantId,
                     },
                 },
-                roles: {
-                    create: {
-                        role: (legacyRole === "hr_admin" || legacyRole === "manager") ? legacyRole : "employee",
-                        tenantId,
-                    },
-                },
+                ...(loginStatus === "disabled"
+                    ? {}
+                    : {
+                        roles: {
+                            create: {
+                                role: (legacyRole === "hr_admin" || legacyRole === "manager") ? legacyRole : "employee",
+                                tenantId,
+                            },
+                        },
+                    }),
             },
             include: {
                 profile: true,
@@ -894,7 +997,7 @@ exports.workspaceRouter.put("/users/:userId", requireWorkspaceAdminGuard, async 
     try {
         const tenantId = req.user.tenantId;
         const { userId } = req.params;
-        const { fullName, roleId, employeeId } = req.body;
+        const { fullName, email, phone, roleId, employeeId, loginStatus } = req.body;
         const profile = await prisma_1.prisma.profile.findFirst({
             where: { userId, tenantId },
             include: { user: { include: { roles: true } } },
@@ -907,13 +1010,49 @@ exports.workspaceRouter.put("/users/:userId", requireWorkspaceAdminGuard, async 
         if (isSuperAdmin) {
             return res.status(403).json({ error: "Cannot modify Super-Admin account from workspace console" });
         }
+        const profileUpdates = {};
         if (fullName && typeof fullName === "string") {
+            profileUpdates.fullName = fullName.trim();
+        }
+        if (phone !== undefined) {
+            profileUpdates.phone = phone ? String(phone).trim() : null;
+        }
+        if (email && typeof email === "string" && email.trim().toLowerCase() !== profile.user?.email?.toLowerCase()) {
+            const nextEmail = email.trim().toLowerCase();
+            const dup = await prisma_1.prisma.user.findUnique({ where: { email: nextEmail } });
+            if (dup && dup.id !== userId) {
+                return res.status(400).json({ error: "Email address is already in use by another account" });
+            }
+            await prisma_1.prisma.user.update({ where: { id: userId }, data: { email: nextEmail } });
+            profileUpdates.email = nextEmail;
+        }
+        if (Object.keys(profileUpdates).length > 0) {
             await prisma_1.prisma.profile.update({
                 where: { id: profile.id },
-                data: { fullName: fullName.trim() },
+                data: profileUpdates,
             });
         }
-        if (roleId) {
+        if (phone !== undefined) {
+            await prisma_1.prisma.employee.updateMany({
+                where: { userId, tenantId },
+                data: { phone: phone ? String(phone).trim() : null },
+            });
+        }
+        if (loginStatus === "disabled") {
+            if (userId === req.user.userId || userId === req.user.id) {
+                return res.status(400).json({ error: "Cannot disable your own administrator account" });
+            }
+            await prisma_1.prisma.userRole.deleteMany({ where: { userId, tenantId } });
+            await prisma_1.prisma.userRoleAssignment.deleteMany({ where: { userId, tenantId } });
+            await (0, device_session_service_1.revokeAllSessions)(userId).catch(() => { });
+        }
+        else if (loginStatus === "enabled") {
+            const existingTenantRole = await prisma_1.prisma.userRole.findFirst({ where: { userId, tenantId } });
+            if (!existingTenantRole) {
+                await prisma_1.prisma.userRole.create({ data: { userId, tenantId, role: "employee" } });
+            }
+        }
+        if (roleId && loginStatus !== "disabled") {
             const role = await prisma_1.prisma.workspaceRole.findFirst({
                 where: { id: roleId, tenantId },
             });
@@ -975,12 +1114,113 @@ exports.workspaceRouter.post("/users/:userId/reset-password", requireWorkspaceAd
         });
         (0, auth_1.invalidateAuthCache)(userId, tenantId);
         return res.json({
-            message: "Password reset successfully",
+            message: "Password updated successfully",
             temporaryPassword: tempPassword,
         });
     }
     catch (err) {
         return res.status(500).json({ error: err.message || "Failed to reset user password" });
+    }
+});
+// -------------------------------------------------------------
+// 11.3b POST /api/workspace/users/:userId/login-as - Tenant Admin Login As User
+// -------------------------------------------------------------
+exports.workspaceRouter.post("/users/:userId/login-as", requireWorkspaceAdminGuard, async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const actorId = req.user.userId || req.user.id;
+        const { userId } = req.params;
+        if (userId === actorId) {
+            return res.status(400).json({ error: "You are already logged in as this user." });
+        }
+        const profile = await prisma_1.prisma.profile.findFirst({
+            where: { userId, tenantId },
+            include: {
+                user: {
+                    include: {
+                        roles: true,
+                        workspaceRoleAssignments: {
+                            where: { tenantId },
+                            include: {
+                                role: {
+                                    include: {
+                                        permissions: { include: { permission: { select: { code: true } } } },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+        if (!profile || !profile.user) {
+            return res.status(404).json({ error: "User not found in this workspace." });
+        }
+        const isSuper = profile.user.roles?.some((r) => r.role === "super_admin");
+        if (isSuper) {
+            return res.status(403).json({ error: "Cannot impersonate a Super Admin account." });
+        }
+        const tenantLegacyRoles = (profile.user.roles || [])
+            .filter((r) => r.tenantId === tenantId)
+            .map((r) => r.role);
+        const assignment = profile.user.workspaceRoleAssignments?.[0];
+        if (tenantLegacyRoles.length === 0 && !assignment) {
+            return res.status(403).json({ error: "This user's login account is currently disabled." });
+        }
+        const effectiveRoles = Array.from(new Set([
+            ...tenantLegacyRoles,
+            ...(assignment?.role?.name ? [assignment.role.name] : []),
+        ]));
+        const permissionCodes = assignment?.role?.permissions?.map((rp) => rp.permission.code) || [];
+        const session = await (0, device_session_service_1.createDeviceSession)({
+            userId: profile.user.id,
+            tenantId,
+            ipAddress: (0, tenant_ip_restriction_service_1.extractClientIp)(req),
+            userAgent: req.get("user-agent") || "Tenant Admin Login-As",
+        });
+        const token = (0, jwt_1.generateToken)({
+            userId: profile.user.id,
+            email: profile.user.email,
+            tenantId,
+            roles: effectiveRoles,
+            permissions: permissionCodes,
+            sessionId: session.sessionId,
+            isImpersonating: true,
+        });
+        await prisma_1.prisma.auditLog
+            .create({
+            data: {
+                tenantId,
+                actorId: actorId || null,
+                actorEmail: req.user?.email || null,
+                action: "TENANT_ADMIN_LOGIN_AS_USER",
+                entityType: "User",
+                entityId: profile.user.id,
+                ipAddress: (0, tenant_ip_restriction_service_1.extractClientIp)(req),
+                afterJson: { targetEmail: profile.user.email, targetName: profile.fullName },
+            },
+        })
+            .catch(() => { });
+        const lowerRoles = effectiveRoles.map((r) => String(r).toLowerCase());
+        const redirectTo = lowerRoles.some((r) => r.includes("hr"))
+            ? "/hr/dashboard"
+            : lowerRoles.some((r) => r.includes("admin"))
+                ? "/tenant/dashboard"
+                : "/me/dashboard";
+        return res.json({
+            success: true,
+            token,
+            redirectTo,
+            user: {
+                id: profile.user.id,
+                fullName: profile.fullName || profile.user.email,
+                email: profile.user.email,
+                role: assignment?.role?.name || effectiveRoles[0] || "Employee",
+            },
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to login as user." });
     }
 });
 // -------------------------------------------------------------
@@ -1695,5 +1935,1252 @@ exports.workspaceRouter.put("/settings/company", async (req, res) => {
     }
     catch (err) {
         return res.status(500).json({ error: err.message || "Failed to update company settings." });
+    }
+});
+// ═══════════════════════════════════════════════════════════════════════════
+// TENANT CONTROL PLANE — Live Summary, Audit Logs, Billing Invoices & Integrations
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /api/workspace/dashboard-summary
+exports.workspaceRouter.get("/dashboard-summary", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required." });
+        const [tenant, profiles, employees, departmentsCount, branchesCount, rolesCount, modules, addons, pendingLeavesCount, openJobsCount, subscription, recentAuditLogs,] = await Promise.all([
+            prisma_1.prisma.tenant.findUnique({
+                where: { id: tenantId },
+                select: { id: true, name: true, slug: true, logoUrl: true, timezone: true, createdAt: true },
+            }),
+            prisma_1.prisma.profile.findMany({
+                where: { tenantId },
+                select: { userId: true, user: { select: { twoFactorEnabled: true } } },
+            }),
+            prisma_1.prisma.employee.findMany({
+                where: { tenantId },
+                select: { id: true, status: true },
+            }),
+            prisma_1.prisma.department.count({ where: { tenantId } }).catch(() => 0),
+            prisma_1.prisma.branch.count({ where: { tenantId } }).catch(() => 0),
+            prisma_1.prisma.workspaceRole.count({ where: { tenantId } }).catch(() => 0),
+            prisma_1.prisma.tenantModule.findMany({ where: { tenantId }, orderBy: { moduleKey: "asc" } }).catch(() => []),
+            prisma_1.prisma.tenantAddon.findMany({ where: { tenantId, status: "active" } }).catch(() => []),
+            prisma_1.prisma.leaveRequest.count({ where: { tenantId, status: "pending" } }).catch(() => 0),
+            prisma_1.prisma.jobPosting.count({ where: { tenantId, status: "open" } }).catch(() => 0),
+            prisma_1.prisma.tenantSubscription
+                .findFirst({
+                where: { tenantId },
+                include: { plan: true },
+                orderBy: { createdAt: "desc" },
+            })
+                .catch(() => null),
+            prisma_1.prisma.auditLog
+                .findMany({
+                where: { tenantId },
+                orderBy: { createdAt: "desc" },
+                take: 10,
+            })
+                .catch(() => []),
+        ]);
+        const totalUsers = profiles.length;
+        const twoFactorEnabledUsers = profiles.filter((p) => p.user?.twoFactorEnabled).length;
+        const twoFactorAdoptionPct = totalUsers > 0 ? Math.round((twoFactorEnabledUsers / totalUsers) * 100) : 0;
+        const totalEmployees = employees.length;
+        const activeEmployees = employees.filter((e) => (e.status || "").toLowerCase() === "active").length;
+        return res.json({
+            success: true,
+            data: {
+                tenant,
+                counts: {
+                    totalUsers,
+                    twoFactorEnabledUsers,
+                    twoFactorAdoptionPct,
+                    totalEmployees,
+                    activeEmployees,
+                    departments: departmentsCount,
+                    branches: branchesCount,
+                    roles: rolesCount,
+                    enabledModules: modules.filter((m) => m.isEnabled).length,
+                    installedAddons: addons.length,
+                    pendingLeaveRequests: pendingLeavesCount,
+                    openJobs: openJobsCount,
+                },
+                subscription: subscription
+                    ? {
+                        id: subscription.id,
+                        status: subscription.status,
+                        billingCycle: subscription.billingCycle,
+                        currentPeriodEnd: subscription.currentPeriodEnd,
+                        planName: subscription.plan?.name || "Enterprise",
+                        priceMonthly: Number(subscription.plan?.priceMonthly || 0),
+                        maxEmployees: subscription.plan?.maxEmployees ?? null,
+                        maxUsers: subscription.plan?.maxUsers ?? null,
+                    }
+                    : null,
+                modules,
+                recentAuditLogs,
+            },
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to load tenant dashboard summary." });
+    }
+});
+// GET /api/workspace/audit-logs
+exports.workspaceRouter.get("/audit-logs", requireWorkspaceAdminGuard, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required." });
+        const search = String(req.query.search || "").trim();
+        const action = String(req.query.action || "").trim();
+        const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+        const where = { tenantId };
+        if (action && action !== "all") {
+            where.action = { contains: action, mode: "insensitive" };
+        }
+        if (search) {
+            where.OR = [
+                { actorEmail: { contains: search, mode: "insensitive" } },
+                { action: { contains: search, mode: "insensitive" } },
+                { entityType: { contains: search, mode: "insensitive" } },
+                { entityId: { contains: search, mode: "insensitive" } },
+            ];
+        }
+        const [logs, total] = await Promise.all([
+            prisma_1.prisma.auditLog.findMany({
+                where,
+                orderBy: { createdAt: "desc" },
+                take: limit,
+            }),
+            prisma_1.prisma.auditLog.count({ where }),
+        ]);
+        return res.json({ success: true, data: { logs, total } });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to fetch tenant audit logs." });
+    }
+});
+// GET /api/workspace/billing/invoices
+exports.workspaceRouter.get("/billing/invoices", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required." });
+        const [invoices, subscription] = await Promise.all([
+            prisma_1.prisma.billingInvoice.findMany({
+                where: { tenantId },
+                orderBy: { createdAt: "desc" },
+                take: 100,
+            }),
+            prisma_1.prisma.tenantSubscription
+                .findFirst({
+                where: { tenantId },
+                include: { plan: true },
+                orderBy: { createdAt: "desc" },
+            })
+                .catch(() => null),
+        ]);
+        return res.json({
+            success: true,
+            data: {
+                invoices: invoices.map((inv) => ({
+                    ...inv,
+                    amount: Number(inv.amount || 0),
+                })),
+                subscription: subscription
+                    ? {
+                        id: subscription.id,
+                        status: subscription.status,
+                        billingCycle: subscription.billingCycle,
+                        currentPeriodStart: subscription.currentPeriodStart,
+                        currentPeriodEnd: subscription.currentPeriodEnd,
+                        planName: subscription.plan?.name || "Enterprise",
+                        priceMonthly: Number(subscription.plan?.priceMonthly || 0),
+                        priceAnnual: Number(subscription.plan?.priceAnnual || 0),
+                    }
+                    : null,
+            },
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to fetch billing invoices." });
+    }
+});
+// GET /api/workspace/integrations/status
+exports.workspaceRouter.get("/integrations/status", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required." });
+        const [emailGroup, storageGroup, addons, biometricCount, domainCount] = await Promise.all([
+            settings_service_1.SettingsService.getGroup("TENANT", tenantId, "email").catch(() => ({ values: {} })),
+            settings_service_1.SettingsService.getGroup("TENANT", tenantId, "storage").catch(() => ({ values: {} })),
+            prisma_1.prisma.tenantAddon.findMany({ where: { tenantId, status: "active" } }).catch(() => []),
+            prisma_1.prisma.biometricDevice?.count({ where: { tenantId } }).catch(() => 0) ?? 0,
+            prisma_1.prisma.tenantCustomDomain?.count({ where: { tenantId } }).catch(() => 0) ?? 0,
+        ]);
+        const smtpConfigured = Boolean(emailGroup?.values?.["email.smtp_host"] || process.env.SMTP_HOST);
+        const storageDriver = storageGroup?.values?.["storage.driver"] || "LOCAL";
+        return res.json({
+            success: true,
+            data: {
+                integrations: [
+                    {
+                        key: "smtp_email",
+                        name: "SMTP & Transactional Email",
+                        category: "Communication",
+                        status: smtpConfigured ? "connected" : "pending",
+                        summary: smtpConfigured ? "Configured for OTP, Payslips & Alerts" : "Using system default email fallback",
+                        managePath: "/tenant/settings",
+                    },
+                    {
+                        key: "file_storage",
+                        name: "Document & Media Storage",
+                        category: "Storage",
+                        status: "connected",
+                        summary: `Active storage driver: ${String(storageDriver).toUpperCase()}`,
+                        managePath: "/tenant/files/storage",
+                    },
+                    {
+                        key: "biometric_sync",
+                        name: "Biometric & Attendance Devices",
+                        category: "HR Operations",
+                        status: biometricCount > 0 ? "connected" : "available",
+                        summary: `${biometricCount} registered device${biometricCount === 1 ? "" : "s"}`,
+                        managePath: "/hr/attendance/records",
+                    },
+                    {
+                        key: "custom_domain",
+                        name: "Custom Workspace Domain & SSL",
+                        category: "Branding",
+                        status: domainCount > 0 ? "connected" : "available",
+                        summary: `${domainCount} custom domain${domainCount === 1 ? "" : "s"} configured`,
+                        managePath: "/tenant/domain",
+                    },
+                    {
+                        key: "tenant_addons",
+                        name: "Installed Workspace Add-ons",
+                        category: "Extensions",
+                        status: addons.length > 0 ? "connected" : "available",
+                        summary: `${addons.length} active add-on${addons.length === 1 ? "" : "s"}`,
+                        managePath: "/tenant/addons",
+                    },
+                ],
+            },
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to fetch integrations status." });
+    }
+});
+// GET /api/workspace/login-history (Real-time User Login History strictly scoped to current tenant)
+exports.workspaceRouter.get("/login-history", requireWorkspaceAdminGuard, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required." });
+        const tenantProfiles = await prisma_1.prisma.profile.findMany({
+            where: { tenantId },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        email: true,
+                        roles: { where: { tenantId }, select: { role: true } },
+                        workspaceRoleAssignments: {
+                            where: { tenantId },
+                            include: { role: { select: { name: true } } },
+                        },
+                    },
+                },
+            },
+        });
+        const userMap = new Map();
+        const tenantUserIds = [];
+        for (const p of tenantProfiles) {
+            if (!p.userId)
+                continue;
+            tenantUserIds.push(p.userId);
+            const wsRole = p.user?.workspaceRoleAssignments?.[0]?.role?.name;
+            const legacyRole = p.user?.roles?.[0]?.role;
+            const roleLabel = wsRole ||
+                (legacyRole
+                    ? String(legacyRole)
+                        .replace(/_/g, " ")
+                        .replace(/\b\w/g, (c) => c.toUpperCase())
+                    : "Member");
+            userMap.set(p.userId, {
+                name: p.fullName || p.user?.email?.split("@")[0] || "User",
+                email: p.user?.email || p.email || "",
+                role: roleLabel,
+            });
+        }
+        if (tenantUserIds.length === 0) {
+            return res.json({ success: true, items: [], total: 0 });
+        }
+        const [historyRows, sessionRows] = await Promise.all([
+            prisma_1.prisma.loginHistory.findMany({
+                where: { userId: { in: tenantUserIds } },
+                orderBy: { date: "desc" },
+                take: 300,
+            }),
+            prisma_1.prisma.deviceSession.findMany({
+                where: { tenantId, userId: { in: tenantUserIds } },
+                orderBy: { createdAt: "desc" },
+                take: 200,
+            }),
+        ]);
+        const normalized = [];
+        const seenKeys = new Set();
+        for (const h of historyRows) {
+            const info = userMap.get(h.userId);
+            if (!info)
+                continue;
+            let parsed = {};
+            try {
+                if (h.details)
+                    parsed = JSON.parse(h.details);
+            }
+            catch { }
+            const ip = String(h.ip || "127.0.0.1").replace(/^::ffff:/, "").replace(/^::1$/, "127.0.0.1");
+            const ts = (h.date || h.createdAt).toISOString();
+            const dedupeKey = `${h.userId}:${ts.slice(0, 16)}`;
+            seenKeys.add(dedupeKey);
+            const rawDevice = String(parsed.device_type || "desktop").trim();
+            normalized.push({
+                id: h.id,
+                userId: h.userId,
+                userName: info.name,
+                userEmail: info.email,
+                ipAddress: ip,
+                location: parsed.location || "Unknown",
+                browser: parsed.browser_name || "Unknown Browser",
+                os: parsed.os_name || "Unknown OS",
+                deviceType: rawDevice.charAt(0).toUpperCase() + rawDevice.slice(1).toLowerCase(),
+                language: parsed.language || "en",
+                role: info.role,
+                loginAt: ts,
+            });
+        }
+        for (const s of sessionRows) {
+            const info = userMap.get(s.userId);
+            if (!info)
+                continue;
+            const ts = (s.createdAt || new Date()).toISOString();
+            const dedupeKey = `${s.userId}:${ts.slice(0, 16)}`;
+            if (seenKeys.has(dedupeKey))
+                continue;
+            seenKeys.add(dedupeKey);
+            const ip = String(s.ipAddress || "127.0.0.1").replace(/^::ffff:/, "").replace(/^::1$/, "127.0.0.1");
+            const loc = [s.city, s.country].filter(Boolean).join(", ") || "Unknown";
+            const rawDevice = String(s.deviceType || "desktop").trim();
+            normalized.push({
+                id: `sess-${s.id}`,
+                userId: s.userId,
+                userName: info.name,
+                userEmail: info.email,
+                ipAddress: ip,
+                location: loc,
+                browser: s.browser || "Unknown Browser",
+                os: s.operatingSystem || "Unknown OS",
+                deviceType: rawDevice.charAt(0).toUpperCase() + rawDevice.slice(1).toLowerCase(),
+                language: "en",
+                role: info.role,
+                loginAt: ts,
+            });
+        }
+        normalized.sort((a, b) => new Date(b.loginAt).getTime() - new Date(a.loginAt).getTime());
+        return res.json({
+            success: true,
+            items: normalized,
+            total: normalized.length,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to load user login history." });
+    }
+});
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTHORITATIVE TENANT SYSTEM SETTINGS (14 Sections — Single Source of Truth)
+// Locked to Tenant Admin / Workspace Admin / Super Admin on write.
+// ═══════════════════════════════════════════════════════════════════════════
+const DEFAULT_HR_EMAIL_NOTIFICATIONS = {
+    assignDocumentToEmployee: true,
+    awardCreate: true,
+    candidateStatusUpdate: true,
+    complaintCreate: false,
+    employeeContractCreate: true,
+    employeeContractStatusUpdate: true,
+    employeeCreate: true,
+    employeeTransfer: true,
+    employeeTransferStatusUpdate: true,
+    interviewCreate: true,
+    interviewStatusUpdate: true,
+    jobApplied: true,
+    leaveStatusUpdate: true,
+    offerCreate: true,
+    payrollRunStatusUpdate: true,
+    promotionCreate: true,
+    promotionStatusUpdate: true,
+    resignationStatusUpdate: true,
+    terminationCreate: true,
+    terminationStatusUpdate: true,
+    tripCreate: false,
+    tripStatusUpdate: false,
+    userCreate: true,
+    warningCreate: true,
+};
+const ALLOWED_DATE_FORMATS = new Set([
+    "YYYY-MM-DD",
+    "MM-DD-YYYY",
+    "DD-MM-YYYY",
+    "YYYY/MM/DD",
+    "MM/DD/YYYY",
+    "DD/MM/YYYY",
+]);
+function normalizeSystemDateFormat(input) {
+    const raw = String(input || "").trim();
+    if (ALLOWED_DATE_FORMATS.has(raw))
+        return raw;
+    const legacy = {
+        "Y-m-d": "YYYY-MM-DD",
+        "m-d-Y": "MM-DD-YYYY",
+        "d-m-Y": "DD-MM-YYYY",
+        "Y/m/d": "YYYY/MM/DD",
+        "m/d/Y": "MM/DD/YYYY",
+        "d/m/Y": "DD/MM/YYYY",
+    };
+    return legacy[raw] || "YYYY-MM-DD";
+}
+function normalizeSystemTimeFormat(input) {
+    const raw = String(input || "").trim();
+    if (raw === "24h" || raw === "12h")
+        return raw;
+    if (raw.includes("H") || raw.includes("G"))
+        return "24h";
+    if (raw.includes("h") || raw.includes("g") || raw.toLowerCase().includes("a"))
+        return "12h";
+    return "24h";
+}
+function buildDefaultSystemSettings(tenant) {
+    const companyName = tenant?.name || "MasterHRMS";
+    const logo = tenant?.logoUrl || "";
+    return {
+        system: {
+            defaultLanguage: "en",
+            dateFormat: "YYYY-MM-DD",
+            timeFormat: "24h",
+            defaultTimezone: tenant?.timezone || "Asia/Kolkata",
+            ipRestrictionEnabled: false,
+        },
+        company: {
+            companyName,
+            registrationNumber: "",
+            companyAddress: "",
+            country: "IN",
+            countryName: "India",
+            state: "",
+            city: "",
+            zipCode: "",
+            phoneCountryCode: "IN",
+            phoneDialCode: "+91",
+            telephone: "",
+            companyEmail: "",
+            emailFromName: companyName,
+            taxNumberEnabled: false,
+            taxType: "GST",
+            taxNumber: "",
+        },
+        brand: {
+            logoDark: logo,
+            logoLight: logo,
+            favicon: logo,
+            titleText: companyName,
+            companyName,
+            footerText: `© ${new Date().getFullYear()} ${companyName}. All rights reserved.`,
+            companyMobile: "",
+            companyEmail: "",
+            companyAddress: "",
+            taxNumber: "",
+            themeColor: "#10b981",
+            themeMode: "light",
+            layoutMode: "full-width",
+            sidebarVariant: "inset",
+            sidebarStyle: "plain",
+            layoutDirection: "ltr",
+            sidebarPosition: "left",
+        },
+        currency: {
+            defaultCurrency: "INR",
+            symbol: "₹",
+            currencyName: "Indian Rupee",
+            decimalPlaces: 2,
+            symbolPosition: "prefix", // "prefix" | "suffix"
+            decimalSeparator: ".", // "." | ","
+            thousandsSeparator: ",", // "," | "." | " " | ""
+            showDecimals: true,
+            addSpace: false,
+        },
+        email: {
+            provider: "SMTP",
+            driver: "smtp",
+            host: process.env.SMTP_HOST || "",
+            port: process.env.SMTP_PORT || "587",
+            username: process.env.SMTP_USER || "",
+            password: "",
+            encryption: "TLS",
+            fromAddress: process.env.SMTP_FROM || "noreply@masterhrms.com",
+            fromName: companyName,
+        },
+        email_notifications: { ...DEFAULT_HR_EMAIL_NOTIFICATIONS },
+        slack: {
+            enabled: false,
+            webhookUrl: "",
+            botToken: "",
+            defaultChannel: "#hr-updates",
+        },
+        telegram: {
+            enabled: false,
+            botToken: "",
+            chatId: "",
+        },
+        twilio: {
+            enabled: false,
+            accountSid: "",
+            authToken: "",
+            fromNumber: "",
+        },
+        zoom: {
+            enabled: false,
+            accountId: "",
+            clientId: "",
+            clientSecret: "",
+        },
+        working_days: {
+            monday: true,
+            tuesday: true,
+            wednesday: true,
+            thursday: true,
+            friday: true,
+            saturday: false,
+            sunday: false,
+        },
+        ip_restriction: {
+            enabled: false,
+            allowedIps: [],
+        },
+        noc: {
+            language: "en",
+            content: "No Objection Certificate\nDate: {date}\n\nTo Whom It May Concern,\nThis is to certify that {employee_name} is currently employed with {company_name} as {designation}.\nWe have no objection to the above mentioned employee for any official purposes.\n\nSincerely,\nHR Department\n{company_name}",
+        },
+        experience_certificate: {
+            language: "en",
+            content: "Experience Certificate\nDate: {date}\n\nTo Whom It May Concern,\nThis is to certify that {employee_name} worked with {company_name} as {designation} from {joining_date} to {relieving_date}.\nDuring their tenure, their conduct and performance were found to be professional and commendable.\n\nBest wishes,\nHR Department\n{company_name}",
+        },
+        joining_letter: {
+            language: "en",
+            content: "Joining Letter\nDate: {date}\n\nDear {employee_name},\nWe are pleased to welcome you to {company_name} as {designation}.\nJoining Date: {joining_date}\nSalary: {salary}\nDepartment: {department}\nWe look forward to your valuable contribution to our company's success.\n\nBest regards,\nHR Department\n{company_name}",
+        },
+    };
+}
+async function loadTenantSystemSettings(tenantId) {
+    const [tenant, rows] = await Promise.all([
+        prisma_1.prisma.tenant.findUnique({
+            where: { id: tenantId },
+            select: { id: true, name: true, slug: true, logoUrl: true, timezone: true },
+        }),
+        prisma_1.prisma.setting.findMany({
+            where: { scope: "TENANT", scopeId: tenantId, group: "tenant_system_settings" },
+        }),
+    ]);
+    const merged = buildDefaultSystemSettings(tenant);
+    for (const row of rows) {
+        if (row.key && merged[row.key] && row.valueJson && typeof row.valueJson === "object") {
+            merged[row.key] = { ...merged[row.key], ...row.valueJson };
+        }
+    }
+    if (merged.system) {
+        merged.system.dateFormat = normalizeSystemDateFormat(merged.system.dateFormat);
+        merged.system.timeFormat = normalizeSystemTimeFormat(merged.system.timeFormat);
+    }
+    return { tenant, settings: merged };
+}
+// GET /api/workspace/system-settings/public (Readable by EVERY user in the workspace — real-time global config)
+exports.workspaceRouter.get("/system-settings/public", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required." });
+        const { tenant, settings } = await loadTenantSystemSettings(tenantId);
+        return res.json({
+            success: true,
+            data: {
+                tenant,
+                system: settings.system,
+                company: settings.company,
+                brand: settings.brand,
+                currency: settings.currency,
+                working_days: settings.working_days,
+                noc: settings.noc,
+                experience_certificate: settings.experience_certificate,
+                joining_letter: settings.joining_letter,
+                email_notifications: settings.email_notifications,
+            },
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to load public workspace settings." });
+    }
+});
+// GET /api/workspace/system-settings/my-ip (Returns detected client IP for Tenant Admin allowlist setup)
+exports.workspaceRouter.get("/system-settings/my-ip", requireWorkspaceAdminGuard, async (req, res) => {
+    return res.json({
+        success: true,
+        clientIp: (0, tenant_ip_restriction_service_1.extractClientIp)(req) || "127.0.0.1",
+    });
+});
+// GET /api/workspace/system-settings (Full Tenant Admin settings)
+exports.workspaceRouter.get("/system-settings", requireWorkspaceAdminGuard, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required." });
+        const { tenant, settings } = await loadTenantSystemSettings(tenantId);
+        return res.json({ success: true, data: { tenant, settings } });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to load tenant system settings." });
+    }
+});
+const ALLOWED_SETTING_SECTIONS = new Set([
+    "system",
+    "company",
+    "brand",
+    "currency",
+    "email",
+    "email_notifications",
+    "slack",
+    "telegram",
+    "twilio",
+    "zoom",
+    "working_days",
+    "ip_restriction",
+    "noc",
+    "experience_certificate",
+    "joining_letter",
+]);
+// PUT /api/workspace/system-settings/:section (Tenant Admin ONLY — authoritative DB write)
+exports.workspaceRouter.put("/system-settings/:section", requireWorkspaceAdminGuard, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required." });
+        const section = String(req.params.section || "").trim();
+        if (!ALLOWED_SETTING_SECTIONS.has(section)) {
+            return res.status(400).json({ error: `Unknown settings section: ${section}` });
+        }
+        const payload = req.body && typeof req.body === "object" ? req.body : {};
+        if (section === "system") {
+            if (payload.dateFormat !== undefined) {
+                payload.dateFormat = normalizeSystemDateFormat(payload.dateFormat);
+            }
+            if (payload.timeFormat !== undefined) {
+                payload.timeFormat = normalizeSystemTimeFormat(payload.timeFormat);
+            }
+        }
+        if (section === "ip_restriction") {
+            if (Array.isArray(payload.allowedIps)) {
+                for (const item of payload.allowedIps) {
+                    const ipStr = String(item?.ip || "").trim();
+                    if (!(0, tenant_ip_restriction_service_1.isValidIpOrCidr)(ipStr)) {
+                        return res.status(400).json({
+                            error: `Invalid IP address or CIDR block: "${ipStr}". Use IPv4 (e.g., 203.0.113.10), IPv4 CIDR (e.g., 192.168.1.0/24), or IPv6.`,
+                        });
+                    }
+                }
+            }
+        }
+        if (section === "company") {
+            const cleanName = String(payload.companyName || "").trim();
+            const cleanZip = String(payload.zipCode || "").trim();
+            const cleanPhone = String(payload.telephone || "").trim();
+            const cleanEmail = String(payload.companyEmail || "").trim();
+            if (!cleanName) {
+                return res.status(400).json({ error: "Company Name is required." });
+            }
+            if (cleanZip && !/^\d{3,10}$/.test(cleanZip)) {
+                return res.status(400).json({ error: "Zip Code must contain numbers only (3–10 digits)." });
+            }
+            if (cleanPhone && !/^\d{6,15}$/.test(cleanPhone)) {
+                return res.status(400).json({ error: "Telephone / Mobile number must contain digits only (6–15 digits)." });
+            }
+            if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+                return res.status(400).json({ error: "Please enter a valid Company Email address." });
+            }
+        }
+        // Upsert into Setting table (PostgreSQL)
+        const existing = await prisma_1.prisma.setting.findFirst({
+            where: { scope: "TENANT", scopeId: tenantId, group: "tenant_system_settings", key: section },
+        });
+        const mergedVal = {
+            ...(existing?.valueJson || {}),
+            ...payload,
+        };
+        if (existing) {
+            await prisma_1.prisma.setting.update({
+                where: { id: existing.id },
+                data: { valueJson: mergedVal, valueType: "json", updatedBy: req.user?.userId || null },
+            });
+        }
+        else {
+            await prisma_1.prisma.setting.create({
+                data: {
+                    scope: "TENANT",
+                    scopeId: tenantId,
+                    group: "tenant_system_settings",
+                    key: section,
+                    valueJson: mergedVal,
+                    valueType: "json",
+                    updatedBy: req.user?.userId || null,
+                },
+            });
+        }
+        // Propagate authoritative fields to Tenant table & SettingsService
+        if (section === "company") {
+            const cleanName = String(payload.companyName || "").trim();
+            const cleanZip = String(payload.zipCode || "").trim();
+            const cleanPhone = String(payload.telephone || "").trim();
+            const cleanEmail = String(payload.companyEmail || "").trim();
+            await prisma_1.prisma.tenant.update({
+                where: { id: tenantId },
+                data: { name: cleanName },
+            });
+            const fullPhone = cleanPhone
+                ? `${String(payload.phoneDialCode || "+91").trim()} ${cleanPhone}`
+                : null;
+            const formattedAddress = [payload.companyAddress, payload.city, payload.state, payload.countryName, cleanZip]
+                .filter(Boolean)
+                .join(", ") || null;
+            await company_profile_service_1.CompanyProfileService.upsertProfile(tenantId, {
+                legalName: cleanName,
+                tradeName: cleanName,
+                registrationNumber: payload.registrationNumber ? String(payload.registrationNumber).trim() : null,
+                email: cleanEmail || `contact@${tenantId}.masterhrms.com`,
+                phone: fullPhone,
+                registeredAddress: formattedAddress,
+                billingAddress: formattedAddress,
+                sameAsRegistered: true,
+                taxId: payload.taxNumberEnabled && payload.taxNumber ? String(payload.taxNumber).trim() : null,
+            }, {
+                userId: req.user?.userId,
+                ipAddress: req.ip,
+                userAgent: req.get("user-agent"),
+            }).catch(() => { });
+        }
+        if (section === "system" && payload.defaultTimezone) {
+            await prisma_1.prisma.tenant.update({
+                where: { id: tenantId },
+                data: { timezone: String(payload.defaultTimezone) },
+            });
+        }
+        if (section === "system" && payload.ipRestrictionEnabled !== undefined) {
+            // Keep ip_restriction.enabled in sync with system.ipRestrictionEnabled (strictly for this tenant)
+            const ipExisting = await prisma_1.prisma.setting.findFirst({
+                where: { scope: "TENANT", scopeId: tenantId, group: "tenant_system_settings", key: "ip_restriction" },
+            });
+            const nextIpVal = {
+                ...(ipExisting?.valueJson || { allowedIps: [] }),
+                enabled: Boolean(payload.ipRestrictionEnabled),
+            };
+            if (ipExisting) {
+                await prisma_1.prisma.setting.update({
+                    where: { id: ipExisting.id },
+                    data: { valueJson: nextIpVal, valueType: "json", updatedBy: req.user?.userId || null },
+                });
+            }
+            else {
+                await prisma_1.prisma.setting.create({
+                    data: {
+                        scope: "TENANT",
+                        scopeId: tenantId,
+                        group: "tenant_system_settings",
+                        key: "ip_restriction",
+                        valueJson: nextIpVal,
+                        valueType: "json",
+                        updatedBy: req.user?.userId || null,
+                    },
+                });
+            }
+            (0, tenant_ip_restriction_service_1.invalidateTenantIpCache)(tenantId);
+        }
+        if (section === "ip_restriction") {
+            // Keep system.ipRestrictionEnabled in sync and bust this tenant's IP policy cache immediately
+            if (payload.enabled !== undefined) {
+                const sysExisting = await prisma_1.prisma.setting.findFirst({
+                    where: { scope: "TENANT", scopeId: tenantId, group: "tenant_system_settings", key: "system" },
+                });
+                if (sysExisting) {
+                    await prisma_1.prisma.setting.update({
+                        where: { id: sysExisting.id },
+                        data: {
+                            valueJson: {
+                                ...(sysExisting.valueJson || {}),
+                                ipRestrictionEnabled: Boolean(payload.enabled),
+                            },
+                            updatedBy: req.user?.userId || null,
+                        },
+                    });
+                }
+            }
+            (0, tenant_ip_restriction_service_1.invalidateTenantIpCache)(tenantId);
+        }
+        if (section === "brand") {
+            const nextName = payload.titleText || payload.companyName;
+            const nextLogo = payload.logoDark || payload.logoLight;
+            await prisma_1.prisma.tenant.update({
+                where: { id: tenantId },
+                data: {
+                    ...(nextLogo !== undefined ? { logoUrl: nextLogo || null } : {}),
+                },
+            });
+            await settings_service_1.SettingsService.setGroup("TENANT", tenantId, "branding", {
+                ...(payload.themeColor ? { "branding.primary_color": payload.themeColor } : {}),
+                ...(nextName ? { "branding.app_name": nextName } : {}),
+                ...(payload.footerText !== undefined ? { "branding.footer_text": payload.footerText } : {}),
+            }, { userId: req.user?.userId }).catch(() => { });
+        }
+        // Audit log
+        await prisma_1.prisma.auditLog
+            .create({
+            data: {
+                tenantId,
+                actorId: req.user?.userId || null,
+                actorEmail: req.user?.email || null,
+                action: `SETTINGS_UPDATE_${section.toUpperCase()}`,
+                entityType: "TenantSystemSettings",
+                entityId: section,
+                afterJson: section === "email" ? { ...mergedVal, password: "***" } : mergedVal,
+                ipAddress: req.ip || null,
+                userAgent: req.get("user-agent") || null,
+            },
+        })
+            .catch(() => { });
+        return res.json({
+            success: true,
+            section,
+            data: mergedVal,
+            message: "Settings saved and applied across workspace.",
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to save settings section." });
+    }
+});
+// POST /api/workspace/system-settings/brand/upload (Upload Logo Dark, Logo Light, or Favicon)
+exports.workspaceRouter.post("/system-settings/brand/upload", requireWorkspaceAdminGuard, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required." });
+        const { assetType, imageDataUrl } = req.body || {};
+        if (!["logoDark", "logoLight", "favicon"].includes(String(assetType))) {
+            return res.status(400).json({ error: "assetType must be logoDark, logoLight, or favicon." });
+        }
+        if (!imageDataUrl || typeof imageDataUrl !== "string") {
+            return res.status(400).json({ error: "Image data URL is required." });
+        }
+        const match = imageDataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif|svg\+xml|x-icon|vnd\.microsoft\.icon));base64,(.+)$/i);
+        if (!match) {
+            return res.status(400).json({ error: "Unsupported format. Use PNG, JPG, WEBP, SVG, or ICO." });
+        }
+        const mime = match[1].toLowerCase();
+        const ext = mime.includes("png") ? "png" :
+            mime.includes("webp") ? "webp" :
+                mime.includes("svg") ? "svg" :
+                    mime.includes("icon") ? "ico" :
+                        mime.includes("gif") ? "gif" : "jpg";
+        const buffer = Buffer.from(match[2], "base64");
+        if (buffer.length > 2 * 1024 * 1024) {
+            return res.status(400).json({ error: "Image must be 2 MB or smaller." });
+        }
+        const brandDir = path_1.default.join((0, media_service_1.getUploadsRoot)(), "branding");
+        if (!fs_1.default.existsSync(brandDir)) {
+            fs_1.default.mkdirSync(brandDir, { recursive: true });
+        }
+        const safeTenant = tenantId.replace(/[^a-zA-Z0-9_-]/g, "");
+        const fileName = `${safeTenant}-${assetType}-${Date.now()}.${ext}`;
+        fs_1.default.writeFileSync(path_1.default.join(brandDir, fileName), buffer);
+        const url = `/uploads/branding/${fileName}`;
+        // Persist immediately into brand setting + Tenant.logoUrl
+        const existing = await prisma_1.prisma.setting.findFirst({
+            where: { scope: "TENANT", scopeId: tenantId, group: "tenant_system_settings", key: "brand" },
+        });
+        const nextBrand = {
+            ...(existing?.valueJson || {}),
+            [assetType]: url,
+        };
+        if (existing) {
+            await prisma_1.prisma.setting.update({ where: { id: existing.id }, data: { valueJson: nextBrand } });
+        }
+        else {
+            await prisma_1.prisma.setting.create({
+                data: {
+                    scope: "TENANT",
+                    scopeId: tenantId,
+                    group: "tenant_system_settings",
+                    key: "brand",
+                    valueJson: nextBrand,
+                    valueType: "json",
+                    updatedBy: req.user?.userId || null,
+                },
+            });
+        }
+        if (assetType === "logoDark") {
+            await prisma_1.prisma.tenant.update({ where: { id: tenantId }, data: { logoUrl: url } }).catch(() => { });
+        }
+        return res.json({ success: true, assetType, url, message: "Brand asset uploaded." });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to upload brand asset." });
+    }
+});
+// POST /api/workspace/system-settings/test-email (Send Live SMTP Test Email)
+exports.workspaceRouter.post("/system-settings/test-email", requireWorkspaceAdminGuard, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required." });
+        const { toEmail, smtp } = req.body || {};
+        if (!toEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(toEmail))) {
+            return res.status(400).json({ error: "Please enter a valid recipient email address." });
+        }
+        const { settings } = await loadTenantSystemSettings(tenantId);
+        const incoming = smtp || {};
+        const incomingPass = String(incoming.password ?? "").trim();
+        const isMaskedPass = !incomingPass || /^[•*]+$/.test(incomingPass);
+        const cfg = {
+            ...settings.email,
+            ...incoming,
+            host: String(incoming.host ?? settings.email?.host ?? "").trim(),
+            port: Number(incoming.port ?? settings.email?.port ?? 587) || 587,
+            username: String(incoming.username ?? settings.email?.username ?? "").trim(),
+            password: isMaskedPass ? String(settings.email?.password ?? "").trim() : incomingPass,
+            encryption: String(incoming.encryption ?? settings.email?.encryption ?? "TLS").trim().toUpperCase(),
+            fromAddress: String(incoming.fromAddress ?? settings.email?.fromAddress ?? "").trim(),
+            fromName: String(incoming.fromName ?? settings.email?.fromName ?? "MasterHRMS").trim(),
+        };
+        if (!cfg.host) {
+            return res.status(400).json({ error: "SMTP Host is required before sending a test email." });
+        }
+        const isSsl = cfg.encryption === "SSL" || cfg.port === 465;
+        const transporter = nodemailer_1.default.createTransport({
+            host: cfg.host,
+            port: cfg.port,
+            secure: isSsl,
+            requireTLS: cfg.encryption === "TLS" && !isSsl,
+            auth: cfg.username ? { user: cfg.username, pass: cfg.password } : undefined,
+            tls: { rejectUnauthorized: false },
+            connectionTimeout: 10000,
+        });
+        const authUserIsEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cfg.username);
+        const primaryFrom = cfg.fromAddress || cfg.username;
+        const mailBase = {
+            to: String(toEmail).trim(),
+            subject: `[Test] ${cfg.fromName || "MasterHRMS"} SMTP Configuration Verified`,
+            text: "Your Tenant SMTP email configuration is working properly in real time.",
+        };
+        try {
+            await transporter.sendMail({
+                ...mailBase,
+                from: `"${cfg.fromName || "MasterHRMS"}" <${primaryFrom}>`,
+            });
+            return res.json({ success: true, message: `Test email sent successfully to ${toEmail}.` });
+        }
+        catch (sendErr) {
+            const errMsg = String(sendErr?.message || "");
+            const isRelayOrSenderDenied = /550|5\.7\.1|relay|sender.*not allowed|SendAsDenied|mail from|owned by/i.test(errMsg);
+            // Automatic fallback: many SMTP providers (Zoho, M365, Hostinger, cPanel, GoDaddy) require
+            // the envelope From address to match the authenticated SMTP Username.
+            if (isRelayOrSenderDenied && authUserIsEmail && primaryFrom.toLowerCase() !== cfg.username.toLowerCase()) {
+                await transporter.sendMail({
+                    ...mailBase,
+                    from: `"${cfg.fromName || "MasterHRMS"}" <${cfg.username}>`,
+                    replyTo: primaryFrom,
+                });
+                return res.json({
+                    success: true,
+                    message: `Test email sent to ${toEmail} using your authenticated SMTP account (${cfg.username}). Tip: set "From Address" to "${cfg.username}" to avoid 550 relay restrictions.`,
+                });
+            }
+            throw sendErr;
+        }
+    }
+    catch (err) {
+        const rawMsg = err?.message || "SMTP connection failed. Please verify host, port, and credentials.";
+        const hint = /550|5\.7\.1|relay|not allowed/i.test(rawMsg)
+            ? " (Ensure 'From Address' matches your authenticated 'SMTP Username' email address.)"
+            : "";
+        return res.status(400).json({ error: `${rawMsg}${hint}` });
+    }
+});
+// ═══════════════════════════════════════════════════════════════════════════
+// ORGANIZATION / TENANT HTML MAIL TEMPLATES (HR, Calendar, Tasks, Invoices, Payroll)
+// ═══════════════════════════════════════════════════════════════════════════
+const TENANT_EMAIL_TEMPLATE_CATEGORIES = new Set(["HR", "Calendar", "Tasks", "Invoices", "Payroll"]);
+function getTenantDefaultTemplates() {
+    return (0, email_templates_registry_1.getAuthoritativeTemplates)().filter((t) => TENANT_EMAIL_TEMPLATE_CATEGORIES.has(t.category));
+}
+function mergeTenantEmailTemplates(persistedList = []) {
+    const defaults = getTenantDefaultTemplates();
+    const persistedMap = new Map();
+    for (const t of persistedList) {
+        if (t && t.id && TENANT_EMAIL_TEMPLATE_CATEGORIES.has(t.category)) {
+            persistedMap.set(t.id, t);
+        }
+    }
+    const merged = [];
+    for (const def of defaults) {
+        if (persistedMap.has(def.id)) {
+            merged.push(persistedMap.get(def.id));
+            persistedMap.delete(def.id);
+        }
+        else {
+            merged.push(def);
+        }
+    }
+    for (const custom of persistedMap.values()) {
+        merged.push(custom);
+    }
+    return merged;
+}
+// GET /api/workspace/email-templates
+exports.workspaceRouter.get("/email-templates", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required." });
+        const [page, branding] = await Promise.all([
+            prisma_1.prisma.cmsPage.findUnique({
+                where: { slug: `tenant-${tenantId}-email-templates` },
+            }),
+            (0, branding_1.resolveUniversalEmailBranding)(tenantId),
+        ]);
+        const persisted = Array.isArray(page?.content?.templates)
+            ? (page?.content).templates
+            : [];
+        const templates = mergeTenantEmailTemplates(persisted);
+        return res.json({
+            success: true,
+            templates,
+            branding,
+            brandingVars: (0, branding_1.brandingToTemplateVars)(branding),
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to load organization email templates." });
+    }
+});
+// PUT /api/workspace/email-templates
+exports.workspaceRouter.put("/email-templates", requireWorkspaceAdminGuard, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required." });
+        const incoming = Array.isArray(req.body?.templates) ? req.body.templates : [];
+        const merged = mergeTenantEmailTemplates(incoming);
+        const slug = `tenant-${tenantId}-email-templates`;
+        await prisma_1.prisma.cmsPage.upsert({
+            where: { slug },
+            update: {
+                title: "Organization Email Templates",
+                content: { templates: merged },
+                published: true,
+            },
+            create: {
+                slug,
+                title: "Organization Email Templates",
+                metaDescription: "Organization-specific HTML email templates for HR, Calendar, Tasks, Invoices, and Payroll",
+                content: { templates: merged },
+                published: true,
+            },
+        });
+        return res.json({ success: true, templates: merged });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to save organization email templates." });
+    }
+});
+// POST /api/workspace/email-templates/test
+exports.workspaceRouter.post("/email-templates/test", requireWorkspaceAdminGuard, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required." });
+        const { toEmail, subject, htmlBody } = req.body || {};
+        if (!toEmail || !String(toEmail).includes("@")) {
+            return res.status(400).json({ error: "Valid recipient email address is required." });
+        }
+        const { settings } = await loadTenantSystemSettings(tenantId);
+        const saved = (settings.email || {});
+        const cfg = {
+            host: String(saved.host || process.env.SMTP_HOST || "").trim(),
+            port: Number(saved.port || process.env.SMTP_PORT || 587),
+            username: String(saved.username || process.env.SMTP_USER || "").trim(),
+            password: String(saved.password || process.env.SMTP_PASS || ""),
+            encryption: String(saved.encryption || "TLS").toUpperCase(),
+            fromAddress: String(saved.fromAddress || saved.username || process.env.SMTP_FROM || "").trim(),
+            fromName: String(saved.fromName || settings.brand?.companyName || "MasterHRMS").trim(),
+        };
+        if (!cfg.host) {
+            return res.status(400).json({ error: "SMTP Host is not configured. Please configure Mail Settings in Workspace Settings first." });
+        }
+        const branding = await (0, branding_1.resolveUniversalEmailBranding)(tenantId);
+        const vars = {
+            ...email_templates_registry_1.SAMPLE_VARS,
+            ...(0, branding_1.brandingToTemplateVars)(branding),
+        };
+        const renderedSubject = (0, email_templates_registry_1.substituteTemplateVars)(String(subject || "Test Email"), vars);
+        const renderedHtml = (0, email_design_system_1.substituteUniversalEmailVars)(String(htmlBody || "<p>Test email</p>"), vars);
+        const isSsl = cfg.encryption === "SSL" || cfg.port === 465;
+        const transporter = nodemailer_1.default.createTransport({
+            host: cfg.host,
+            port: cfg.port,
+            secure: isSsl,
+            requireTLS: cfg.encryption === "TLS" && !isSsl,
+            auth: cfg.username ? { user: cfg.username, pass: cfg.password } : undefined,
+            tls: { rejectUnauthorized: false },
+            connectionTimeout: 10000,
+        });
+        const authUserIsEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cfg.username);
+        const primaryFrom = cfg.fromAddress || cfg.username;
+        const mailBase = {
+            to: String(toEmail).trim(),
+            subject: `[Test] ${renderedSubject}`,
+            html: renderedHtml,
+        };
+        try {
+            await transporter.sendMail({
+                ...mailBase,
+                from: `"${cfg.fromName}" <${primaryFrom}>`,
+            });
+            return res.json({ success: true, message: `Test HTML email sent successfully to ${toEmail}.` });
+        }
+        catch (sendErr) {
+            const errMsg = String(sendErr?.message || "");
+            const isRelayOrSenderDenied = /550|5\.7\.1|relay|sender.*not allowed|SendAsDenied|mail from|owned by/i.test(errMsg);
+            if (isRelayOrSenderDenied && authUserIsEmail && primaryFrom.toLowerCase() !== cfg.username.toLowerCase()) {
+                await transporter.sendMail({
+                    ...mailBase,
+                    from: `"${cfg.fromName}" <${cfg.username}>`,
+                    replyTo: primaryFrom,
+                });
+                return res.json({
+                    success: true,
+                    message: `Test HTML email sent to ${toEmail} using your authenticated SMTP account (${cfg.username}).`,
+                });
+            }
+            throw sendErr;
+        }
+    }
+    catch (err) {
+        return res.status(400).json({ error: err?.message || "Failed to send test email." });
+    }
+});
+// POST /api/workspace/email-templates/test-all (Verify all 24 HR auto-trigger templates to a test email)
+exports.workspaceRouter.post("/email-templates/test-all", requireWorkspaceAdminGuard, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required." });
+        const toEmail = String(req.body?.toEmail || "").trim();
+        if (!toEmail || !toEmail.includes("@")) {
+            return res.status(400).json({ error: "Valid recipient email address is required." });
+        }
+        const keys = Object.keys(hr_workflow_email_service_1.HR_EVENT_TO_TEMPLATE_ID);
+        const results = [];
+        for (const eventKey of keys) {
+            const r = await (0, hr_workflow_email_service_1.dispatchHrWorkflowEmail)({
+                tenantId,
+                eventKey,
+                toEmail,
+                forceSend: true,
+            });
+            results.push(r);
+        }
+        const sentCount = results.filter((r) => r.success && !r.skipped).length;
+        return res.json({
+            success: sentCount === keys.length,
+            total: keys.length,
+            sentCount,
+            failedCount: keys.length - sentCount,
+            results,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err?.message || "Failed to dispatch batch HR test emails." });
+    }
+});
+// ═══════════════════════════════════════════════════════════════════════════
+// REAL-TIME WORKSPACE TRANSLATION ENGINE (Cached batch translator)
+// ═══════════════════════════════════════════════════════════════════════════
+const translationMemoryCache = new Map();
+const MAX_TRANSLATION_CACHE = 8000;
+async function translateSingleText(text, targetLang) {
+    const cacheKey = `${targetLang}::${text}`;
+    const cached = translationMemoryCache.get(cacheKey);
+    if (cached)
+        return cached;
+    try {
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${encodeURIComponent(targetLang)}&dt=t&q=${encodeURIComponent(text)}`;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        const resp = await fetch(url, { signal: controller.signal });
+        clearTimeout(timer);
+        if (!resp.ok)
+            return text;
+        const json = await resp.json();
+        const translated = Array.isArray(json?.[0])
+            ? json[0].map((seg) => (Array.isArray(seg) ? seg[0] : "")).join("")
+            : text;
+        const clean = translated && translated.trim() ? translated : text;
+        if (translationMemoryCache.size > MAX_TRANSLATION_CACHE) {
+            const firstKey = translationMemoryCache.keys().next().value;
+            if (firstKey)
+                translationMemoryCache.delete(firstKey);
+        }
+        translationMemoryCache.set(cacheKey, clean);
+        return clean;
+    }
+    catch {
+        return text;
+    }
+}
+// POST /api/workspace/translate
+exports.workspaceRouter.post("/translate", async (req, res) => {
+    try {
+        const targetLang = String(req.body?.targetLang || "en").trim().toLowerCase();
+        const rawTexts = Array.isArray(req.body?.texts) ? req.body.texts : [];
+        const texts = Array.from(new Set(rawTexts
+            .map((t) => String(t ?? "").trim())
+            .filter((t) => t.length > 0 && t.length <= 400))).slice(0, 80);
+        if (!targetLang || targetLang === "en" || texts.length === 0) {
+            const passthrough = {};
+            texts.forEach((t) => { passthrough[t] = t; });
+            return res.json({ success: true, targetLang, translations: passthrough });
+        }
+        const translations = {};
+        // Translate in small parallel chunks of 10 for fast response
+        const chunkSize = 10;
+        for (let i = 0; i < texts.length; i += chunkSize) {
+            const slice = texts.slice(i, i + chunkSize);
+            const results = await Promise.all(slice.map((t) => translateSingleText(t, targetLang)));
+            slice.forEach((orig, idx) => {
+                translations[orig] = results[idx];
+            });
+        }
+        return res.json({ success: true, targetLang, translations });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Translation failed." });
     }
 });

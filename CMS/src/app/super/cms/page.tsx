@@ -187,7 +187,7 @@ function CmsStudio() {
       qc.invalidateQueries({ queryKey: ["cms-pages"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to update publication status");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to update publication status");
     },
   });
 
@@ -202,7 +202,7 @@ function CmsStudio() {
       qc.invalidateQueries({ queryKey: ["cms-pages"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to delete page");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to delete page");
     },
   });
 
@@ -812,10 +812,10 @@ function FaqManagerStudio() {
     mutationFn: async () => {
       if (editingFaq) {
         const res = await api.put(`/cms/faqs/${editingFaq.id}`, form);
-        return res.data;
+        return (res as any)?.data ?? res;
       } else {
         const res = await api.post("/cms/faqs", form);
-        return res.data;
+        return (res as any)?.data ?? res;
       }
     },
     onSuccess: () => {
@@ -826,14 +826,14 @@ function FaqManagerStudio() {
       qc.invalidateQueries({ queryKey: ["super-cms-faqs"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to save FAQ");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to save FAQ");
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await api.delete(`/cms/faqs/${id}`);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("FAQ deleted successfully");
@@ -841,20 +841,20 @@ function FaqManagerStudio() {
       qc.invalidateQueries({ queryKey: ["super-cms-faqs"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to delete FAQ");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to delete FAQ");
     },
   });
 
   const reorderMutation = useMutation({
     mutationFn: async (orderedIds: string[]) => {
       const res = await api.patch("/cms/faqs/reorder", { orderedIds });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["super-cms-faqs"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to reorder FAQs");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to reorder FAQs");
     },
   });
 
@@ -1178,10 +1178,10 @@ function TestimonialsManagerStudio() {
     mutationFn: async () => {
       if (editingItem) {
         const res = await api.put(`/cms/testimonials/${editingItem.id}`, form);
-        return res.data;
+        return (res as any)?.data ?? res;
       } else {
         const res = await api.post("/cms/testimonials", form);
-        return res.data;
+        return (res as any)?.data ?? res;
       }
     },
     onSuccess: () => {
@@ -1192,14 +1192,14 @@ function TestimonialsManagerStudio() {
       qc.invalidateQueries({ queryKey: ["super-cms-testimonials"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to save testimonial");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to save testimonial");
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await api.delete(`/cms/testimonials/${id}`);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Testimonial deleted successfully");
@@ -1207,20 +1207,20 @@ function TestimonialsManagerStudio() {
       qc.invalidateQueries({ queryKey: ["super-cms-testimonials"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to delete testimonial");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to delete testimonial");
     },
   });
 
   const reorderMutation = useMutation({
     mutationFn: async (orderedIds: string[]) => {
       const res = await api.patch("/cms/testimonials/reorder", { orderedIds });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["super-cms-testimonials"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to reorder testimonials");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to reorder testimonials");
     },
   });
 

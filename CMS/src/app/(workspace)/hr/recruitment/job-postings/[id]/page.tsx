@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { sanitizeHtml } from "@/lib/html-sanitizer";
 
 function formatMoney(val: any): string {
   const num = Number(val);
@@ -210,7 +211,7 @@ export default function ViewJobPostingPage() {
               <div
                 className="p-5 text-sm text-foreground prose prose-sm max-w-none"
                 dangerouslySetInnerHTML={{
-                  __html: job.description || "<p class='text-muted-foreground'>No description provided.</p>",
+                  __html: sanitizeHtml(job.description || "<p class='text-muted-foreground'>No description provided.</p>"),
                 }}
               />
             </div>
@@ -224,7 +225,7 @@ export default function ViewJobPostingPage() {
               <div
                 className="p-5 text-sm text-foreground prose prose-sm max-w-none"
                 dangerouslySetInnerHTML={{
-                  __html: job.requirements || "<p class='text-muted-foreground'>No requirements specified.</p>",
+                  __html: sanitizeHtml(job.requirements || "<p class='text-muted-foreground'>No requirements specified.</p>"),
                 }}
               />
             </div>
@@ -238,7 +239,7 @@ export default function ViewJobPostingPage() {
               <div
                 className="p-5 text-sm text-foreground prose prose-sm max-w-none"
                 dangerouslySetInnerHTML={{
-                  __html: job.benefits || "<p class='text-muted-foreground'>No benefits specified.</p>",
+                  __html: sanitizeHtml(job.benefits || "<p class='text-muted-foreground'>No benefits specified.</p>"),
                 }}
               />
             </div>

@@ -147,7 +147,7 @@ function ReferralsPage() {
   const createMutation = useMutation({
     mutationFn: async (payload: typeof form) => {
       const res = await api.post("/api/recruitment/referrals", payload);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: (data) => {
       toast.success(data?.message || "Candidate referral submitted!");
@@ -164,14 +164,14 @@ function ReferralsPage() {
       });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to submit referral.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to submit referral.");
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const res = await api.put(`/api/recruitment/referrals/${id}`, data);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Referral record updated.");
@@ -179,14 +179,14 @@ function ReferralsPage() {
       setEditItem(null);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to update referral.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to update referral.");
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await api.delete(`/api/recruitment/referrals/${id}`);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Referral record deleted.");
@@ -195,7 +195,7 @@ function ReferralsPage() {
       setSelectedIds((prev) => prev.filter((x) => x !== deleteConfirmId));
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to delete referral.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to delete referral.");
     },
   });
 

@@ -1,55 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.authenticateApiKey = exports.publicApiRouter = void 0;
+exports.publicApiRouter = void 0;
 const express_1 = require("express");
 const public_api_service_1 = require("./public-api.service");
 const auth_1 = require("../../middleware/auth");
 exports.publicApiRouter = (0, express_1.Router)();
-// Express middleware for authenticating API requests via API Key
-const authenticateApiKey = (requiredScope) => {
-    return async (req, res, next) => {
-        let rawKey = req.headers["x-api-key"];
-        if (!rawKey && req.headers.authorization?.startsWith("Bearer ")) {
-            const token = req.headers.authorization.slice(7).trim();
-            if (token.startsWith("mhr_live_")) {
-                rawKey = token;
-            }
-        }
-        if (!rawKey) {
-            return res.status(401).json({
-                error: "Missing API Key. Provide via X-API-Key header or Bearer mhr_live_...",
-            });
-        }
-        const verification = await public_api_service_1.PublicApiService.verifyApiKey(rawKey, requiredScope);
-        if (!verification.valid) {
-            if (verification.error === "REVOKED_KEY") {
-                return res.status(401).json({ error: "API key has been revoked" });
-            }
-            if (verification.error === "RATE_LIMIT_EXCEEDED") {
-                res.setHeader("Retry-After", String(verification.rateLimitResetSeconds || 60));
-                return res.status(429).json({
-                    error: "Rate limit exceeded",
-                    retryAfterSeconds: verification.rateLimitResetSeconds,
-                });
-            }
-            if (verification.error === "INSUFFICIENT_SCOPE") {
-                return res.status(403).json({
-                    error: `Insufficient scope. Key requires '${requiredScope}' permission.`,
-                });
-            }
-            return res.status(401).json({ error: "Invalid API key" });
-        }
-        // Set rate limit headers
-        if (verification.rateLimitRemaining !== undefined) {
-            res.setHeader("X-RateLimit-Remaining", String(verification.rateLimitRemaining));
-        }
-        req.apiKeyTenantId = verification.tenantId;
-        req.apiKeyId = verification.keyId;
-        req.apiKeyScopes = verification.scopes;
-        next();
-    };
-};
-exports.authenticateApiKey = authenticateApiKey;
 // 1. OpenAPI Specification / Documentation Viewer (Publicly accessible with session or key)
 exports.publicApiRouter.get("/docs", (_req, res) => {
     res.json(public_api_service_1.PublicApiService.getOpenApiSpec());

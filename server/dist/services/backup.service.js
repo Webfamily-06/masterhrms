@@ -246,7 +246,7 @@ async function generateDatabaseBackup(options) {
                 }
                 for (const t of tablesResult) {
                     const tableName = t.table_name || t.TABLE_NAME;
-                    if (!tableName || tableName.startsWith("_prisma_"))
+                    if (!tableName || tableName.startsWith("_prisma_") || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName))
                         continue;
                     gzip.write(`-- Table: "${tableName}"\n`);
                     try {
@@ -283,13 +283,11 @@ async function generateDatabaseBackup(options) {
             else {
                 // MySQL fallback
                 gzip.write(`-- MASTER HRMS MYSQL BACKUP\n-- Generated: ${new Date().toISOString()}\nSET FOREIGN_KEY_CHECKS=0;\n\n`);
-                const tables = await prisma_1.rawPrisma.$queryRawUnsafe(`
-          SELECT TABLE_NAME 
-          FROM information_schema.TABLES 
-          WHERE TABLE_SCHEMA = '${database}' AND TABLE_TYPE = 'BASE TABLE'
-        `);
+                const tables = await prisma_1.rawPrisma.$queryRawUnsafe(`SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'`, database);
                 for (const t of tables) {
                     const tableName = t.TABLE_NAME || t.table_name;
+                    if (!tableName || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName))
+                        continue;
                     gzip.write(`-- Table: ${tableName}\n`);
                     const rows = await prisma_1.rawPrisma.$queryRawUnsafe(`SELECT * FROM \`${tableName}\` LIMIT 10000`);
                     if (rows.length > 0) {
@@ -392,6 +390,9 @@ async function verifyBackupIntegrityAndDisposableRestore(filename, options) {
     // 4. Isolated Disposable Restore Simulation
     // Creates an ephemeral schema, sets search_path, validates isolation, and drops it.
     const disposableSchema = options?.disposableSchema || `disposable_audit_${Date.now()}`;
+    if (!/^[a-z_][a-z0-9_]{0,62}$/i.test(disposableSchema)) {
+        throw new Error("Invalid disposable schema identifier.");
+    }
     let disposableRestorePassed = false;
     try {
         // A. Create isolated disposable schema
@@ -405,10 +406,8 @@ async function verifyBackupIntegrityAndDisposableRestore(filename, options) {
         "checksum" VARCHAR(128) NOT NULL
       );
     `);
-        await prisma_1.rawPrisma.$executeRawUnsafe(`
-      INSERT INTO "${disposableSchema}"."_recovery_probe" ("id", "backup_name", "checksum")
-      VALUES ('probe-1', '${filename}', '${checksumSha256}');
-    `);
+        // Parameterized values — filename/checksum are NEVER interpolated into SQL text (SQLi-safe)
+        await prisma_1.rawPrisma.$executeRawUnsafe(`INSERT INTO "${disposableSchema}"."_recovery_probe" ("id", "backup_name", "checksum") VALUES ('probe-1', $1, $2);`, String(filename).slice(0, 255), String(checksumSha256).slice(0, 128));
         // C. Verify probe data in disposable schema
         const probeRows = await prisma_1.rawPrisma.$queryRawUnsafe(`
       SELECT count(*) as count FROM "${disposableSchema}"."_recovery_probe";

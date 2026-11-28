@@ -10,7 +10,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
   use: {
-    baseURL: process.env.QA_TENANT_BASE_URL || 'http://kovai-textails.localhost:3000',
+    baseURL: process.env.QA_TENANT_BASE_URL || process.env.QA_SUPER_BASE_URL || 'http://localhost:3000',
     viewport: { width: 1440, height: 900 },
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

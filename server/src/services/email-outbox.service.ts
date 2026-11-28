@@ -131,15 +131,73 @@ export class EmailOutboxService {
     let failed = 0;
 
     try {
-      const pendingEvents = await db.outboxEvent.findMany({
-        where: {
-          entityType: "EMAIL",
-          status: "PENDING",
-          retryCount: { lt: 5 },
-        },
-        orderBy: { createdAt: "asc" },
-        take: batchSize,
-      });
+      // QUEUE-001: Recover stale PROCESSING email rows orphaned by crashed workers (>5 min)
+      if (typeof (db as any).$executeRawUnsafe === "function") {
+        await (db as any)
+          .$executeRawUnsafe(
+            `UPDATE outbox_events
+             SET status = 'PENDING', retry_count = retry_count + 1, error = COALESCE(error, 'Recovered stale email PROCESSING lock')
+             WHERE entity_type = 'EMAIL'
+               AND status = 'PROCESSING'
+               AND retry_count < 5
+               AND occurred_at < NOW() - INTERVAL '5 minutes'`
+          )
+          .catch(() => {});
+      }
+
+      // QUEUE-001: Atomic PostgreSQL FOR UPDATE SKIP LOCKED claim prevents duplicate email sends across replicas
+      let pendingEvents: any[] = [];
+      if (typeof (db as any).$queryRawUnsafe === "function") {
+        try {
+          pendingEvents = await (db as any).$queryRawUnsafe(
+            `WITH claimed AS (
+               SELECT id
+               FROM outbox_events
+               WHERE entity_type = 'EMAIL'
+                 AND status = 'PENDING'
+                 AND retry_count < 5
+               ORDER BY created_at ASC
+               FOR UPDATE SKIP LOCKED
+               LIMIT $1
+             )
+             UPDATE outbox_events o
+             SET status = 'PROCESSING'
+             FROM claimed
+             WHERE o.id = claimed.id
+             RETURNING
+               o.id,
+               o.tenant_id AS "tenantId",
+               o.event_id AS "eventId",
+               o.event_type AS "eventType",
+               o.entity_type AS "entityType",
+               o.payload,
+               o.status,
+               o.retry_count AS "retryCount",
+               o.created_at AS "createdAt"`,
+            batchSize
+          );
+        } catch {
+          pendingEvents = await db.outboxEvent.findMany({
+            where: {
+              entityType: "EMAIL",
+              status: "PENDING",
+              retryCount: { lt: 5 },
+            },
+            orderBy: { createdAt: "asc" },
+            take: batchSize,
+          });
+        }
+      } else {
+        pendingEvents = await db.outboxEvent.findMany({
+          where: {
+            entityType: "EMAIL",
+            status: "PENDING",
+            retryCount: { lt: 5 },
+          },
+          orderBy: { createdAt: "asc" },
+          take: batchSize,
+        });
+      }
 
       if (!pendingEvents || pendingEvents.length === 0) {
         return { processed: 0, failed: 0 };

@@ -1773,7 +1773,7 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
     "portal": "sa",
     "module": "billing",
     "label": "Plans & Subscriptions",
-    "route": "/super/subscriptions",
+    "route": "/super/plans",
     "icon": "CreditCard",
     "order": 30
   },
@@ -1800,7 +1800,7 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
     "portal": "client",
     "module": "client",
     "label": "Deployed Personnel",
-    "route": "/client/staffing",
+    "route": "/projects",
     "icon": "Users",
     "order": 20
   },
@@ -1809,7 +1809,7 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
     "portal": "client",
     "module": "client",
     "label": "Billing & Invoices",
-    "route": "/client/invoices",
+    "route": "/invoices",
     "icon": "Receipt",
     "order": 30
   }

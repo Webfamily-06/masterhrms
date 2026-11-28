@@ -668,23 +668,29 @@ hrAttendanceRouter.post("/records/bulk", async (req: AuthRequest, res: Response)
     }
 
     const targetDate = new Date(date);
+    if (Number.isNaN(targetDate.getTime())) {
+      return res.status(400).json({ error: "Invalid date format.", code: "INVALID_DATE" });
+    }
     targetDate.setUTCHours(0, 0, 0, 0);
 
     // Verify month is unlocked
     await AttendanceService.assertMonthUnlocked(tenantId, targetDate);
 
-    // Validate employees belong to tenant
+    // Validate employees belong to tenant (deduplicated)
+    const uniqueEmpIds = Array.from(new Set(employeeIds.map(String).filter(Boolean)));
     const validEmployees = await rawPrisma.employee.findMany({
       where: {
-        id: { in: employeeIds },
+        id: { in: uniqueEmpIds },
         tenantId,
       },
       select: { id: true, firstName: true, lastName: true, employeeCode: true },
     });
 
     if (validEmployees.length === 0) {
-      return res.status(404).json({ error: "No valid employees found for tenant." });
+      return res.status(404).json({ error: "No valid employees found for tenant.", invalidEmployeeIds: uniqueEmpIds });
     }
+    const validEmpIdSet = new Set(validEmployees.map((e) => e.id));
+    const invalidEmployeeIds = uniqueEmpIds.filter((id) => !validEmpIdSet.has(id));
 
     // Validate contract boundaries across employees
     for (const emp of validEmployees) {
@@ -798,19 +804,22 @@ hrAttendanceRouter.post("/records/bulk", async (req: AuthRequest, res: Response)
 
     const succeeded = results.filter((r) => r.status === "success").length;
     const skipped = results.filter((r) => r.status === "skipped").length;
-    const failed = employeeIds.length - (succeeded + skipped);
+    const failed = invalidEmployeeIds.length;
+    const isPartial = failed > 0;
 
     broadcastToTenant(tenantId, "attendance.bulk_updated", {
       date: targetDate.toISOString(),
       succeeded,
     });
 
-    return res.status(201).json({
-      success: true,
-      totalRequested: employeeIds.length,
+    return res.status(isPartial ? 207 : 201).json({
+      success: !isPartial,
+      partial: isPartial,
+      totalRequested: uniqueEmpIds.length,
       succeeded,
       skipped,
       failed,
+      invalidEmployeeIds: invalidEmployeeIds.length > 0 ? invalidEmployeeIds : undefined,
       results,
     });
   } catch (err: any) {

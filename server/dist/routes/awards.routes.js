@@ -284,7 +284,7 @@ exports.awardsRouter.get("/", async (req, res) => {
                 code: "HR_ROLE_REQUIRED",
             });
         }
-        const { employeeId, awardTypeId, search, month } = req.query;
+        const { employeeId, awardTypeId, search, month, dateFrom, dateTo } = req.query;
         const where = { tenantId };
         if (employeeId && employeeId !== "all") {
             where.employeeId = String(employeeId);
@@ -292,14 +292,30 @@ exports.awardsRouter.get("/", async (req, res) => {
         if (awardTypeId && awardTypeId !== "all") {
             where.awardTypeId = String(awardTypeId);
         }
+        if (dateFrom || dateTo) {
+            where.awardDate = {};
+            if (dateFrom) {
+                const dFrom = new Date(String(dateFrom));
+                if (!isNaN(dFrom.getTime()))
+                    where.awardDate.gte = dFrom;
+            }
+            if (dateTo) {
+                const dTo = new Date(String(dateTo));
+                if (!isNaN(dTo.getTime())) {
+                    dTo.setHours(23, 59, 59, 999);
+                    where.awardDate.lte = dTo;
+                }
+            }
+        }
         if (search) {
             where.OR = [
-                { giftItem: { contains: String(search) } },
-                { certificateNo: { contains: String(search) } },
-                { description: { contains: String(search) } },
-                { employee: { firstName: { contains: String(search) } } },
-                { employee: { lastName: { contains: String(search) } } },
-                { employee: { employeeCode: { contains: String(search) } } },
+                { giftItem: { contains: String(search), mode: "insensitive" } },
+                { certificateNo: { contains: String(search), mode: "insensitive" } },
+                { description: { contains: String(search), mode: "insensitive" } },
+                { employee: { firstName: { contains: String(search), mode: "insensitive" } } },
+                { employee: { lastName: { contains: String(search), mode: "insensitive" } } },
+                { employee: { email: { contains: String(search), mode: "insensitive" } } },
+                { employee: { employeeCode: { contains: String(search), mode: "insensitive" } } },
             ];
         }
         const pagination = (0, pagination_1.parsePaginationParams)(req, "awardDate", 20);
@@ -313,8 +329,11 @@ exports.awardsRouter.get("/", async (req, res) => {
                             id: true,
                             firstName: true,
                             lastName: true,
+                            email: true,
                             employeeCode: true,
+                            position: true,
                             department: { select: { id: true, name: true } },
+                            user: { select: { profile: { select: { avatarUrl: true } } } },
                         },
                     },
                     awardType: true,
@@ -336,8 +355,17 @@ exports.awardsRouter.get("/", async (req, res) => {
                 _count: { id: true },
             }),
         ]);
+        const enrichedAwards = awards.map((a) => ({
+            ...a,
+            employee: a.employee
+                ? {
+                    ...a.employee,
+                    avatarUrl: a.employee.avatarUrl || a.employee.user?.profile?.avatarUrl || null,
+                }
+                : a.employee,
+        }));
         return res.json({
-            ...(0, pagination_1.formatPaginatedResponse)(awards, total, pagination),
+            ...(0, pagination_1.formatPaginatedResponse)(enrichedAwards, total, pagination),
             stats: {
                 totalAwards: total,
                 totalGiftValue: Number(totalGiftValue._sum.giftAmount || 0),
@@ -475,13 +503,14 @@ exports.awardsRouter.put("/:id", async (req, res) => {
             });
         }
         const { id } = req.params;
-        const { awardTypeId, awardDate, giftItem, giftAmount, description, certificateUrl, presentedBy, status, } = req.body;
+        const { employeeId, awardTypeId, awardDate, giftItem, giftAmount, description, certificateUrl, presentedBy, status, } = req.body;
         const existing = await prisma_1.prisma.award.findFirst({ where: { id, tenantId } });
         if (!existing)
             return res.status(404).json({ error: "Award record not found." });
         const updated = await prisma_1.prisma.award.update({
             where: { id },
             data: {
+                employeeId: employeeId || existing.employeeId,
                 awardTypeId: awardTypeId !== undefined ? awardTypeId : existing.awardTypeId,
                 awardDate: awardDate ? new Date(awardDate) : existing.awardDate,
                 giftItem: giftItem !== undefined ? giftItem : existing.giftItem,
@@ -497,8 +526,10 @@ exports.awardsRouter.put("/:id", async (req, res) => {
                         id: true,
                         firstName: true,
                         lastName: true,
+                        email: true,
                         employeeCode: true,
                         department: { select: { id: true, name: true } },
+                        user: { select: { profile: { select: { avatarUrl: true } } } },
                     },
                 },
                 awardType: true,
@@ -604,7 +635,11 @@ exports.awardsRouter.post("/nominations", async (req, res) => {
         return res.status(201).json({ success: true, data: nomination });
     }
     catch (err) {
-        return res.status(400).json({ error: err.message || "Failed to submit nomination." });
+        const rawMsg = String(err?.message || "");
+        const safeMsg = /prisma|invocation|\/Users\/|\/src\//i.test(rawMsg)
+            ? "Failed to submit nomination due to an internal workflow error."
+            : rawMsg || "Failed to submit nomination.";
+        return res.status(400).json({ error: safeMsg });
     }
 });
 // POST /api/awards/nominations/:id/approve (Approve nomination step)

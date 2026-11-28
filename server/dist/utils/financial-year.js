@@ -13,9 +13,6 @@ exports.isValidFinancialYear = isValidFinancialYear;
 exports.getFinancialYearFromDate = getFinancialYearFromDate;
 exports.getFinancialYearFromPeriod = getFinancialYearFromPeriod;
 exports.getCurrentFinancialYear = getCurrentFinancialYear;
-exports.getAssessmentYear = getAssessmentYear;
-exports.toShortFY = toShortFY;
-exports.getGoverningTaxAct = getGoverningTaxAct;
 exports.getFinancialYearMeta = getFinancialYearMeta;
 exports.getSelectableFinancialYears = getSelectableFinancialYears;
 /**
@@ -93,33 +90,7 @@ function getFinancialYearFromPeriod(month, year) {
  */
 function getCurrentFinancialYear() {
     return getFinancialYearFromDate(new Date());
-}
-/**
- * Compute Assessment Year from a Financial Year.
- * E.g., FY 2025-2026 -> AY 2026-2027.
- */
-function getAssessmentYear(financialYear) {
-    const normalized = normalizeFinancialYear(financialYear);
-    const startYear = parseInt(normalized.split("-")[0], 10);
-    return `${startYear + 1}-${startYear + 2}`;
-}
-/**
- * Convert canonical "2025-2026" to short "2025-26".
- */
-function toShortFY(financialYear) {
-    const normalized = normalizeFinancialYear(financialYear);
-    const [start, end] = normalized.split("-");
-    return `${start}-${end.slice(-2)}`;
-}
-/**
- * Determine the governing statutory direct tax Act for a given financial year.
- */
-function getGoverningTaxAct(financialYear) {
-    const normalized = normalizeFinancialYear(financialYear);
-    const startYear = parseInt(normalized.split("-")[0], 10);
-    return startYear >= 2026 ? "Income-tax Act, 2025" : "Income-tax Act, 1961";
-}
-/**
+} /**
  * Get full metadata for a given Financial Year.
  */
 function getFinancialYearMeta(financialYear, referenceDate = new Date()) {

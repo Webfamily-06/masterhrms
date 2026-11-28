@@ -1,8 +1,21 @@
 import { Router, Response } from "express";
 import { requireAuth, AuthRequest } from "../middleware/auth.js";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware.js";
+import { requireHrOrAdmin } from "../middleware/hr-rbac.middleware.js";
 import { prisma } from "../prisma.js";
 
 export const hrZoomMeetingsRouter = Router();
+
+// DEFECT-041: Allow tenant employees to read assigned Zoom meetings, but restrict creation/modification/deletion to HR/Admin/Manager
+hrZoomMeetingsRouter.use(
+  requireAuth,
+  resolveTenantContext,
+  requireHrOrAdmin({
+    allowReads: true,
+    allowedPermissions: ["hrm.meetings", "meetings.manage", "zoom.manage"],
+    deniedMessage: "Access denied: HR Administrator or Manager privileges are required to manage Zoom meetings.",
+  })
+);
 
 function computeEndTime(startTime: string, durationMinutes: number): string {
   const parts = String(startTime || "10:00").split(":");

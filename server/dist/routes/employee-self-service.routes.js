@@ -344,84 +344,269 @@ exports.employeeSelfServiceRouter.delete("/profile/change-requests/:id", async (
 exports.employeeSelfServiceRouter.get("/dashboard", async (req, res) => {
     const db = prisma_1.rawPrisma || prisma_1.prisma;
     const employeeId = req.employee.id;
+    const userId = req.user.id;
     const tenantId = req.user.tenantId;
     try {
         const now = new Date();
         const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-        // 1. Attendance today
-        const attendanceToday = await db.attendance.findFirst({
-            where: {
-                tenantId,
-                employeeId,
-                date: today,
+        const startOfYear = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+        const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+        const dayOfWeek = today.getUTCDay();
+        const startOfWeek = new Date(today.getTime() - dayOfWeek * 86400000);
+        // 1. Full Employee Profile + Relations
+        const empFull = await db.employee.findFirst({
+            where: { id: employeeId, tenantId },
+            include: {
+                department: { select: { id: true, name: true } },
+                designation: { select: { id: true, name: true } },
+                branch: { select: { id: true, name: true } },
+                manager: { select: { id: true, firstName: true, lastName: true } },
+                user: { select: { profile: { select: { avatarUrl: true, phone: true } } } },
             },
-            orderBy: { createdAt: "desc" },
         });
-        // 2. Active announcements (scoped to employee eligibility)
-        const announcements = await db.announcement.findMany({
-            where: {
-                tenantId,
-                status: "published",
-                publishDate: { lte: new Date() },
-                OR: [
-                    { targetType: "all_company" },
-                    ...(req.employee?.departmentId ? [{ targetType: "department", targetDepartmentId: req.employee.departmentId }] : []),
-                    ...(req.employee?.branchId ? [{ targetType: "branch", targetBranchId: req.employee.branchId }] : []),
-                ],
-            },
-            orderBy: [{ isPinned: "desc" }, { publishDate: "desc" }],
+        // 2. Attendance Today + Year-to-date Attendance Records
+        const [attendanceToday, ytdAttendance, shiftRoster] = await Promise.all([
+            db.attendance.findFirst({
+                where: { tenantId, employeeId, date: today },
+                orderBy: { createdAt: "desc" },
+            }),
+            db.attendance.findMany({
+                where: { tenantId, employeeId, date: { gte: startOfYear } },
+                select: {
+                    date: true,
+                    hours: true,
+                    status: true,
+                    lateMinutes: true,
+                    overtimeMinutes: true,
+                },
+                orderBy: { date: "asc" },
+            }),
+            db.shiftRoster.findFirst({
+                where: { tenantId, employeeId, rosterDate: today },
+                include: { shift: true },
+            }),
+        ]);
+        // Compute real attendance stats (today, week, month, overtime, distribution, 7-month trend)
+        let weekHours = 0;
+        let monthHours = 0;
+        let overtimeMonthMinutes = 0;
+        let onTime = 0;
+        let late = 0;
+        let wfh = 0;
+        let absent = 0;
+        let onLeaveDays = 0;
+        let workedDaysThisYear = 0;
+        const monthlyBuckets = new Map();
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+            const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+            monthlyBuckets.set(key, { hours: 0, days: 0 });
+        }
+        for (const a of ytdAttendance) {
+            const hrs = Number(a.hours || 0);
+            const st = String(a.status || "").toLowerCase();
+            const d = new Date(a.date);
+            if (d >= startOfWeek)
+                weekHours += hrs;
+            if (d >= startOfMonth) {
+                monthHours += hrs;
+                overtimeMonthMinutes += Number(a.overtimeMinutes || 0);
+            }
+            if (st === "absent")
+                absent += 1;
+            else if (st === "on_leave" || st === "leave")
+                onLeaveDays += 1;
+            else if (st === "wfh" || st === "work_from_home" || st === "remote") {
+                wfh += 1;
+                workedDaysThisYear += 1;
+            }
+            else if (st === "late" || Number(a.lateMinutes || 0) > 0) {
+                late += 1;
+                workedDaysThisYear += 1;
+            }
+            else {
+                onTime += 1;
+                workedDaysThisYear += 1;
+            }
+            const mKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+            const bucket = monthlyBuckets.get(mKey);
+            if (bucket) {
+                bucket.hours += hrs;
+                if (st !== "absent")
+                    bucket.days += 1;
+            }
+        }
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const performanceLabels = [];
+        const performanceValues = [];
+        for (const [k, v] of monthlyBuckets.entries()) {
+            const mIdx = parseInt(k.split("-")[1], 10) - 1;
+            performanceLabels.push(monthNames[mIdx] || k);
+            performanceValues.push(Number(v.hours.toFixed(1)));
+        }
+        // 3. Leaves (Types, Approved/Pending Requests)
+        const [leaveTypes, ytdLeaveRequests] = await Promise.all([
+            db.leaveType.findMany({
+                where: { tenantId },
+                select: { id: true, name: true, daysPerYear: true, isPaid: true },
+                orderBy: { name: "asc" },
+            }),
+            db.leaveRequest.findMany({
+                where: { tenantId, employeeId, startDate: { gte: startOfYear } },
+                include: { leaveType: { select: { id: true, name: true, isPaid: true } } },
+                orderBy: { createdAt: "desc" },
+            }),
+        ]);
+        const totalLeavesAllocated = leaveTypes.reduce((sum, lt) => sum + Number(lt.daysPerYear || 0), 0);
+        let leavesTaken = 0;
+        let lossOfPayDays = 0;
+        const pendingLeaves = ytdLeaveRequests.filter((lr) => String(lr.status).toLowerCase() === "pending");
+        for (const lr of ytdLeaveRequests) {
+            if (String(lr.status).toLowerCase() === "approved") {
+                const dCount = Number(lr.days || 0);
+                leavesTaken += dCount;
+                if (lr.leaveType && lr.leaveType.isPaid === false) {
+                    lossOfPayDays += dCount;
+                }
+            }
+        }
+        // 4. Announcements, Awards, Warnings
+        const [announcements, awardsCount, warningsCount] = await Promise.all([
+            db.announcement.findMany({
+                where: {
+                    tenantId,
+                    status: "published",
+                    publishDate: { lte: new Date() },
+                    OR: [
+                        { targetType: "all_company" },
+                        ...(req.employee?.departmentId ? [{ targetType: "department", targetDepartmentId: req.employee.departmentId }] : []),
+                        ...(req.employee?.branchId ? [{ targetType: "branch", targetBranchId: req.employee.branchId }] : []),
+                    ],
+                },
+                orderBy: [{ isPinned: "desc" }, { publishDate: "desc" }],
+                take: 5,
+                include: {
+                    categoryModel: true,
+                    acknowledgements: { where: { employeeId }, select: { id: true, acknowledgedAt: true } },
+                    views: { where: { employeeId }, select: { id: true, viewCount: true } },
+                },
+            }),
+            db.award.count({ where: { tenantId, employeeId, awardDate: { gte: startOfYear } } }),
+            db.disciplinaryWarning.count({ where: { tenantId, employeeId, status: "active" } }),
+        ]);
+        // 5. Projects, Personal Tasks (WorkspaceTodo), Holidays, Team Members, Birthdays, Notifications, Meetings
+        const [projectsRaw, todosRaw, nextHolidayRaw, teamRaw, birthdayPool, notificationsRaw, meetingsRaw, zoomMeetingsRaw] = await Promise.all([
+            db.project.findMany({
+                where: { tenantId },
+                include: { tasks: { select: { id: true, status: true } } },
+                orderBy: { updatedAt: "desc" },
+                take: 4,
+            }),
+            db.workspaceTodo.findMany({
+                where: { tenantId, userId },
+                orderBy: [{ completed: "asc" }, { createdAt: "desc" }],
+                take: 6,
+            }),
+            db.holiday.findFirst({
+                where: { tenantId, status: "active", date: { gte: today } },
+                orderBy: { date: "asc" },
+            }),
+            db.employee.findMany({
+                where: {
+                    tenantId,
+                    status: "active",
+                    id: { not: employeeId },
+                    ...(empFull?.departmentId ? { departmentId: empFull.departmentId } : {}),
+                },
+                include: {
+                    designation: { select: { name: true } },
+                    user: { select: { profile: { select: { avatarUrl: true } } } },
+                },
+                take: 6,
+            }),
+            db.employee.findMany({
+                where: { tenantId, status: "active", dateOfBirth: { not: null } },
+                include: {
+                    designation: { select: { name: true } },
+                    user: { select: { profile: { select: { avatarUrl: true } } } },
+                },
+                take: 100,
+            }),
+            db.notification.findMany({
+                where: { tenantId, userId },
+                orderBy: { createdAt: "desc" },
+                take: 5,
+            }),
+            db.meeting.findMany({
+                where: { tenantId, startTime: { gte: today } },
+                include: { room: { select: { name: true } }, type: { select: { name: true } } },
+                orderBy: { startTime: "asc" },
+                take: 5,
+            }),
+            db.zoomMeeting.findMany({
+                where: { tenantId, startDate: { gte: today } },
+                orderBy: { startDate: "asc" },
+                take: 5,
+            }),
+        ]);
+        // Find nearest upcoming/today birthday
+        let teamBirthday = null;
+        let bestDaysAhead = 999;
+        const todayMonth = now.getUTCMonth();
+        const todayDateNum = now.getUTCDate();
+        for (const bEmp of birthdayPool) {
+            if (!bEmp.dateOfBirth)
+                continue;
+            const dob = new Date(bEmp.dateOfBirth);
+            let nextBday = new Date(Date.UTC(now.getUTCFullYear(), dob.getUTCMonth(), dob.getUTCDate()));
+            if (nextBday < today) {
+                nextBday = new Date(Date.UTC(now.getUTCFullYear() + 1, dob.getUTCMonth(), dob.getUTCDate()));
+            }
+            const daysAhead = Math.round((nextBday.getTime() - today.getTime()) / 86400000);
+            if (daysAhead < bestDaysAhead) {
+                bestDaysAhead = daysAhead;
+                teamBirthday = {
+                    id: bEmp.id,
+                    fullName: `${bEmp.firstName} ${bEmp.lastName}`.trim(),
+                    designation: bEmp.designation?.name || bEmp.position || "Team Member",
+                    dateOfBirth: bEmp.dateOfBirth,
+                    avatarUrl: bEmp.user?.profile?.avatarUrl || null,
+                    isToday: dob.getUTCMonth() === todayMonth && dob.getUTCDate() === todayDateNum,
+                    daysAhead,
+                };
+            }
+        }
+        // Skills / Training courses (real courses from TrainingCourse)
+        const trainingCourses = await db.trainingCourse.findMany({
+            where: { tenantId },
+            orderBy: { updatedAt: "desc" },
             take: 5,
-            include: {
-                categoryModel: true,
-                acknowledgements: {
-                    where: { employeeId },
-                    select: { id: true, acknowledgedAt: true },
-                },
-                views: {
-                    where: { employeeId },
-                    select: { id: true, viewCount: true },
-                },
-            },
         });
-        // 3. Counts: Awards this year, active Warnings, Complaints filed by caller
-        const startOfYear = new Date(new Date().getFullYear(), 0, 1);
-        const awardsCount = await db.award.count({
-            where: {
-                tenantId,
-                employeeId,
-                awardDate: { gte: startOfYear },
-            },
-        });
-        const warningsCount = await db.disciplinaryWarning.count({
-            where: {
-                tenantId,
-                employeeId,
-                status: "active",
-            },
-        });
-        // 4. Pending Leave Requests
-        const pendingLeaves = await db.leaveRequest.findMany({
-            where: {
-                tenantId,
-                employeeId,
-                status: "pending",
-            },
-            include: {
-                leaveType: { select: { id: true, name: true, color: true } },
-            },
-            take: 3,
-        });
-        // 5. Shift today
-        const shiftRoster = await db.shiftRoster.findFirst({
-            where: {
-                tenantId,
-                employeeId,
-                rosterDate: today,
-            },
-            include: {
-                shift: true,
-            },
-        });
+        const mergedMeetings = [
+            ...meetingsRaw.map((m) => ({
+                id: m.id,
+                title: m.title,
+                startTime: m.startTime,
+                endTime: m.endTime,
+                category: m.type?.name || m.room?.name || "Meeting",
+                meetingUrl: m.meetingUrl || null,
+                status: m.status,
+            })),
+            ...zoomMeetingsRaw.map((zm) => ({
+                id: `zoom-${zm.id}`,
+                title: zm.topic,
+                startTime: zm.startDate,
+                timeLabel: zm.startTime,
+                category: "Zoom Meeting",
+                meetingUrl: zm.joinUrl || null,
+                status: zm.status,
+            })),
+        ].slice(0, 5);
+        const todayHoursNum = Number(attendanceToday?.hours || 0);
+        const totalHoursThisMonth = Number(monthHours.toFixed(1));
+        const latestMonthHrs = performanceValues[performanceValues.length - 1] || 0;
+        const prevMonthHrs = performanceValues[performanceValues.length - 2] || 0;
+        const perfDeltaPct = prevMonthHrs > 0 ? Math.round(((latestMonthHrs - prevMonthHrs) / prevMonthHrs) * 100) : 0;
         return res.json({
             success: true,
             data: {
@@ -430,23 +615,121 @@ exports.employeeSelfServiceRouter.get("/dashboard", async (req, res) => {
                     employeeCode: req.employee.employeeCode,
                     firstName: req.employee.firstName,
                     lastName: req.employee.lastName,
+                    fullName: `${req.employee.firstName} ${req.employee.lastName}`.trim(),
+                    email: empFull?.email || req.employee.email,
+                    phone: empFull?.phone || empFull?.user?.profile?.phone || null,
+                    position: empFull?.position || empFull?.designation?.name || "Employee",
+                    departmentName: empFull?.department?.name || "General",
+                    designationName: empFull?.designation?.name || empFull?.position || "Employee",
+                    branchName: empFull?.branch?.name || "Head Office",
+                    managerName: empFull?.manager
+                        ? `${empFull.manager.firstName} ${empFull.manager.lastName}`.trim()
+                        : "—",
+                    joinedAt: empFull?.joinedAt || null,
+                    avatarUrl: empFull?.user?.profile?.avatarUrl || null,
                 },
                 attendanceToday: {
                     status: attendanceToday ? attendanceToday.status : "NOT_CHECKED_IN",
                     checkIn: attendanceToday?.checkIn || null,
                     checkOut: attendanceToday?.checkOut || null,
-                    hours: attendanceToday?.hours || 0,
+                    hours: todayHoursNum,
+                    lateMinutes: Number(attendanceToday?.lateMinutes || 0),
+                    overtimeMinutes: Number(attendanceToday?.overtimeMinutes || 0),
                 },
-                shiftToday: shiftRoster ? {
-                    name: shiftRoster.shift.name,
-                    startTime: shiftRoster.shift.startTime,
-                    endTime: shiftRoster.shift.endTime,
-                } : null,
+                attendanceSummary: {
+                    todayHours: Number(todayHoursNum.toFixed(2)),
+                    weekHours: Number(weekHours.toFixed(1)),
+                    monthHours: totalHoursThisMonth,
+                    overtimeMonthHours: Number((overtimeMonthMinutes / 60).toFixed(1)),
+                    workedDaysThisYear,
+                    distribution: {
+                        onTime,
+                        late,
+                        wfh,
+                        absent,
+                        onLeave: onLeaveDays,
+                    },
+                },
+                leaveSummary: {
+                    totalLeaves: totalLeavesAllocated,
+                    taken: leavesTaken,
+                    absent,
+                    pendingRequests: pendingLeaves.length,
+                    workedDays: workedDaysThisYear,
+                    lossOfPay: lossOfPayDays,
+                    remaining: Math.max(0, totalLeavesAllocated - leavesTaken),
+                    leaveTypes,
+                },
+                shiftToday: shiftRoster
+                    ? {
+                        name: shiftRoster.shift.name,
+                        startTime: shiftRoster.shift.startTime,
+                        endTime: shiftRoster.shift.endTime,
+                    }
+                    : null,
                 metrics: {
                     awardsThisYear: awardsCount,
                     activeWarnings: warningsCount,
                     pendingLeavesCount: pendingLeaves.length,
                 },
+                projects: projectsRaw.map((p) => ({
+                    id: p.id,
+                    name: p.name,
+                    status: p.status,
+                    priority: p.priority,
+                    dueDate: p.dueDate,
+                    progress: p.progress || 0,
+                    clientName: p.clientName || "Internal",
+                    totalTasks: p.tasks?.length || 0,
+                    completedTasks: (p.tasks || []).filter((t) => ["done", "completed", "closed"].includes(String(t.status || "").toLowerCase())).length,
+                })),
+                tasks: todosRaw.map((t) => ({
+                    id: t.id,
+                    title: t.title,
+                    completed: Boolean(t.completed),
+                    priority: t.priority || "medium",
+                    tag: t.tag || "General",
+                    dueDate: t.dueDate,
+                })),
+                performanceTrend: {
+                    labels: performanceLabels,
+                    values: performanceValues,
+                    totalHours: totalHoursThisMonth,
+                    deltaPct: perfDeltaPct,
+                },
+                skills: trainingCourses.map((c, idx) => ({
+                    id: c.id,
+                    name: c.title || c.name || `Skill Module ${idx + 1}`,
+                    updatedAt: c.updatedAt,
+                    progress: Math.min(100, Math.max(15, Number(c.durationHours || 10) * 5)),
+                })),
+                teamBirthday,
+                nextHoliday: nextHolidayRaw
+                    ? {
+                        id: nextHolidayRaw.id,
+                        name: nextHolidayRaw.name,
+                        date: nextHolidayRaw.date,
+                        type: nextHolidayRaw.type,
+                    }
+                    : null,
+                teamMembers: teamRaw.map((tm) => ({
+                    id: tm.id,
+                    fullName: `${tm.firstName} ${tm.lastName}`.trim(),
+                    designation: tm.designation?.name || tm.position || "Team Member",
+                    email: tm.email,
+                    phone: tm.phone || null,
+                    avatarUrl: tm.user?.profile?.avatarUrl || null,
+                })),
+                notifications: notificationsRaw.map((n) => ({
+                    id: n.id,
+                    title: n.title,
+                    body: n.body,
+                    module: n.module,
+                    readAt: n.readAt,
+                    createdAt: n.createdAt,
+                    linkTo: n.linkTo || null,
+                })),
+                meetings: mergedMeetings,
                 recentAnnouncements: announcements,
                 pendingLeaves,
             },

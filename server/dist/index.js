@@ -75,6 +75,7 @@ const cors_1 = __importDefault(require("cors"));
 const compression_1 = __importDefault(require("compression"));
 const auth_routes_1 = require("./routes/auth.routes");
 const workspace_routes_1 = require("./routes/workspace.routes");
+const hr_email_auto_trigger_middleware_1 = require("./middleware/hr-email-auto-trigger.middleware");
 const workspace_routing_routes_1 = require("./routes/workspace-routing.routes");
 const tenant_domain_routes_1 = require("./routes/tenant-domain.routes");
 const workspace_host_middleware_1 = require("./middleware/workspace-host.middleware");
@@ -97,6 +98,11 @@ const invoices_routes_1 = require("./routes/invoices.routes");
 const crm_routes_1 = require("./routes/crm.routes");
 const super_routes_1 = require("./routes/super.routes");
 const super_storage_routes_1 = require("./routes/super-storage.routes");
+const super_insights_routes_1 = require("./routes/super-insights.routes");
+const super_broadcasts_routes_1 = require("./routes/super-broadcasts.routes");
+const super_tenant_lifecycle_routes_1 = require("./routes/super-tenant-lifecycle.routes");
+const super_api_keys_routes_1 = require("./routes/super-api-keys.routes");
+const super_integrations_routes_1 = require("./routes/super-integrations.routes");
 const tenant_storage_routes_1 = require("./routes/tenant-storage.routes");
 const addons_routes_1 = require("./routes/addons.routes");
 const email_routes_1 = require("./routes/email.routes");
@@ -114,6 +120,7 @@ const helpdesk_routes_1 = require("./routes/helpdesk.routes");
 const platform_support_routes_1 = require("./routes/platform-support.routes");
 const announcements_routes_1 = require("./routes/announcements.routes");
 const organization_routes_1 = require("./routes/organization.routes");
+const hr_dashboard_routes_1 = require("./routes/hr-dashboard.routes");
 const document_types_routes_1 = require("./routes/document-types.routes");
 const hr_meetings_routes_1 = require("./routes/hr-meetings.routes");
 const newsletter_routes_1 = require("./routes/newsletter.routes");
@@ -145,6 +152,7 @@ const products_routes_1 = require("./routes/products.routes");
 const sales_routes_1 = require("./routes/sales.routes");
 const customers_routes_1 = require("./routes/customers.routes");
 const chat_routes_1 = require("./routes/chat.routes");
+const chat_extensions_routes_1 = require("./routes/chat-extensions.routes");
 const push_routes_1 = require("./routes/push.routes");
 const call_routes_1 = require("./routes/call.routes");
 const qz_routes_1 = require("./routes/qz.routes");
@@ -200,6 +208,8 @@ const uploads_security_middleware_1 = require("./middleware/uploads-security.mid
 const platform_foundation_routes_1 = require("./routes/platform-foundation.routes");
 const outbox_service_1 = require("./services/outbox.service");
 const security_hardening_middleware_1 = require("./middleware/security-hardening.middleware");
+const password_worker_pool_1 = require("./lib/password-worker-pool");
+const login_protection_1 = require("./lib/login-protection");
 const config_audit_service_1 = require("./services/config-audit.service");
 const two_factor_routes_1 = require("./modules/two-factor-auth/two-factor.routes");
 const backup_restore_routes_1 = require("./modules/backup-restore/backup-restore.routes");
@@ -223,6 +233,7 @@ const document_expiry_cron_1 = require("./cron/document-expiry.cron");
 const probation_contract_expiry_cron_1 = require("./cron/probation-contract-expiry.cron");
 const reporting_manager_change_cron_1 = require("./cron/reporting-manager-change.cron");
 const saas_billing_cron_1 = require("./cron/saas-billing.cron");
+const complaint_followup_reminder_cron_1 = require("./cron/complaint-followup-reminder.cron");
 const calendar_reminder_scheduler_1 = require("./services/calendar-reminder.scheduler");
 const background_tasks_1 = require("./lib/background-tasks");
 const app = (0, express_1.default)();
@@ -305,6 +316,30 @@ app.use((req, res, next) => {
     next();
 });
 app.post("/api/payments/razorpay/webhook", express_1.default.raw({ type: "application/json" }), payments_routes_1.razorpayWebhookHandler);
+// PENTEST-005 (PT-DOS-01): Enforce strict 256kb JSON limit on unauthenticated auth credential endpoints
+// before the 50mb global parser to prevent memory exhaustion DoS attacks.
+const strictAuthJsonParser = express_1.default.json({
+    limit: "256kb",
+    verify: (req, _res, buf) => {
+        req.rawBody = buf;
+    },
+});
+app.use([
+    "/api/auth/login",
+    "/api/v1/auth/login",
+    "/api/auth/super-login",
+    "/api/v1/auth/super-login",
+    "/api/auth/register",
+    "/api/v1/auth/register",
+    "/api/auth/forgot-password",
+    "/api/v1/auth/forgot-password",
+    "/api/auth/reset-password",
+    "/api/v1/auth/reset-password",
+    "/api/auth/verify-reset-otp",
+    "/api/v1/auth/verify-reset-otp",
+    "/api/auth/2fa/verify-login",
+    "/api/v1/auth/2fa/verify-login",
+], strictAuthJsonParser);
 app.use(express_1.default.json({
     limit: "50mb",
     verify: (req, _res, buf) => {
@@ -312,6 +347,16 @@ app.use(express_1.default.json({
     },
 }));
 app.use(express_1.default.urlencoded({ limit: "50mb", extended: true }));
+// Clean JSON 413 response for oversized payloads (never leak Express HTML stack traces)
+app.use((err, _req, res, next) => {
+    if (err && (err.type === "entity.too.large" || err.status === 413)) {
+        return res.status(413).json({
+            error: "Request payload exceeds the maximum allowed size for this endpoint.",
+            code: "PAYLOAD_TOO_LARGE",
+        });
+    }
+    return next(err);
+});
 // NOTE: Do NOT include "multipart/*" or "*/*" here — multer handles multipart/form-data
 // and express.text consuming it first causes "Unexpected end of form" errors in multer.
 app.use(express_1.default.text({
@@ -471,6 +516,17 @@ app.get(["/api/health", "/health"], (_req, res) => {
         service: "Master HRMS API",
     });
 });
+// GET /api/health/queues — Non-PII concurrency, login worker pool & outbox queue observability (PERF-002 / QUEUE-001)
+app.get(["/api/health/queues", "/health/queues"], async (_req, res) => {
+    const outbox = await outbox_service_1.OutboxService.getQueueMetrics();
+    return res.status(200).json({
+        status: "ok",
+        timestamp: new Date().toISOString(),
+        loginQueue: (0, password_worker_pool_1.getLoginQueueStats)(),
+        lockoutTracker: (0, login_protection_1.getLockoutTrackerStats)(),
+        outboxQueue: outbox,
+    });
+});
 // Temporary diagnostics endpoint (protected by x-diag-token header)
 app.get(["/api/health/diag", "/health/diag"], (req, res) => {
     const diagToken = process.env.DIAG_TOKEN;
@@ -530,6 +586,18 @@ app.use("/api/v1/files", files_routes_1.filesRouter);
 app.use("/api/files", files_routes_1.filesRouter);
 app.use("/api/v1/super/storage", super_storage_routes_1.superStorageRouter);
 app.use("/api/super/storage", super_storage_routes_1.superStorageRouter);
+app.use("/api/v1/super/insights", super_insights_routes_1.superInsightsRouter);
+app.use("/api/super/insights", super_insights_routes_1.superInsightsRouter);
+app.use("/api/v1/super/broadcasts", super_broadcasts_routes_1.superBroadcastsRouter);
+app.use("/api/super/broadcasts", super_broadcasts_routes_1.superBroadcastsRouter);
+app.use("/api/v1/platform/broadcasts", super_broadcasts_routes_1.platformBroadcastsRouter);
+app.use("/api/platform/broadcasts", super_broadcasts_routes_1.platformBroadcastsRouter);
+app.use("/api/v1/super/lifecycle", super_tenant_lifecycle_routes_1.superTenantLifecycleRouter);
+app.use("/api/super/lifecycle", super_tenant_lifecycle_routes_1.superTenantLifecycleRouter);
+app.use("/api/v1/super/api-keys", super_api_keys_routes_1.superApiKeysRouter);
+app.use("/api/super/api-keys", super_api_keys_routes_1.superApiKeysRouter);
+app.use("/api/v1/super/integrations", super_integrations_routes_1.superIntegrationsRouter);
+app.use("/api/super/integrations", super_integrations_routes_1.superIntegrationsRouter);
 app.use("/api/v1/tenant/storage", tenant_storage_routes_1.tenantStorageRouter);
 app.use("/api/tenant/storage", tenant_storage_routes_1.tenantStorageRouter);
 app.use("/api/v1/public/files", public_files_routes_1.publicFilesRouter);
@@ -550,6 +618,7 @@ app.use("/api/hr/profile-changes", hr_profile_changes_routes_1.hrProfileChangesR
 app.use("/api/v1/company-profile", company_profile_routes_1.companyProfileRouter);
 app.use("/api/company-profile", company_profile_routes_1.companyProfileRouter);
 // Mount Routes
+app.use("/api", hr_email_auto_trigger_middleware_1.hrEmailAutoTriggerMiddleware);
 app.use("/api/billing", billing_routes_1.billingRouter);
 app.use("/api/commerce", commerce_routes_1.commerceRouter);
 app.post("/api/webhooks/razorpay", billing_routes_1.handleRazorpayWebhook);
@@ -585,6 +654,7 @@ app.use("/api/staffing", contract_billing_routes_1.contractBillingRouter);
 app.use("/api/payroll/billing", contract_billing_routes_1.contractBillingRouter);
 app.use("/api/invoices", invoices_routes_1.invoicesRouter);
 app.use("/api/crm", crm_routes_1.crmRouter);
+app.use("/api/v1/super", super_routes_1.superRouter);
 app.use("/api/super", super_routes_1.superRouter);
 app.use("/api/addons", addons_routes_1.addonsRouter);
 app.use(["/api/addons/okr", "/api/okr"], okr_routes_1.okrRouter);
@@ -637,6 +707,7 @@ app.use("/api/ai", ai_routes_1.aiRouter);
 app.use("/api/products", products_routes_1.productsRouter);
 app.use("/api/sales", sales_routes_1.salesRouter);
 app.use("/api/customers", customers_routes_1.customersRouter);
+app.use("/api/chat", chat_extensions_routes_1.chatExtensionsRouter);
 app.use("/api/chat", chat_routes_1.chatRouter);
 app.use("/api/notifications/push", push_routes_1.pushRouter);
 app.use("/api/push", push_routes_1.pushRouter);
@@ -683,6 +754,8 @@ app.use("/api/smart-reports", smart_reports_routes_1.smartReportsRouter);
 app.use("/api/ai-business-advisor", ai_business_advisor_routes_1.aiBusinessAdvisorRouter);
 app.use("/api/organization", organization_routes_1.organizationRouter);
 app.use("/api/v1/organization", organization_routes_1.organizationRouter);
+app.use("/api/hr/dashboard", hr_dashboard_routes_1.hrDashboardRouter);
+app.use("/api/v1/hr/dashboard", hr_dashboard_routes_1.hrDashboardRouter);
 app.use("/api/hr/organization", organization_routes_1.organizationRouter);
 app.use("/api/v1/hr/organization", organization_routes_1.organizationRouter);
 app.use("/api/document-types", document_types_routes_1.documentTypesRouter);
@@ -916,6 +989,38 @@ if (!isServerless && process.env.NODE_ENV !== "test") {
         console.log(`⏰ Daily SaaS Billing Cron scheduled in ${Math.round(msUntilNext / 60000)} min (target: 03:00 UTC)`);
     }
     scheduleDailySaasBilling();
+    // Schedule daily Morning Office-Time (09:00 local) Complaint Follow-up In-App Reminders
+    function scheduleMorningComplaintFollowUpReminders() {
+        const now = new Date();
+        const nextRun = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
+        let msUntilNext = nextRun.getTime() - now.getTime();
+        if (msUntilNext <= 0) {
+            // Already past 09:00 AM today — run an idempotent check once now, then schedule tomorrow 09:00 AM
+            (0, complaint_followup_reminder_cron_1.runComplaintFollowUpReminderCron)()
+                .then((res) => {
+                if (res.notificationsSent > 0) {
+                    console.log("🔔 [CRON] Complaint follow-up morning reminders sent:", res);
+                }
+            })
+                .catch((err) => console.warn("⚠️ [CRON] Complaint follow-up reminder check failed:", err?.message));
+            msUntilNext += 24 * 60 * 60 * 1000;
+        }
+        const timer = setTimeout(async () => {
+            try {
+                console.log("⏰ [CRON] Executing 09:00 AM Complaint Follow-up Reminders...");
+                const res = await (0, complaint_followup_reminder_cron_1.runComplaintFollowUpReminderCron)();
+                console.log("✅ [CRON] Complaint Follow-up Reminders finished:", res);
+            }
+            catch (err) {
+                console.error("❌ [CRON] Complaint Follow-up Reminders failed:", err?.message);
+            }
+            scheduleMorningComplaintFollowUpReminders();
+        }, msUntilNext);
+        if (timer.unref)
+            timer.unref();
+        console.log(`⏰ Daily Complaint Follow-up Reminder scheduled in ${Math.round(msUntilNext / 60000)} min (target: 09:00 AM office time)`);
+    }
+    scheduleMorningComplaintFollowUpReminders();
     server.listen(Number(PORT), HOST, async () => {
         console.log(`🚀 Master HRMS Backend Server running on http://${HOST}:${PORT}`);
         console.log(`🔌 Database Provider: Supabase PostgreSQL (Prisma ORM connected)`);

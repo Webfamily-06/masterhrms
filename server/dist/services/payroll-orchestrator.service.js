@@ -1131,7 +1131,7 @@ class PayrollOrchestratorService {
                             },
                         });
                         if (loan) {
-                            await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext('loan_${loan.id}'))`);
+                            await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext($1))", `loan_${loan.id}`);
                             const existingInstallment = await tx.loanInstallment.findFirst({
                                 where: {
                                     loanId: loan.id,

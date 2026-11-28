@@ -20,10 +20,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.runBiometricReconciliation = runBiometricReconciliation;
 const prisma_1 = require("../prisma");
 const biometric_routes_1 = require("../routes/biometric.routes");
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-function startOfDay(d) {
-    return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-}
 function previousMonth() {
     const now = new Date();
     const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();

@@ -207,7 +207,7 @@ export default function TaskBoardPage() {
       setTaskModalOpen(false);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to create task");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to create task");
     },
   });
 
@@ -223,7 +223,7 @@ export default function TaskBoardPage() {
       setEditingTask(null);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to update task");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to update task");
     },
   });
 
@@ -239,7 +239,7 @@ export default function TaskBoardPage() {
       setTaskToDelete(null);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to delete task");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to delete task");
     },
   });
 

@@ -33,7 +33,7 @@ export default function ManageStockPage() {
     queryKey: ['manage-stock-products'],
     queryFn: async () => {
       const res = await api.get<any>('/api/products?limit=100');
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 

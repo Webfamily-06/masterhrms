@@ -6,9 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.isValidIpOrCidr = isValidIpOrCidr;
 exports.normalizeIp = normalizeIp;
 exports.matchIpOrCidr = matchIpOrCidr;
-exports.enforceBannedIp = enforceBannedIp;
 const net_1 = __importDefault(require("net"));
-const prisma_1 = require("../prisma");
 /**
  * Validates whether the given string is a valid IPv4, IPv6, or CIDR notation.
  */
@@ -79,51 +77,4 @@ function ipToLong(ip) {
     return (ip
         .split(".")
         .reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0);
-}
-/**
- * Express middleware to actively enforce banned IPs for the authenticated tenant.
- */
-async function enforceBannedIp(req, res, next) {
-    try {
-        const tenantId = req.user?.tenantId;
-        if (!tenantId) {
-            return next();
-        }
-        const rawIp = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-            req.socket.remoteAddress ||
-            req.ip ||
-            "";
-        const clientIp = normalizeIp(rawIp);
-        if (!clientIp) {
-            return next();
-        }
-        const db = prisma_1.rawPrisma || prisma_1.prisma;
-        const bannedRules = await db.bannedIp.findMany({
-            where: {
-                tenantId,
-                isActive: true,
-            },
-            select: {
-                ipAddress: true,
-                reason: true,
-            },
-        });
-        if (bannedRules.length > 0) {
-            const matched = bannedRules.find((rule) => matchIpOrCidr(clientIp, rule.ipAddress));
-            if (matched) {
-                return res.status(403).json({
-                    error: "Access Denied: Your IP address is blocked by workspace security firewall.",
-                    code: "IP_BANNED",
-                    clientIp,
-                    reason: matched.reason || undefined,
-                });
-            }
-        }
-        next();
-    }
-    catch (err) {
-        // Fail open or pass through on firewall internal check errors
-        console.error("[enforceBannedIp] Check error:", err);
-        next();
-    }
 }

@@ -3,6 +3,7 @@ import {  createFileRoute  } from "@/src/lib/router-compat";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { sanitizeHtml } from "@/lib/html-sanitizer";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,7 +55,7 @@ export default function HrLettersCenterPage() {
     queryKey: ["hr-generated-letters"],
     queryFn: async () => {
       const res = await api.get("/hr/documents/letters");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -70,14 +71,14 @@ export default function HrLettersCenterPage() {
     queryKey: ["hr-templates-picker-letters"],
     queryFn: async () => {
       const res = await api.get("/hr/documents/templates");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
   const generateMutation = useMutation({
     mutationFn: async (payload: any) => {
       const res = await api.post("/hr/documents/letters/generate", payload);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: (data) => {
       toast.success("Letter generated with dynamic token merging");
@@ -87,7 +88,7 @@ export default function HrLettersCenterPage() {
       setIsViewModalOpen(true);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to generate letter");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to generate letter");
     },
   });
 
@@ -272,7 +273,7 @@ export default function HrLettersCenterPage() {
           </DialogHeader>
           <div
             className="p-6 border rounded-lg bg-card text-foreground"
-            dangerouslySetInnerHTML={{ __html: selectedLetter?.contentHtml || "" }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedLetter?.contentHtml || "") }}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsViewModalOpen(false)}>Close</Button>

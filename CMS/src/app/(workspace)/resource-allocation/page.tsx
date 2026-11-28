@@ -26,7 +26,7 @@ export default function ResourceAllocationPage() {
     queryKey: ['resource-workload-summary'],
     queryFn: async () => {
       const res = await api.get<any>('/api/team-workload/summary');
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 

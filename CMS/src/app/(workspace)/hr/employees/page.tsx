@@ -269,7 +269,7 @@ export default function EmployeesDirectoryPage() {
       handleClosePasswordModal();
       queryClient.invalidateQueries({ queryKey: ["hr-employees-list"] });
     } catch (err: any) {
-      const msg = err.response?.data?.error || err.message || "Failed to update employee password.";
+      const msg = err?.response?.data?.error || err?.message || "Failed to update employee password.";
       setPasswordError(msg);
       toast.error(msg);
     } finally {
@@ -287,7 +287,7 @@ export default function EmployeesDirectoryPage() {
       setStatusTargetEmployee(null);
       queryClient.invalidateQueries({ queryKey: ["hr-employees-list"] });
     } catch (err: any) {
-      const msg = err.response?.data?.error || err.message || "Failed to update account status.";
+      const msg = err?.response?.data?.error || err?.message || "Failed to update account status.";
       toast.error(msg);
     } finally {
       setIsTogglingStatus(false);
@@ -307,7 +307,7 @@ export default function EmployeesDirectoryPage() {
       setDeleteTargetEmployee(null);
       queryClient.invalidateQueries({ queryKey: ["hr-employees-list"] });
     } catch (err: any) {
-      const msg = err.response?.data?.error || err.message || "Failed to delete employee.";
+      const msg = err?.response?.data?.error || err?.message || "Failed to delete employee.";
       toast.error(msg);
     } finally {
       setIsDeletingEmployee(false);
@@ -408,7 +408,7 @@ export default function EmployeesDirectoryPage() {
   const bulkStatusMutation = useMutation({
     mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
       const res = await api.post("/hr/employees/bulk-status", { ids, status });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["hr-employees-list"] });
@@ -416,14 +416,14 @@ export default function EmployeesDirectoryPage() {
       clearSelection();
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to update employee status.");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to update employee status.");
     },
   });
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
       const res = await api.post("/hr/employees/bulk-delete", { ids });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["hr-employees-list"] });
@@ -431,7 +431,7 @@ export default function EmployeesDirectoryPage() {
       clearSelection();
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to deactivate employees.");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to deactivate employees.");
     },
   });
 

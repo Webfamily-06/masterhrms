@@ -4,6 +4,7 @@ import { createFileRoute, Link, Outlet, useChildMatches, Route } from "@/src/lib
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, unwrapArray } from "@/lib/api";
+import { sanitizeHtml } from "@/lib/html-sanitizer";
 import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -195,7 +196,7 @@ function Employee360Page() {
       queryClient.invalidateQueries({ queryKey: ["employee-360", id] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to grant award.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to grant award.");
     },
   });
 
@@ -209,7 +210,7 @@ function Employee360Page() {
       queryClient.invalidateQueries({ queryKey: ["employee-360", id] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to revoke award.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to revoke award.");
     },
   });
 
@@ -231,7 +232,7 @@ function Employee360Page() {
       toast.success(res.data?.message || `Document ${docCode} verified and certified!`);
       queryClient.invalidateQueries({ queryKey: ["employee-360", id] });
     } catch (err: any) {
-      toast.error(err.response?.data?.error || err.message || "Failed to verify document.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to verify document.");
     } finally {
       setIsVerifyingDoc(null);
     }
@@ -251,7 +252,7 @@ function Employee360Page() {
       setRejectionReason("");
       queryClient.invalidateQueries({ queryKey: ["employee-360", id] });
     } catch (err: any) {
-      toast.error(err.response?.data?.error || err.message || "Failed to reject document.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to reject document.");
     } finally {
       setIsRejectingDoc(false);
     }
@@ -267,7 +268,7 @@ function Employee360Page() {
       setDocToDelete(null);
       queryClient.invalidateQueries({ queryKey: ["employee-360", id] });
     } catch (err: any) {
-      toast.error(err.response?.data?.error || err.message || "Failed to delete document.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to delete document.");
     } finally {
       setIsDeletingDoc(false);
     }
@@ -2385,7 +2386,7 @@ function Employee360Page() {
           <div
             className="p-5 border rounded-lg bg-card text-foreground text-xs leading-relaxed max-h-[50vh] overflow-y-auto space-y-3 prose dark:prose-invert max-w-none"
             dangerouslySetInnerHTML={{
-              __html: selectedLetter?.contentHtml || "<p>No content preview available.</p>",
+              __html: sanitizeHtml(selectedLetter?.contentHtml || "<p>No content preview available.</p>"),
             }}
           />
 

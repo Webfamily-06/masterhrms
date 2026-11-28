@@ -175,6 +175,7 @@ exports.DIRECT_TENANT_MODELS = new Set([
     "ChatConversationPin",
     "ChatConversationPreference",
     "ChatUserPresence",
+    "ChatPushSubscription",
     "WorkspaceRole",
     "UserRoleAssignment",
     "TenantModule",

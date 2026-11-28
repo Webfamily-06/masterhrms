@@ -27,7 +27,7 @@ export default function HrPerformanceDashboard() {
     queryKey: ["hr-performance-overview"],
     queryFn: async () => {
       const res = await api.get("/hr/performance/overview");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 

@@ -34,7 +34,7 @@ export default function MeTaxPage() {
       const res = await api.get("/api/v1/me/payroll/tax", {
         params: { financialYear: selectedFy },
       });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -62,7 +62,7 @@ export default function MeTaxPage() {
       queryClient.invalidateQueries({ queryKey: ["me-payroll-tax"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to save declaration");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to save declaration");
     },
   });
 

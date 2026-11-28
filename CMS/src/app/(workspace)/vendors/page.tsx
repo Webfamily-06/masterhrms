@@ -90,7 +90,7 @@ export default function VendorsPage() {
       resetForm();
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to save vendor');
+      toast.error((err?.response?.data?.error || err?.message) || 'Failed to save vendor');
     },
   });
 
@@ -103,7 +103,7 @@ export default function VendorsPage() {
       queryClient.invalidateQueries({ queryKey: ['suppliers-list'] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to delete vendor');
+      toast.error((err?.response?.data?.error || err?.message) || 'Failed to delete vendor');
     },
   });
 

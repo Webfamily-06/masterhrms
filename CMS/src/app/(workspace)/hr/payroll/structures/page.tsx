@@ -232,7 +232,7 @@ export default function HrSalaryStructuresPage() {
       setSimResult(data);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to calculate simulation preview.");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to calculate simulation preview.");
     },
   });
 
@@ -265,7 +265,7 @@ export default function HrSalaryStructuresPage() {
       queryClient.invalidateQueries({ queryKey: ["hr-salary-structures"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to save salary structure");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to save salary structure");
     },
   });
 
@@ -279,7 +279,7 @@ export default function HrSalaryStructuresPage() {
       queryClient.invalidateQueries({ queryKey: ["hr-salary-structures"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Cannot delete salary structure");
+      toast.error((err?.response?.data?.error || err?.message) || "Cannot delete salary structure");
     },
   });
 

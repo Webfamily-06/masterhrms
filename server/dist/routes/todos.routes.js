@@ -11,6 +11,7 @@ const prisma_1 = require("../prisma");
 const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
 const todo_notification_service_1 = require("../services/todo-notification.service");
+const audit_service_1 = require("../services/audit.service");
 exports.todosRouter = (0, express_1.Router)();
 exports.todosRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
 function parseTodoMeta(description) {
@@ -734,6 +735,15 @@ exports.todosRouter.post("/", async (req, res) => {
                 completed: Boolean(completed),
             },
         });
+        // REM-011 (DEFECT-009): Record AuditLog for todo creation
+        audit_service_1.AuditService.log({
+            tenantId,
+            userId,
+            action: "TODO_CREATED",
+            entityType: "WorkspaceTodo",
+            entityId: todo.id,
+            details: { title: todo.title, priority: todo.priority, assigneesCount: resolvedAssignees.length },
+        }).catch(() => { });
         // Dispatch asynchronous task creation notifications (in-app + email)
         todo_notification_service_1.TodoNotificationService.dispatchTaskCreated({
             tenantId,
@@ -780,7 +790,20 @@ exports.todosRouter.put("/:id", async (req, res) => {
         const tenantId = req.user.tenantId;
         const userId = req.user.userId || req.user.id;
         const { id } = req.params;
-        const { title, description, priority, tag, dueDate, startDate, completed, assignedTo, assigneeId, progress, starred, checklist, comments, attachments, } = req.body;
+        const { title, description, priority, tag, dueDate, startDate, completed: rawCompleted, isCompleted, status: rawStatus, assignedTo, assigneeId, progress, starred, checklist, comments, attachments, } = req.body;
+        // REM-007 (DEFECT-018): Normalize completed boolean across completed / isCompleted / status / progress=100
+        const normalizedStatus = typeof rawStatus === "string" ? rawStatus.toLowerCase().trim() : undefined;
+        const completed = rawCompleted !== undefined
+            ? Boolean(rawCompleted)
+            : isCompleted !== undefined
+                ? Boolean(isCompleted)
+                : normalizedStatus === "completed" || normalizedStatus === "done"
+                    ? true
+                    : normalizedStatus === "pending" || normalizedStatus === "in_progress" || normalizedStatus === "open"
+                        ? false
+                        : progress !== undefined && Number(progress) >= 100
+                            ? true
+                            : undefined;
         const existing = await prisma_1.prisma.workspaceTodo.findFirst({
             where: { id, tenantId },
         });
@@ -933,6 +956,15 @@ exports.todosRouter.put("/:id", async (req, res) => {
             where: { id },
             data: updateData,
         });
+        // REM-011 (DEFECT-009): Record AuditLog for todo mutation
+        audit_service_1.AuditService.log({
+            tenantId,
+            userId,
+            action: "TODO_UPDATED",
+            entityType: "WorkspaceTodo",
+            entityId: updated.id,
+            details: { title: updated.title, completed: updated.completed, progress: updatedProgress },
+        }).catch(() => { });
         const finalMeta = parseTodoMeta(updated.description);
         // 1. Check for newly assigned members
         const previousAssigneeIds = new Set((meta.assignees || []).map((a) => a.id));

@@ -55,9 +55,11 @@ async function resolveTenantContext(req, res, next) {
                     bannedRules = cachedBanned.rules;
                 }
                 else {
-                    bannedRules = await client.bannedIp.findMany({
-                        where: { tenantId, isActive: true },
-                        select: { ipAddress: true, reason: true },
+                    bannedRules = await tenant_context_1.tenantStorage.run(context, async () => {
+                        return await client.bannedIp.findMany({
+                            where: { tenantId, isActive: true },
+                            select: { ipAddress: true, reason: true },
+                        });
                     });
                     bannedIpCache.set(tenantId, { rules: bannedRules, expiresAt: Date.now() + 60000 });
                 }

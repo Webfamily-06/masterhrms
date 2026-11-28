@@ -1,10 +1,27 @@
 import { Router, Response } from "express";
 import { prisma, rawPrisma } from "../prisma.js";
 import { requireAuth, AuthRequest } from "../middleware/auth.js";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware.js";
+import { isHrOrAdminUser, requireHrOrAdmin } from "../middleware/hr-rbac.middleware.js";
 import { documentService } from "../services/document.service.js";
 import { ContractLifecycleService } from "../services/contract-lifecycle.service.js";
 
 export const hrDocumentsRouter = Router();
+
+// DEFECT-041: Enforce HR/Admin/Manager RBAC on document/contract mutations while allowing employee self-service downloads & acknowledgements
+hrDocumentsRouter.use(
+  requireAuth,
+  resolveTenantContext,
+  requireHrOrAdmin({
+    allowReads: true,
+    allowedPermissions: ["hrm.documents", "documents.manage", "contracts.manage"],
+    allowSelfService: [
+      { method: "PATCH", pattern: /^\/acknowledgements\/[^/]+\/acknowledge\/?$/i },
+      { method: "POST", pattern: /^\/[^/]+\/download\/?$/i },
+    ],
+    deniedMessage: "Access denied: HR Administrator or Manager privileges are required to manage HR documents and contracts.",
+  })
+);
 
 function slugifyDocCode(name: string): string {
   const base = String(name || "ITEM")
@@ -1596,6 +1613,20 @@ hrDocumentsRouter.patch("/acknowledgements/:id/acknowledge", requireAuth, async 
       where: { id: req.params.id, tenantId },
     });
     if (!existing) return res.status(404).json({ error: "Acknowledgment not found." });
+
+    // Non-HR employees may only acknowledge documents assigned to themselves
+    if (!isHrOrAdminUser(req, ["hrm.documents", "documents.manage"])) {
+      const callerEmp = await prisma.employee.findFirst({
+        where: { tenantId, userId: req.user?.userId },
+        select: { id: true },
+      });
+      if (!callerEmp || existing.employeeId !== callerEmp.id) {
+        return res.status(403).json({
+          error: "Access denied: You can only acknowledge documents assigned to your own employee record.",
+          code: "OWNERSHIP_REQUIRED",
+        });
+      }
+    }
 
     const noteText = req.body?.note ?? req.body?.comments;
     const updated = await prisma.documentAcknowledgement.update({

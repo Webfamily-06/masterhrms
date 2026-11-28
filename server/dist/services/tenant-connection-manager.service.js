@@ -3,6 +3,26 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TenantConnectionManager = void 0;
 const client_1 = require("@prisma/client");
 const tenant_isolation_extension_1 = require("../extensions/tenant-isolation.extension");
+function buildPooledDatabaseUrl(rawUrl) {
+    if (!rawUrl)
+        return undefined;
+    try {
+        const u = new URL(rawUrl);
+        if (!u.searchParams.has("connection_limit")) {
+            u.searchParams.set("connection_limit", process.env.PRISMA_CONNECTION_LIMIT || "20");
+        }
+        if (!u.searchParams.has("pool_timeout")) {
+            u.searchParams.set("pool_timeout", process.env.PRISMA_POOL_TIMEOUT || "30");
+        }
+        if (!u.searchParams.has("connect_timeout")) {
+            u.searchParams.set("connect_timeout", "15");
+        }
+        return u.toString();
+    }
+    catch {
+        return rawUrl;
+    }
+}
 class TenantConnectionManager {
     static instance;
     sharedClient;
@@ -12,7 +32,7 @@ class TenantConnectionManager {
     // Server-side trusted registry (Maps tenantId -> TenantRegistrationConfig)
     registry = new Map();
     constructor() {
-        const baseDbUrl = process.env.DATABASE_URL;
+        const baseDbUrl = buildPooledDatabaseUrl(process.env.DATABASE_URL);
         if (!baseDbUrl) {
             if (process.env.NODE_ENV === "production") {
                 throw new Error("⚠️ [TenantConnectionManager] DATABASE_URL is strictly required in production.");

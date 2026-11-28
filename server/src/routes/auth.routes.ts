@@ -22,6 +22,9 @@ import QRCode from "qrcode";
 import { rawPrisma, prisma as proxiedPrisma } from "../prisma";
 const prisma = rawPrisma || proxiedPrisma;
 import { generateToken, generateMfaToken, verifyMfaToken } from "../lib/jwt";
+import { verifyPasswordQueued, PasswordQueueOverloadedError } from "../lib/password-worker-pool";
+import { checkAccountLockout, recordFailedLogin, clearFailedLogins } from "../lib/login-protection";
+import { authCredentialRateLimiter } from "../middleware/security-hardening.middleware";
 import { recordLoginHistory } from "../services/login-history.service";
 import { checkTenantIpAccess } from "../services/tenant-ip-restriction.service";
 import { createDeviceSession, getActiveSessions, revokeSession, revokeAllSessions, hashRefreshToken, rotateRefreshToken } from "../services/device-session.service";
@@ -555,8 +558,78 @@ const loginHandler = async (req: any, res: Response) => {
       normalizedEmail = "tenantadmin@masterhrms.com";
     }
 
-    let user = await prisma.user.findUnique({
+    // PENTEST-005 (PT-AUTH-03): Check per-account progressive brute-force lockout BEFORE DB/CPU work
+    // Isolates brute-force attacks strictly to the targeted account without affecting other employees on the same NAT IP.
+    const lockout = checkAccountLockout(normalizedEmail);
+    if (lockout.locked) {
+      res.setHeader("Retry-After", String(lockout.retryAfterSeconds));
+      return res.status(423).json({
+        error: `Account temporarily locked due to repeated failed sign-in attempts. Please retry in ${lockout.retryAfterSeconds} seconds.`,
+        code: "ACCOUNT_LOCKED",
+        retryAfter: lockout.retryAfterSeconds,
+      });
+    }
+
+    const rawHost = getEffectiveRequestHost(req.headers);
+    const hostContext = (req as any).hostContext || resolveHostContext(rawHost);
+
+    // 1. Super Admin Host/Portal isolation:
+    // If a request originating from a tenant host or custom domain attempts to use the super portal, return 404 NOT_FOUND.
+    if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
+      const hasSuperPortalSignal =
+        req.headers["x-auth-portal"] === "super" || req.body.portal === "super";
+      if (hasSuperPortalSignal) {
+        return res.status(404).json({
+          error: "Not Found",
+          code: "NOT_FOUND",
+        });
+      }
+    }
+
+    // PERF-002: Lightweight indexed lookup first (avoid 4-way JOINs until password succeeds)
+    const authCandidate = await prisma.user.findUnique({
       where: { email: normalizedEmail },
+      select: { id: true, email: true, passwordHash: true },
+    });
+
+    // PENTEST-005 (PT-AUTH-02) + PERF-002:
+    // Always execute queued worker-thread bcrypt verification (against DUMMY_BCRYPT_HASH when user doesn't exist)
+    // to eliminate account-enumeration timing oracles AND prevent single-thread event-loop starvation at 1,000 concurrent logins.
+    let isValid = false;
+    try {
+      const compareResult = await verifyPasswordQueued(password, authCandidate?.passwordHash);
+      isValid = Boolean(authCandidate) && compareResult;
+    } catch (qErr: any) {
+      if (qErr instanceof PasswordQueueOverloadedError || qErr?.code === "LOGIN_QUEUE_OVERLOADED") {
+        const retryAfter = qErr.retryAfterSeconds || 5;
+        res.setHeader("Retry-After", String(retryAfter));
+        return res.status(503).json({
+          error: qErr.message || "Authentication queue is temporarily busy. Please retry shortly.",
+          code: "LOGIN_QUEUE_OVERLOADED",
+          retryAfter,
+        });
+      }
+      throw qErr;
+    }
+
+    if (!authCandidate || !isValid) {
+      const updatedLockout = recordFailedLogin(normalizedEmail);
+      if (updatedLockout.locked) {
+        res.setHeader("Retry-After", String(updatedLockout.retryAfterSeconds));
+        return res.status(423).json({
+          error: `Account temporarily locked due to repeated failed sign-in attempts. Please retry in ${updatedLockout.retryAfterSeconds} seconds.`,
+          code: "ACCOUNT_LOCKED",
+          retryAfter: updatedLockout.retryAfterSeconds,
+        });
+      }
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    clearFailedLogins(normalizedEmail);
+
+    // Fetch full user context ONLY after password verification succeeds
+    let user = await prisma.user.findUnique({
+      where: { id: authCandidate.id },
       include: {
         profile: true,
         roles: true,
@@ -580,33 +653,15 @@ const loginHandler = async (req: any, res: Response) => {
 
     if (!user) return res.status(401).json({ error: "Invalid email or password." });
 
-    const rawHost = getEffectiveRequestHost(req.headers);
-    const hostContext = (req as any).hostContext || resolveHostContext(rawHost);
-
-    // 1. Super Admin Host/Portal isolation:
-    // If a request originating from a tenant host or custom domain attempts to use the super portal, return 404 NOT_FOUND.
-    if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
-      const hasSuperPortalSignal =
-        req.headers["x-auth-portal"] === "super" || req.body.portal === "super";
-      if (hasSuperPortalSignal) {
-        return res.status(404).json({
-          error: "Not Found",
-          code: "NOT_FOUND",
-        });
-      }
-    }
-
     const isSuperPortal =
       hostContext.type === "super" ||
       req.headers["x-auth-portal"] === "super" ||
       req.body.portal === "super";
 
-    // Enforcement of Super Admin / Tenant Login Separation:
+    // Enforcement of Super Admin / Tenant Login Separation (evaluated AFTER password check — fixes PT-AUTH-01):
     if (!isSuperPortal) {
       const isPlatformSuperAdmin = user.roles.some((r: any) => r.role === "super_admin" && !r.tenantId);
       if (isPlatformSuperAdmin) {
-        // Platform Super Admin must NOT authenticate via normal /login endpoint.
-        // Return generic 401 without leaking identity or super admin existence.
         return res.status(401).json({ error: "Invalid email or password." });
       }
     }
@@ -619,12 +674,6 @@ const loginHandler = async (req: any, res: Response) => {
           code: "SUPER_ADMIN_ONLY",
         });
       }
-    }
-
-    // SEC-001: Strictly verify password against stored bcrypt hash. No hardcoded bypasses allowed.
-    const isValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isValid) {
-      return res.status(401).json({ error: "Invalid email or password." });
     }
 
     // DEFECT-016: Block unverified self-registered users (unconsumed verify:* token and no provisioned tenant)
@@ -793,8 +842,8 @@ const loginHandler = async (req: any, res: Response) => {
       });
 
       if (!emailResult.success) {
-        console.warn(`⚠️ [2FA OTP] Email dispatch to ${user.email} failed: ${emailResult.error}`);
-        console.log(`🔑 [2FA LOGIN CODE] Use this code to sign in for ${user.email}: [${otp}]`);
+      console.warn(`[2FA OTP] Email dispatch to ${maskEmail(user.email)} failed: ${emailResult.error}`);
+      if (process.env.NODE_ENV !== "production") console.log(`[DEV ONLY][2FA LOGIN CODE] ${maskEmail(user.email)}: [${otp}]`);
       }
 
       const mfaToken = generateMfaToken({ userId: user.id, email: user.email });
@@ -966,7 +1015,8 @@ const loginHandler = async (req: any, res: Response) => {
       twoFactorMethod: "EMAIL_OTP",
       emailSent: emailResult.success,
       emailError: emailResult.error || undefined,
-      devOtp: !emailResult.success || process.env.NODE_ENV !== "production" ? otp : undefined,
+      // PENTEST-006: NEVER leak plaintext 2FA OTP in production responses even when SMTP delivery fails
+      devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
       message: emailResult.success
         ? (isSetup
           ? "2FA Setup Required: A 6-digit verification code has been sent to your registered email."
@@ -984,6 +1034,7 @@ const loginHandler = async (req: any, res: Response) => {
 // POST /api/auth/login
 authRouter.post(
   "/login",
+  ...authCredentialRateLimiter,
   requireTurnstile((req) =>
     req.body?.portal === "super" || req.headers["x-auth-portal"] === "super"
       ? "super_login"
@@ -995,6 +1046,7 @@ authRouter.post(
 // POST /api/auth/super-login (Dedicated Super Admin entry point)
 authRouter.post(
   "/super-login",
+  ...authCredentialRateLimiter,
   (req, _res, next) => {
     req.body = req.body || {};
     req.body.portal = "super";
@@ -1005,7 +1057,7 @@ authRouter.post(
 );
 
 // POST /api/auth/forgot-password
-authRouter.post("/forgot-password", async (req, res) => {
+authRouter.post("/forgot-password", ...authCredentialRateLimiter, async (req, res) => {
   try {
     const { email } = forgotPasswordSchema.parse(req.body);
     const normalizedEmail = email.toLowerCase().trim();
@@ -1104,7 +1156,7 @@ const verifyResetOtpSchema = z.object({
 });
 
 // POST /api/auth/verify-reset-otp
-authRouter.post("/verify-reset-otp", async (req, res) => {
+authRouter.post("/verify-reset-otp", ...authCredentialRateLimiter, async (req, res) => {
   try {
     const { email, code } = verifyResetOtpSchema.parse(req.body);
     const normalizedEmail = email.toLowerCase().trim();
@@ -1160,7 +1212,7 @@ authRouter.post("/verify-reset-otp", async (req, res) => {
 });
 
 // POST /api/auth/reset-password
-authRouter.post("/reset-password", async (req, res) => {
+authRouter.post("/reset-password", ...authCredentialRateLimiter, async (req, res) => {
   try {
     const { email, code, token, newPassword } = resetPasswordSchema.parse(req.body);
     const normalizedEmail = email.toLowerCase().trim();
@@ -1483,7 +1535,7 @@ authRouter.post("/resend-verification", async (req, res) => {
  */
 
 // POST /api/auth/2fa/verify-login
-authRouter.post("/2fa/verify-login", async (req, res) => {
+authRouter.post("/2fa/verify-login", ...authCredentialRateLimiter, async (req, res) => {
   try {
     const { mfaToken, code } = req.body;
 
@@ -1795,7 +1847,8 @@ authRouter.post("/2fa/resend", async (req, res) => {
       success: true,
       emailSent: emailResult.success,
       emailError: emailResult.error || undefined,
-      devOtp: !emailResult.success || process.env.NODE_ENV !== "production" ? otp : undefined,
+      // PENTEST-006: NEVER leak plaintext 2FA OTP in production responses even when SMTP delivery fails
+      devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
       message: emailResult.success
         ? "A fresh 6-digit verification code has been sent to your registered email."
         : `Fresh code generated, but email delivery encountered an issue (${emailResult.error}).`,

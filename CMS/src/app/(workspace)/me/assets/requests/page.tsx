@@ -53,14 +53,14 @@ export default function MeAssetRequestsPage() {
     queryKey: ["me-asset-requests"],
     queryFn: async () => {
       const res = await api.get("/me/assets/requests");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (payload: any) => {
       const res = await api.post("/me/assets/requests", payload);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Equipment request submitted to IT Admin");
@@ -76,7 +76,7 @@ export default function MeAssetRequestsPage() {
       });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to submit request");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to submit request");
     },
   });
 

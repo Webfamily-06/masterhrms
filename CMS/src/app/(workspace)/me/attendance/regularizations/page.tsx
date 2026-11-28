@@ -43,7 +43,7 @@ export default function MeAttendanceRegularizationsPage() {
     queryKey: ["me-regularizations"],
     queryFn: async () => {
       const res = await api.get("/api/v1/me/attendance/regularizations");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -59,7 +59,7 @@ export default function MeAttendanceRegularizationsPage() {
         proposedOut: outDate.toISOString(),
         reason: payload.reason,
       });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Regularization request submitted for manager review");
@@ -73,10 +73,10 @@ export default function MeAttendanceRegularizationsPage() {
       });
     },
     onError: (err: any) => {
-      if (err.response?.status === 423) {
+      if ((err?.status === 423 || err?.response?.status === 423)) {
         toast.error("Cannot regularize: This attendance month is locked for payroll.");
       } else {
-        toast.error(err.response?.data?.error || "Failed to submit regularization");
+        toast.error((err?.response?.data?.error || err?.message) || "Failed to submit regularization");
       }
     },
   });

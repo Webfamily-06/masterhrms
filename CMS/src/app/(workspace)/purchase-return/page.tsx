@@ -32,7 +32,7 @@ export default function PurchaseReturnPage() {
     queryKey: ['purchase-returns-list'],
     queryFn: async () => {
       const res = await api.get<any>('/api/returns/purchases?limit=50');
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 

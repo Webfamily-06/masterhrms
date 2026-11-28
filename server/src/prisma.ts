@@ -6,10 +6,10 @@ export function buildPooledDatabaseUrl(rawUrl?: string): string | undefined {
   try {
     const u = new URL(rawUrl);
     if (!u.searchParams.has("connection_limit")) {
-      u.searchParams.set("connection_limit", process.env.PRISMA_CONNECTION_LIMIT || "20");
+      u.searchParams.set("connection_limit", process.env.PRISMA_CONNECTION_LIMIT || "35");
     }
     if (!u.searchParams.has("pool_timeout")) {
-      u.searchParams.set("pool_timeout", process.env.PRISMA_POOL_TIMEOUT || "30");
+      u.searchParams.set("pool_timeout", process.env.PRISMA_POOL_TIMEOUT || "45");
     }
     if (!u.searchParams.has("connect_timeout")) {
       u.searchParams.set("connect_timeout", "15");

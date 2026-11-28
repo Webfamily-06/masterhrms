@@ -9,7 +9,10 @@ const quota_governance_service_1 = require("../services/files/quota-governance.s
 const storage_forecast_service_1 = require("../services/files/storage-forecast.service");
 const storage_retention_service_1 = require("../services/files/storage-retention.service");
 const storage_migration_service_1 = require("../services/files/storage-migration.service");
+const super_audit_1 = require("../lib/super-audit");
 exports.superStorageRouter = (0, express_1.Router)();
+// Platform audit trail for quota overrides, retention sweeps, snapshot captures and migrations
+exports.superStorageRouter.use((0, super_audit_1.superAuditMiddleware)("super-storage"));
 /**
  * GET /api/v1/super/storage/overview
  * Platform-wide storage consumption, capacity, quotas, and at-risk tenants.

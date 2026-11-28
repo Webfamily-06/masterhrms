@@ -86,7 +86,7 @@ export default function WarehousePage() {
       resetForm();
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to save warehouse');
+      toast.error((err?.response?.data?.error || err?.message) || 'Failed to save warehouse');
     },
   });
 
@@ -99,7 +99,7 @@ export default function WarehousePage() {
       queryClient.invalidateQueries({ queryKey: ['warehouses-list'] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to delete warehouse');
+      toast.error((err?.response?.data?.error || err?.message) || 'Failed to delete warehouse');
     },
   });
 

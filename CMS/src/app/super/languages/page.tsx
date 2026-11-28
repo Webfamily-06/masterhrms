@@ -116,7 +116,7 @@ function LanguageEditorPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const res = await api.put(`/super/languages/${selectedLangCode}`, { phrases: localPhrases });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success(`Translations for '${currentLang?.name || selectedLangCode}' saved successfully!`);
@@ -124,7 +124,7 @@ function LanguageEditorPage() {
       qc.invalidateQueries({ queryKey: ["super-language-phrases", selectedLangCode] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to save translations");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to save translations");
     },
   });
 
@@ -136,7 +136,7 @@ function LanguageEditorPage() {
         name: newLangName.trim(),
         countryCode: newLangCountry.trim().toUpperCase(),
       });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: (data: any) => {
       toast.success(data?.message || "Language pack created successfully!");
@@ -147,7 +147,7 @@ function LanguageEditorPage() {
       qc.invalidateQueries({ queryKey: ["super-languages-list"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to create language pack");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to create language pack");
     },
   });
 
@@ -155,7 +155,7 @@ function LanguageEditorPage() {
   const deleteLangMutation = useMutation({
     mutationFn: async (code: string) => {
       const res = await api.delete(`/super/languages/${code}`);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Language pack deleted");
@@ -163,7 +163,7 @@ function LanguageEditorPage() {
       qc.invalidateQueries({ queryKey: ["super-languages-list"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to delete language");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to delete language");
     },
   });
 
@@ -171,14 +171,14 @@ function LanguageEditorPage() {
   const toggleLangMutation = useMutation({
     mutationFn: async (code: string) => {
       const res = await api.patch(`/super/languages/${code}/toggle`);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Language status updated");
       qc.invalidateQueries({ queryKey: ["super-languages-list"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to toggle status");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to toggle status");
     },
   });
 
@@ -300,7 +300,7 @@ function LanguageEditorPage() {
               </Select>
             </div>
 
-            {currentLang?.code !== "en" && (
+            {currentLang && currentLang.code !== "en" && (
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"

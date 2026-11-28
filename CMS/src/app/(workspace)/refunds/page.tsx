@@ -32,7 +32,7 @@ export default function RefundsPage() {
     queryKey: ['refunds-list'],
     queryFn: async () => {
       const res = await api.get<any>('/api/returns/sales?limit=50');
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 

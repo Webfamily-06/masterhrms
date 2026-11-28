@@ -1,5 +1,7 @@
 import { Router, Response } from "express";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
+import { requireHrOrAdmin } from "../middleware/hr-rbac.middleware";
 import { getTenantDb } from "../context/tenant-context";
 import { RecruitmentService } from "../services/recruitment.service";
 import { AuditService } from "../services/audit.service";
@@ -7,6 +9,22 @@ import { OutboxService } from "../services/outbox.service";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
 export const hrRecruitmentRouter = Router();
+
+// DEFECT-041: Enforce HR/Admin/Manager RBAC on recruitment mutations while preserving employee self-service referrals, scorecards/feedback, and assigned onboarding task updates
+hrRecruitmentRouter.use(
+  requireAuth,
+  resolveTenantContext,
+  requireHrOrAdmin({
+    allowReads: true,
+    allowedPermissions: ["hrm.recruitment", "recruitment.manage", "ats.manage"],
+    allowSelfService: [
+      { method: "POST", pattern: /^\/referrals\/?$/i },
+      { method: "POST", pattern: /^\/interviews\/[^/]+\/(scorecard|feedback)\/?$/i },
+      { method: "PUT", pattern: /^\/candidate-onboarding\/[^/]+\/tasks\/[^/]+\/?$/i },
+    ],
+    deniedMessage: "Access denied: HR Administrator, Recruiter, or Manager privileges are required for recruitment management.",
+  })
+);
 
 // =========================================================================
 // 1. RECRUITMENT MASTERS

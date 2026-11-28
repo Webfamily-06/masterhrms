@@ -19,7 +19,7 @@ export default function ProfitLossPage() {
     queryKey: ['profit-loss-statement'],
     queryFn: async () => {
       const res = await api.get<any>('/api/accounting/dashboard');
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 

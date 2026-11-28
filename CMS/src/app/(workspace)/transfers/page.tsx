@@ -160,7 +160,7 @@ export default function TransfersPage() {
       items: { productId: string; quantity: number }[];
     }) => {
       const res = await api.post("/api/transfers", payload);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Stock transfer order submitted successfully!");
@@ -182,7 +182,7 @@ export default function TransfersPage() {
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const res = await api.patch(`/api/transfers/${id}/status`, { status });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: (_, variables) => {
       toast.success(`Transfer status updated to ${variables.status.replace("_", " ").toUpperCase()}`);

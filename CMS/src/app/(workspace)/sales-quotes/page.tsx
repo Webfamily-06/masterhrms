@@ -74,7 +74,7 @@ export default function SalesQuotesPage() {
       setFormData({ title: '', clientName: '', clientEmail: '', amount: '', validUntil: '', notes: '' });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to create quotation');
+      toast.error((err?.response?.data?.error || err?.message) || 'Failed to create quotation');
     },
   });
 
@@ -87,7 +87,7 @@ export default function SalesQuotesPage() {
       queryClient.invalidateQueries({ queryKey: ['sales-quotes-list'] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to convert quotation');
+      toast.error((err?.response?.data?.error || err?.message) || 'Failed to convert quotation');
     },
   });
 

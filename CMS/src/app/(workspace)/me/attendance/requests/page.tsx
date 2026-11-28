@@ -47,7 +47,7 @@ export default function MeAttendanceRequestsPage() {
     queryKey: ["me-attendance-requests"],
     queryFn: async () => {
       const res = await api.get("/api/v1/me/attendance/requests");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -57,7 +57,7 @@ export default function MeAttendanceRequestsPage() {
   const createMutation = useMutation({
     mutationFn: async (payload: any) => {
       const res = await api.post("/api/v1/me/attendance/requests", payload);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Request submitted for approval");
@@ -71,7 +71,7 @@ export default function MeAttendanceRequestsPage() {
         reason: "",
       });
     },
-    onError: (err: any) => toast.error(err.response?.data?.error || "Failed to submit request"),
+    onError: (err: any) => toast.error((err?.response?.data?.error || err?.message) || "Failed to submit request"),
   });
 
   const openModal = (type: "OVERTIME" | "WFH") => {

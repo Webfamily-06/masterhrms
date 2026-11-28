@@ -19,8 +19,6 @@ exports.parseConfiguredPrice = parseConfiguredPrice;
 exports.parseConfiguredInteger = parseConfiguredInteger;
 exports.buildCommercePricingConfig = buildCommercePricingConfig;
 exports.getCommercePricingConfig = getCommercePricingConfig;
-exports.setCommercePricingConfig = setCommercePricingConfig;
-exports.resetCommercePricingConfig = resetCommercePricingConfig;
 /**
  * Validates and safely parses an environment variable or string into a price.
  *
@@ -393,16 +391,4 @@ let activeConfig = buildCommercePricingConfig();
  */
 function getCommercePricingConfig() {
     return activeConfig;
-}
-/**
- * Updates commerce pricing configuration dynamically (for runtime adjustments or tests).
- */
-function setCommercePricingConfig(overrides) {
-    activeConfig = buildCommercePricingConfig(overrides);
-}
-/**
- * Resets configuration to initial environment state.
- */
-function resetCommercePricingConfig() {
-    activeConfig = buildCommercePricingConfig();
 }

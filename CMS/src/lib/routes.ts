@@ -30,7 +30,7 @@ export const ROUTES = {
   // ── Tenant Portal (/tenant/*) ──
   tenant: {
     dashboard: "/tenant/dashboard",
-    companyProfile: "/tenant/company-profile",
+    companyProfile: "/hr/settings?tab=company-profile",
     users: "/tenant/users",
     roles: "/tenant/roles",
     subscription: "/tenant/subscription",
@@ -310,8 +310,8 @@ export const ROUTES = {
     dashboard: "/super",
     tenants: "/super/tenants",
     plans: "/super/plans",
-    subscriptions: "/super/subscriptions",
-    invoices: "/super/invoices",
+    subscriptions: "/super/plans",
+    invoices: "/super/transactions",
     domains: "/super/domains",
     settings: "/super/settings",
     developer: "/super/developer",

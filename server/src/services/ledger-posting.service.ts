@@ -221,8 +221,11 @@ export async function autoPostPayrollToLedger(params: {
     }
 
     await prisma.$transaction(async (tx) => {
-      // AUD-CONC-002: PostgreSQL transaction-level advisory lock serializes concurrent postings for the same run
-      await (tx as any).$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext('gl_payroll_${payrollRunId}'))`);
+      // AUD-CONC-002 / PENTEST-002: Parameterized PostgreSQL transaction-level advisory lock
+      await (tx as any).$executeRawUnsafe(
+        "SELECT pg_advisory_xact_lock(hashtext($1))",
+        `gl_payroll_${payrollRunId}`
+      );
 
       // AUD-CONC-002: Idempotency check inside transaction
       const existingInTx = await tx.journalEntry.findFirst({

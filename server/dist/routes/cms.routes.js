@@ -730,6 +730,23 @@ exports.cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
                 update: {},
             });
         }
+        if (!page && /^tenant-([a-z0-9-]+)-purchased-addons-v2$/i.test(slug)) {
+            const m = slug.match(/^tenant-([a-z0-9-]+)-purchased-addons-v2$/i);
+            const targetTenantId = m?.[1];
+            const activeAddons = targetTenantId
+                ? await prisma_1.prisma.tenantAddon.findMany({
+                    where: { tenantId: targetTenantId, status: { in: ["active", "trial"] } },
+                    select: { id: true, addonSlug: true, status: true, plan: true, renewsAt: true, trialEndsAt: true, createdAt: true },
+                })
+                : [];
+            return res.json({
+                id: slug,
+                slug,
+                title: "Purchased Addons",
+                content: activeAddons,
+                published: true,
+            });
+        }
         if (!page) {
             return res.status(404).json({ error: "CMS Page / config not found" });
         }
@@ -759,10 +776,13 @@ exports.cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
                 try {
                     const paymentsRes = await settings_service_1.SettingsService.getGroup("payments", "PLATFORM");
                     const pVals = paymentsRes?.values || {};
+                    if (pVals["payments.razorpay_mode"]) {
+                        content.razorpayMode = String(pVals["payments.razorpay_mode"]).toLowerCase() === "live" ? "live" : "sandbox";
+                    }
                     if (pVals["payments.razorpay_enabled"] !== undefined && page.content?.razorpayEnabled === undefined) {
                         content.razorpayEnabled = Boolean(pVals["payments.razorpay_enabled"]);
                     }
-                    if (pVals["payments.razorpay_key_id"] && !page.content?.razorpayKeyId) {
+                    if (pVals["payments.razorpay_key_id"]) {
                         content.razorpayKeyId = pVals["payments.razorpay_key_id"];
                     }
                     if (pVals["payments.bank_transfer_enabled"] !== undefined && page.content?.bankTransferEnabled === undefined) {
@@ -921,14 +941,30 @@ exports.cmsRouter.put(["/pages/:slug", "/page/:slug"], auth_1.requireAuth, async
             }
             const existingPage = await prisma_1.prisma.cmsPage.findUnique({ where: { slug } });
             const existingContent = existingPage?.content || {};
-            // Credential validation: fail-closed if live keys in sandbox
-            const isLivePaymentAuthorized = process.env.ENABLE_LIVE_PAYMENTS === "true";
-            const keyId = content?.razorpayKeyId || "";
-            const keySecret = content?.razorpayKeySecret || "";
-            if (!isLivePaymentAuthorized && (keyId.startsWith("rzp_live_") || (keySecret && !keySecret.includes("••••") && keySecret.startsWith("rzp_live_")))) {
+            // Credential validation: block live Razorpay keys in non-production OR sandbox mode (DEFECT-001)
+            const keyId = String(content?.razorpayKeyId || "").trim();
+            const keySecret = String(content?.razorpayKeySecret || "").trim();
+            const hasLiveRazorpayKey = keyId.startsWith("rzp_live_") ||
+                (keySecret && !keySecret.includes("••••") && keySecret.startsWith("rzp_live_"));
+            const explicitMode = String(content?.razorpayMode || content?.razorpayEnvironment || "")
+                .trim()
+                .toLowerCase();
+            const isExplicitSandbox = explicitMode === "sandbox" || explicitMode === "test";
+            if (process.env.NODE_ENV !== "production" && hasLiveRazorpayKey) {
                 return res.status(400).json({
-                    error: "Live Razorpay credentials (rzp_live_*) are strictly prohibited in sandbox mode.",
+                    error: "Live Razorpay credentials (rzp_live_*) are strictly prohibited in non-production environments. Use Razorpay Sandbox test keys (rzp_test_*).",
+                    code: "LIVE_KEYS_PROHIBITED_IN_NON_PRODUCTION",
                 });
+            }
+            if (isExplicitSandbox && hasLiveRazorpayKey) {
+                return res.status(400).json({
+                    error: "Live Razorpay credentials (rzp_live_*) cannot be used while Razorpay Environment Mode is set to Sandbox. Switch Razorpay Mode to Live (Production) to save live keys.",
+                    code: "LIVE_KEYS_PROHIBITED_IN_SANDBOX",
+                });
+            }
+            // Auto-sync razorpayMode to match key prefix when not explicitly set
+            if (content && !content.razorpayMode && keyId) {
+                content.razorpayMode = keyId.startsWith("rzp_live_") ? "live" : "sandbox";
             }
             // Preserve existing secrets when omitted or masked
             const SENSITIVE_KEYS = [
@@ -1013,9 +1049,12 @@ exports.cmsRouter.put(["/pages/:slug", "/page/:slug"], auth_1.requireAuth, async
                     toSet["branding.logo_dark_id"] = content.logoDarkId;
                 if (content.faviconId !== undefined)
                     toSet["branding.favicon_id"] = content.faviconId;
-                // Sync payment gateways to SettingsService
+                // Sync payment gateways to SettingsService (including razorpay_mode — DEFECT-001)
                 if (content.razorpayEnabled !== undefined)
                     toSet["payments.razorpay_enabled"] = Boolean(content.razorpayEnabled);
+                if (content.razorpayMode !== undefined) {
+                    toSet["payments.razorpay_mode"] = String(content.razorpayMode).toLowerCase() === "live" ? "live" : "sandbox";
+                }
                 if (content.razorpayKeyId !== undefined)
                     toSet["payments.razorpay_key_id"] = content.razorpayKeyId;
                 if (content.razorpayKeySecret && typeof content.razorpayKeySecret === "string" && !content.razorpayKeySecret.includes("••••")) {

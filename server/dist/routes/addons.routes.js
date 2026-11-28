@@ -10,6 +10,7 @@ const crypto_1 = __importDefault(require("crypto"));
 const prisma_1 = require("../prisma");
 const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
+const super_audit_1 = require("../lib/super-audit");
 const audit_service_1 = require("../services/audit.service");
 const outbox_service_1 = require("../services/outbox.service");
 const gateway_verification_service_1 = require("../services/gateway-verification.service");
@@ -33,9 +34,11 @@ async function resolveWorkspaceBillingContext(tenantId) {
         ? String(pv["payments.currency"]).toUpperCase()
         : workspaceCurrency.toUpperCase();
     const currencySymbol = branding?.locale?.currencySymbol || (currency === "USD" ? "$" : currency === "EUR" ? "€" : "₹");
-    const keyId = pv["payments.razorpay_key_id"] ||
+    const rawKeyId = pv["payments.razorpay_key_id"] ||
         process.env.RAZORPAY_KEY_ID ||
         "rzp_test_MasterHRMSKey";
+    const isNonProd = process.env.NODE_ENV !== "production";
+    const keyId = isNonProd && String(rawKeyId).startsWith("rzp_live_") ? "rzp_test_MasterHRMSKey" : rawKeyId;
     const appName = branding?.appName || "Master HRMS & ERP";
     return { currency, currencySymbol, keyId, appName };
 }
@@ -336,7 +339,7 @@ exports.addonsRouter.get("/purchased", async (req, res) => {
  * 3. If paid (price > 0) and not included:
  *    - Rejects with 402 Payment Required.
  */
-exports.addonsRouter.post("/:addonSlug/install", async (req, res) => {
+exports.addonsRouter.post("/:addonSlug/install", super_audit_1.requireTenantAdmin, async (req, res) => {
     try {
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         const tenantId = req.user?.tenantId;
@@ -500,7 +503,7 @@ exports.addonsRouter.post("/:addonSlug/install", async (req, res) => {
  * Initiates checkout for a commercial add-on:
  * Creates BillingInvoice in "open" status, generates gateway order ID, and returns payment metadata.
  */
-exports.addonsRouter.post("/:addonSlug/checkout", async (req, res) => {
+exports.addonsRouter.post("/:addonSlug/checkout", super_audit_1.requireTenantAdmin, async (req, res) => {
     try {
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         const tenantId = req.user?.tenantId;
@@ -569,7 +572,7 @@ exports.addonsRouter.post("/:addonSlug/checkout", async (req, res) => {
  * POST /api/addons/:addonSlug/verify-payment
  * Verifies gateway payment signature and activates add-on entitlement.
  */
-exports.addonsRouter.post("/:addonSlug/verify-payment", async (req, res) => {
+exports.addonsRouter.post("/:addonSlug/verify-payment", super_audit_1.requireTenantAdmin, async (req, res) => {
     try {
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         const tenantId = req.user?.tenantId;
@@ -795,7 +798,7 @@ exports.addonsRouter.post("/:addonSlug/verify-payment", async (req, res) => {
  * POST /api/addons/:addonSlug/submit-offline-payment
  * Submits Bank Transfer proof for an add-on purchase.
  */
-exports.addonsRouter.post("/:addonSlug/submit-offline-payment", async (req, res) => {
+exports.addonsRouter.post("/:addonSlug/submit-offline-payment", super_audit_1.requireTenantAdmin, async (req, res) => {
     try {
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         const tenantId = req.user?.tenantId;
@@ -917,7 +920,7 @@ exports.addonsRouter.post("/:addonSlug/submit-offline-payment", async (req, res)
  * POST /api/addons/:addonSlug/uninstall
  * Disables and uninstalls add-on from tenant workspace.
  */
-exports.addonsRouter.post("/:addonSlug/uninstall", async (req, res) => {
+exports.addonsRouter.post("/:addonSlug/uninstall", super_audit_1.requireTenantAdmin, async (req, res) => {
     try {
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         const tenantId = req.user?.tenantId;
@@ -960,7 +963,7 @@ exports.addonsRouter.post("/:addonSlug/uninstall", async (req, res) => {
  * POST /api/addons/:addonSlug/disable
  * Explicitly disables an installed add-on for the tenant workspace.
  */
-exports.addonsRouter.post("/:addonSlug/disable", async (req, res) => {
+exports.addonsRouter.post("/:addonSlug/disable", super_audit_1.requireTenantAdmin, async (req, res) => {
     try {
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         const tenantId = req.user?.tenantId;
@@ -1027,7 +1030,7 @@ exports.addonsRouter.post("/:addonSlug/disable", async (req, res) => {
  * POST /api/addons/:addonSlug/enable
  * Re-enables a previously disabled add-on for the tenant workspace.
  */
-exports.addonsRouter.post("/:addonSlug/enable", async (req, res) => {
+exports.addonsRouter.post("/:addonSlug/enable", super_audit_1.requireTenantAdmin, async (req, res) => {
     try {
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         const tenantId = req.user?.tenantId;
@@ -1038,22 +1041,36 @@ exports.addonsRouter.post("/:addonSlug/enable", async (req, res) => {
         }
         const cleanSlug = addonSlug.trim().toLowerCase();
         const relatedSlugs = getRelatedSlugs(cleanSlug);
+        // Payment-bypass protection: /enable only RE-ENABLES an entitlement that already exists and was
+        // previously disabled by the workspace. New or cancelled/expired entitlements must go through
+        // /install (free / plan-included) or the paid checkout flow.
+        const existingEntitlement = await db.tenantAddon.findUnique({
+            where: { tenantId_addonSlug: { tenantId, addonSlug: cleanSlug } },
+        });
+        if (!existingEntitlement) {
+            return res.status(402).json({
+                success: false,
+                error: `Add-on "${cleanSlug}" is not installed for this workspace. Install or purchase it first.`,
+                code: "ADDON_NOT_ENTITLED",
+            });
+        }
+        if (existingEntitlement.status !== "disabled") {
+            if (existingEntitlement.status === "active") {
+                return res.json({ success: true, status: "active", message: `Add-on "${cleanSlug}" is already active.` });
+            }
+            return res.status(402).json({
+                success: false,
+                error: `Add-on "${cleanSlug}" entitlement is ${existingEntitlement.status}. Renew or purchase it to re-activate.`,
+                code: "ADDON_ENTITLEMENT_INACTIVE",
+            });
+        }
         await db.$transaction(async (tx) => {
-            await tx.tenantAddon.upsert({
+            await tx.tenantAddon.update({
                 where: { tenantId_addonSlug: { tenantId, addonSlug: cleanSlug } },
-                create: {
-                    tenantId,
-                    addonSlug: cleanSlug,
-                    status: "active",
-                    plan: "custom",
-                    features: ["full_access"],
-                },
-                update: {
-                    status: "active",
-                },
+                data: { status: "active" },
             });
             await tx.tenantAddon.updateMany({
-                where: { tenantId, addonSlug: { in: relatedSlugs } },
+                where: { tenantId, addonSlug: { in: relatedSlugs }, status: "disabled" },
                 data: { status: "active" },
             });
             if (tx.tenantModule) {
@@ -1090,7 +1107,7 @@ exports.addonsRouter.post("/:addonSlug/enable", async (req, res) => {
  * POST /api/addons/:addonSlug/trial
  * Starts a 14-day free trial for an add-on.
  */
-exports.addonsRouter.post("/:addonSlug/trial", auth_1.requireAuth, async (req, res) => {
+exports.addonsRouter.post("/:addonSlug/trial", super_audit_1.requireTenantAdmin, async (req, res) => {
     try {
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         const tenantId = req.user?.tenantId;
@@ -1137,7 +1154,7 @@ exports.addonsRouter.post("/:addonSlug/trial", auth_1.requireAuth, async (req, r
  * Activates full paid subscription for an add-on.
  * Validates server-side payment/order state before granting paid entitlement.
  */
-exports.addonsRouter.post("/:addonSlug/subscribe", auth_1.requireAuth, async (req, res) => {
+exports.addonsRouter.post("/:addonSlug/subscribe", super_audit_1.requireTenantAdmin, async (req, res) => {
     try {
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         const tenantId = req.user?.tenantId;
@@ -1216,7 +1233,7 @@ exports.addonsRouter.post("/:addonSlug/subscribe", auth_1.requireAuth, async (re
  * POST /api/addons/:addonSlug/cancel
  * Cancels add-on subscription (preserves data, marks inactive).
  */
-exports.addonsRouter.post("/:addonSlug/cancel", auth_1.requireAuth, async (req, res) => {
+exports.addonsRouter.post("/:addonSlug/cancel", super_audit_1.requireTenantAdmin, async (req, res) => {
     try {
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         const tenantId = req.user?.tenantId;
@@ -1280,7 +1297,7 @@ exports.addonsRouter.get("/:addonSlug/config", auth_1.requireAuth, async (req, r
  * PUT /api/addons/:addonSlug/config
  * Updates configuration settings for an add-on in the tenant workspace.
  */
-exports.addonsRouter.put("/:addonSlug/config", auth_1.requireAuth, async (req, res) => {
+exports.addonsRouter.put("/:addonSlug/config", super_audit_1.requireTenantAdmin, async (req, res) => {
     try {
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         const tenantId = req.user?.tenantId;
@@ -1348,22 +1365,57 @@ exports.addonsRouter.put("/:addonSlug/config", auth_1.requireAuth, async (req, r
 });
 /**
  * POST /api/addons/:addonSlug/test-connection
- * Simulates / performs health ping and connectivity verification for an add-on.
+ * Reports the REAL configuration/entitlement readiness of an add-on (no fabricated latency).
  */
-exports.addonsRouter.post("/:addonSlug/test-connection", auth_1.requireAuth, async (req, res) => {
+exports.addonsRouter.post("/:addonSlug/test-connection", super_audit_1.requireTenantAdmin, async (req, res) => {
     try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
         const tenantId = req.user?.tenantId;
         const { addonSlug } = req.params;
         if (!tenantId) {
             return res.status(400).json({ error: "Tenant context required." });
         }
         const cleanSlug = addonSlug.trim().toLowerCase();
+        const startedAt = Date.now();
+        const [entitlement, configRow] = await Promise.all([
+            db.tenantAddon.findUnique({ where: { tenantId_addonSlug: { tenantId, addonSlug: cleanSlug } } }),
+            db.setting.findUnique({
+                where: { scope_scopeId_key: { scope: "TENANT", scopeId: tenantId, key: `addon_config_${cleanSlug}` } },
+            }),
+        ]);
+        const config = configRow?.valueJson && typeof configRow.valueJson === "object" ? configRow.valueJson : {};
+        const configuredKeys = Object.entries(config)
+            .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== "")
+            .map(([k]) => k);
+        const latencyMs = Date.now() - startedAt;
+        if (!entitlement || entitlement.status !== "active") {
+            return res.json({
+                success: false,
+                addonSlug: cleanSlug,
+                status: "not_entitled",
+                latencyMs,
+                message: `Add-on "${cleanSlug}" is not active for this workspace.`,
+                timestamp: new Date().toISOString(),
+            });
+        }
+        if (configuredKeys.length === 0) {
+            return res.json({
+                success: false,
+                addonSlug: cleanSlug,
+                status: "not_configured",
+                latencyMs,
+                message: `No credentials/configuration saved for "${cleanSlug}" yet.`,
+                timestamp: new Date().toISOString(),
+            });
+        }
         return res.json({
             success: true,
             addonSlug: cleanSlug,
-            status: "connected",
-            latencyMs: Math.floor(Math.random() * 40) + 15,
-            message: `Successfully connected to ${cleanSlug} endpoint. Credentials verified.`,
+            status: "configured",
+            verified: false,
+            configuredKeys,
+            latencyMs,
+            message: `Configuration for "${cleanSlug}" is saved (${configuredKeys.length} field${configuredKeys.length === 1 ? "" : "s"}). Live provider verification runs on first sync.`,
             timestamp: new Date().toISOString(),
         });
     }

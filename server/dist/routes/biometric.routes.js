@@ -3,9 +3,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deviceCommandQueue = exports.iclockRouter = exports.publicBiometricRouter = exports.biometricRouter = void 0;
+exports.hardwareUsersCache = exports.deviceCommandQueue = exports.iclockRouter = exports.publicBiometricRouter = exports.biometricRouter = void 0;
 exports.getTenantAttendanceDateUtc = getTenantAttendanceDateUtc;
 exports.processBiometricPunch = processBiometricPunch;
+exports.backfillAttendanceForBiometricPin = backfillAttendanceForBiometricPin;
 const workspace_policy_service_1 = require("../services/workspace-policy.service");
 const express_1 = require("express");
 const prisma_1 = require("../prisma");
@@ -19,11 +20,13 @@ const zk_protocol_1 = require("../services/zk-protocol");
 const auth_helpers_1 = require("../lib/auth-helpers");
 const matrix_cosec_adapter_1 = require("../services/matrix-cosec.adapter");
 const workspace_host_1 = require("../lib/workspace-host");
+const biometric_attendance_evaluator_service_1 = require("../services/biometric-attendance-evaluator.service");
 exports.biometricRouter = (0, express_1.Router)();
 exports.publicBiometricRouter = (0, express_1.Router)();
 exports.iclockRouter = (0, express_1.Router)();
 // Device ADMS Command Queue for real historical memory flush
 exports.deviceCommandQueue = new Map();
+exports.hardwareUsersCache = new Map();
 // Core helper: Process Biometric Punch & Atomic Attendance Record Synchronization
 // ─────────────────────────────────────────────────────────────────────────────
 // RULES (First-In / Last-Out model):
@@ -79,9 +82,18 @@ async function processBiometricPunch({ tenantId, deviceId, employeeCode, punchTi
         err.status = 400;
         throw err;
     }
-    // ── 1. Resolve Employee & Tenant Timezone ─────────────────────────────────
+    // ── 1. Resolve Employee (Explicit BiometricEmployeeMapping first, then auto-match EmployeeCode) & Tenant Timezone ──
     const strippedCode = employeeCode.replace(/^0+/, "") || employeeCode;
-    const [employee, tenantRecord] = await Promise.all([
+    const [explicitMapping, codeMatchedEmployee, tenantRecord] = await Promise.all([
+        db.biometricEmployeeMapping.findFirst({
+            where: {
+                tenantId,
+                isActive: true,
+                ...(deviceId ? { deviceId } : {}),
+                OR: [{ devicePin: employeeCode }, { devicePin: strippedCode }],
+            },
+            include: { employee: true },
+        }),
         db.employee.findFirst({
             where: {
                 tenantId,
@@ -104,6 +116,7 @@ async function processBiometricPunch({ tenantId, deviceId, employeeCode, punchTi
             select: { timezone: true },
         }),
     ]);
+    const employee = explicitMapping?.employee || codeMatchedEmployee;
     const employeeId = employee ? employee.id : null;
     const syncStatus = employee ? "processed" : "unmatched_employee";
     // ── 2. Resolve Device (Strictly tenant-scoped — prevents cross-tenant device access) ──
@@ -208,6 +221,14 @@ async function processBiometricPunch({ tenantId, deviceId, employeeCode, punchTi
             },
         });
         if (!existing) {
+            const initialMetrics = await (0, biometric_attendance_evaluator_service_1.evaluateSingleDayBiometricAttendance)({
+                tenantId,
+                employee,
+                dateUtc: punchDateOnly,
+                checkIn: punchTime,
+                checkOut: null,
+                deviceLabel: `[${deviceRecord.deviceName}] (${verificationMode})`,
+            });
             try {
                 await db.attendance.create({
                     data: {
@@ -215,8 +236,15 @@ async function processBiometricPunch({ tenantId, deviceId, employeeCode, punchTi
                         employeeId: employee.id,
                         date: punchDateOnly,
                         checkIn: punchTime,
-                        status: "present",
-                        notes: `Biometric check-in via [${deviceRecord.deviceName}] (${verificationMode})`,
+                        hours: initialMetrics.hours,
+                        status: initialMetrics.status,
+                        lateMinutes: initialMetrics.lateMinutes,
+                        earlyOutMinutes: initialMetrics.earlyOutMinutes,
+                        overtimeMinutes: initialMetrics.overtimeMinutes,
+                        policyId: initialMetrics.policyId,
+                        shiftId: initialMetrics.shiftId,
+                        source: "BIOMETRIC",
+                        notes: initialMetrics.notes,
                     },
                 });
             }
@@ -287,36 +315,33 @@ async function processBiometricPunch({ tenantId, deviceId, employeeCode, punchTi
                     newCheckIn = punchTime;
                 }
             }
-            // ── Calculate hours (checkIn to checkOut only) ──────────────────────
-            let calculatedHours = existing.hours != null ? Number(existing.hours) : 0;
-            if (newCheckIn && newCheckOut && newCheckOut.getTime() > newCheckIn.getTime()) {
-                const diffMs = newCheckOut.getTime() - newCheckIn.getTime();
-                calculatedHours = Number((diffMs / (1000 * 60 * 60)).toFixed(2));
-            }
-            // Status based on hours worked
-            let calculatedStatus = existing.status ?? "present";
-            if (calculatedHours >= 4) {
-                calculatedStatus = "present";
-            }
-            else if (calculatedHours > 0 && calculatedHours < 4) {
-                calculatedStatus = "half_day";
-            }
             // ── Only write back if something actually changed ─────────────────────
             const checkInChanged = newCheckIn?.getTime() !== currentCheckIn?.getTime();
             const checkOutChanged = newCheckOut?.getTime() !== currentCheckOut?.getTime();
             if (checkInChanged || checkOutChanged) {
-                const deviceLabel = `[${deviceRecord.deviceName}]`;
-                const punchLabel = resolvedPunchType === "check_in" ? "In"
-                    : resolvedPunchType === "check_out" ? "Out"
-                        : (checkOutChanged ? "Out" : "In");
+                const evalCheckIn = newCheckIn || punchTime;
+                const evalMetrics = await (0, biometric_attendance_evaluator_service_1.evaluateSingleDayBiometricAttendance)({
+                    tenantId,
+                    employee,
+                    dateUtc: punchDateOnly,
+                    checkIn: evalCheckIn,
+                    checkOut: newCheckOut,
+                    deviceLabel: `[${deviceRecord.deviceName}]`,
+                });
                 await db.attendance.update({
                     where: { id: existing.id },
                     data: {
                         checkIn: newCheckIn,
                         checkOut: newCheckOut,
-                        hours: calculatedHours,
-                        status: calculatedStatus,
-                        notes: `${existing.notes ? existing.notes + " | " : ""}${punchLabel}: ${deviceLabel} ${punchTime.toTimeString().slice(0, 5)}`,
+                        hours: evalMetrics.hours,
+                        status: evalMetrics.status,
+                        lateMinutes: evalMetrics.lateMinutes,
+                        earlyOutMinutes: evalMetrics.earlyOutMinutes,
+                        overtimeMinutes: evalMetrics.overtimeMinutes,
+                        policyId: evalMetrics.policyId,
+                        shiftId: evalMetrics.shiftId,
+                        source: existing.source || "BIOMETRIC",
+                        notes: evalMetrics.notes,
                     },
                 });
             }
@@ -601,32 +626,159 @@ exports.biometricRouter.get("/devices/:id/hardware-users", auth_1.requireAuth, a
         }
         let hardwareUsers = [];
         let hardwareInfo = null;
+        // 1. Try live LAN TCP pull if device has a LAN IP
         if (device.ipAddress && device.ipAddress.includes(".")) {
-            const zkResult = await (0, zk_protocol_1.pullAttendanceLogsFromZkDevice)(device.ipAddress, device.port || 4370, 8000);
-            hardwareUsers = zkResult.users || [];
-            hardwareInfo = zkResult.info || null;
+            try {
+                const zkResult = await (0, zk_protocol_1.pullAttendanceLogsFromZkDevice)(device.ipAddress, device.port || 4370, 6000);
+                hardwareUsers = zkResult.users || [];
+                hardwareInfo = zkResult.info || null;
+            }
+            catch {
+                // Non-fatal when server is in cloud and machine is behind office NAT
+            }
         }
-        // Match each hardware user with our HRMS Employee database
-        const allEmployees = await prisma_1.prisma.employee.findMany({
-            where: { tenantId },
-            include: { department: true },
-        });
-        const mappedUsers = hardwareUsers.map((u) => {
+        // 2. Merge with cached/persisted enrolled users pushed by MasterHRMS-Device-Manager (includes real names & Fingerprint/Face/Card/PIN modes)
+        let cachedSnapshot = exports.hardwareUsersCache.get(device.id) || exports.hardwareUsersCache.get(device.serialNumber);
+        if (!cachedSnapshot) {
+            try {
+                const persisted = await prisma_1.rawPrisma.setting.findUnique({
+                    where: {
+                        scope_scopeId_key: {
+                            scope: "TENANT",
+                            scopeId: tenantId,
+                            key: `biometric_hw_users_${device.id}`,
+                        },
+                    },
+                });
+                const val = persisted?.valueJson;
+                if (val && Array.isArray(val.users) && val.users.length > 0) {
+                    cachedSnapshot = { syncedAt: val.syncedAt || new Date().toISOString(), users: val.users };
+                    exports.hardwareUsersCache.set(device.id, cachedSnapshot);
+                    if (device.serialNumber)
+                        exports.hardwareUsersCache.set(device.serialNumber, cachedSnapshot);
+                }
+            }
+            catch {
+                // Non-fatal fallback
+            }
+        }
+        const mergedByBioId = new Map();
+        for (const u of hardwareUsers) {
             const bioId = String(u.userId || u.uid || "").trim();
+            if (!bioId)
+                continue;
+            const cardStr = u.cardno && Number(u.cardno) > 0 ? String(u.cardno) : "";
+            const hasCard = !!cardStr;
+            const hasPassword = !!(u.password && String(u.password).trim().length > 0);
+            const authModes = [];
+            if (hasCard)
+                authModes.push("RFID Card");
+            if (hasPassword)
+                authModes.push("PIN");
+            mergedByBioId.set(bioId, {
+                uid: u.uid,
+                biometricId: bioId,
+                name: u.name || `User ${bioId}`,
+                cardNumber: cardStr,
+                fingerprintCount: 0,
+                hasFace: false,
+                hasCard,
+                hasPassword,
+                authModes,
+                privilege: Number(u.role) > 0 ? "Admin" : "User",
+                enabled: true,
+            });
+        }
+        if (cachedSnapshot?.users?.length) {
+            for (const cu of cachedSnapshot.users) {
+                const bioId = String(cu.biometricId || "").trim();
+                if (!bioId)
+                    continue;
+                mergedByBioId.set(bioId, {
+                    ...mergedByBioId.get(bioId),
+                    ...cu,
+                    biometricId: bioId,
+                });
+            }
+        }
+        // 3. Also enrich with distinct users & verificationModes observed in punch logs for this device
+        const devicePunchLogs = await prisma_1.prisma.biometricPunchLog.findMany({
+            where: { deviceId: id, tenantId },
+            select: { employeeCode: true, verificationMode: true },
+            take: 1000,
+        });
+        for (const pl of devicePunchLogs) {
+            const bioId = String(pl.employeeCode || "").trim();
+            if (!bioId)
+                continue;
+            const existing = mergedByBioId.get(bioId) || {
+                biometricId: bioId,
+                name: `User ${bioId}`,
+                cardNumber: "",
+                fingerprintCount: 0,
+                hasFace: false,
+                hasCard: false,
+                hasPassword: false,
+                authModes: [],
+                privilege: "User",
+                enabled: true,
+            };
+            const vm = String(pl.verificationMode || "").toLowerCase();
+            if (vm.includes("face") && !existing.authModes.includes("Face")) {
+                existing.hasFace = true;
+                existing.authModes.push("Face");
+            }
+            else if ((vm.includes("rfid") || vm.includes("card")) && !existing.authModes.includes("RFID Card")) {
+                existing.hasCard = true;
+                existing.authModes.push("RFID Card");
+            }
+            else if ((vm.includes("pin") || vm.includes("pass")) && !existing.authModes.includes("PIN")) {
+                existing.hasPassword = true;
+                existing.authModes.push("PIN");
+            }
+            else if (vm.includes("finger") && !existing.authModes.includes("Fingerprint")) {
+                existing.fingerprintCount = Math.max(existing.fingerprintCount || 0, 1);
+                existing.authModes.push("Fingerprint");
+            }
+            mergedByBioId.set(bioId, existing);
+        }
+        // 4. Match each hardware user with explicit BiometricEmployeeMapping first, then HRMS Employee Code
+        const [allEmployees, explicitMappings] = await Promise.all([
+            prisma_1.prisma.employee.findMany({
+                where: { tenantId },
+                include: { department: true },
+            }),
+            prisma_1.prisma.biometricEmployeeMapping.findMany({
+                where: { deviceId: id, tenantId, isActive: true },
+                include: { employee: { include: { department: true } } },
+            }),
+        ]);
+        const mappedUsers = Array.from(mergedByBioId.values()).map((u) => {
+            const bioId = String(u.biometricId || "").trim();
             const strippedBioId = bioId.replace(/^0+/, "");
-            const matchedEmp = allEmployees.find((e) => e.employeeCode === bioId ||
+            const pinMapping = explicitMappings.find((m) => m.devicePin === bioId || m.devicePin === strippedBioId);
+            const codeMatchedEmp = allEmployees.find((e) => e.employeeCode === bioId ||
                 e.employeeCode === strippedBioId ||
                 e.employeeCode === `EMP-${bioId}` ||
                 e.employeeCode === `EMP-${strippedBioId}` ||
                 `${e.firstName} ${e.lastName}`.trim().toLowerCase() === String(u.name || "").trim().toLowerCase());
+            const matchedEmp = pinMapping?.employee || codeMatchedEmp || null;
+            const matchType = pinMapping ? "pin_mapping" : codeMatchedEmp ? "employee_code" : "unmatched";
             return {
                 uid: u.uid,
                 biometricId: bioId,
                 name: u.name || `User ${bioId}`,
-                cardno: u.cardno || 0,
-                role: u.role || 0,
-                password: u.password || "",
+                cardNumber: u.cardNumber || "",
+                fingerprintCount: u.fingerprintCount || 0,
+                hasFace: !!u.hasFace,
+                hasCard: !!u.hasCard,
+                hasPassword: !!u.hasPassword,
+                authModes: Array.isArray(u.authModes) && u.authModes.length > 0 ? u.authModes : ["Fingerprint"],
+                privilege: u.privilege || "User",
+                enabled: u.enabled !== false,
                 isMatched: !!matchedEmp,
+                matchType,
+                mappingId: pinMapping?.id || null,
                 matchedEmployee: matchedEmp
                     ? {
                         id: matchedEmp.id,
@@ -641,6 +793,7 @@ exports.biometricRouter.get("/devices/:id/hardware-users", auth_1.requireAuth, a
         return res.json({
             device,
             hardwareInfo,
+            lastSnapshotAt: cachedSnapshot?.syncedAt || null,
             totalHardwareUsers: mappedUsers.length,
             matchedCount: mappedUsers.filter((u) => u.isMatched).length,
             unmatchedCount: mappedUsers.filter((u) => !u.isMatched).length,
@@ -1491,6 +1644,329 @@ exports.publicBiometricRouter.post("/push", async (req, res) => {
         return res.status(err.status || 500).json({ error: err.message || "Hardware push processing failed." });
     }
 });
+/**
+ * GET & POST /api/public/biometric/server-time
+ * Public connectivity, firewall check, and authoritative server clock endpoint
+ * used by Master HRMS Device Manager (Windows Desktop utility).
+ */
+const handleServerTimeRequest = (req, res) => {
+    const now = new Date();
+    const istFormatter = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Kolkata",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+    });
+    const forwardedHost = (req.get("x-forwarded-host") || "").split(",")[0].trim();
+    const host = forwardedHost || req.get("host") || (0, workspace_host_1.getBaseDomain)();
+    const forwardedProto = (req.get("x-forwarded-proto") || "").split(",")[0].trim();
+    const protocol = forwardedProto || (req.protocol === "https" ? "https" : "https");
+    return res.status(200).json({
+        ok: true,
+        service: "Master HRMS Biometric Cloud",
+        serverTimeUtc: now.toISOString(),
+        serverTimeIst: istFormatter.format(now) + " IST",
+        epochMs: now.getTime(),
+        admsUrl: `${protocol}://${host}/iclock/cdata`,
+    });
+};
+exports.publicBiometricRouter.get("/server-time", handleServerTimeRequest);
+exports.publicBiometricRouter.post("/server-time", handleServerTimeRequest);
+/**
+ * POST /api/public/biometric/device-sync-bundle
+ * Accepts enrolled hardware users (with Fingerprint/Face/Card/PIN auth modes)
+ * and attendance logs pulled directly from a ZKTeco/eSSL terminal by
+ * MasterHRMS-Device-Manager.exe.
+ */
+exports.publicBiometricRouter.post("/device-sync-bundle", async (req, res) => {
+    try {
+        const { serialNumber, users = [], logs = [] } = req.body || {};
+        const sn = String(serialNumber || "").trim();
+        if (!sn) {
+            return res.status(400).json({ error: "Device serialNumber is required." });
+        }
+        const device = await prisma_1.rawPrisma.biometricDevice.findFirst({
+            where: { serialNumber: sn },
+        });
+        if (!device) {
+            return res.status(401).json({
+                error: `Biometric device with Serial Number "${sn}" is not registered in Master HRMS. Register it under Tenant → Biometric Hardware first.`,
+            });
+        }
+        // 1. Store enrolled hardware users & auth modes snapshot for this device
+        const normalizedUsers = Array.isArray(users)
+            ? users
+                .filter((u) => u && (u.biometricId || u.userId))
+                .map((u) => {
+                const fpCount = Number(u.fingerprintCount) || 0;
+                const hasFace = Boolean(u.hasFace);
+                const hasCard = Boolean(u.hasCard) || Boolean(u.cardNumber && String(u.cardNumber).trim() && String(u.cardNumber) !== "0");
+                const hasPassword = Boolean(u.hasPassword);
+                const modes = [];
+                if (fpCount > 0)
+                    modes.push("Fingerprint");
+                if (hasFace)
+                    modes.push("Face");
+                if (hasCard)
+                    modes.push("RFID Card");
+                if (hasPassword)
+                    modes.push("PIN");
+                if (Array.isArray(u.authModes)) {
+                    for (const m of u.authModes) {
+                        if (m && !modes.includes(String(m)))
+                            modes.push(String(m));
+                    }
+                }
+                return {
+                    biometricId: String(u.biometricId || u.userId).trim(),
+                    name: String(u.name || `User ${u.biometricId || u.userId}`).trim(),
+                    cardNumber: u.cardNumber ? String(u.cardNumber).trim() : "",
+                    fingerprintCount: fpCount,
+                    hasFace,
+                    hasCard,
+                    hasPassword,
+                    authModes: modes.length > 0 ? modes : ["Fingerprint"],
+                    privilege: String(u.privilege || "User"),
+                    enabled: u.enabled !== false,
+                };
+            })
+            : [];
+        if (normalizedUsers.length > 0) {
+            const snapshot = { syncedAt: new Date().toISOString(), users: normalizedUsers };
+            exports.hardwareUsersCache.set(device.id, snapshot);
+            exports.hardwareUsersCache.set(device.serialNumber, snapshot);
+            // Persist in PostgreSQL so enrolled machine names & auth modes survive server restarts
+            try {
+                await prisma_1.rawPrisma.setting.upsert({
+                    where: {
+                        scope_scopeId_key: {
+                            scope: "TENANT",
+                            scopeId: device.tenantId,
+                            key: `biometric_hw_users_${device.id}`,
+                        },
+                    },
+                    create: {
+                        scope: "TENANT",
+                        scopeId: device.tenantId,
+                        group: "biometric",
+                        key: `biometric_hw_users_${device.id}`,
+                        valueJson: snapshot,
+                        valueType: "json",
+                        isSecret: false,
+                    },
+                    update: {
+                        valueJson: snapshot,
+                        version: { increment: 1 },
+                    },
+                });
+            }
+            catch (persistErr) {
+                console.warn("[device-sync-bundle] Failed to persist hardware users snapshot:", persistErr);
+            }
+        }
+        // 2. High-Speed Bulk Ingestion of attendance punch logs (supports 2+ years / 50,000+ historical logs without timeouts)
+        let accepted = 0;
+        let duplicates = 0;
+        let failed = 0;
+        let attendanceDaysSynced = 0;
+        let lateDaysDetected = 0;
+        let absentDaysMarked = 0;
+        let sandwichDaysMarked = 0;
+        const finalizeFullSync = Boolean(req.body?.finalizeFullSync);
+        const incomingLogs = Array.isArray(logs) ? logs : [];
+        // Preload PIN mappings & employees once per batch
+        const [mappings, employees] = await Promise.all([
+            prisma_1.rawPrisma.biometricEmployeeMapping.findMany({
+                where: { tenantId: device.tenantId, isActive: true },
+                select: { devicePin: true, employeeId: true, deviceId: true },
+            }),
+            prisma_1.rawPrisma.employee.findMany({
+                where: { tenantId: device.tenantId },
+                select: { id: true, employeeCode: true },
+            }),
+        ]);
+        const pinToEmployeeId = new Map();
+        for (const emp of employees) {
+            if (!emp.employeeCode)
+                continue;
+            const code = String(emp.employeeCode).trim();
+            const stripped = code.replace(/^0+/, "") || code;
+            pinToEmployeeId.set(code, emp.id);
+            pinToEmployeeId.set(stripped, emp.id);
+            const numMatch = code.match(/(\d+)$/);
+            if (numMatch) {
+                pinToEmployeeId.set(numMatch[1], emp.id);
+                pinToEmployeeId.set(numMatch[1].replace(/^0+/, "") || numMatch[1], emp.id);
+            }
+        }
+        // Explicit device mappings override code-based matching
+        for (const m of mappings) {
+            if (m.deviceId && m.deviceId !== device.id)
+                continue;
+            const pin = String(m.devicePin).trim();
+            const stripped = pin.replace(/^0+/, "") || pin;
+            pinToEmployeeId.set(pin, m.employeeId);
+            pinToEmployeeId.set(stripped, m.employeeId);
+        }
+        const parsedLogs = [];
+        let minTimeMs = Infinity;
+        let maxTimeMs = -Infinity;
+        for (const l of incomingLogs) {
+            const empCode = String(l.employeeCode || l.userId || "").trim();
+            if (!empCode)
+                continue;
+            const punchTime = l.punchTime ? new Date(l.punchTime) : new Date();
+            if (Number.isNaN(punchTime.getTime())) {
+                failed++;
+                continue;
+            }
+            const stripped = empCode.replace(/^0+/, "") || empCode;
+            const employeeId = pinToEmployeeId.get(empCode) || pinToEmployeeId.get(stripped) || null;
+            let resolvedPunchType = l.punchType || "auto";
+            if (device.purpose === "check_in_only")
+                resolvedPunchType = "check_in";
+            else if (device.purpose === "check_out_only")
+                resolvedPunchType = "check_out";
+            const ms = punchTime.getTime();
+            if (ms < minTimeMs)
+                minTimeMs = ms;
+            if (ms > maxTimeMs)
+                maxTimeMs = ms;
+            parsedLogs.push({
+                employeeCode: empCode,
+                employeeId,
+                punchTime,
+                punchType: resolvedPunchType,
+                verificationMode: l.verificationMode || "fingerprint",
+                rawPayload: JSON.stringify(l),
+            });
+        }
+        const affectedEmployeePins = new Map();
+        if (parsedLogs.length > 0) {
+            // Single query to find already-stored punches in this batch's time window
+            const existingInWindow = await prisma_1.rawPrisma.biometricPunchLog.findMany({
+                where: {
+                    tenantId: device.tenantId,
+                    punchTime: {
+                        gte: new Date(minTimeMs - 1000),
+                        lte: new Date(maxTimeMs + 1000),
+                    },
+                },
+                select: { employeeCode: true, punchTime: true },
+            });
+            const existingKeys = new Set(existingInWindow.map((e) => `${e.employeeCode}::${e.punchTime.getTime()}`));
+            const seenInBatch = new Set();
+            const rowsToInsert = [];
+            for (const item of parsedLogs) {
+                const key = `${item.employeeCode}::${item.punchTime.getTime()}`;
+                if (existingKeys.has(key) || seenInBatch.has(key)) {
+                    duplicates++;
+                    continue;
+                }
+                seenInBatch.add(key);
+                rowsToInsert.push({
+                    tenantId: device.tenantId,
+                    deviceId: device.id,
+                    employeeCode: item.employeeCode,
+                    employeeId: item.employeeId,
+                    punchTime: item.punchTime,
+                    punchType: item.punchType,
+                    verificationMode: item.verificationMode,
+                    syncStatus: item.employeeId ? "processed" : "unmatched_employee",
+                    rawPayload: item.rawPayload,
+                });
+                if (item.employeeId) {
+                    if (!affectedEmployeePins.has(item.employeeId)) {
+                        affectedEmployeePins.set(item.employeeId, new Set());
+                    }
+                    affectedEmployeePins.get(item.employeeId).add(item.employeeCode);
+                }
+            }
+            if (rowsToInsert.length > 0) {
+                const created = await prisma_1.rawPrisma.biometricPunchLog.createMany({
+                    data: rowsToInsert,
+                    skipDuplicates: true,
+                });
+                accepted = created.count;
+            }
+        }
+        // 3. Reconcile company-time attendance (late, early-out, half-day, absent, sandwich)
+        // On final full-sync batch, reconcile ALL mapped/matched employees across the full history!
+        if (finalizeFullSync) {
+            const empToPins = new Map();
+            for (const m of mappings) {
+                if (!empToPins.has(m.employeeId))
+                    empToPins.set(m.employeeId, new Set());
+                empToPins.get(m.employeeId).add(String(m.devicePin).trim());
+            }
+            for (const emp of employees) {
+                if (!emp.employeeCode)
+                    continue;
+                if (!empToPins.has(emp.id))
+                    empToPins.set(emp.id, new Set());
+                empToPins.get(emp.id).add(String(emp.employeeCode).trim());
+            }
+            for (const [empId, pins] of empToPins.entries()) {
+                const r = await (0, biometric_attendance_evaluator_service_1.syncEmployeeBiometricAttendanceAndPolicies)({
+                    tenantId: device.tenantId,
+                    employeeId: empId,
+                    biometricPins: Array.from(pins),
+                    deviceName: device.deviceName,
+                    reconcileAbsentAndSandwich: true,
+                }).catch(() => ({ logsLinked: 0, daysSynced: 0, lateDays: 0, absentDays: 0, sandwichDays: 0 }));
+                attendanceDaysSynced += r.daysSynced;
+                lateDaysDetected += r.lateDays;
+                absentDaysMarked += r.absentDays;
+                sandwichDaysMarked += r.sandwichDays;
+            }
+        }
+        else if (affectedEmployeePins.size > 0 && accepted > 0) {
+            // Incremental sync (e.g. background 5-min sync): update affected employees' attendance with company shift timing
+            for (const [empId, pins] of affectedEmployeePins.entries()) {
+                const r = await (0, biometric_attendance_evaluator_service_1.syncEmployeeBiometricAttendanceAndPolicies)({
+                    tenantId: device.tenantId,
+                    employeeId: empId,
+                    biometricPins: Array.from(pins),
+                    deviceName: device.deviceName,
+                    reconcileAbsentAndSandwich: false,
+                }).catch(() => ({ logsLinked: 0, daysSynced: 0, lateDays: 0, absentDays: 0, sandwichDays: 0 }));
+                attendanceDaysSynced += r.daysSynced;
+                lateDaysDetected += r.lateDays;
+            }
+        }
+        const totalDeviceLogs = await prisma_1.rawPrisma.biometricPunchLog.count({
+            where: { deviceId: device.id },
+        });
+        await prisma_1.rawPrisma.biometricDevice.update({
+            where: { id: device.id },
+            data: { status: "online", lastSyncAt: new Date(), totalPunchLogs: totalDeviceLogs },
+        });
+        return res.status(200).json({
+            ok: true,
+            deviceId: device.id,
+            serialNumber: device.serialNumber,
+            usersSynced: normalizedUsers.length,
+            logsAccepted: accepted,
+            logsDuplicate: duplicates,
+            logsFailed: failed,
+            attendanceDaysSynced,
+            lateDaysDetected,
+            absentDaysMarked,
+            sandwichDaysMarked,
+            message: finalizeFullSync
+                ? `Full sync complete: ${accepted} new logs, ${attendanceDaysSynced} attendance days (${lateDaysDetected} late, ${absentDaysMarked} absent, ${sandwichDaysMarked} sandwich).`
+                : `Synced ${normalizedUsers.length} hardware users and ${accepted} new punch logs (${duplicates} duplicates skipped).`,
+        });
+    }
+    catch (err) {
+        console.error("[POST /api/public/biometric/device-sync-bundle] error:", err);
+        return res.status(500).json({ error: err.message || "Device sync bundle failed." });
+    }
+});
 // ═══════════════════════════════════════════════════════════════════════════
 // WAVE 2.3 — Matrix COSEC Webhook Adapter
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1649,6 +2125,23 @@ exports.biometricRouter.post("/matrix/push", async (req, res) => {
     }
 });
 // ═══════════════════════════════════════════════════════════════════════════
+// Historical Machine Punch Log → Attendance Backfill Helper
+// ═══════════════════════════════════════════════════════════════════════════
+async function backfillAttendanceForBiometricPin(tenantId, devicePin, employeeId, deviceName = "Biometric Terminal") {
+    const db = prisma_1.rawPrisma;
+    const trimmedPin = String(devicePin || "").trim();
+    const strippedPin = trimmedPin.replace(/^0+/, "") || trimmedPin;
+    if (!trimmedPin)
+        return { logsLinked: 0, daysSynced: 0, lateDays: 0, absentDays: 0, sandwichDays: 0 };
+    return await (0, biometric_attendance_evaluator_service_1.syncEmployeeBiometricAttendanceAndPolicies)({
+        tenantId,
+        employeeId,
+        biometricPins: [trimmedPin, strippedPin],
+        deviceName,
+        reconcileAbsentAndSandwich: true,
+    });
+}
+// ═══════════════════════════════════════════════════════════════════════════
 // WAVE 2.3 — BiometricEmployeeMapping CRUD
 // ═══════════════════════════════════════════════════════════════════════════
 /**
@@ -1725,15 +2218,13 @@ exports.biometricRouter.post("/devices/:id/mappings", auth_1.requireAuth, async 
                 },
             });
         }
-        // Retroactively link any unmatched punch logs for this PIN on this device
-        await prisma_1.prisma.biometricPunchLog.updateMany({
-            where: { tenantId, deviceId: id, employeeCode: trimmedPin, syncStatus: "unmatched_employee" },
-            data: { employeeId, syncStatus: "processed" },
-        });
+        // Retroactively link ALL historical machine punch logs for this PIN and create/update Attendance records
+        const backfill = await backfillAttendanceForBiometricPin(tenantId, trimmedPin, employeeId, device.deviceName);
         return res.status(201).json({
             success: true,
-            message: `PIN ${devicePin} mapped to employee successfully.`,
+            message: `PIN ${devicePin} mapped! Synced ${backfill.logsLinked} machine punches across ${backfill.daysSynced} attendance days.`,
             mapping,
+            backfill,
         });
     }
     catch (err) {
@@ -1741,6 +2232,74 @@ exports.biometricRouter.post("/devices/:id/mappings", auth_1.requireAuth, async 
             return res.status(409).json({ error: "This PIN is already mapped to another employee on this device." });
         }
         return res.status(500).json({ error: err.message || "Failed to create mapping." });
+    }
+});
+/**
+ * POST /api/biometric/reprocess-attendance
+ * Backfills ALL historical BiometricPunchLogs for every mapped or code-matched
+ * employee into the Attendance table (First-In / Last-Out per tenant calendar day).
+ */
+exports.biometricRouter.post("/reprocess-attendance", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context required." });
+        const [mappings, employees] = await Promise.all([
+            prisma_1.rawPrisma.biometricEmployeeMapping.findMany({
+                where: { tenantId, isActive: true },
+                include: { device: { select: { deviceName: true } } },
+            }),
+            prisma_1.rawPrisma.employee.findMany({
+                where: { tenantId },
+                select: { id: true, employeeCode: true },
+            }),
+        ]);
+        let totalLogs = 0;
+        let totalDays = 0;
+        let totalLate = 0;
+        let totalAbsent = 0;
+        let totalSandwich = 0;
+        const empPins = new Map();
+        for (const m of mappings) {
+            if (!empPins.has(m.employeeId)) {
+                empPins.set(m.employeeId, { pins: new Set(), deviceName: m.device?.deviceName || "Biometric Terminal" });
+            }
+            empPins.get(m.employeeId).pins.add(String(m.devicePin).trim());
+        }
+        for (const emp of employees) {
+            if (!emp.employeeCode)
+                continue;
+            if (!empPins.has(emp.id)) {
+                empPins.set(emp.id, { pins: new Set(), deviceName: "Biometric Terminal" });
+            }
+            empPins.get(emp.id).pins.add(String(emp.employeeCode).trim());
+        }
+        for (const [empId, { pins, deviceName }] of empPins.entries()) {
+            const r = await (0, biometric_attendance_evaluator_service_1.syncEmployeeBiometricAttendanceAndPolicies)({
+                tenantId,
+                employeeId: empId,
+                biometricPins: Array.from(pins),
+                deviceName,
+                reconcileAbsentAndSandwich: true,
+            });
+            totalLogs += r.logsLinked;
+            totalDays += r.daysSynced;
+            totalLate += r.lateDays;
+            totalAbsent += r.absentDays;
+            totalSandwich += r.sandwichDays;
+        }
+        return res.json({
+            success: true,
+            logsLinked: totalLogs,
+            daysSynced: totalDays,
+            lateDays: totalLate,
+            absentDays: totalAbsent,
+            sandwichDays: totalSandwich,
+            message: `Synced ${totalLogs} punches into ${totalDays} attendance days (${totalLate} late, ${totalAbsent} absent, ${totalSandwich} sandwich leave).`,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to reprocess biometric attendance." });
     }
 });
 /**

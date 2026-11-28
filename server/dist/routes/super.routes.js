@@ -44,6 +44,7 @@ const auth_1 = require("../middleware/auth");
 const jwt_1 = require("../lib/jwt");
 const zod_1 = require("zod");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const crypto_1 = __importDefault(require("crypto"));
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const socket_1 = require("../socket");
@@ -67,9 +68,14 @@ const unified_catalog_service_1 = require("../services/unified-catalog.service")
 const compliance_control_routes_1 = require("./compliance-control.routes");
 const quota_governance_service_1 = require("../services/files/quota-governance.service");
 const canonical_133_addons_seed_1 = require("../seeds/canonical-133-addons.seed");
+const super_audit_1 = require("../lib/super-audit");
 exports.superRouter = (0, express_1.Router)();
+// Platform-wide audit trail for every successful privileged Super Admin mutation
+exports.superRouter.use((0, super_audit_1.superAuditMiddleware)("super"));
 // Mount Super Admin Compliance Control Center
 exports.superRouter.use("/compliance", compliance_control_routes_1.complianceControlRouter);
+// Must mirror the Prisma `AppRole` enum exactly — anything else is rejected before touching the DB.
+const ALLOWED_PLATFORM_ROLES = new Set(["super_admin", "hr_admin", "manager", "employee"]);
 const policySchema = zod_1.z.object({
     planId: zod_1.z.string().nullable(),
     status: zod_1.z.enum(["active", "suspended"]),
@@ -135,12 +141,13 @@ exports.superRouter.put("/tenants/:id/policy", auth_1.requireAuth, auth_1.requir
             });
             // Keep an immutable legacy record while old deployment clients still read CMS.
             await tx.cmsPage.create({ data: {
-                    slug: `system-workspace-policy-audit-${crypto.randomUUID()}`, title: "Workspace policy changed", published: false,
+                    slug: `system-workspace-policy-audit-${crypto_1.default.randomUUID()}`, title: "Workspace policy changed", published: false,
                     updatedBy: req.user.userId,
                     content: { tenant_id: req.params.id, actor: req.user.userId, before: previous?.content || null, after: policy, at: new Date().toISOString() },
                 } });
             return (0, workspace_policy_service_1.resolveWorkspacePolicy)(content, plans);
         });
+        (0, workspace_policy_service_1.invalidateWorkspacePolicyCache)(req.params.id);
         if (result.status === "suspended" || (result.expiresAt && new Date(result.expiresAt) <= new Date())) {
             (0, socket_1.getIO)()?.in(`tenant:${req.params.id}`).disconnectSockets(true);
         }
@@ -162,13 +169,21 @@ exports.superRouter.put("/tenants/:id/quota", auth_1.requireAuth, auth_1.require
         if (!tenant) {
             return res.status(404).json({ error: "Tenant not found." });
         }
-        // Resolve target storage quota in bytes
+        // Resolve target storage quota in bytes (strict integer validation prevents BigInt SyntaxError)
         let targetQuotaBytes = null;
-        if (quotaBytes) {
-            targetQuotaBytes = BigInt(quotaBytes);
+        if (quotaBytes !== undefined && quotaBytes !== null && quotaBytes !== "") {
+            const rawStr = String(quotaBytes).trim();
+            if (!/^\d+$/.test(rawStr)) {
+                return res.status(400).json({ error: "quotaBytes must be a non-negative integer string.", code: "INVALID_QUOTA_BYTES" });
+            }
+            targetQuotaBytes = BigInt(rawStr);
         }
-        else if (storageQuotaGb !== undefined && storageQuotaGb !== null) {
-            targetQuotaBytes = BigInt(Math.max(1, Number(storageQuotaGb))) * BigInt(1024 * 1024 * 1024);
+        else if (storageQuotaGb !== undefined && storageQuotaGb !== null && storageQuotaGb !== "") {
+            const gbNum = Number(storageQuotaGb);
+            if (!Number.isFinite(gbNum) || gbNum <= 0) {
+                return res.status(400).json({ error: "storageQuotaGb must be a positive number.", code: "INVALID_QUOTA_GB" });
+            }
+            targetQuotaBytes = BigInt(Math.round(gbNum * 1024 * 1024 * 1024));
         }
         let quotaResult = null;
         if (targetQuotaBytes && targetQuotaBytes > BigInt(0)) {
@@ -190,6 +205,7 @@ exports.superRouter.put("/tenants/:id/quota", auth_1.requireAuth, auth_1.require
                 data: subUpdateData,
             });
         }
+        (0, workspace_policy_service_1.invalidateWorkspacePolicyCache)(id);
         // Fetch refreshed governance summary
         const summary = await quota_governance_service_1.QuotaGovernanceService.getTenantQuotaGovernanceSummary(id);
         return res.json({
@@ -274,13 +290,10 @@ exports.superRouter.post("/impersonate/:tenantId", auth_1.requireAuth, auth_1.re
         if (!tenant) {
             return res.status(404).json({ error: "Tenant workspace not found" });
         }
-        // Switch user's active tenant in Profile
-        await prisma_1.rawPrisma.profile.update({
-            where: { userId: req.user.userId },
-            data: { tenantId: tenant.id },
-        });
-        // Generate fresh token with super admin & tenant admin roles for this workspace, plus impersonation metadata
-        const roles = ["super_admin", "admin", "hr_admin"];
+        // Impersonation is session-scoped via the signed token (no persistent profile mutation),
+        // so concurrent Super Admin tabs never overwrite each other's workspace context.
+        // P22-SEC-001: Issue tenant-sandboxed impersonation token without super_admin role
+        const roles = ["tenant_admin", "admin", "workspace_admin", "hr_admin"];
         const token = (0, jwt_1.generateToken)({
             userId: req.user.userId,
             email: req.user.email,
@@ -325,7 +338,8 @@ exports.superRouter.post("/impersonate/:tenantId", auth_1.requireAuth, auth_1.re
             roles,
             isImpersonating: true,
             workspaceUrl: (0, workspace_host_1.getWorkspaceUrl)(tenant.slug),
-            redirectUrl: `${(0, workspace_host_1.getWorkspaceUrl)(tenant.slug)}/impersonate?token=${token}`,
+            // Never place bearer tokens in URLs (browser history / referrer / proxy log leakage).
+            redirectUrl: `${(0, workspace_host_1.getWorkspaceUrl)(tenant.slug)}/impersonate`,
         });
     }
     catch (err) {
@@ -347,10 +361,9 @@ exports.superRouter.get("/tenants/:tenantId/slug-history", auth_1.requireAuth, a
     }
 });
 // POST /api/super/leave-impersonation (Restore Original Super Admin Session)
-// requireSuperAdmin is safe here: the impersonating JWT issued by /impersonate/:tenantId
-// always includes "super_admin" in its roles array, so this adds defense-in-depth
-// without breaking the impersonation exit workflow.
-exports.superRouter.post("/leave-impersonation", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+// P22-SEC-001: Impersonation tokens no longer carry "super_admin" in roles; verify impersonator's
+// authoritative super_admin role directly from Postgres before restoring the platform token.
+exports.superRouter.post("/leave-impersonation", auth_1.requireAuth, async (req, res) => {
     try {
         if (!req.user?.isImpersonating) {
             return res.status(400).json({ error: "Active session is not an impersonation session." });
@@ -362,6 +375,10 @@ exports.superRouter.post("/leave-impersonation", auth_1.requireAuth, auth_1.requ
         });
         if (!superAdminUser) {
             return res.status(404).json({ error: "Original Super Admin account not found." });
+        }
+        const isOriginalSuperAdmin = superAdminUser.roles.some((r) => r.role === "super_admin");
+        if (!isOriginalSuperAdmin) {
+            return res.status(403).json({ error: "Access denied: Original impersonator lacks Super Admin privileges." });
         }
         // Reset profile tenantId to null (Super Admin global mode)
         await prisma_1.rawPrisma.profile.updateMany({
@@ -413,7 +430,8 @@ exports.superRouter.post("/leave-impersonation", auth_1.requireAuth, auth_1.requ
 exports.superRouter.patch("/tenants/:id/status", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const { status, reason } = req.body;
+        const status = String(req.body?.status || "").trim().toLowerCase();
+        const reason = req.body?.reason;
         if (!["active", "suspended"].includes(status)) {
             return res.status(400).json({ error: "Status must be either 'active' or 'suspended'." });
         }
@@ -527,13 +545,18 @@ exports.superRouter.post("/email-templates/test", auth_1.requireAuth, auth_1.req
                 variables: testVars,
             });
         }
-        if (!result.success && result.error && !result.error.includes("not configured")) {
-            return res.status(500).json({ error: result.error });
+        if (!result.success) {
+            const isNotConfigured = Boolean(result.error?.toLowerCase().includes("not configured"));
+            return res.status(isNotConfigured ? 503 : 500).json({
+                success: false,
+                error: result.error || "SMTP transport failed to dispatch test email.",
+                code: isNotConfigured ? "SMTP_NOT_CONFIGURED" : "SMTP_SEND_FAILED",
+            });
         }
         return res.json({
             success: true,
             message: `Test email dispatched to ${recipient}.`,
-            messageId: result.messageId || "mock-test-id",
+            messageId: result.messageId || null,
         });
     }
     catch (err) {
@@ -997,7 +1020,7 @@ exports.superRouter.get("/tenants/:id", auth_1.requireAuth, auth_1.requireSuperA
 // POST /api/super/tenants
 exports.superRouter.post("/tenants", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
     try {
-        const { name, slug, logoUrl, logo_url, planId, email, contactEmail } = req.body;
+        const { name, slug, logoUrl, logo_url, planId, email, contactEmail, ownerEmail: rawOwnerEmail, ownerPassword, password, ownerName } = req.body;
         if (!name || !name.trim()) {
             return res.status(400).json({ error: "Company name is required." });
         }
@@ -1020,8 +1043,21 @@ exports.superRouter.post("/tenants", auth_1.requireAuth, auth_1.requireSuperAdmi
         if (planId) {
             resolvedPlan = await prisma_1.rawPrisma.subscriptionPlan.findUnique({ where: { id: planId } });
         }
-        const ownerEmail = (email || contactEmail || "").trim() || `${finalSlug}.admin@${(0, workspace_host_1.getBaseDomain)()}`;
-        const tenant = await prisma_1.rawPrisma.$transaction(async (tx) => {
+        // DEFECT-006: Never synthesize un-loginable *@localhost email; ensure valid TLD domain
+        const rawBaseDomain = (0, workspace_host_1.getBaseDomain)();
+        const safeEmailDomain = rawBaseDomain.includes(".") ? rawBaseDomain : `${finalSlug}.local`;
+        const ownerEmail = String(rawOwnerEmail || email || contactEmail || "").trim().toLowerCase() || `admin@${safeEmailDomain}`;
+        if (!zod_1.z.string().email().safeParse(ownerEmail).success) {
+            return res.status(400).json({ error: "A valid owner email address is required." });
+        }
+        // DEFECT-004: Support explicit ownerPassword or return generated temporaryPassword once
+        const explicitPassword = String(ownerPassword || password || "").trim();
+        if (explicitPassword && explicitPassword.length < 8) {
+            return res.status(400).json({ error: "Owner password must be at least 8 characters long." });
+        }
+        const generatedPassword = explicitPassword || `Admin#${crypto_1.default.randomBytes(4).toString("hex")}!`;
+        const allDbPerms = await prisma_1.rawPrisma.permission.findMany({ select: { id: true, code: true, module: true } });
+        const { createdTenant, createdOwnerUser } = await prisma_1.rawPrisma.$transaction(async (tx) => {
             const createdTenant = await tx.tenant.create({
                 data: {
                     name: name.trim(),
@@ -1039,11 +1075,60 @@ exports.superRouter.post("/tenants", auth_1.requireAuth, auth_1.requireSuperAdmi
                     maxUsers: resolvedPlan ? resolvedPlan.maxUsers : 10,
                 },
             });
-            // Create initial workspace owner account if not already created
+            // DEFECT-013 & DEFECT-014: Seed tenant-scoped WorkspaceRoles (Workspace Admin, HR Manager, Employee) & RolePermissions
+            const adminRole = await tx.workspaceRole.create({
+                data: {
+                    tenantId: createdTenant.id,
+                    name: "Workspace Admin",
+                    description: "Full administrative access to workspace settings, users, roles, and HRMS modules",
+                    isSystem: true,
+                    isActive: true,
+                },
+            });
+            if (allDbPerms.length > 0) {
+                await tx.rolePermission.createMany({
+                    data: allDbPerms.map((p) => ({ roleId: adminRole.id, permissionId: p.id })),
+                    skipDuplicates: true,
+                });
+            }
+            const hrRole = await tx.workspaceRole.create({
+                data: {
+                    tenantId: createdTenant.id,
+                    name: "HR Manager",
+                    description: "Full access to Human Resources, Employees, Attendance, Leaves and Payroll",
+                    isSystem: true,
+                    isActive: true,
+                },
+            });
+            const hrPermIds = allDbPerms.filter((p) => p.module === "hrm" || p.code === "analytics.dashboard.view" || p.code === "analytics.reports.view");
+            if (hrPermIds.length > 0) {
+                await tx.rolePermission.createMany({
+                    data: hrPermIds.map((p) => ({ roleId: hrRole.id, permissionId: p.id })),
+                    skipDuplicates: true,
+                });
+            }
+            const empRole = await tx.workspaceRole.create({
+                data: {
+                    tenantId: createdTenant.id,
+                    name: "Employee",
+                    description: "Standard employee self-service access",
+                    isSystem: true,
+                    isActive: true,
+                },
+            });
+            const empPermCodes = new Set(["hrm.dashboard.view", "hrm.attendance.view", "hrm.attendance.create", "hrm.leave.view", "hrm.leave.create"]);
+            const empPermIds = allDbPerms.filter((p) => empPermCodes.has(p.code));
+            if (empPermIds.length > 0) {
+                await tx.rolePermission.createMany({
+                    data: empPermIds.map((p) => ({ roleId: empRole.id, permissionId: p.id })),
+                    skipDuplicates: true,
+                });
+            }
+            // Create initial workspace owner account & assign Workspace Admin RBAC role
             const existingUser = await tx.user.findUnique({ where: { email: ownerEmail } });
+            let createdOwnerUser = null;
             if (!existingUser) {
-                const tempPassword = `Admin#${Math.random().toString(36).slice(2, 8)}!`;
-                const passwordHash = await bcryptjs_1.default.hash(tempPassword, 10);
+                const passwordHash = await bcryptjs_1.default.hash(generatedPassword, 10);
                 const ownerUser = await tx.user.create({
                     data: {
                         email: ownerEmail,
@@ -1054,7 +1139,7 @@ exports.superRouter.post("/tenants", auth_1.requireAuth, auth_1.requireSuperAdmi
                     data: {
                         userId: ownerUser.id,
                         email: ownerEmail,
-                        fullName: `${name.trim()} Administrator`,
+                        fullName: String(ownerName || "").trim() || `${name.trim()} Administrator`,
                         tenantId: createdTenant.id,
                     },
                 });
@@ -1065,10 +1150,27 @@ exports.superRouter.post("/tenants", auth_1.requireAuth, auth_1.requireSuperAdmi
                         role: "hr_admin",
                     },
                 });
+                await tx.userRoleAssignment.create({
+                    data: {
+                        userId: ownerUser.id,
+                        tenantId: createdTenant.id,
+                        roleId: adminRole.id,
+                    },
+                });
+                createdOwnerUser = ownerUser;
             }
-            return createdTenant;
+            return { createdTenant, createdOwnerUser };
         });
-        return res.status(201).json(tenant);
+        return res.status(201).json({
+            ...createdTenant,
+            ownerCredentials: createdOwnerUser
+                ? {
+                    email: ownerEmail,
+                    temporaryPassword: explicitPassword ? undefined : generatedPassword,
+                    passwordAutoGenerated: !explicitPassword,
+                }
+                : undefined,
+        });
     }
     catch (err) {
         return res.status(500).json({ error: err.message || "Failed to create company" });
@@ -1178,7 +1280,16 @@ exports.superRouter.post("/tenants/:id/reset-password", auth_1.requireAuth, auth
         // Identify target account: specific userId or primary admin user for this workspace
         let targetUser = null;
         if (body.userId) {
-            targetUser = await prisma_1.rawPrisma.user.findUnique({ where: { id: body.userId } });
+            // Strict tenant ownership: the target user must belong to THIS workspace
+            targetUser = await prisma_1.rawPrisma.user.findFirst({
+                where: {
+                    id: body.userId,
+                    OR: [{ profile: { tenantId: id } }, { roles: { some: { tenantId: id } } }],
+                },
+            });
+            if (!targetUser) {
+                return res.status(404).json({ error: "User not found in this company workspace.", code: "USER_NOT_IN_TENANT" });
+            }
         }
         else {
             const adminProfile = tenant.profiles.find((p) => p.user?.roles.some((r) => r.role === "hr_admin" || r.role === "admin")) || tenant.profiles[0];
@@ -1195,8 +1306,10 @@ exports.superRouter.post("/tenants/:id/reset-password", auth_1.requireAuth, auth
             });
         }
         else {
-            // If tenant has no user yet, create the owner user
-            const ownerEmail = `${tenant.slug}.admin@${(0, workspace_host_1.getBaseDomain)()}`;
+            // If tenant has no user yet, create the owner user with valid email TLD & Workspace Admin role
+            const rawDomain = (0, workspace_host_1.getBaseDomain)();
+            const safeDomain = rawDomain.includes(".") ? rawDomain : `${tenant.slug}.local`;
+            const ownerEmail = `admin@${safeDomain}`;
             targetUser = await prisma_1.rawPrisma.$transaction(async (tx) => {
                 const createdUser = await tx.user.create({
                     data: {
@@ -1219,6 +1332,16 @@ exports.superRouter.post("/tenants/:id/reset-password", auth_1.requireAuth, auth
                         role: "hr_admin",
                     },
                 });
+                const wsAdminRole = await tx.workspaceRole.findFirst({
+                    where: { tenantId: tenant.id, name: "Workspace Admin" },
+                });
+                if (wsAdminRole) {
+                    await tx.userRoleAssignment.upsert({
+                        where: { userId_tenantId: { userId: createdUser.id, tenantId: tenant.id } },
+                        create: { userId: createdUser.id, tenantId: tenant.id, roleId: wsAdminRole.id },
+                        update: { roleId: wsAdminRole.id },
+                    });
+                }
                 return createdUser;
             });
         }
@@ -1242,23 +1365,76 @@ exports.superRouter.post("/tenants/:id/reset-password", auth_1.requireAuth, auth
 exports.superRouter.delete("/tenants/:id", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const existing = await prisma_1.rawPrisma.tenant.findUnique({ where: { id } });
+        const existing = await prisma_1.rawPrisma.tenant.findUnique({
+            where: { id },
+            include: { _count: { select: { employees: true, profiles: true } } },
+        });
         if (!existing) {
             return res.status(404).json({ error: "Company not found" });
         }
+        // Typed confirmation guard: client must echo the tenant slug (or name) to permanently delete
+        const confirmation = String(req.body?.confirm || req.query?.confirm || "").trim().toLowerCase();
+        if (confirmation && confirmation !== String(existing.slug).toLowerCase() && confirmation !== String(existing.name).toLowerCase()) {
+            return res.status(400).json({ error: "Confirmation text does not match the company slug.", code: "DELETE_CONFIRMATION_MISMATCH" });
+        }
+        // Snapshot captured BEFORE deletion so the platform audit trail retains the record
+        res.locals.superAudit = {
+            action: "TENANT_PERMANENTLY_DELETED",
+            entityType: "Tenant",
+            entityId: existing.id,
+            tenantId: existing.id,
+            before: {
+                id: existing.id,
+                name: existing.name,
+                slug: existing.slug,
+                employees: existing._count?.employees ?? null,
+                users: existing._count?.profiles ?? null,
+            },
+            after: { deleted: true, deletedAt: new Date().toISOString() },
+        };
         await prisma_1.rawPrisma.$transaction(async (tx) => {
-            // Disconnect user profiles referencing this tenant
+            // DEFECT-015: Collect tenant-exclusive users BEFORE detaching so no orphaned accounts remain
+            const [tenantProfiles, tenantRoles] = await Promise.all([
+                tx.profile.findMany({ where: { tenantId: id }, select: { userId: true } }),
+                tx.userRole.findMany({ where: { tenantId: id }, select: { userId: true } }),
+            ]);
+            const candidateUserIds = Array.from(new Set([...tenantProfiles.map((p) => p.userId), ...tenantRoles.map((r) => r.userId)].filter(Boolean)));
+            let exclusiveUserIds = [];
+            if (candidateUserIds.length > 0) {
+                const [superOrOtherRoles, otherAssignments] = await Promise.all([
+                    tx.userRole.findMany({
+                        where: {
+                            userId: { in: candidateUserIds },
+                            OR: [{ role: "super_admin" }, { tenantId: { not: id } }],
+                        },
+                        select: { userId: true },
+                    }),
+                    tx.userRoleAssignment.findMany({
+                        where: { userId: { in: candidateUserIds }, tenantId: { not: id } },
+                        select: { userId: true },
+                    }),
+                ]);
+                const protectedSet = new Set([
+                    ...superOrOtherRoles.map((r) => r.userId),
+                    ...otherAssignments.map((a) => a.userId),
+                ]);
+                exclusiveUserIds = candidateUserIds.filter((uid) => !protectedSet.has(uid));
+            }
+            // Disconnect any remaining multi-tenant user profiles referencing this tenant
             await tx.profile.updateMany({
                 where: { tenantId: id },
                 data: { tenantId: null },
             });
-            // Delete user roles referencing this tenant
-            await tx.userRole.deleteMany({
-                where: { tenantId: id },
-            });
+            await tx.userRole.deleteMany({ where: { tenantId: id } });
+            await tx.userRoleAssignment.deleteMany({ where: { tenantId: id } });
             // Delete tenant (cascades to all tenant children: subscription, domains, employees, departments, etc.)
             await tx.tenant.delete({ where: { id } });
+            // Cleanly remove tenant-exclusive owner/employee User accounts (cascades Profile, sessions, etc.)
+            if (exclusiveUserIds.length > 0) {
+                await tx.user.deleteMany({ where: { id: { in: exclusiveUserIds } } });
+            }
         });
+        (0, workspace_policy_service_1.invalidateWorkspacePolicyCache)(id);
         (0, socket_1.getIO)()?.in(`tenant:${id}`).disconnectSockets(true);
         return res.json({ success: true, message: `Company '${existing.name}' deleted successfully.` });
     }
@@ -1313,6 +1489,181 @@ exports.superRouter.get("/users", auth_1.requireAuth, auth_1.requireSuperAdmin, 
         return res.status(500).json({ error: err.message || "Internal server error" });
     }
 });
+// POST /api/super/users — Create platform or tenant user (DEFECT-008)
+exports.superRouter.post("/users", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const { firstName, lastName, fullName, email, password, role, tenantId } = req.body || {};
+        const cleanEmail = String(email || "").trim().toLowerCase();
+        if (!zod_1.z.string().email().safeParse(cleanEmail).success) {
+            return res.status(400).json({ error: "A valid email address is required." });
+        }
+        const rawPassword = String(password || "").trim();
+        if (rawPassword.length < 8) {
+            return res.status(400).json({ error: "Password must be at least 8 characters long." });
+        }
+        const existing = await prisma_1.rawPrisma.user.findUnique({ where: { email: cleanEmail } });
+        if (existing) {
+            return res.status(409).json({ error: "An account with this email already exists.", code: "EMAIL_TAKEN" });
+        }
+        const normalizedRoleInput = String(role || "employee").toLowerCase().trim();
+        const isSuperTarget = normalizedRoleInput === "super_admin";
+        const resolvedTenantId = isSuperTarget ? null : (tenantId && tenantId !== "none" ? String(tenantId) : null);
+        if (!isSuperTarget && resolvedTenantId) {
+            const targetTenant = await prisma_1.rawPrisma.tenant.findUnique({ where: { id: resolvedTenantId }, select: { id: true } });
+            if (!targetTenant)
+                return res.status(404).json({ error: "Selected company workspace was not found." });
+        }
+        const legacyRole = isSuperTarget
+            ? "super_admin"
+            : ["admin", "tenant_admin", "workspace_admin", "hr_admin", "hr_manager"].includes(normalizedRoleInput)
+                ? "hr_admin"
+                : normalizedRoleInput === "manager"
+                    ? "manager"
+                    : "employee";
+        const displayName = String(fullName || "").trim() ||
+            `${String(firstName || "").trim()} ${String(lastName || "").trim()}`.trim() ||
+            cleanEmail.split("@")[0];
+        const passwordHash = await bcryptjs_1.default.hash(rawPassword, 10);
+        const created = await prisma_1.rawPrisma.$transaction(async (tx) => {
+            const user = await tx.user.create({
+                data: { email: cleanEmail, passwordHash },
+            });
+            const profile = await tx.profile.create({
+                data: {
+                    userId: user.id,
+                    email: cleanEmail,
+                    fullName: displayName,
+                    tenantId: resolvedTenantId,
+                },
+            });
+            await tx.userRole.create({
+                data: { userId: user.id, tenantId: resolvedTenantId, role: legacyRole },
+            });
+            if (resolvedTenantId) {
+                const wsRoleTarget = ["admin", "tenant_admin", "workspace_admin"].includes(normalizedRoleInput)
+                    ? "Workspace Admin"
+                    : ["hr_admin", "hr_manager"].includes(normalizedRoleInput)
+                        ? "HR Manager"
+                        : "Employee";
+                const wsRole = await tx.workspaceRole.findFirst({
+                    where: { tenantId: resolvedTenantId, name: { equals: wsRoleTarget, mode: "insensitive" }, isActive: true },
+                });
+                if (wsRole) {
+                    await tx.userRoleAssignment.upsert({
+                        where: { userId_tenantId: { userId: user.id, tenantId: resolvedTenantId } },
+                        create: { userId: user.id, tenantId: resolvedTenantId, roleId: wsRole.id },
+                        update: { roleId: wsRole.id },
+                    });
+                }
+            }
+            return { user, profile };
+        });
+        return res.status(201).json({
+            success: true,
+            id: created.profile.id,
+            user_id: created.user.id,
+            full_name: created.profile.fullName,
+            email: created.user.email,
+            tenant_id: created.profile.tenantId,
+            roles: [legacyRole],
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to create user." });
+    }
+});
+// PUT /api/super/users/:id — Update platform or tenant user (DEFECT-008; accepts User.id or Profile.id)
+exports.superRouter.put("/users/:id", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { firstName, lastName, fullName, role, tenantId } = req.body || {};
+        const targetUser = await prisma_1.rawPrisma.user.findFirst({
+            where: { OR: [{ id }, { profile: { id } }] },
+            include: { profile: true, roles: true },
+        });
+        if (!targetUser) {
+            return res.status(404).json({ error: "User account not found." });
+        }
+        const normalizedRoleInput = role ? String(role).toLowerCase().trim() : null;
+        const isSuperTarget = normalizedRoleInput === "super_admin";
+        const nextTenantId = isSuperTarget
+            ? null
+            : tenantId !== undefined
+                ? (tenantId && tenantId !== "none" ? String(tenantId) : null)
+                : (targetUser.profile?.tenantId ?? null);
+        const nextFullName = String(fullName || "").trim() ||
+            `${String(firstName || "").trim()} ${String(lastName || "").trim()}`.trim() ||
+            targetUser.profile?.fullName ||
+            targetUser.email.split("@")[0];
+        await prisma_1.rawPrisma.$transaction(async (tx) => {
+            if (targetUser.profile) {
+                await tx.profile.update({
+                    where: { id: targetUser.profile.id },
+                    data: { fullName: nextFullName, tenantId: nextTenantId },
+                });
+            }
+            if (normalizedRoleInput) {
+                const legacyRole = isSuperTarget
+                    ? "super_admin"
+                    : ["admin", "tenant_admin", "workspace_admin", "hr_admin", "hr_manager"].includes(normalizedRoleInput)
+                        ? "hr_admin"
+                        : normalizedRoleInput === "manager"
+                            ? "manager"
+                            : "employee";
+                if (targetUser.id === req.user?.userId && legacyRole !== "super_admin") {
+                    throw Object.assign(new Error("You cannot demote your own Super Admin account."), { status: 400 });
+                }
+                await tx.userRole.deleteMany({ where: { userId: targetUser.id } });
+                await tx.userRole.create({
+                    data: { userId: targetUser.id, tenantId: nextTenantId, role: legacyRole },
+                });
+                if (nextTenantId) {
+                    const wsRoleTarget = ["admin", "tenant_admin", "workspace_admin"].includes(normalizedRoleInput)
+                        ? "Workspace Admin"
+                        : ["hr_admin", "hr_manager"].includes(normalizedRoleInput)
+                            ? "HR Manager"
+                            : "Employee";
+                    const wsRole = await tx.workspaceRole.findFirst({
+                        where: { tenantId: nextTenantId, name: { equals: wsRoleTarget, mode: "insensitive" }, isActive: true },
+                    });
+                    if (wsRole) {
+                        await tx.userRoleAssignment.upsert({
+                            where: { userId_tenantId: { userId: targetUser.id, tenantId: nextTenantId } },
+                            create: { userId: targetUser.id, tenantId: nextTenantId, roleId: wsRole.id },
+                            update: { roleId: wsRole.id },
+                        });
+                    }
+                }
+            }
+        });
+        (0, auth_1.invalidateAuthCache)(targetUser.id, nextTenantId || undefined);
+        return res.json({ success: true, message: "User updated successfully.", id: targetUser.profile?.id || targetUser.id, user_id: targetUser.id });
+    }
+    catch (err) {
+        return res.status(err.status || 500).json({ error: err.message || "Failed to update user." });
+    }
+});
+// DELETE /api/super/users/:id — Delete user (accepts User.id or Profile.id)
+exports.superRouter.delete("/users/:id", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const targetUser = await prisma_1.rawPrisma.user.findFirst({
+            where: { OR: [{ id }, { profile: { id } }] },
+            include: { roles: true },
+        });
+        if (!targetUser) {
+            return res.status(404).json({ error: "User account not found." });
+        }
+        if (targetUser.id === req.user?.userId) {
+            return res.status(400).json({ error: "You cannot delete your own active Super Admin account." });
+        }
+        await prisma_1.rawPrisma.user.delete({ where: { id: targetUser.id } });
+        return res.json({ success: true, message: "User deleted successfully." });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to delete user." });
+    }
+});
 // POST /api/super/users/:id/reset-2fa (Super Admin Master 2FA Unlock)
 exports.superRouter.post("/users/:id/reset-2fa", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
     try {
@@ -1348,11 +1699,32 @@ exports.superRouter.post("/users/:id/reset-2fa", auth_1.requireAuth, auth_1.requ
 exports.superRouter.put("/users/:id/roles", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
     try {
         const { id } = req.params; // Profile ID
-        const { role, exists } = req.body;
+        const { exists } = req.body;
+        const roleInput = String(req.body?.role || "").trim();
+        if (!ALLOWED_PLATFORM_ROLES.has(roleInput)) {
+            return res.status(400).json({ error: `Invalid role '${roleInput}'.`, code: "INVALID_ROLE" });
+        }
+        const role = roleInput;
         const profile = await prisma_1.rawPrisma.profile.findUnique({ where: { id } });
         if (!profile)
             return res.status(404).json({ error: "Profile not found" });
         const userId = profile.userId;
+        if (exists && role === "super_admin" && userId === req.user?.userId) {
+            return res.status(400).json({ error: "You cannot remove your own Super Admin role.", code: "SELF_DEMOTION_BLOCKED" });
+        }
+        if (exists && role === "super_admin") {
+            const superCount = await prisma_1.rawPrisma.userRole.count({ where: { role: "super_admin" } });
+            if (superCount <= 1) {
+                return res.status(400).json({ error: "At least one Super Admin must remain on the platform.", code: "LAST_SUPER_ADMIN" });
+            }
+        }
+        res.locals.superAudit = {
+            action: exists ? "SUPER_ROLE_REVOKED" : "SUPER_ROLE_GRANTED",
+            entityType: "UserRole",
+            entityId: userId,
+            tenantId: profile.tenantId || null,
+            after: { userId, profileId: id, role, granted: !exists },
+        };
         if (exists) {
             // Remove role
             await prisma_1.rawPrisma.userRole.deleteMany({
@@ -1943,12 +2315,14 @@ async function saveCustomCategories(categories) {
     });
     return unique;
 }
+// Global add-on catalog mutations affect EVERY tenant — restricted strictly to platform Super Admins.
+// (Previously allowed tenant-level company_admin / hr_admin, enabling cross-tenant price tampering.)
 function requireAdminOrSuper(req, res, next) {
     const roles = req.user?.roles || [];
-    if (roles.includes("super_admin") || roles.includes("company_admin") || roles.includes("hr_admin")) {
+    if (roles.includes("super_admin")) {
         return next();
     }
-    return res.status(403).json({ error: "Forbidden: Administrator permissions required." });
+    return res.status(403).json({ error: "Forbidden: Platform Super Admin permissions required.", code: "SUPER_ADMIN_REQUIRED" });
 }
 // GET /api/super/addons/categories
 exports.superRouter.get("/addons/categories", auth_1.requireAuth, async (req, res) => {
@@ -2436,7 +2810,7 @@ exports.superRouter.post("/addons/:slug/releases", auth_1.requireAuth, auth_1.re
             });
         }
         const newRelease = {
-            id: crypto.randomUUID(),
+            id: crypto_1.default.randomUUID(),
             addonId: addon.id,
             addonSlug: addon.slug,
             version: trimmedVersion,
@@ -2507,6 +2881,7 @@ exports.superRouter.get("/tenants/:id/addons", auth_1.requireAuth, auth_1.requir
                 developer: true,
                 version: true,
                 features: true,
+                installUrl: true,
                 createdAt: true,
             },
         });
@@ -2536,6 +2911,7 @@ exports.superRouter.get("/tenants/:id/addons", auth_1.requireAuth, auth_1.requir
                 name: catalogItem?.name || e.addonSlug,
                 category: catalogItem?.category || "General",
                 icon: catalogItem?.icon || null,
+                route: catalogItem?.installUrl || `/addons/${e.addonSlug}`,
                 status: e.status,
                 plan: e.plan,
                 source,
@@ -2560,6 +2936,7 @@ exports.superRouter.get("/tenants/:id/addons", auth_1.requireAuth, auth_1.requir
             },
             catalogAddons: catalogAddons.map((a) => ({
                 ...a,
+                route: a.installUrl || `/addons/${a.slug}`,
                 priceMonthly: Number(a.priceMonthly) || 0,
                 features: Array.isArray(a.features) ? a.features : [],
             })),
@@ -2935,6 +3312,24 @@ exports.superRouter.post("/tenants/:id/addons/:addonSlug/toggle", auth_1.require
         if (!tenant)
             return res.status(404).json({ error: "Tenant workspace not found." });
         const newStatus = enabled === false ? "cancelled" : "active";
+        // Same commercial protection as /revoke: purchased or plan-included entitlements can't be
+        // cancelled through the legacy toggle (prevents bypassing billing/subscription management).
+        if (newStatus === "cancelled") {
+            const current = await prisma_1.rawPrisma.tenantAddon.findUnique({
+                where: { tenantId_addonSlug: { tenantId: id, addonSlug } },
+            });
+            if (current) {
+                const feat = current.features && typeof current.features === "object" ? current.features : {};
+                const isPurchased = feat.source === "PURCHASED" || (current.plan === "standard" && feat.source !== "MANUAL_ASSIGNMENT");
+                const isPlanIncluded = feat.source === "PLAN_INCLUDED" || current.plan === "plan_included";
+                if (isPurchased || isPlanIncluded) {
+                    return res.status(400).json({
+                        error: `Cannot disable a ${isPurchased ? "commercially purchased" : "plan-included"} add-on entitlement via manual toggle. Use subscription or billing management.`,
+                        code: "PURCHASED_ENTITLEMENT_PROTECTED",
+                    });
+                }
+            }
+        }
         const [entitlement] = await prisma_1.rawPrisma.$transaction([
             prisma_1.rawPrisma.tenantAddon.upsert({
                 where: { tenantId_addonSlug: { tenantId: id, addonSlug } },
@@ -4269,7 +4664,14 @@ exports.superRouter.put("/domains/:id/reject", auth_1.requireAuth, auth_1.requir
 exports.superRouter.put("/domains/:id/status", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const { status, reason } = req.body;
+        const status = String(req.body?.status || "").trim().toLowerCase();
+        const reason = req.body?.reason;
+        if (!["pending", "approved", "rejected"].includes(status)) {
+            return res.status(400).json({
+                error: "Invalid domain status. Allowed values: pending, approved, rejected.",
+                code: "INVALID_DOMAIN_STATUS",
+            });
+        }
         const existing = await prisma_1.rawPrisma.tenantDomain.findUnique({ where: { id } });
         if (!existing) {
             return res.status(404).json({ error: "Domain record not found" });
@@ -4304,8 +4706,10 @@ exports.superRouter.post("/domains/:id/verify", auth_1.requireAuth, auth_1.requi
             return res.status(404).json({ error: "Domain record not found" });
         }
         // Attempt real or mock DNS check
-        const mockSuccess = req.headers["x-test-mock-dns"] === "true" ||
-            process.env.MOCK_DNS_VERIFY === "true";
+        // Mock DNS verification is NEVER honored in production (prevents forced domain/SSL approval)
+        const isProductionEnv = (process.env.NODE_ENV || "").toLowerCase() === "production";
+        const mockSuccess = !isProductionEnv &&
+            (req.headers["x-test-mock-dns"] === "true" || process.env.MOCK_DNS_VERIFY === "true");
         const dnsResult = await (0, domain_dns_service_1.verifyDomainDns)(existing.domain, existing.verificationToken || "", { mockSuccess });
         const updated = await prisma_1.rawPrisma.tenantDomain.update({
             where: { id },
@@ -4387,6 +4791,17 @@ exports.superRouter.get("/analytics/telemetry", auth_1.requireAuth, auth_1.requi
             return sum + (isNaN(monthlyRate) ? 0 : monthlyRate);
         }, 0);
         const churnRate = totalTenants > 0 ? Number(((suspendedTenants / totalTenants) * 100).toFixed(1)) : 0;
+        const startOfToday = new Date();
+        startOfToday.setUTCHours(0, 0, 0, 0);
+        const [auditEventsToday, dbSizeRows, mediaAgg] = await Promise.all([
+            prisma_1.rawPrisma.auditLog.count({ where: { createdAt: { gte: startOfToday } } }).catch(() => 0),
+            prisma_1.rawPrisma.$queryRaw `SELECT pg_database_size(current_database()) AS bytes`.catch(() => []),
+            prisma_1.rawPrisma.mediaFile.aggregate({ _sum: { fileSize: true }, _count: { id: true } }).catch(() => ({ _sum: { fileSize: 0 }, _count: { id: 0 } })),
+        ]);
+        const realDbBytes = Number(dbSizeRows?.[0]?.bytes ?? 0);
+        const dbStorageMb = Number((realDbBytes / (1024 * 1024)).toFixed(2));
+        const mediaStorageMb = Number((Number(mediaAgg?._sum?.fileSize ?? 0) / (1024 * 1024)).toFixed(2));
+        const mem = process.memoryUsage();
         return res.json({
             metrics: {
                 totalTenants,
@@ -4398,9 +4813,13 @@ exports.superRouter.get("/analytics/telemetry", auth_1.requireAuth, auth_1.requi
                 mrr: Math.round(mrr),
                 arr: Math.round(mrr * 12),
                 churnRate,
-                apiRequestsToday: 14250 + totalTransactions * 12,
-                dbStorageMb: 128.4 + totalEmployees * 0.15,
-                cacheHitRate: 98.6,
+                apiRequestsToday: auditEventsToday,
+                dbStorageMb,
+                mediaStorageMb,
+                mediaFileCount: mediaAgg?._count?.id ?? 0,
+                processHeapUsedMb: Number((mem.heapUsed / (1024 * 1024)).toFixed(1)),
+                processHeapTotalMb: Number((mem.heapTotal / (1024 * 1024)).toFixed(1)),
+                uptimeSeconds: Math.round(process.uptime()),
             },
             tenantTelemetry: tenantsList.map((t) => ({
                 id: t.id,
@@ -4565,7 +4984,18 @@ exports.superRouter.put("/support/agents/:id", auth_1.requireAuth, auth_1.requir
         const idx = agents.findIndex((a) => a.id === id);
         if (idx === -1)
             return res.status(404).json({ error: "Agent not found" });
-        agents[idx] = { ...agents[idx], ...req.body };
+        const { name, email, role, department, status, phone, avatar, specialties } = req.body || {};
+        agents[idx] = {
+            ...agents[idx],
+            ...(name !== undefined ? { name: String(name).trim() } : {}),
+            ...(email !== undefined ? { email: String(email).trim() } : {}),
+            ...(role !== undefined ? { role: String(role).trim() } : {}),
+            ...(department !== undefined ? { department: String(department).trim() } : {}),
+            ...(status !== undefined ? { status: String(status).trim() } : {}),
+            ...(phone !== undefined ? { phone: String(phone).trim() } : {}),
+            ...(avatar !== undefined ? { avatar: String(avatar).trim() } : {}),
+            ...(Array.isArray(specialties) ? { specialties } : {}),
+        };
         await prisma_1.rawPrisma.cmsPage.update({
             where: { slug: "system-support-agents" },
             data: { content: { agents } },
@@ -4686,7 +5116,17 @@ exports.superRouter.put("/support/sla-policies/:id", auth_1.requireAuth, auth_1.
         const idx = policies.findIndex((p) => p.id === id);
         if (idx === -1)
             return res.status(404).json({ error: "SLA Policy not found" });
-        policies[idx] = { ...policies[idx], ...req.body };
+        const { name, priority, firstResponseHours, resolutionHours, businessHoursOnly, status, description } = req.body || {};
+        policies[idx] = {
+            ...policies[idx],
+            ...(name !== undefined ? { name: String(name).trim() } : {}),
+            ...(priority !== undefined ? { priority: String(priority).trim() } : {}),
+            ...(firstResponseHours !== undefined ? { firstResponseHours: Number(firstResponseHours) } : {}),
+            ...(resolutionHours !== undefined ? { resolutionHours: Number(resolutionHours) } : {}),
+            ...(businessHoursOnly !== undefined ? { businessHoursOnly: Boolean(businessHoursOnly) } : {}),
+            ...(status !== undefined ? { status: String(status).trim() } : {}),
+            ...(description !== undefined ? { description: String(description) } : {}),
+        };
         await prisma_1.rawPrisma.cmsPage.update({
             where: { slug: "system-sla-policies" },
             data: { content: { policies } },
@@ -4834,7 +5274,18 @@ exports.superRouter.put("/support/escalation-rules/:id", auth_1.requireAuth, aut
         const idx = rules.findIndex((r) => r.id === id);
         if (idx === -1)
             return res.status(404).json({ error: "Escalation rule not found" });
-        rules[idx] = { ...rules[idx], ...req.body };
+        const { name, triggerCondition, thresholdMinutes, escalateTo, notifyChannels, priority, status, description } = req.body || {};
+        rules[idx] = {
+            ...rules[idx],
+            ...(name !== undefined ? { name: String(name).trim() } : {}),
+            ...(triggerCondition !== undefined ? { triggerCondition: String(triggerCondition) } : {}),
+            ...(thresholdMinutes !== undefined ? { thresholdMinutes: Number(thresholdMinutes) } : {}),
+            ...(escalateTo !== undefined ? { escalateTo: String(escalateTo) } : {}),
+            ...(Array.isArray(notifyChannels) ? { notifyChannels } : {}),
+            ...(priority !== undefined ? { priority: String(priority) } : {}),
+            ...(status !== undefined ? { status: String(status) } : {}),
+            ...(description !== undefined ? { description: String(description) } : {}),
+        };
         await prisma_1.rawPrisma.cmsPage.update({
             where: { slug: "system-escalation-rules" },
             data: { content: { rules } },
@@ -4864,7 +5315,8 @@ exports.superRouter.delete("/support/escalation-rules/:id", auth_1.requireAuth, 
 exports.superRouter.put("/tenants/:id/status", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const { status, reason } = req.body;
+        const status = String(req.body?.status || "").trim().toLowerCase();
+        const reason = req.body?.reason;
         if (!["active", "suspended"].includes(status)) {
             return res.status(400).json({ error: "Status must be 'active' or 'suspended'" });
         }
@@ -4902,13 +5354,15 @@ exports.superRouter.put(["/users/:id/reset-password", "/users/:id/password"], au
         if (body.password_confirmation && body.password !== body.password_confirmation) {
             return res.status(400).json({ error: "Password confirmation does not match." });
         }
-        const user = await prisma_1.rawPrisma.user.findUnique({ where: { id } });
+        const user = await prisma_1.rawPrisma.user.findFirst({
+            where: { OR: [{ id }, { profile: { id } }] },
+        });
         if (!user) {
             return res.status(404).json({ error: "User account not found." });
         }
         const passwordHash = await bcryptjs_1.default.hash(body.password, 10);
         await prisma_1.rawPrisma.user.update({
-            where: { id },
+            where: { id: user.id },
             data: { passwordHash },
         });
         return res.json({
@@ -5142,6 +5596,80 @@ exports.superRouter.get("/config-audit", auth_1.requireAuth, auth_1.requireSuper
         return res.status(500).json({ error: err.message || "Failed to audit system configuration." });
     }
 });
+// GET /api/super/audit-logs — Platform-wide Super Admin audit trail (survives tenant deletion)
+exports.superRouter.get("/audit-logs", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const { tenantId, action, actorId, search, from, to } = req.query;
+        const page = Math.max(1, Number(req.query.page) || 1);
+        const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+        const where = { scope: "PLATFORM", key: { startsWith: "super_audit." } };
+        if (tenantId && tenantId !== "all")
+            where.scopeId = tenantId;
+        if (actorId)
+            where.changedBy = actorId;
+        if (action && action !== "all")
+            where.key = { contains: action, mode: "insensitive" };
+        if (from || to) {
+            where.createdAt = {};
+            if (from)
+                where.createdAt.gte = new Date(from);
+            if (to)
+                where.createdAt.lte = new Date(to);
+        }
+        if (search) {
+            where.OR = [
+                { key: { contains: search, mode: "insensitive" } },
+                { changedBy: { contains: search, mode: "insensitive" } },
+                { ipAddress: { contains: search, mode: "insensitive" } },
+            ];
+        }
+        const [total, rows] = await Promise.all([
+            prisma_1.rawPrisma.settingAudit.count({ where }),
+            prisma_1.rawPrisma.settingAudit.findMany({
+                where,
+                orderBy: { createdAt: "desc" },
+                skip: (page - 1) * limit,
+                take: limit,
+            }),
+        ]);
+        const tenantIds = Array.from(new Set(rows.map((r) => r.scopeId).filter(Boolean)));
+        const actorIds = Array.from(new Set(rows.map((r) => r.changedBy).filter(Boolean)));
+        const [tenants, actors] = await Promise.all([
+            tenantIds.length
+                ? prisma_1.rawPrisma.tenant.findMany({ where: { id: { in: tenantIds } }, select: { id: true, name: true, slug: true } })
+                : Promise.resolve([]),
+            actorIds.length
+                ? prisma_1.rawPrisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, email: true } })
+                : Promise.resolve([]),
+        ]);
+        const tenantMap = new Map(tenants.map((t) => [t.id, t]));
+        const actorMap = new Map(actors.map((a) => [a.id, a]));
+        const data = rows.map((r) => {
+            const payload = (r.newValueMasked || {});
+            const tenant = r.scopeId ? tenantMap.get(r.scopeId) : null;
+            return {
+                id: r.id,
+                action: payload.action || String(r.key).replace(/^super_audit\./, ""),
+                entityType: payload.entityType || null,
+                entityId: payload.entityId || null,
+                tenantId: r.scopeId,
+                tenantName: tenant?.name || (r.scopeId ? "Deleted workspace" : null),
+                tenantSlug: tenant?.slug || null,
+                actorId: r.changedBy,
+                actorEmail: payload.actorEmail || actorMap.get(r.changedBy)?.email || null,
+                before: r.oldValueMasked,
+                after: payload.after ?? null,
+                ipAddress: r.ipAddress,
+                userAgent: r.userAgent,
+                createdAt: r.createdAt,
+            };
+        });
+        return res.json({ data, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to load platform audit logs." });
+    }
+});
 // ==========================================
 // 15. P03: MULTILINGUAL PHRASE EDITOR
 // ==========================================
@@ -5228,4 +5756,8 @@ exports.superRouter.patch("/languages/:code/toggle", auth_1.requireAuth, auth_1.
     catch (err) {
         return res.status(400).json({ error: err.message || "Failed to toggle language status." });
     }
+});
+// Catch-all for unmatched /api/super/* endpoints so they never fall through to tenant-scoped routers (DEFECT-008)
+exports.superRouter.use((_req, res) => {
+    return res.status(404).json({ error: "Super Admin endpoint not found.", code: "SUPER_ROUTE_NOT_FOUND" });
 });

@@ -29,7 +29,7 @@ export default function HrAssetRequestsMaintenancePage() {
     queryKey: ["hr-assets-requests-maintenance"],
     queryFn: async () => {
       const res = await api.get("/hr/assets/requests-maintenance");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -42,14 +42,14 @@ export default function HrAssetRequestsMaintenancePage() {
         status,
         adminNotes: `Reviewed by HR Administrator (${status})`,
       });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Asset request status updated");
       queryClient.invalidateQueries({ queryKey: ["hr-assets-requests-maintenance"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to update request");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to update request");
     },
   });
 
@@ -58,14 +58,14 @@ export default function HrAssetRequestsMaintenancePage() {
       const res = await api.patch(`/hr/assets/maintenance/${id}/complete`, {
         resolutionDetails: "Serviced and tested successfully",
       });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Maintenance marked as completed");
       queryClient.invalidateQueries({ queryKey: ["hr-assets-requests-maintenance"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to complete maintenance");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to complete maintenance");
     },
   });
 

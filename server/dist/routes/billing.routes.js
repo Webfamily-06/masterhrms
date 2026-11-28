@@ -34,9 +34,11 @@ async function resolveWorkspaceBillingContext(tenantId) {
         ? String(pv["payments.currency"]).toUpperCase()
         : workspaceCurrency.toUpperCase();
     const currencySymbol = branding?.locale?.currencySymbol || (currency === "USD" ? "$" : currency === "EUR" ? "€" : "₹");
-    const keyId = pv["payments.razorpay_key_id"] ||
+    const rawKeyId = pv["payments.razorpay_key_id"] ||
         process.env.RAZORPAY_KEY_ID ||
         "rzp_test_MasterHRMSKey";
+    const isNonProd = process.env.NODE_ENV !== "production";
+    const keyId = isNonProd && String(rawKeyId).startsWith("rzp_live_") ? "rzp_test_MasterHRMSKey" : rawKeyId;
     const appName = branding?.appName || "Master HRMS & ERP";
     return { currency, currencySymbol, keyId, appName };
 }

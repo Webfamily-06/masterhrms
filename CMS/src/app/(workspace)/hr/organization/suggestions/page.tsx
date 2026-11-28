@@ -183,7 +183,7 @@ export default function HrSuggestionsPage() {
       setResponseNotes("");
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to record response.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to record response.");
     },
   });
 
@@ -199,7 +199,7 @@ export default function HrSuggestionsPage() {
       setCatDesc("");
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to create category.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to create category.");
     },
   });
 

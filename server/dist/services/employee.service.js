@@ -1244,24 +1244,43 @@ class EmployeeService {
                 });
             }
             else {
-                // Update existing user's passwordHash
+                const normalizedEmail = employee.email ? employee.email.toLowerCase().trim() : null;
+                const userUpdateData = { passwordHash };
+                // Sync User.email with Employee.email if the employee's email was updated after creation
+                if (normalizedEmail && employee.user?.email?.toLowerCase().trim() !== normalizedEmail) {
+                    const emailConflict = await tx.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } });
+                    if (!emailConflict || emailConflict.id === targetUserId) {
+                        userUpdateData.email = normalizedEmail;
+                    }
+                }
+                // Update existing user's passwordHash (and synced email)
                 await tx.user.update({
                     where: { id: targetUserId },
-                    data: { passwordHash },
+                    data: userUpdateData,
                 });
-                // Ensure user has profile and role in this tenant
+                // Ensure user has profile (with synced email) and employee role in this tenant
                 await tx.profile.upsert({
                     where: { userId: targetUserId },
                     create: {
                         userId: targetUserId,
                         tenantId,
                         fullName: `${employee.firstName} ${employee.lastName}`.trim(),
-                        email: employee.email,
+                        email: normalizedEmail || employee.email,
                     },
                     update: {
                         tenantId,
+                        ...(userUpdateData.email ? { email: userUpdateData.email } : {}),
+                        fullName: `${employee.firstName} ${employee.lastName}`.trim() || undefined,
                     },
                 });
+                const existingRole = await tx.userRole.findFirst({
+                    where: { userId: targetUserId, tenantId },
+                });
+                if (!existingRole) {
+                    await tx.userRole.create({
+                        data: { userId: targetUserId, tenantId, role: "employee" },
+                    });
+                }
                 await tx.userRole.upsert({
                     where: {
                         userId_role_tenantId: {

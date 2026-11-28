@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { sanitizeHtml } from "@/lib/html-sanitizer";
 import { PreviewCard } from "@/components/ui/preview-card";
 
 export default function FormEditorsPage() {
@@ -126,7 +127,7 @@ export default function FormEditorsPage() {
           ) : (
             <div
               className="p-4 prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed min-h-[160px] bg-muted/10"
-              dangerouslySetInnerHTML={{ __html: editorContent }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(editorContent) }}
             />
           )}
 

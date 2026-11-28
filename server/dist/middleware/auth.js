@@ -31,6 +31,7 @@ const jwt_1 = require("../lib/jwt");
 const prisma_1 = require("../prisma");
 const workspace_policy_service_1 = require("../services/workspace-policy.service");
 const device_session_service_1 = require("../services/device-session.service");
+const tenant_ip_restriction_service_1 = require("../services/tenant-ip-restriction.service");
 async function requireAuth(req, res, next) {
     if (req.user)
         return next();
@@ -122,7 +123,11 @@ async function requireAuth(req, res, next) {
         const isImpersonating = Boolean(decoded.isImpersonating);
         // Host-to-JWT Tenant Binding Enforcement
         const resolvedTenant = req.resolvedTenant;
-        let tenantId = account.profile?.tenantId || (isSuper && decoded.tenantId ? decoded.tenantId : null);
+        // Impersonation is session-scoped: the signed token's tenant wins over any persisted profile tenant,
+        // so multiple Super Admin tabs can impersonate different workspaces without overwriting each other.
+        let tenantId = isSuper && isImpersonating && decoded.tenantId
+            ? decoded.tenantId
+            : account.profile?.tenantId || (isSuper && decoded.tenantId ? decoded.tenantId : null);
         if (resolvedTenant) {
             if (!isSuper && !isImpersonating) {
                 // Strict isolation: non-super-admin tokens cannot access a foreign host workspace
@@ -177,7 +182,13 @@ async function requireAuth(req, res, next) {
                 }
             }
         }
-        const roles = account.roles.filter((r) => r.role === "super_admin" || r.tenantId === tenantId).map((r) => r.role);
+        const baseRoles = account.roles
+            .filter((r) => r.role === "super_admin" || r.tenantId === tenantId)
+            .map((r) => r.role);
+        // P22-SEC-001: Strictly sandbox impersonation sessions to target tenant admin scope (strip super_admin privileges)
+        const roles = isSuper && isImpersonating && tenantId
+            ? ["tenant_admin", "admin", "workspace_admin", "hr_admin"]
+            : [...baseRoles];
         const isSafeRoute = req.originalUrl?.startsWith("/api/billing") ||
             req.originalUrl?.startsWith("/api/commerce") ||
             req.originalUrl?.startsWith("/api/auth") ||
@@ -198,6 +209,18 @@ async function requireAuth(req, res, next) {
         }
         if (!isSuper && !tenantId && !req.originalUrl.startsWith("/api/auth/")) {
             return res.status(403).json({ error: "Complete workspace onboarding first." });
+        }
+        // Tenant-Scoped IP Restriction Enforcement (Applies ONLY to this tenantId; Super Admins & other tenants unaffected)
+        const isLogoutRoute = req.originalUrl?.startsWith("/api/auth/logout");
+        if (!isSuper && tenantId && !isPreflight && !isLogoutRoute) {
+            const ipCheck = await (0, tenant_ip_restriction_service_1.checkTenantIpAccess)(tenantId, req, isSuper);
+            if (!ipCheck.allowed) {
+                return res.status(403).json({
+                    error: ipCheck.reason || "Access restricted by your organization's IP Restriction policy.",
+                    code: "TENANT_IP_RESTRICTED",
+                    clientIp: ipCheck.clientIp,
+                });
+            }
         }
         req.tenantId = tenantId ?? undefined;
         let userPermissions = cachedPermissions || (Array.isArray(decoded.permissions) ? [...decoded.permissions] : []);
@@ -225,9 +248,35 @@ async function requireAuth(req, res, next) {
             }
             catch { }
         }
+        // Unify effective roles from active WorkspaceRole assignment (prevents dual-role split-brain — DEFECT-019)
+        if (resolvedAssignment?.role?.isActive) {
+            const wsName = String(resolvedAssignment.role.name || "").toLowerCase().trim();
+            if (["workspace admin", "tenant admin", "administrator", "owner"].includes(wsName)) {
+                for (const r of ["admin", "tenant_admin", "workspace_admin", "hr_admin"]) {
+                    if (!roles.includes(r))
+                        roles.push(r);
+                }
+            }
+            else if (["hr manager", "hr admin", "hr administrator", "human resources"].includes(wsName) ||
+                userPermissions.includes("hrm.employees.create") ||
+                userPermissions.includes("hrm.leave.approve")) {
+                for (const r of ["hr_admin", "hr_manager"]) {
+                    if (!roles.includes(r))
+                        roles.push(r);
+                }
+            }
+            else if (["manager", "team lead", "department head"].includes(wsName)) {
+                if (!roles.includes("manager"))
+                    roles.push("manager");
+            }
+        }
         // Default system role administrative permissions
         const rawRoleNames = roles;
-        if (rawRoleNames.includes("super_admin") || rawRoleNames.includes("Workspace Admin") || rawRoleNames.includes("admin") || rawRoleNames.includes("hr_admin")) {
+        if (rawRoleNames.includes("super_admin") ||
+            rawRoleNames.includes("Workspace Admin") ||
+            rawRoleNames.includes("admin") ||
+            rawRoleNames.includes("hr_admin") ||
+            rawRoleNames.includes("hr_manager")) {
             userPermissions = Array.from(new Set([
                 ...userPermissions,
                 "hr:employee:sensitive:write",
@@ -262,7 +311,9 @@ async function requireAuth(req, res, next) {
             userId,
             tenantId: tenantId ?? null,
             roles,
-            workspaceRole: resolvedAssignment?.role?.name || decoded.workspaceRole,
+            workspaceRole: isSuper && isImpersonating && tenantId
+                ? "Workspace Admin"
+                : resolvedAssignment?.role?.name || decoded.workspaceRole,
             permissions: userPermissions,
             isImpersonating,
             profile: account.profile
@@ -338,6 +389,10 @@ function requirePermission(permissionCode) {
                 return res.status(403).json({
                     error: "Forbidden: The " + moduleKey.toUpperCase() + " module is currently disabled for this workspace",
                 });
+            }
+            // Super Admin actively impersonating a verified tenant acts with full Workspace Admin authority
+            if (req.user.isImpersonating && req.user.roles.includes("super_admin") && tenantId) {
+                return next();
             }
             // 3. Resolve User Role Assignment (reuse cached assignment from requireAuth when fresh)
             const cacheKey = `${req.user.userId}:${tenantId}`;

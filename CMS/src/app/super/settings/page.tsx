@@ -583,7 +583,7 @@ function SuperSettingsAdmin() {
       }
     } catch (err: any) {
       toast.error("SMTP Test Error", {
-        description: err.response?.data?.error || err.message || "Failed to reach SMTP test endpoint.",
+        description: err?.response?.data?.error || err?.message || "Failed to reach SMTP test endpoint.",
       });
     } finally {
       setIsTestingSmtp(false);
@@ -619,7 +619,7 @@ function SuperSettingsAdmin() {
       }
     } catch (err: any) {
       toast.error("Pusher Test Error", {
-        description: err.response?.data?.error || err.message || "Failed to reach Pusher test endpoint.",
+        description: err?.response?.data?.error || err?.message || "Failed to reach Pusher test endpoint.",
       });
     } finally {
       setIsTestingPusher(false);
@@ -687,7 +687,7 @@ function SuperSettingsAdmin() {
       }
     } catch (err: any) {
       toast.error("Firebase Test Error", {
-        description: err.response?.data?.error || err.message || "Failed to verify Firebase settings.",
+        description: err?.response?.data?.error || err?.message || "Failed to verify Firebase settings.",
       });
     } finally {
       setIsTestingFirebase(false);
@@ -1162,7 +1162,7 @@ function SuperSettingsAdmin() {
       setTestRecipientEmail("");
     } catch (err: any) {
       const errMsg =
-        err.response?.data?.error || err.message || `Cannot connect to ${form.smtpHost}:${form.smtpPort}`;
+        err?.response?.data?.error || err?.message || `Cannot connect to ${form.smtpHost}:${form.smtpPort}`;
       const timestamp = new Date().toLocaleString();
       const newLog: SmtpDeliveryLog = {
         id: `log-${Date.now()}`,

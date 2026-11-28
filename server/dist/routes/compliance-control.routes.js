@@ -233,7 +233,8 @@ exports.complianceControlRouter.post("/rules/:id/approve", async (req, res) => {
     try {
         const { id } = req.params;
         const actorEmail = req.user?.email || "compliance@masterhrms.com";
-        const { enforceMakerChecker = true } = req.body;
+        // Maker-checker is ALWAYS enforced server-side; clients cannot opt out of self-approval protection.
+        const enforceMakerChecker = true;
         const updated = await registryService.approveRule(id, actorEmail, "COMPLIANCE_OFFICER", Boolean(enforceMakerChecker));
         return res.json({
             success: true,
@@ -476,7 +477,25 @@ exports.complianceControlRouter.get("/audit-trail", async (req, res) => {
 exports.complianceControlRouter.get("/affected-tenants", async (req, res) => {
     try {
         const { jurisdiction = "CENTRAL", stateCode = "ALL" } = req.query;
+        const juris = String(jurisdiction).toUpperCase();
+        const state = String(stateCode).toUpperCase().trim();
+        // CENTRAL rules (or ALL states) affect every workspace; STATE rules only affect workspaces
+        // that employ staff in that state (by work state code or residential state).
+        const isStateScoped = juris !== "CENTRAL" && state && state !== "ALL";
+        const where = isStateScoped
+            ? {
+                employees: {
+                    some: {
+                        OR: [
+                            { workStateCode: { equals: state, mode: "insensitive" } },
+                            { state: { equals: state, mode: "insensitive" } },
+                        ],
+                    },
+                },
+            }
+            : {};
         const tenants = await prisma_1.rawPrisma.tenant.findMany({
+            where,
             select: {
                 id: true,
                 name: true,
@@ -488,8 +507,8 @@ exports.complianceControlRouter.get("/affected-tenants", async (req, res) => {
         });
         return res.json({
             success: true,
-            jurisdiction: String(jurisdiction).toUpperCase(),
-            stateCode: String(stateCode).toUpperCase(),
+            jurisdiction: juris,
+            stateCode: state,
             affectedTenantsCount: tenants.length,
             tenants: tenants.map((t) => ({
                 id: t.id,

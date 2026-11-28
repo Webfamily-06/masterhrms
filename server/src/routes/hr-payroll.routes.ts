@@ -2781,13 +2781,32 @@ hrPayrollRouter.post("/payslips/bulk-publish", async (req: AuthRequest, res: Res
 
     const db = getTenantDb();
     const where: any = { tenantId };
-    if (payslipIds && Array.isArray(payslipIds)) {
-      where.id = { in: payslipIds };
+    let requestedIds: string[] | null = null;
+    if (payslipIds !== undefined) {
+      if (!Array.isArray(payslipIds) || payslipIds.length === 0) {
+        return res.status(400).json({ error: "payslipIds must be a non-empty array when provided.", code: "EMPTY_PAYSLIP_IDS" });
+      }
+      requestedIds = Array.from(new Set(payslipIds.map(String).filter(Boolean)));
+      where.id = { in: requestedIds };
     } else if (periodMonth && periodYear) {
       where.periodMonth = Number(periodMonth);
       where.periodYear = Number(periodYear);
     } else {
       return res.status(400).json({ error: "Specify payslipIds or periodMonth & periodYear" });
+    }
+
+    let notFoundIds: string[] = [];
+    if (requestedIds) {
+      const found = await db.payslip.findMany({ where, select: { id: true } });
+      const foundSet = new Set(found.map((p: any) => p.id));
+      notFoundIds = requestedIds.filter((id) => !foundSet.has(id));
+      if (found.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: "No matching payslips found in this workspace.",
+          notFoundIds,
+        });
+      }
     }
 
     const result = await db.payslip.updateMany({
@@ -2805,10 +2824,19 @@ hrPayrollRouter.post("/payslips/bulk-publish", async (req: AuthRequest, res: Res
       action: "PAYSLIPS_BULK_PUBLISHED",
       resourceType: "Payslip",
       resourceId: "bulk",
-      details: { count: result.count },
+      details: { count: result.count, notFoundCount: notFoundIds.length },
     });
 
-    return res.json({ message: `Successfully published ${result.count} payslips.` });
+    const isPartial = result.count > 0 && notFoundIds.length > 0;
+    return res.status(isPartial ? 207 : 200).json({
+      success: !isPartial,
+      partial: isPartial,
+      publishedCount: result.count,
+      requestedCount: requestedIds ? requestedIds.length : result.count,
+      notFoundCount: notFoundIds.length,
+      notFoundIds: notFoundIds.length > 0 ? notFoundIds : undefined,
+      message: `Successfully published ${result.count} payslip(s).`,
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

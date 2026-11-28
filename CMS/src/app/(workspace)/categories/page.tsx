@@ -64,7 +64,7 @@ export default function CategoriesPage() {
       setSelectedCat(null);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to save category');
+      toast.error((err?.response?.data?.error || err?.message) || 'Failed to save category');
     },
   });
 
@@ -77,7 +77,7 @@ export default function CategoriesPage() {
       queryClient.invalidateQueries({ queryKey: ['categories-list'] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to delete category');
+      toast.error((err?.response?.data?.error || err?.message) || 'Failed to delete category');
     },
   });
 

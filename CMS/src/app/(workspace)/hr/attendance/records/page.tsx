@@ -254,10 +254,10 @@ export default function HrAttendanceRecordsPage() {
       });
     },
     onError: (err: any) => {
-      if (err.status === 423 || err.response?.status === 423) {
+      if (err.status === 423 || (err?.status === 423 || err?.response?.status === 423)) {
         toast.error("Period is locked! Modifications prohibited.");
       } else {
-        toast.error(err.response?.data?.error || err.message || "Failed to adjust record");
+        toast.error(err?.response?.data?.error || err?.message || "Failed to adjust record");
       }
     },
   });
@@ -273,10 +273,10 @@ export default function HrAttendanceRecordsPage() {
       setBulkModalOpen(false);
     },
     onError: (err: any) => {
-      if (err.status === 423 || err.response?.status === 423) {
+      if (err.status === 423 || (err?.status === 423 || err?.response?.status === 423)) {
         toast.error("Period is locked! Modifications prohibited.");
       } else {
-        toast.error(err.response?.data?.error || err.message || "Failed to process bulk attendance");
+        toast.error(err?.response?.data?.error || err?.message || "Failed to process bulk attendance");
       }
     },
   });
@@ -298,7 +298,7 @@ export default function HrAttendanceRecordsPage() {
       setLockNotes("");
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to update period lock status");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to update period lock status");
     },
   });
 

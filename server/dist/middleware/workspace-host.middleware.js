@@ -38,8 +38,13 @@ async function workspaceHostMiddleware(req, res, next) {
                 });
             }
             // CMS TENANT-HOST ISOLATION:
-            // Tenant hosts must NEVER access platform CMS pages or APIs
-            if (rawPath === "/api/cms" || rawPath.startsWith("/api/cms/")) {
+            // Allow read-only workspace config/catalog reads consumed by tenant UI (DEFECT-012); block all other /api/cms/*
+            const isAllowedTenantCmsRead = (req.method === "GET" || req.method === "HEAD") &&
+                (rawPath === "/api/cms/pages/system-platform-settings" ||
+                    rawPath === "/api/cms/pages/system-addons-catalog" ||
+                    rawPath === "/api/cms/pages/system-monetization-plans" ||
+                    /^\/api\/cms\/pages\/tenant-[a-z0-9-]+-purchased-addons-v2$/.test(rawPath));
+            if ((rawPath === "/api/cms" || rawPath.startsWith("/api/cms/")) && !isAllowedTenantCmsRead) {
                 return res.status(404).json({
                     error: "Not Found",
                     code: "NOT_FOUND",
@@ -160,7 +165,12 @@ async function workspaceHostMiddleware(req, res, next) {
                 });
             }
             // CMS CUSTOM-DOMAIN ISOLATION:
-            if (rawPath === "/api/cms" || rawPath.startsWith("/api/cms/")) {
+            const isAllowedCustomDomainCmsRead = (req.method === "GET" || req.method === "HEAD") &&
+                (rawPath === "/api/cms/pages/system-platform-settings" ||
+                    rawPath === "/api/cms/pages/system-addons-catalog" ||
+                    rawPath === "/api/cms/pages/system-monetization-plans" ||
+                    /^\/api\/cms\/pages\/tenant-[a-z0-9-]+-purchased-addons-v2$/.test(rawPath));
+            if ((rawPath === "/api/cms" || rawPath.startsWith("/api/cms/")) && !isAllowedCustomDomainCmsRead) {
                 return res.status(404).json({
                     error: "Not Found",
                     code: "NOT_FOUND",
@@ -200,7 +210,12 @@ async function workspaceHostMiddleware(req, res, next) {
                         });
                     }
                     // CMS CUSTOM-DOMAIN ISOLATION:
-                    if (rawPath === "/api/cms" || rawPath.startsWith("/api/cms/")) {
+                    const isAllowedCustomCms1 = (req.method === "GET" || req.method === "HEAD") &&
+                        (rawPath === "/api/cms/pages/system-platform-settings" ||
+                            rawPath === "/api/cms/pages/system-addons-catalog" ||
+                            rawPath === "/api/cms/pages/system-monetization-plans" ||
+                            /^\/api\/cms\/pages\/tenant-[a-z0-9-]+-purchased-addons-v2$/.test(rawPath));
+                    if ((rawPath === "/api/cms" || rawPath.startsWith("/api/cms/")) && !isAllowedCustomCms1) {
                         return res.status(404).json({
                             error: "Not Found",
                             code: "NOT_FOUND",
@@ -268,7 +283,12 @@ async function workspaceHostMiddleware(req, res, next) {
                         });
                     }
                     // CMS CUSTOM-DOMAIN ISOLATION:
-                    if (rawPath === "/api/cms" || rawPath.startsWith("/api/cms/")) {
+                    const isAllowedCustomCms1 = (req.method === "GET" || req.method === "HEAD") &&
+                        (rawPath === "/api/cms/pages/system-platform-settings" ||
+                            rawPath === "/api/cms/pages/system-addons-catalog" ||
+                            rawPath === "/api/cms/pages/system-monetization-plans" ||
+                            /^\/api\/cms\/pages\/tenant-[a-z0-9-]+-purchased-addons-v2$/.test(rawPath));
+                    if ((rawPath === "/api/cms" || rawPath.startsWith("/api/cms/")) && !isAllowedCustomCms1) {
                         return res.status(404).json({
                             error: "Not Found",
                             code: "NOT_FOUND",

@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { formatCareerSalary, resolveCareerTenantSlug } from "@/lib/career-tenant";
+import { sanitizeHtml } from "@/lib/html-sanitizer";
 
 function formatLongDate(val?: string | Date | null): string {
   if (!val) return "Open until filled";
@@ -38,7 +39,7 @@ function renderRichOrPlain(content?: string | null) {
     return (
       <div
         className="prose prose-sm dark:prose-invert max-w-none text-sm text-foreground/90 leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: content }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
       />
     );
   }

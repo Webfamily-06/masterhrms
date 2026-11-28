@@ -38,6 +38,9 @@ exports.callRouter.get("/pending", auth_1.requireAuth, async (req, res) => {
     try {
         const userId = req.user.userId || req.user.id;
         const tenantId = req.user.tenantId;
+        if (!tenantId) {
+            return res.json({ success: true, hasPendingCall: false, data: null });
+        }
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         const now = Date.now();
         // 1. Check in-memory active calls first (1:1 ringing or 3rd+ invited colleague)
@@ -864,6 +867,9 @@ exports.callRouter.post("/:callId/reject", auth_1.requireAuth, async (req, res) 
         const { reason } = req.body || {};
         const userId = req.user.userId || req.user.id;
         const tenantId = req.user.tenantId;
+        if (!tenantId) {
+            return res.status(403).json({ error: "Tenant context required." });
+        }
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         // Check if rejecting an in-call 3rd+ invitation on an ACTIVE call (do NOT terminate the active call!)
         const existingDbCall = await db.call.findFirst({
@@ -1086,6 +1092,9 @@ exports.callRouter.post("/:callId/end", auth_1.requireAuth, async (req, res) => 
         const { reason, durationSeconds: reqDuration } = req.body || {};
         const userId = req.user.userId || req.user.id;
         const tenantId = req.user.tenantId;
+        if (!tenantId) {
+            return res.status(403).json({ error: "Tenant context required." });
+        }
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         const actorUser = await db.user.findUnique({
             where: { id: userId },
@@ -1297,6 +1306,9 @@ exports.callRouter.post("/:callId/invite-colleague", auth_1.requireAuth, async (
         const { targetUserId } = req.body;
         const userId = req.user.userId || req.user.id;
         const tenantId = req.user.tenantId;
+        if (!tenantId) {
+            return res.status(403).json({ error: "Tenant context required." });
+        }
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         if (!targetUserId) {
             return res.status(400).json({ success: false, error: "targetUserId is required" });

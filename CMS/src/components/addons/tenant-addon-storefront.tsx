@@ -179,7 +179,7 @@ const LAUNCH_URLS: Record<string, string> = {
   "okr-performance": "/okr",
   "whatsapp-alerts": "/whatsapp-alerts",
   "ai-ocr": "/ai-ocr",
-  "two-factor-auth": "/two-factor-auth",
+  "two-factor-auth": "/profile",
   "backup-restore": "/backup-restore",
   "activity-logs": "/activity-logs",
   "internal-reminders": "/internal-reminders",

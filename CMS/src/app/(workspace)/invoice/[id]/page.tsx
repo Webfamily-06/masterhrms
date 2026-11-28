@@ -230,7 +230,7 @@ function InvoiceDetailPage() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.error || err.message || "Failed to record payment.";
+      const msg = err?.response?.data?.error || err?.message || "Failed to record payment.";
       toast.error(msg);
     },
   });

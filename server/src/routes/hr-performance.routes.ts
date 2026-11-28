@@ -1,9 +1,25 @@
 import { Router, Response } from "express";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
+import { isHrOrAdminUser, requireHrOrAdmin } from "../middleware/hr-rbac.middleware";
 import { getTenantDb } from "../context/tenant-context";
 import { PerformanceService } from "../services/performance.service";
 
 export const hrPerformanceRouter = Router();
+
+// DEFECT-041: Enforce HR/Admin/Manager RBAC on performance mutations while permitting employee self-service goal progress updates
+hrPerformanceRouter.use(
+  requireAuth,
+  resolveTenantContext,
+  requireHrOrAdmin({
+    allowReads: true,
+    allowedPermissions: ["hrm.performance", "performance.manage"],
+    allowSelfService: [
+      { method: "PATCH", pattern: /^\/goals\/[^/]+\/progress\/?$/i },
+    ],
+    deniedMessage: "Access denied: HR Administrator or Manager privileges are required to manage performance records.",
+  })
+);
 
 // =========================================================================
 // 0. PERFORMANCE OVERVIEW
@@ -392,6 +408,20 @@ hrPerformanceRouter.patch("/goals/:id/progress", requireAuth, async (req: AuthRe
     const db = getTenantDb();
     const existing = await db.okrObjective.findFirst({ where: { id: req.params.id, tenantId } });
     if (!existing) return res.status(404).json({ error: "Employee goal not found." });
+
+    // Non-HR employees may only update progress on their own goals
+    if (!isHrOrAdminUser(req, ["hrm.performance", "performance.manage"])) {
+      const callerEmp = await db.employee.findFirst({
+        where: { tenantId, userId: req.user?.userId },
+        select: { id: true },
+      });
+      if (!callerEmp || existing.ownerId !== callerEmp.id) {
+        return res.status(403).json({
+          error: "Access denied: You can only update progress on your own performance goals.",
+          code: "OWNERSHIP_REQUIRED",
+        });
+      }
+    }
 
     const numericProgress = Math.min(100, Math.max(0, Number(req.body?.progress ?? 0)));
     const nextStatus = req.body?.status

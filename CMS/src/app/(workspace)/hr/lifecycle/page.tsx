@@ -29,7 +29,7 @@ export default function HrLifecycleDashboardPage() {
     queryKey: ["hr-lifecycle-overview"],
     queryFn: async () => {
       const res = await api.get("/hr/lifecycle/overview");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 

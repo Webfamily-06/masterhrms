@@ -14,6 +14,14 @@ const crypto_1 = __importDefault(require("crypto"));
  */
 async function verifyRazorpayPayment(params) {
     const keyId = process.env.RAZORPAY_KEY_ID || "rzp_test_MasterHRMSKey";
+    if (process.env.NODE_ENV !== "production" && keyId.startsWith("rzp_live_")) {
+        return {
+            verified: false,
+            status: "failed",
+            code: "LIVE_KEYS_PROHIBITED_IN_NON_PRODUCTION",
+            error: "Live Razorpay credentials (rzp_live_*) are strictly prohibited in non-production environments.",
+        };
+    }
     const keySecret = process.env.RAZORPAY_KEY_SECRET || (keyId.includes("test_") ? "rzp_secret_MasterHRMSSecret" : "");
     if (!keySecret) {
         return {

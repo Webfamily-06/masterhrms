@@ -215,7 +215,12 @@ exports.filesRouter.get("/nodes", auth_1.requireAuth, async (req, res) => {
     }
     catch (err) {
         console.error("[Files Nodes Browse Error]:", err);
-        return res.status(err.status || 500).json({ error: err.message || "Failed to list file nodes." });
+        const status = err.status || 500;
+        const rawMsg = String(err?.message || "");
+        const safeMsg = /prisma|invocation|\/Users\/|\/src\//i.test(rawMsg)
+            ? "Failed to list file nodes."
+            : rawMsg || "Failed to list file nodes.";
+        return res.status(status).json({ error: safeMsg });
     }
 });
 /**
@@ -266,7 +271,12 @@ exports.filesRouter.get("/", auth_1.requireAuth, async (req, res) => {
     }
     catch (err) {
         console.error("[Files List Error]:", err);
-        return res.status(err.status || 500).json({ error: err.message || "Failed to list files." });
+        const status = err.status || 500;
+        const rawMsg = String(err?.message || "");
+        const safeMsg = /prisma|invocation|\/Users\/|\/src\//i.test(rawMsg)
+            ? "Failed to list files."
+            : rawMsg || "Failed to list files.";
+        return res.status(status).json({ error: safeMsg });
     }
 });
 /**
@@ -1021,7 +1031,19 @@ exports.filesRouter.get("/:id/stream", auth_1.requireAuth, async (req, res) => {
 // ============================================================================
 // 7. LEGACY MULTIPART UPLOAD FALLBACK
 // ============================================================================
-exports.filesRouter.post("/upload", auth_1.requireAuth, upload.array("files", 20), async (req, res) => {
+exports.filesRouter.post("/upload", auth_1.requireAuth, (req, res, next) => {
+    upload.fields([
+        { name: "files", maxCount: 20 },
+        { name: "file", maxCount: 20 },
+    ])(req, res, (err) => {
+        if (err) {
+            return res.status(400).json({ error: err.message || "Invalid file upload payload." });
+        }
+        const fieldMap = (req.files || {});
+        req.files = [...(fieldMap.files || []), ...(fieldMap.file || [])];
+        return next();
+    });
+}, async (req, res) => {
     try {
         const { isSuper, tenantId, userId, userRoles } = getAuthContext(req);
         const files = req.files || (req.file ? [req.file] : []);

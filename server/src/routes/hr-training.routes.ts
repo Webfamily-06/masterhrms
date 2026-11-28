@@ -1,9 +1,28 @@
 import { Router, Response } from "express";
 import { requireAuth, AuthRequest } from "../middleware/auth.js";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware.js";
+import { requireHrOrAdmin } from "../middleware/hr-rbac.middleware.js";
 import { TrainingService } from "../services/training.service.js";
 import { getTenantDb } from "../context/tenant-context.js";
 
 export const hrTrainingRouter = Router();
+
+// DEFECT-041: Enforce HR/Admin/Manager RBAC on training administration mutations while allowing employee self-registration, task completion, feedback, and progress updates
+hrTrainingRouter.use(
+  requireAuth,
+  resolveTenantContext,
+  requireHrOrAdmin({
+    allowReads: true,
+    allowedPermissions: ["hrm.training", "training.manage"],
+    allowSelfService: [
+      { method: "POST", pattern: /^\/sessions\/[^/]+\/register\/?$/i },
+      { method: "PATCH", pattern: /^\/employee-trainings\/[^/]+\/progress\/?$/i },
+      { method: "PATCH", pattern: /^\/tasks\/[^/]+\/complete\/?$/i },
+      { method: "POST", pattern: /^\/tasks\/[^/]+\/feedbacks\/?$/i },
+    ],
+    deniedMessage: "Access denied: HR Administrator or Manager privileges are required to manage training programs and sessions.",
+  })
+);
 
 // Overview
 hrTrainingRouter.get("/overview", requireAuth, async (req: AuthRequest, res: Response) => {
@@ -1586,43 +1605,99 @@ hrTrainingRouter.post("/employee-trainings/bulk", requireAuth, async (req: AuthR
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
     const { employeeIds, courseId, assignedDate, notes } = req.body || {};
-    const ids = parseJsonStringArray(employeeIds);
+    const ids = Array.from(new Set(parseJsonStringArray(employeeIds)));
     if (ids.length === 0 || !courseId) {
       return res.status(400).json({ error: "At least one employee and a training program are required." });
     }
+    if (ids.length > 200) {
+      return res.status(400).json({ error: "Bulk training assignment is limited to 200 employees per batch.", code: "BATCH_LIMIT_EXCEEDED" });
+    }
+
+    // PARTIAL-001: Verify training course belongs to this tenant before processing batch
+    const course = await db.trainingCourse.findFirst({
+      where: { id: String(courseId), tenantId },
+      select: { id: true },
+    });
+    if (!course) {
+      return res.status(404).json({ error: "Training program not found in this workspace.", code: "COURSE_NOT_FOUND" });
+    }
+
+    const assignedDt = assignedDate ? new Date(assignedDate) : new Date();
+    if (Number.isNaN(assignedDt.getTime())) {
+      return res.status(400).json({ error: "Invalid assignedDate format.", code: "INVALID_DATE" });
+    }
+
+    // PARTIAL-001: Validate all employeeIds belong to this tenant (prevents cross-tenant link & raw FK crash)
+    const validEmployees = await db.employee.findMany({
+      where: { tenantId, id: { in: ids } },
+      select: { id: true },
+    });
+    const validEmpSet = new Set(validEmployees.map((e: any) => e.id));
+
+    const existingEnrollments = await db.courseEnrollment.findMany({
+      where: { tenantId, courseId: course.id, employeeId: { in: Array.from(validEmpSet) } },
+      select: { employeeId: true },
+    });
+    const existingSet = new Set(existingEnrollments.map((e: any) => e.employeeId));
 
     let createdCount = 0;
     let skippedCount = 0;
+    const failedItems: Array<{ employeeId: string; reason: string }> = [];
     const assignedBy = req.user?.email ? req.user.email.split("@")[0] : "HR Admin";
-    const assignedDt = assignedDate ? new Date(assignedDate) : new Date();
 
     for (const empId of ids) {
-      const exists = await db.courseEnrollment.findFirst({
-        where: { tenantId, courseId, employeeId: empId },
-        select: { id: true },
-      });
-      if (exists) {
+      if (!validEmpSet.has(empId)) {
+        failedItems.push({ employeeId: empId, reason: "Employee not found in this workspace." });
+        continue;
+      }
+      if (existingSet.has(empId)) {
         skippedCount += 1;
         continue;
       }
-      await db.courseEnrollment.create({
-        data: {
-          tenantId,
-          courseId,
-          employeeId: empId,
-          status: "assigned",
-          progressPercent: 0,
-          assignedDate: assignedDt,
-          assignedByName: assignedBy,
-          notes: notes ? String(notes).trim() : null,
-        },
-      });
-      createdCount += 1;
+      try {
+        await db.courseEnrollment.create({
+          data: {
+            tenantId,
+            courseId: course.id,
+            employeeId: empId,
+            status: "assigned",
+            progressPercent: 0,
+            assignedDate: assignedDt,
+            assignedByName: assignedBy,
+            notes: notes ? String(notes).trim() : null,
+          },
+        });
+        createdCount += 1;
+      } catch {
+        failedItems.push({ employeeId: empId, reason: "Failed to enroll employee due to record conflict." });
+      }
     }
 
-    return res.status(201).json({ success: true, createdCount, skippedCount });
+    if (createdCount === 0 && skippedCount === 0 && failedItems.length > 0) {
+      return res.status(400).json({
+        success: false,
+        partial: false,
+        error: "No valid tenant employees could be enrolled.",
+        code: "ALL_ITEMS_FAILED",
+        createdCount: 0,
+        skippedCount: 0,
+        failedCount: failedItems.length,
+        failedItems,
+      });
+    }
+
+    const isPartial = failedItems.length > 0;
+    return res.status(isPartial ? 207 : 201).json({
+      success: !isPartial,
+      partial: isPartial,
+      requestedCount: ids.length,
+      createdCount,
+      skippedCount,
+      failedCount: failedItems.length,
+      failedItems: failedItems.length > 0 ? failedItems : undefined,
+    });
   } catch (err: any) {
-    return res.status(400).json({ error: err.message });
+    return res.status(400).json({ error: "Failed to process bulk training enrollment." });
   }
 });
 

@@ -454,7 +454,11 @@ class AwardNominationService {
             const cleanApproverValue = approverValue.replace(/[_\s-]+/g, "").toLowerCase();
             let isStepAuthorized = false;
             if (approverType === "MANAGER") {
-                if (actorEmployeeId) {
+                // REM-002 (DEFECT-011): Match rejectNomination/requestChanges — authorized HR admins/managers may approve manager-step nominations
+                if (isHRAuthorized) {
+                    isStepAuthorized = true;
+                }
+                else if (actorEmployeeId) {
                     isStepAuthorized = await this.isManagerOf(actorEmployeeId, nomination.employee.id, tenantId);
                 }
             }

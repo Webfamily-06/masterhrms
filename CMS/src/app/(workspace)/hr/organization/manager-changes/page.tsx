@@ -74,7 +74,7 @@ export default function HrManagerChangesPage() {
     queryFn: async () => {
       try {
         const res = await api.get("/hr/organization/manager-changes/overview");
-        return res.data;
+        return (res as any)?.data ?? res;
       } catch {
         return null;
       }
@@ -88,7 +88,7 @@ export default function HrManagerChangesPage() {
       if (activeTab !== "ALL") params.status = activeTab;
       if (searchTerm) params.search = searchTerm;
       const res = await api.get("/hr/organization/manager-changes", { params });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -105,7 +105,7 @@ export default function HrManagerChangesPage() {
   const createMutation = useMutation({
     mutationFn: async (payload: any) => {
       const res = await api.post("/hr/organization/manager-change-request", payload);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Reporting manager change request submitted successfully");
@@ -120,7 +120,7 @@ export default function HrManagerChangesPage() {
       });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to submit manager change request");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to submit manager change request");
     },
   });
 
@@ -130,7 +130,7 @@ export default function HrManagerChangesPage() {
         action,
         comments,
       });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: (data: any) => {
       const appliedNotice = data?.applied ? " Changes applied immediately to reporting hierarchy." : "";
@@ -142,7 +142,7 @@ export default function HrManagerChangesPage() {
       setActionComments("");
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to process review action");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to process review action");
     },
   });
 

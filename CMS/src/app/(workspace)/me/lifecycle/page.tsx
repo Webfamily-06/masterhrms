@@ -26,7 +26,7 @@ export default function MeLifecycleHubPage() {
     queryKey: ["me-lifecycle-awards"],
     queryFn: async () => {
       const res = await api.get("/me/lifecycle/awards");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -34,7 +34,7 @@ export default function MeLifecycleHubPage() {
     queryKey: ["me-lifecycle-promotions"],
     queryFn: async () => {
       const res = await api.get("/me/lifecycle/promotions");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -42,7 +42,7 @@ export default function MeLifecycleHubPage() {
     queryKey: ["me-lifecycle-warnings"],
     queryFn: async () => {
       const res = await api.get("/me/lifecycle/warnings");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -50,7 +50,7 @@ export default function MeLifecycleHubPage() {
     queryKey: ["me-lifecycle-trips"],
     queryFn: async () => {
       const res = await api.get("/me/lifecycle/trips");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 

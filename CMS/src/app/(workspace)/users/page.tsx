@@ -301,8 +301,8 @@ function UsersPage() {
                               u.assignedRole.name === "Workspace Admin"
                                 ? "bg-orange-500/10 text-orange-600 border-orange-500/30"
                                 : u.assignedRole.name.includes("Manager")
-                                ? "bg-purple-500/10 text-purple-600 border-purple-500/30"
-                                : "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-300"
+                                  ? "bg-purple-500/10 text-purple-600 border-purple-500/30"
+                                  : "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-300"
                             )}
                           >
                             {u.assignedRole.name}

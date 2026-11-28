@@ -24,7 +24,7 @@ export default function MePerformanceHubPage() {
     queryKey: ["me-performance-goals"],
     queryFn: async () => {
       const res = await api.get("/me/performance/goals");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -32,7 +32,7 @@ export default function MePerformanceHubPage() {
     queryKey: ["me-performance-reviews"],
     queryFn: async () => {
       const res = await api.get("/me/performance/reviews");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 

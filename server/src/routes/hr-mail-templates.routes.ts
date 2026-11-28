@@ -1,9 +1,21 @@
 import { Router, Response } from "express";
 import nodemailer from "nodemailer";
 import { requireAuth, AuthRequest } from "../middleware/auth.js";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware.js";
+import { requireHrOrAdmin } from "../middleware/hr-rbac.middleware.js";
 import { prisma } from "../prisma.js";
 
 export const hrMailTemplatesRouter = Router();
+
+// DEFECT-041: Restrict HR Mail Templates and SMTP test dispatch strictly to HR/Tenant Administrators
+hrMailTemplatesRouter.use(
+  requireAuth,
+  resolveTenantContext,
+  requireHrOrAdmin({
+    allowedPermissions: ["hrm.settings", "mail_templates", "settings.manage"],
+    deniedMessage: "Access denied: HR or Workspace Administrator privileges are required to manage mail templates.",
+  })
+);
 
 export interface DefaultMailTemplateDef {
   eventKey: string;

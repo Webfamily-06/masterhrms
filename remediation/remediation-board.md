@@ -35,8 +35,18 @@
 
 | Defect ID | Severity | Actual Risk Summary |
 |---|---|---|
-| `W2-DEFECT-004` + `W1-DEFECT-011` | **High (P1)** | 4-way nav registry drift + unentitled paid modules (`Payroll`, `Recruitment`, etc.) still shown on Starter Cloud tenant sidebar (`67` links). |
+| `W2-DEFECT-004` + `W1-DEFECT-011` | **High (P1)** | **Partially Mitigated (Wave-3):** All 15 dead nav/storefront routes eliminated (`DEFECT-040` + `npm run validate:routes`), and unconditional `/tenant/biometric-sync`, `/activity-logs`, `/backup-restore` tenant sidebar links gated behind `isSuperAdmin \|\| isEntitled(...)`. Full 4-way nav registry consolidation remains deferred architectural backlog. |
 | `W2-DEFECT-008` | **High (P1)** | 3-table storage fragmentation (`MediaFile: 334`, `CompanyDocument: 11`, `StoredDocument: 6`) causes quota bypass & inconsistent retention/deletion. |
-| `W2-DEFECT-006` | Medium (P2) | Existing customer `hr@kovaitextails.com` has legacy `["employee"]` vs `["Workspace Admin"]`; requires customer-approved ops reconciliation. |
-| `W2-DEFECT-007` | Low (P3) | Verify Turnstile CSP headers under production `next start` with `enforce` mode so real users are not locked out. |
-| `W2-DEFECT-002`, `W2-DEFECT-010`, `P22-HYG-001` | Low / High | `W2-002` not reproduced (`0` 404s on `/super/compliance`); `W2-010` broken root scripts + missing local `vitest`; `P22-HYG-001` rotate GitHub PAT embedded in local git remote. |
+| `W2-DEFECT-006` | Medium (P2) | Existing customer `hr@kovaitextails.com` has legacy `["employee"]` vs `["Workspace Admin"]` (runtime-mitigated via `auth.ts` `DEFECT-019` unification); requires customer-approved ops reconciliation. |
+| `W2-DEFECT-007` | Low (P3) | **Code Implemented (Phase 25 — `PARTIAL-006`):** Added `async headers()` in `CMS/next.config.ts` with Turnstile (`challenges.cloudflare.com`) & Razorpay (`checkout.razorpay.com`) compatible `Content-Security-Policy-Report-Only`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy`. Remaining gate: verify under staging production `next start` with Turnstile `enforce` mode before switching CSP to enforce. |
+| `W2-DEFECT-002`, `P22-HYG-001` | Low / High | `W2-002` not reproduced (`200` on `/super/compliance` in Phase 22 & Wave-3); `P22-HYG-001` rotate GitHub PAT embedded in local git remote. *(`W2-DEFECT-010` **CLOSED in Wave-3**: cleaned 18 broken package scripts + added `validate:routes`, `test:e2e`, `test:server` + Vitest `hr-rbac.test.ts`.)* |
+
+## 4. Phase 23 / Wave-3 Gap Audit & Remediation Closures (2026-11-28)
+
+| Task / Defect ID | Severity | Summary & Files Fixed | Verification Evidence | Status |
+|---|---|---|---|---|
+| **`DEFECT-038`** | **Critical (P0)** | Fixed `/super/languages` uncaught client `TypeError` (`currentLang && currentLang.code !== "en"`) & mutation unwraps (`CMS/src/app/super/languages/page.tsx`) | `wave3_gap_verification.json` (`status=200, pageErrs=0, consoleErrs=0`), `VERIFY_11_super_languages_zero_crash.png` | **Verified** |
+| **`DEFECT-039`** | **High (P1)** | Replaced 82 raw `return res.data;` React Query v5 unwraps & hardened error handlers across 63 CMS files (`/me/*`, `/hr/*`, `/super/cms`, ERP workspace) | `npm run cms:typecheck` Exit `0` + `10/10` sampled routes HTTP `200`, `0` errors (`VERIFY_12_me_regularizations_clean.png`) | **Verified** |
+| **`DEFECT-040`** | **High (P1)** | Fixed 15 dead 404 routes in `tenant-addon-storefront.tsx`, `nav/registry.ts`, `lib/navigation-registry.ts`, `lib/routes.ts` + added `scripts/validate_routes_integrity.cjs` | `npm run validate:routes` (`528/528` targets / `720` pages, `0` dead) + `13/13` live remapped targets HTTP `200` | **Verified** |
+| **`DEFECT-041`** | **High (P1)** | Added shared `server/src/middleware/hr-rbac.middleware.ts` across 8 HR routers (`hr-dashboard`, `hr-mail-templates`, `hr-collaboration`, `hr-zoom-meetings`, `hr-recruitment`, `hr-documents`, `hr-performance`, `hr-training`) with self-service allowlists & ownership checks | `npm run test:server` (`5/5` Vitest passed in `hr-rbac.test.ts`) + `11/11` live `401` auth boundaries + `typecheck:server` & `tsc` Exit `0` | **Verified** |
+| **`W2-DEFECT-010`** | Medium (P2) | Cleaned 18 broken `package.json` / `server/package.json` test scripts & created missing `test-results/phase22/*.md` reports | `npm run validate:routes`, `npm run test:server`, `npm run test:e2e:list` all Exit `0`; `0` broken links across `test-results/` & `remediation/` | **Verified** |

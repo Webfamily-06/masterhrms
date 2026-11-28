@@ -52,32 +52,6 @@ const DEFAULT_TEMPLATES = [
         notes: "Zero-trust access rules, multi-factor authentication requirements, and data classification guidelines.",
     },
 ];
-/**
- * Auto-seed standard templates if tenant has no documents
- */
-async function ensureSeedDocuments(tenantId) {
-    const count = await prisma_1.prisma.companyDocument.count({ where: { tenantId } });
-    if (count === 0) {
-        for (const t of DEFAULT_TEMPLATES) {
-            const randomCode = Math.floor(1000 + Math.random() * 9000);
-            const documentCode = `DOC-${randomCode}`;
-            await prisma_1.prisma.companyDocument.create({
-                data: {
-                    tenantId,
-                    documentCode,
-                    title: t.title,
-                    category: t.category,
-                    fileName: t.fileName,
-                    fileSize: t.fileSize,
-                    fileType: t.fileType,
-                    requiresSignature: t.requiresSignature,
-                    status: "pending_signature",
-                    notes: t.notes,
-                },
-            });
-        }
-    }
-}
 // GET /api/documents (List documents)
 exports.documentsRouter.get("/", auth_1.requireAuth, async (req, res) => {
     try {

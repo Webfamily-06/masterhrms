@@ -8,6 +8,7 @@ const employee_schema_1 = require("../schemas/employee.schema");
 const validate_middleware_1 = require("../middleware/validate.middleware");
 const workspace_policy_service_1 = require("../services/workspace-policy.service");
 const express_1 = require("express");
+const crypto_1 = __importDefault(require("crypto"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const prisma_1 = require("../prisma");
 const auth_1 = require("../middleware/auth");
@@ -33,14 +34,16 @@ const requireHrEmployeeAdmin = (0, auth_1.requireRole)("admin", "super_admin", "
 function callerHasStatutoryPIIAccess(req) {
     if (!req.user)
         return false;
-    // Super admins always have full access
     if (req.user.roles?.includes("super_admin"))
         return true;
-    // Workspace Admin and HR Admin have full access (Workspace Admin bypass is in requirePermission)
-    if (req.user.roles?.includes("admin") || req.user.roles?.includes("hr_admin") || req.user.roles?.includes("Workspace Admin"))
+    if (req.user.roles?.some((r) => ["admin", "tenant_admin", "workspace_admin", "hr_admin", "hr_manager", "Workspace Admin", "HR Manager"].includes(r))) {
         return true;
-    // Explicit HR/payroll permission — granted to HR managers and finance roles
-    const hrPermissions = ["hrm.employees.manage", "hrm.payroll.manage"];
+    }
+    const wsRole = String(req.user.workspaceRole || "").toLowerCase().trim();
+    if (["workspace admin", "tenant admin", "hr manager", "hr admin", "hr administrator"].includes(wsRole)) {
+        return true;
+    }
+    const hrPermissions = ["hrm.employees.manage", "hrm.payroll.manage", "hrm.sensitive.view", "hr:employee:sensitive:read"];
     const userPerms = req.user.permissions || [];
     return hrPermissions.some((p) => userPerms.includes(p));
 }
@@ -69,26 +72,42 @@ function maskPAN(value) {
     return "X".repeat(s.length - 4) + s.slice(-4);
 }
 /**
- * Apply statutory PII masking to a single employee record if the caller is
- * not entitled to view full sensitive identifiers.
+ * Strict field-level security projection for non-privileged callers (DEFECT-027).
+ * Standard employees viewing colleagues only receive safe public directory fields —
+ * compensation, banking, statutory IDs, DOB, and phone are completely stripped.
  */
 function applyPIIMask(employee, req) {
     if (!employee)
         return employee;
     if (callerHasStatutoryPIIAccess(req))
-        return employee; // no masking for privileged callers
+        return employee;
     // Check self-access: employee can view their own profile unmasked
     const selfEmployeeId = req.user?.employeeId;
-    if (selfEmployeeId && selfEmployeeId === employee.id)
+    const selfUserId = req.user?.userId || req.user?.id;
+    if ((selfEmployeeId && selfEmployeeId === employee.id) || (selfUserId && employee.userId && selfUserId === employee.userId)) {
         return employee;
+    }
     return {
-        ...employee,
-        aadhaar: maskNumeric(employee.aadhaar, 4),
-        pan: maskPAN(employee.pan),
-        bankAccount: maskNumeric(employee.bankAccount, 4),
-        // UAN and ESI are less sensitive but mask for consistency
-        uan: maskNumeric(employee.uan, 4),
-        esiNumber: maskNumeric(employee.esiNumber, 4),
+        id: employee.id,
+        tenantId: employee.tenantId,
+        userId: employee.userId ?? null,
+        employeeCode: employee.employeeCode,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        email: employee.email,
+        position: employee.position ?? null,
+        employmentType: employee.employmentType,
+        status: employee.status,
+        joinedAt: employee.joinedAt ?? null,
+        departmentId: employee.departmentId ?? null,
+        department: employee.department ?? null,
+        branchId: employee.branchId ?? null,
+        branch: employee.branch ?? null,
+        designationId: employee.designationId ?? null,
+        designation: employee.designation ?? null,
+        managerId: employee.managerId ?? null,
+        manager: employee.manager ?? null,
+        avatarUrl: employee.avatarUrl ?? employee.user?.profile?.avatarUrl ?? null,
     };
 }
 /**
@@ -136,7 +155,7 @@ exports.employeesRouter.get("/", auth_1.requireAuth, async (req, res) => {
     try {
         const tenantId = await getTenantId(req);
         const pagination = (0, pagination_1.parsePaginationParams)(req, "createdAt", 50);
-        const { departmentId, status, employmentType } = req.query;
+        const { departmentId, branchId, designationId, status, employmentType } = req.query;
         const where = { tenantId };
         if (pagination.search) {
             where.OR = [
@@ -151,21 +170,42 @@ exports.employeesRouter.get("/", auth_1.requireAuth, async (req, res) => {
         if (departmentId && departmentId !== "all") {
             where.departmentId = String(departmentId);
         }
+        if (branchId && branchId !== "all") {
+            where.branchId = String(branchId);
+        }
+        if (designationId && designationId !== "all") {
+            where.designationId = String(designationId);
+        }
         if (status && status !== "all") {
             where.status = parseEmployeeStatus(status);
         }
         if (employmentType && employmentType !== "all") {
             where.employmentType = parseEmploymentType(employmentType);
         }
-        const sortField = ["firstName", "lastName", "employeeCode", "createdAt", "updatedAt", "joinedAt", "salary"].includes(pagination.sortField)
+        const isPrivilegedCaller = callerHasStatutoryPIIAccess(req);
+        const allowedSortFields = isPrivilegedCaller
+            ? ["firstName", "lastName", "employeeCode", "createdAt", "updatedAt", "joinedAt", "salary"]
+            : ["firstName", "lastName", "employeeCode", "createdAt", "updatedAt", "joinedAt"];
+        const sortField = allowedSortFields.includes(pagination.sortField)
             ? pagination.sortField
             : "createdAt";
-        const [total, employees] = await Promise.all([
+        const baseCountWhere = { tenantId };
+        if (departmentId && departmentId !== "all")
+            baseCountWhere.departmentId = String(departmentId);
+        if (branchId && branchId !== "all")
+            baseCountWhere.branchId = String(branchId);
+        if (designationId && designationId !== "all")
+            baseCountWhere.designationId = String(designationId);
+        if (employmentType && employmentType !== "all")
+            baseCountWhere.employmentType = parseEmploymentType(employmentType);
+        const [total, employees, allCount, activeCount, inactiveCount, probationCount, terminatedCount] = await Promise.all([
             prisma_1.prisma.employee.count({ where }),
             prisma_1.prisma.employee.findMany({
                 where,
                 include: {
                     department: true,
+                    branch: true,
+                    designation: true,
                     manager: {
                         select: { id: true, firstName: true, lastName: true, email: true },
                     },
@@ -180,15 +220,31 @@ exports.employeesRouter.get("/", auth_1.requireAuth, async (req, res) => {
                 orderBy: { [sortField]: pagination.sortType },
                 ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
             }),
+            prisma_1.prisma.employee.count({ where: baseCountWhere }),
+            prisma_1.prisma.employee.count({ where: { ...baseCountWhere, status: "active" } }),
+            prisma_1.prisma.employee.count({ where: { ...baseCountWhere, status: { not: "active" } } }),
+            prisma_1.prisma.employee.count({ where: { ...baseCountWhere, probationRecords: { some: { status: { in: ["active", "extended", "ongoing"] } } } } }),
+            prisma_1.prisma.employee.count({ where: { ...baseCountWhere, status: "terminated" } }),
         ]);
-        // WAVE 2 — Apply PII masking based on caller privilege + flatten avatarUrl
+        // WAVE 2 — Apply PII masking based on caller privilege + flatten avatarUrl & loginStatus
         const enrichedEmployees = employees.map((emp) => ({
             ...emp,
+            loginStatus: emp.userId ? "active" : "inactive",
             avatarUrl: emp.avatarUrl || emp.user?.profile?.avatarUrl || null,
         }));
         const maskedEmployees = applyPIIMaskList(enrichedEmployees, req);
+        const statusCounts = {
+            all: allCount,
+            active: activeCount,
+            inactive: inactiveCount,
+            probation: probationCount,
+            terminated: terminatedCount,
+        };
         if (pagination.isPaginated) {
-            return res.json((0, pagination_1.formatPaginatedResponse)(maskedEmployees, total, pagination));
+            return res.json({
+                ...(0, pagination_1.formatPaginatedResponse)(maskedEmployees, total, pagination),
+                statusCounts,
+            });
         }
         res.setHeader("X-Total-Count", String(total));
         return res.json(maskedEmployees);
@@ -201,7 +257,14 @@ exports.employeesRouter.get("/", auth_1.requireAuth, async (req, res) => {
 exports.employeesRouter.post("/", auth_1.requireAuth, (0, auth_1.requirePermission)("hrm.employees.create"), (0, limits_1.requireWithinLimit)("seats"), async (req, res) => {
     try {
         const tenantId = await getTenantId(req);
-        const { firstName, lastName, email, phone, position, employeeCode, departmentId, managerId, employmentType, salary, joinedAt, avatarUrl, password, pan, aadhaar, uan, esiNumber, bankName, bankAccount, bankIfsc, bankBranch, dateOfBirth, gender, taxRegime, state, pfEligible, esiEligible, ptEligible, tdsEligible, } = req.body;
+        const { firstName, lastName, email, phone, position, employeeCode, branchId, departmentId, designationId, managerId, employmentType, salary, joinedAt, avatarUrl, password, createLoginAccount, userRole, workspaceRole, roleId, pan, aadhaar, uan, esiNumber, bankName, bankAccount, bankIfsc, bankBranch, dateOfBirth, gender, taxRegime, state, pfEligible, esiEligible, ptEligible, tdsEligible, } = req.body;
+        const shouldCreateLogin = createLoginAccount !== false;
+        if (shouldCreateLogin && (!password || String(password).trim().length < 6)) {
+            return res.status(400).json({
+                error: "An initial login password of at least 6 characters is required when login account creation is enabled.",
+                code: "PASSWORD_REQUIRED",
+            });
+        }
         if (managerId) {
             const hierarchyCheck = await (0, reporting_hierarchy_validator_1.validateReportingHierarchy)(tenantId, null, managerId, prisma_1.prisma);
             if (!hierarchyCheck.valid) {
@@ -212,7 +275,7 @@ exports.employeesRouter.post("/", auth_1.requireAuth, (0, auth_1.requirePermissi
             await (0, workspace_policy_service_1.lockWorkspaceCapacity)(tx, tenantId, "employees");
             const cleanEmail = email.toLowerCase().trim();
             let userId;
-            try {
+            if (shouldCreateLogin) {
                 userId = await (0, auth_helpers_1.provisionEmployeeUser)(tx, {
                     tenantId,
                     email: cleanEmail,
@@ -220,11 +283,20 @@ exports.employeesRouter.post("/", auth_1.requireAuth, (0, auth_1.requirePermissi
                     lastName,
                     phone,
                     avatarUrl,
-                    password: password || "Password@123",
+                    password: String(password).trim(),
+                    userRole: userRole || null,
+                    workspaceRole: workspaceRole || null,
+                    roleId: roleId || null,
                 });
             }
-            catch (userErr) {
-                throw userErr;
+            let resolvedPosition = position ? String(position).trim() : null;
+            if (!resolvedPosition && designationId) {
+                const desig = await tx.designation.findFirst({
+                    where: { id: designationId, tenantId },
+                    select: { name: true },
+                });
+                if (desig?.name)
+                    resolvedPosition = desig.name;
             }
             const created = await tx.employee.create({
                 data: {
@@ -234,9 +306,11 @@ exports.employeesRouter.post("/", auth_1.requireAuth, (0, auth_1.requirePermissi
                     lastName,
                     email: email.toLowerCase().trim(),
                     phone,
-                    position,
+                    position: resolvedPosition,
                     employeeCode: employeeCode || `EMP-${Date.now().toString().slice(-4)}`,
+                    branchId: branchId || null,
                     departmentId: departmentId || null,
+                    designationId: designationId || null,
                     managerId: managerId || null,
                     employmentType: parseEmploymentType(employmentType),
                     status: parseEmployeeStatus(req.body.status),
@@ -261,6 +335,8 @@ exports.employeesRouter.post("/", auth_1.requireAuth, (0, auth_1.requirePermissi
                 },
                 include: {
                     department: true,
+                    branch: true,
+                    designation: true,
                     user: {
                         select: {
                             profile: {
@@ -291,7 +367,7 @@ exports.employeesRouter.post("/", auth_1.requireAuth, (0, auth_1.requirePermissi
 exports.employeesRouter.put("/:id", auth_1.requireAuth, (0, auth_1.requirePermission)("hrm.employees.edit"), (0, validate_middleware_1.validateBody)(employee_schema_1.updateEmployeeSchema), async (req, res) => {
     try {
         const { id } = req.params;
-        const { firstName, lastName, email, phone, position, employeeCode, departmentId, managerId, employmentType, status, salary, joinedAt, avatarUrl, pan, aadhaar, uan, esiNumber, bankName, bankAccount, bankIfsc, bankBranch, dateOfBirth, gender, taxRegime, state, pfEligible, esiEligible, ptEligible, tdsEligible, } = req.body;
+        const { firstName, lastName, email, phone, position, employeeCode, branchId, departmentId, designationId, managerId, employmentType, status, salary, joinedAt, avatarUrl, pan, aadhaar, uan, esiNumber, bankName, bankAccount, bankIfsc, bankBranch, dateOfBirth, gender, taxRegime, state, pfEligible, esiEligible, ptEligible, tdsEligible, } = req.body;
         const tenantId = req.user?.tenantId;
         const isSuperAdmin = req.user?.roles?.includes("super_admin");
         const existingEmp = await prisma_1.prisma.employee.findUnique({
@@ -364,7 +440,9 @@ exports.employeesRouter.put("/:id", auth_1.requireAuth, (0, auth_1.requirePermis
                         phone,
                         position,
                         employeeCode,
+                        ...(branchId !== undefined && { branchId: branchId || null }),
                         departmentId: departmentId || null,
+                        ...(designationId !== undefined && { designationId: designationId || null }),
                         managerId: managerId || null,
                         employmentType: employmentType ? parseEmploymentType(employmentType) : undefined,
                         status: newStatus,
@@ -402,19 +480,30 @@ exports.employeesRouter.put("/:id", auth_1.requireAuth, (0, auth_1.requirePermis
             return res.json(employee);
         }
         // --- Non-reactivation update path (no capacity check needed) ---
-        if (avatarUrl && existingEmp.userId) {
+        const normalizedEmail = email ? email.toLowerCase().trim() : undefined;
+        if (existingEmp.userId && normalizedEmail && existingEmp.user?.email?.toLowerCase().trim() !== normalizedEmail) {
+            const emailOwner = await prisma_1.prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } });
+            if (!emailOwner || emailOwner.id === existingEmp.userId) {
+                await prisma_1.prisma.user.update({
+                    where: { id: existingEmp.userId },
+                    data: { email: normalizedEmail },
+                });
+            }
+        }
+        if (existingEmp.userId && (avatarUrl || normalizedEmail || firstName || lastName)) {
             await prisma_1.prisma.profile.upsert({
                 where: { userId: existingEmp.userId },
                 create: {
                     userId: existingEmp.userId,
-                    fullName: `${firstName || ""} ${lastName || ""}`.trim() || email,
-                    email: email ? email.toLowerCase().trim() : existingEmp.email,
-                    avatarUrl,
+                    fullName: `${firstName || existingEmp.firstName || ""} ${lastName || existingEmp.lastName || ""}`.trim() || normalizedEmail || existingEmp.email,
+                    email: normalizedEmail || existingEmp.email,
+                    avatarUrl: avatarUrl || null,
                     tenantId: existingEmp.tenantId,
                 },
                 update: {
-                    avatarUrl,
-                    fullName: `${firstName || ""} ${lastName || ""}`.trim() || email,
+                    ...(avatarUrl ? { avatarUrl } : {}),
+                    ...(normalizedEmail ? { email: normalizedEmail } : {}),
+                    fullName: `${firstName || existingEmp.firstName || ""} ${lastName || existingEmp.lastName || ""}`.trim() || normalizedEmail || existingEmp.email,
                 },
             });
         }
@@ -427,7 +516,9 @@ exports.employeesRouter.put("/:id", auth_1.requireAuth, (0, auth_1.requirePermis
                 phone,
                 position,
                 employeeCode,
+                ...(branchId !== undefined && { branchId: branchId || null }),
                 departmentId: departmentId || null,
+                ...(designationId !== undefined && { designationId: designationId || null }),
                 managerId: managerId || null,
                 employmentType: employmentType ? parseEmploymentType(employmentType) : undefined,
                 status: newStatus,
@@ -701,6 +792,8 @@ exports.employeesRouter.get("/:id", auth_1.requireAuth, async (req, res) => {
             where: { id },
             include: {
                 department: true,
+                branch: true,
+                designation: true,
                 manager: {
                     select: { id: true, firstName: true, lastName: true, email: true },
                 },
@@ -917,6 +1010,7 @@ exports.employeesRouter.post("/bulk-import", auth_1.requireAuth, requireHrEmploy
         for (const d of existingDepts) {
             deptMap.set(d.name.toLowerCase().trim(), d.id);
         }
+        const provisioningWarnings = [];
         // 2. Execute entire batch atomically inside a transaction with pessimistic capacity lock
         const importedEmployees = await prisma_1.prisma.$transaction(async (tx) => {
             // Upfront capacity lock: validate active count + batch size <= plan limit
@@ -942,16 +1036,27 @@ exports.employeesRouter.post("/bulk-import", auth_1.requireAuth, requireHrEmploy
                 }
                 let userId;
                 try {
+                    // PARTIAL-004: Generate strong random temp password when omitted (never hardcoded weak Password@123)
+                    const initialPassword = typeof row.password === "string" && row.password.trim().length >= 8
+                        ? row.password.trim()
+                        : `${crypto_1.default.randomBytes(12).toString("base64url")}!A1`;
                     userId = await (0, auth_helpers_1.provisionEmployeeUser)(tx, {
                         tenantId,
                         email: rawEmail,
                         firstName,
                         lastName: lastName || "-",
                         phone: row.phone || null,
-                        password: row.password || "Password@123",
+                        password: initialPassword,
                     });
                 }
-                catch { }
+                catch (provErr) {
+                    // PARTIAL-004: Surface partial user-account provisioning warnings instead of silently swallowing
+                    provisioningWarnings.push({
+                        index: i,
+                        email: rawEmail,
+                        reason: provErr?.message || "Employee created without login account provisioning.",
+                    });
+                }
                 const empCode = row.employeeCode || row.employee_code || `EMP-${Date.now().toString().slice(-4)}${i}`;
                 const created = await tx.employee.create({
                     data: {
@@ -1001,12 +1106,16 @@ exports.employeesRouter.post("/bulk-import", auth_1.requireAuth, requireHrEmploy
             });
         }
         catch { }
-        return res.status(201).json({
-            success: true,
+        const isPartial = provisioningWarnings.length > 0;
+        return res.status(isPartial ? 207 : 201).json({
+            success: !isPartial,
+            partial: isPartial,
             total: rawList.length,
             imported: importedEmployees.length,
             skipped: skippedCount,
             failed: errors.length,
+            warningsCount: provisioningWarnings.length,
+            warnings: provisioningWarnings.length > 0 ? provisioningWarnings : undefined,
             employees: importedEmployees,
             errors: errors.length > 0 ? errors : undefined,
         });

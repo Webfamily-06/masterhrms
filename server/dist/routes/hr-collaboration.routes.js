@@ -3,11 +3,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.hrCollaborationRouter = void 0;
 const express_1 = require("express");
 const auth_js_1 = require("../middleware/auth.js");
+const tenant_context_middleware_js_1 = require("../middleware/tenant-context.middleware.js");
+const hr_rbac_middleware_js_1 = require("../middleware/hr-rbac.middleware.js");
 const calendar_service_js_1 = require("../services/calendar.service.js");
 const todo_service_js_1 = require("../services/todo.service.js");
 const notification_service_js_1 = require("../services/notification.service.js");
 const tenant_context_js_1 = require("../context/tenant-context.js");
 exports.hrCollaborationRouter = (0, express_1.Router)();
+// DEFECT-041: Restrict HR collaboration endpoints (which use isHR:true / admin-override deletion) to HR/Admin/Manager. Employees use /me/calendar and /todos.
+exports.hrCollaborationRouter.use(auth_js_1.requireAuth, tenant_context_middleware_js_1.resolveTenantContext, (0, hr_rbac_middleware_js_1.requireHrOrAdmin)({
+    allowedPermissions: ["hrm.calendar", "hrm.todo", "hrm.collaboration"],
+    deniedMessage: "Access denied: HR Administrator or Manager privileges are required for HR collaboration routes.",
+}));
 async function resolveEmployee(req) {
     const tenantId = req.user?.tenantId;
     const user = req.user;

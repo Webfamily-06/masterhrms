@@ -64,7 +64,7 @@ export default function UnitsPage() {
       setSelectedUnit(null);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to save unit');
+      toast.error((err?.response?.data?.error || err?.message) || 'Failed to save unit');
     },
   });
 
@@ -77,7 +77,7 @@ export default function UnitsPage() {
       queryClient.invalidateQueries({ queryKey: ['units-list'] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to delete unit');
+      toast.error((err?.response?.data?.error || err?.message) || 'Failed to delete unit');
     },
   });
 

@@ -86,11 +86,28 @@ exports.meLifecycleRouter.get("/transfers", auth_1.requireAuth, async (req, res)
         if (!employee)
             return res.json([]);
         const db = (0, tenant_context_1.getTenantDb)();
-        const transfers = await db.employeeTransfer.findMany({
-            where: { tenantId, employeeId: employee.id },
-            orderBy: { effectiveDate: "desc" },
-        });
-        return res.json(transfers);
+        const [transfers, branches, departments, designations] = await Promise.all([
+            db.employeeTransfer.findMany({
+                where: { tenantId, employeeId: employee.id },
+                orderBy: { effectiveDate: "desc" },
+            }),
+            db.branch.findMany({ where: { tenantId }, select: { id: true, name: true } }),
+            db.department.findMany({ where: { tenantId }, select: { id: true, name: true } }),
+            db.designation.findMany({ where: { tenantId }, select: { id: true, name: true } }),
+        ]);
+        const branchMap = new Map(branches.map((b) => [b.id, b.name]));
+        const deptMap = new Map(departments.map((d) => [d.id, d.name]));
+        const desigMap = new Map(designations.map((d) => [d.id, d.name]));
+        const enriched = transfers.map((t) => ({
+            ...t,
+            fromBranchName: (t.fromBranchId && branchMap.get(t.fromBranchId)) || "—",
+            toBranchName: (t.toBranchId && branchMap.get(t.toBranchId)) || "—",
+            fromDeptName: (t.fromDeptId && deptMap.get(t.fromDeptId)) || "—",
+            toDeptName: (t.toDeptId && deptMap.get(t.toDeptId)) || "—",
+            fromDesignationName: t.fromDesignation || (t.fromDesignationId && desigMap.get(t.fromDesignationId)) || "—",
+            toDesignationName: t.toDesignation || (t.toDesignationId && desigMap.get(t.toDesignationId)) || "—",
+        }));
+        return res.json(enriched);
     }
     catch (err) {
         return res.status(500).json({ error: err.message || "Failed to load transfers." });
@@ -268,11 +285,38 @@ exports.meLifecycleRouter.post("/trips", auth_1.requireAuth, async (req, res) =>
         const employee = await resolveEmployee(req);
         if (!employee)
             return res.status(404).json({ error: "Employee profile not found." });
-        const trip = await lifecycle_service_1.LifecycleService.createTrip(tenantId, employee.id, req.body);
+        // REM-008 (DEFECT-012): Validate required trip fields & dates cleanly instead of throwing 500 Prisma trace
+        const body = req.body || {};
+        const purpose = String(body.purpose || "").trim();
+        const destination = String(body.destination || "").trim();
+        const rawFrom = body.fromDate || body.startDate;
+        const rawTo = body.toDate || body.endDate;
+        if (!purpose || !destination || !rawFrom || !rawTo) {
+            return res.status(400).json({ error: "Purpose, destination, fromDate, and toDate are required." });
+        }
+        const parsedFrom = new Date(rawFrom);
+        const parsedTo = new Date(rawTo);
+        if (Number.isNaN(parsedFrom.getTime()) || Number.isNaN(parsedTo.getTime())) {
+            return res.status(400).json({ error: "Invalid fromDate or toDate format." });
+        }
+        if (parsedTo < parsedFrom) {
+            return res.status(400).json({ error: "toDate cannot be earlier than fromDate." });
+        }
+        const trip = await lifecycle_service_1.LifecycleService.createTrip(tenantId, employee.id, {
+            ...body,
+            purpose,
+            destination,
+            fromDate: parsedFrom,
+            toDate: parsedTo,
+        });
         return res.status(201).json(trip);
     }
     catch (err) {
-        return res.status(500).json({ error: err.message || "Failed to create trip request." });
+        const rawMsg = String(err?.message || "");
+        const safeMsg = /prisma|invocation|\/Users\/|\/src\//i.test(rawMsg)
+            ? "Failed to create trip request."
+            : rawMsg || "Failed to create trip request.";
+        return res.status(400).json({ error: safeMsg });
     }
 });
 exports.meLifecycleRouter.post("/trips/:id/expenses", auth_1.requireAuth, async (req, res) => {

@@ -50,7 +50,7 @@ export default function MeReimbursementsLoansPage() {
     queryKey: ["me-payroll-reimbursements-loans"],
     queryFn: async () => {
       const res = await api.get("/api/v1/me/payroll/reimbursements-loans");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -67,7 +67,7 @@ export default function MeReimbursementsLoansPage() {
       queryClient.invalidateQueries({ queryKey: ["me-payroll-reimbursements-loans"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to submit loan request");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to submit loan request");
     },
   });
 

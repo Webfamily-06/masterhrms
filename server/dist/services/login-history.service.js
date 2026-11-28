@@ -41,8 +41,17 @@ function parseUserAgent(userAgentHeader) {
 }
 async function recordLoginHistory(req, userId, createdBy) {
     try {
-        const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
-        const ip = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+        const rawIp = req.headers["cf-connecting-ip"] ||
+            req.headers["x-forwarded-for"] ||
+            req.headers["x-real-ip"] ||
+            req.ip ||
+            req.socket.remoteAddress ||
+            "127.0.0.1";
+        const ip = rawIp.split(",")[0].trim().replace(/^::ffff:/, "").replace(/^::1$/, "127.0.0.1");
+        const acceptLang = String(req.headers["accept-language"] || "en").split(",")[0].split("-")[0].trim().toLowerCase() || "en";
+        const city = String(req.headers["x-vercel-ip-city"] || req.headers["cf-ipcity"] || "").trim();
+        const country = String(req.headers["x-vercel-ip-country"] || req.headers["cf-ipcountry"] || "").trim();
+        const location = [city, country].filter(Boolean).join(", ") || "Unknown";
         const referrerHeader = req.headers["referer"] || "";
         let referrer_host = null;
         let referrer_path = null;
@@ -59,6 +68,8 @@ async function recordLoginHistory(req, userId, createdBy) {
             browser_name,
             os_name,
             device_type,
+            language: acceptLang,
+            location,
             referrer_host,
             referrer_path,
         });

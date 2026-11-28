@@ -124,7 +124,7 @@ export default function PayrollCommandHubPage() {
       queryClient.invalidateQueries({ queryKey: ["payroll-cycles-list"] });
     },
     onError: (err: any) => {
-      setActionError(err.response?.data?.error || err.message);
+      setActionError(err?.response?.data?.error || err?.message);
     },
   });
 
@@ -143,7 +143,7 @@ export default function PayrollCommandHubPage() {
       queryClient.invalidateQueries({ queryKey: ["payroll-cycle-detail"] });
     },
     onError: (err: any) => {
-      setActionError(err.response?.data?.error || err.message);
+      setActionError(err?.response?.data?.error || err?.message);
     },
   });
 
@@ -161,7 +161,7 @@ export default function PayrollCommandHubPage() {
       queryClient.invalidateQueries({ queryKey: ["payroll-cycle-variance"] });
     },
     onError: (err: any) => {
-      setActionError(err.response?.data?.error || err.message);
+      setActionError(err?.response?.data?.error || err?.message);
     },
   });
 
@@ -180,7 +180,7 @@ export default function PayrollCommandHubPage() {
       queryClient.invalidateQueries({ queryKey: ["payroll-cycle-detail"] });
     },
     onError: (err: any) => {
-      setActionError(err.response?.data?.error || err.message);
+      setActionError(err?.response?.data?.error || err?.message);
     },
   });
 
@@ -199,7 +199,7 @@ export default function PayrollCommandHubPage() {
       queryClient.invalidateQueries({ queryKey: ["payroll-cycle-detail"] });
     },
     onError: (err: any) => {
-      setActionError(err.response?.data?.error || err.message);
+      setActionError(err?.response?.data?.error || err?.message);
     },
   });
 
@@ -220,7 +220,7 @@ export default function PayrollCommandHubPage() {
       queryClient.invalidateQueries({ queryKey: ["payroll-cycle-detail"] });
     },
     onError: (err: any) => {
-      setActionError(err.response?.data?.error || err.message);
+      setActionError(err?.response?.data?.error || err?.message);
     },
   });
 
@@ -237,7 +237,7 @@ export default function PayrollCommandHubPage() {
       queryClient.invalidateQueries({ queryKey: ["payroll-cycle-detail"] });
     },
     onError: (err: any) => {
-      setActionError(err.response?.data?.error || err.message);
+      setActionError(err?.response?.data?.error || err?.message);
     },
   });
 

@@ -2232,17 +2232,19 @@ export function DreamsSidebar({
                           Integrations Hub
                         </Link>
                       </li>
-                      <li>
-                        <Link
-                          to="/tenant/biometric-sync"
-                          onClick={onCloseMobile}
-                          className={cn(
-                            (currentPath === "/tenant/biometric-sync" || currentPath === "/biometric-sync") && "active"
-                          )}
-                        >
-                          Biometric Hardware
-                        </Link>
-                      </li>
+                      {(isSuperAdmin || isEntitled("biometric-sync")) && (
+                        <li>
+                          <Link
+                            to="/tenant/biometric-sync"
+                            onClick={onCloseMobile}
+                            className={cn(
+                              (currentPath === "/tenant/biometric-sync" || currentPath === "/biometric-sync") && "active"
+                            )}
+                          >
+                            Biometric Hardware
+                          </Link>
+                        </li>
+                      )}
                       <li>
                         <Link
                           to="/tenant/data"
@@ -2331,18 +2333,22 @@ export function DreamsSidebar({
                   <span>Security & System Settings</span>
                 </Link>
               </li>
-              <li>
-                <Link to="/activity-logs" onClick={onCloseMobile} className={cn(currentPath === "/activity-logs" && "active")}>
-                  <i className="ph-duotone ph-clock-counter-clockwise"></i>
-                  <span>Activity Logs</span>
-                </Link>
-              </li>
-              <li>
-                <Link to="/backup-restore" onClick={onCloseMobile} className={cn(currentPath === "/backup-restore" && "active")}>
-                  <i className="ph-duotone ph-cloud-arrow-up"></i>
-                  <span>Backup & Restore</span>
-                </Link>
-              </li>
+              {(isSuperAdmin || isEntitled("activity-logs")) && (
+                <li>
+                  <Link to="/activity-logs" onClick={onCloseMobile} className={cn(currentPath === "/activity-logs" && "active")}>
+                    <i className="ph-duotone ph-clock-counter-clockwise"></i>
+                    <span>Activity Logs</span>
+                  </Link>
+                </li>
+              )}
+              {(isSuperAdmin || isEntitled("backup-restore")) && (
+                <li>
+                  <Link to="/backup-restore" onClick={onCloseMobile} className={cn(currentPath === "/backup-restore" && "active")}>
+                    <i className="ph-duotone ph-cloud-arrow-up"></i>
+                    <span>Backup & Restore</span>
+                  </Link>
+                </li>
+              )}
             
 
             {/* Super Admin Platform Operations (STRICTLY HIDDEN for Tenant Admin) */}

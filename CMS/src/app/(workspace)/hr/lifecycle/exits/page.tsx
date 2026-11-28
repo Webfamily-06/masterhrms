@@ -38,7 +38,7 @@ export default function HrExitsPage() {
     queryKey: ["hr-lifecycle-exits"],
     queryFn: async () => {
       const res = await api.get("/hr/lifecycle/exits");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -51,7 +51,7 @@ export default function HrExitsPage() {
       toast.success("Clearance item updated.");
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to update clearance item.");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to update clearance item.");
     },
   });
 
@@ -65,7 +65,7 @@ export default function HrExitsPage() {
       setActiveExit(null);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to finalize exit.");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to finalize exit.");
     },
   });
 

@@ -1774,9 +1774,9 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
       { id: "app-todo", portal: "tenant", heading: "1. Main", label: "Todo Tasks", path: ROUTES.tenant.todo, icon: "CheckSquare", order: 42 },
       { id: "app-gantt", portal: "tenant", heading: "1. Main", label: "Gantt Timeline", path: ROUTES.tenant.todoGantt, icon: "BarChartHorizontal", order: 43 },
       { id: "app-chat", portal: "tenant", heading: "1. Main", label: "Team Chat", path: ROUTES.tenant.chat, icon: "MessageSquare", order: 44 },
-      { id: "app-email", portal: "tenant", heading: "1. Main", label: "Email Client", path: "/tenant/email", icon: "Mail", order: 45 },
+      { id: "app-email", portal: "tenant", heading: "1. Main", label: "Email Client", path: "/email", icon: "Mail", order: 45 },
       { id: "app-files", portal: "tenant", heading: "1. Main", label: "File Manager", path: ROUTES.tenant.files, icon: "FolderLock", order: 46 },
-      { id: "app-notes", portal: "tenant", heading: "1. Main", label: "Quick Notes", path: "/tenant/notes", icon: "StickyNote", order: 47 },
+      { id: "app-notes", portal: "tenant", heading: "1. Main", label: "Quick Notes", path: "/notes", icon: "StickyNote", order: 47 },
       { id: "app-reports", portal: "tenant", heading: "1. Main", label: "Smart Reports", path: "/smart-reports", icon: "FileSpreadsheet", order: 48 },
     ],
   },
@@ -1819,7 +1819,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
   { id: "inv-warehouse", portal: "tenant", heading: "2. Inventory", label: "Warehouse", path: "/warehouse", icon: "Warehouse", order: 150 },
   { id: "inv-barcode", portal: "tenant", heading: "2. Inventory", label: "Barcode Print", path: "/barcode-print", icon: "Barcode", order: 160 },
   { id: "inv-qrcode", portal: "tenant", heading: "2. Inventory", label: "QR Code Print", path: "/qr-code-print", icon: "QrCode", order: 170 },
-  { id: "inv-storefront", portal: "tenant", heading: "2. Inventory", label: "Storefront Catalog", path: "/storefront", icon: "Store", order: 180 },
+  { id: "inv-storefront", portal: "tenant", heading: "2. Inventory", label: "Storefront Catalog", path: "/store", icon: "Store", order: 180 },
 
   // ===================== 3. SALES =====================
   { id: "sales-customers", portal: "tenant", heading: "3. Sales", label: "Customers", path: "/customers", icon: "Users", order: 200 },
@@ -1851,7 +1851,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     icon: "FileSpreadsheet",
     order: 400,
     children: [
-      { id: "fin-rep-exp", portal: "tenant", heading: "5. Finance", label: "Expense Summary", path: "/expenses/report", icon: "PieChart", order: 401 },
+      { id: "fin-rep-exp", portal: "tenant", heading: "5. Finance", label: "Expense Summary", path: "/expenses-report", icon: "PieChart", order: 401 },
       { id: "fin-rep-pl", portal: "tenant", heading: "5. Finance", label: "Profit & Loss", path: "/profit-loss", icon: "TrendingUp", order: 402 },
       { id: "fin-rep-inc-exp", portal: "tenant", heading: "5. Finance", label: "Income vs Expense", path: "/income-expense", icon: "ArrowLeftRight", order: 403 },
       { id: "fin-rep-tax", portal: "tenant", heading: "5. Finance", label: "Tax Summary", path: "/tax-summary", icon: "Percent", order: 404 },
@@ -1860,7 +1860,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
   },
   { id: "fin-expenses", portal: "tenant", heading: "5. Finance", label: "Expenses", path: "/expenses", icon: "Wallet", order: 410 },
   { id: "fin-expense-cat", portal: "tenant", heading: "5. Finance", label: "Expense Category", path: "/expense-category", icon: "Layers", order: 420 },
-  { id: "fin-payments", portal: "tenant", heading: "5. Finance", label: "Payments", path: "/payments", icon: "CreditCard", order: 430 },
+  { id: "fin-payments", portal: "tenant", heading: "5. Finance", label: "Payments", path: "/invoices", icon: "CreditCard", order: 430 },
   { id: "fin-transactions", portal: "tenant", heading: "5. Finance", label: "Transactions", path: "/transactions", icon: "Receipt", order: 440 },
   { id: "fin-taxes", portal: "tenant", heading: "5. Finance", label: "Taxes", path: "/taxes", icon: "Percent", order: 450 },
   { id: "fin-budgets", portal: "tenant", heading: "5. Finance", label: "Budgeting", path: "/budgets", icon: "Coins", order: 460 },
@@ -1878,7 +1878,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     children: [
       { id: "hrm-leave-list", portal: "tenant", heading: "6. HRM", label: "Leaves", path: "/leave", icon: "CalendarCheck", order: 501 },
       { id: "hrm-leave-types", portal: "tenant", heading: "6. HRM", label: "Leave Types", path: "/leave-types", icon: "Tag", order: 502 },
-      { id: "hrm-leave-report", portal: "tenant", heading: "6. HRM", label: "Leave Report", path: "/leave/report", icon: "FileText", order: 503 },
+      { id: "hrm-leave-report", portal: "tenant", heading: "6. HRM", label: "Leave Report", path: "/leave-report", icon: "FileText", order: 503 },
     ],
   },
   { id: "hrm-employees", portal: "tenant", heading: "6. HRM", label: "Employees", path: "/employees", icon: "Users", order: 510 },
@@ -1894,7 +1894,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
   { id: "hrm-interviews", portal: "tenant", heading: "6. HRM", label: "Interview Scheduler", path: "/interview-scheduler", icon: "CalendarCheck", order: 610 },
   { id: "hrm-offers", portal: "tenant", heading: "6. HRM", label: "Offer Management", path: "/offer-management", icon: "Award", order: 620 },
   { id: "hrm-sourcing", portal: "tenant", heading: "6. HRM", label: "Sourcing Campaigns", path: "/sourcing-campaigns", icon: "Compass", order: 630 },
-  { id: "hrm-performance", portal: "tenant", heading: "6. HRM", label: "Performance & Appraisal", path: "/performance", icon: "Trophy", order: 640 },
+  { id: "hrm-performance", portal: "tenant", heading: "6. HRM", label: "Performance & Appraisal", path: "/performance-review", icon: "Trophy", order: 640 },
   { id: "hrm-training", portal: "tenant", heading: "6. HRM", label: "Training & Development", path: "/training", icon: "GraduationCap", order: 650 },
   { id: "hrm-analytics", portal: "tenant", heading: "6. HRM", label: "HR Analytics", path: "/hr-analytics", icon: "LineChart", order: 660 },
 
@@ -1927,7 +1927,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
 
   // ===================== 11. DOCUMENTS =====================
   { id: "doc-repository", portal: "tenant", heading: "11. Documents", label: "Document Repository", path: "/documents", icon: "FolderArchive", order: 1100 },
-  { id: "doc-types", portal: "tenant", heading: "11. Documents", label: "Document Types", path: "/document-types", icon: "FileText", order: 1110 },
+  { id: "doc-types", portal: "tenant", heading: "11. Documents", label: "Document Types", path: "/hr/organization/document-types", icon: "FileText", order: 1110 },
 
   // ===================== 12. SUPPORT =====================
   { id: "supp-tickets", portal: "tenant", heading: "12. Support", label: "Tickets", path: "/tickets", icon: "Ticket", order: 1200 },

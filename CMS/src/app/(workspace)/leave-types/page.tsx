@@ -63,7 +63,7 @@ export default function LeaveTypesPage() {
       resetForm();
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to save leave type');
+      toast.error((err?.response?.data?.error || err?.message) || 'Failed to save leave type');
     },
   });
 

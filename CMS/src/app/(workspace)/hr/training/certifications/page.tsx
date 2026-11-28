@@ -165,7 +165,7 @@ export default function HrCertificationsPage() {
       });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to issue certification.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to issue certification.");
     },
   });
 
@@ -180,7 +180,7 @@ export default function HrCertificationsPage() {
       setSelectedIds((prev) => prev.filter((id) => id !== deleteConfirmId));
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to revoke certification.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to revoke certification.");
     },
   });
 

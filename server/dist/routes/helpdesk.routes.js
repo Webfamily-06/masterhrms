@@ -34,40 +34,6 @@ const DEFAULT_INTERNAL_TICKETS = [
         slaHours: 48,
     },
 ];
-/**
- * Auto-seed standard internal tickets if tenant has none
- */
-async function ensureSeedInternalTickets(tenantId, employeeId) {
-    const count = await prisma_1.prisma.helpdeskTicket.count({ where: { tenantId } });
-    if (count === 0 && employeeId) {
-        for (const t of DEFAULT_INTERNAL_TICKETS) {
-            const randomCode = Math.floor(1000 + Math.random() * 9000);
-            const ticketCode = `TICK-${randomCode}`;
-            const ticket = await prisma_1.prisma.helpdeskTicket.create({
-                data: {
-                    tenantId,
-                    employeeId,
-                    ticketCode,
-                    subject: t.subject,
-                    category: t.category,
-                    priority: t.priority,
-                    description: t.description,
-                    assignedAgent: t.assignedAgent,
-                    slaHours: t.slaHours,
-                    status: "open",
-                },
-            });
-            await prisma_1.prisma.helpdeskComment.create({
-                data: {
-                    ticketId: ticket.id,
-                    authorName: "System Automation",
-                    message: `Ticket ${ticketCode} created and routed to ${t.assignedAgent}. Target SLA: ${t.slaHours} hours.`,
-                    isStaff: true,
-                },
-            });
-        }
-    }
-}
 // GET /api/helpdesk/tickets (List tenant internal tickets)
 exports.helpdeskRouter.get("/tickets", auth_1.requireAuth, async (req, res) => {
     try {

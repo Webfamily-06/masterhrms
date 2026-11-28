@@ -211,7 +211,7 @@ export default function PurchasesPage() {
   const createPurchaseMutation = useMutation({
     mutationFn: async (payload: any) => {
       const res = await api.post("/api/purchases", payload);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Purchase order created successfully!");
@@ -234,7 +234,7 @@ export default function PurchasesPage() {
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const res = await api.patch(`/api/purchases/${id}/status`, { status });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: (_, variables) => {
       toast.success(`Purchase order marked as ${variables.status.toUpperCase()}`);
@@ -257,7 +257,7 @@ export default function PurchasesPage() {
   const recordPaymentMutation = useMutation({
     mutationFn: async ({ id, amount, method, referenceNo }: { id: string; amount: number; method: string; referenceNo?: string }) => {
       const res = await api.post(`/api/purchases/${id}/payments`, { amount, paymentMethod: method, referenceNo: referenceNo || undefined });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Supplier payment recorded successfully!");
@@ -269,7 +269,7 @@ export default function PurchasesPage() {
       queryClient.invalidateQueries({ queryKey: ["purchase-payments"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to record payment");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to record payment");
     },
   });
 

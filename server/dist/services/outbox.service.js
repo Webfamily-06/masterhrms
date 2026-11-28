@@ -8,6 +8,8 @@ const crypto_1 = __importDefault(require("crypto"));
 const tenant_context_1 = require("../context/tenant-context");
 const socket_1 = require("../socket");
 const prisma_1 = require("../prisma");
+const EXCLUDED_ENTITY_TYPES = ["EMAIL"];
+const EXCLUDED_EVENT_TYPES = ["COMMERCE_ORDER_PAID"];
 class OutboxService {
     static processorTimer = null;
     static isProcessing = false;
@@ -59,7 +61,79 @@ class OutboxService {
         }, tx);
     }
     /**
-     * Sweeps pending outbox events and dispatches them to authorized Realtime rooms.
+     * QUEUE-001 / PENTEST-003:
+     * Atomically claims a batch of non-email, non-commerce PENDING outbox events using PostgreSQL
+     * `FOR UPDATE SKIP LOCKED` so horizontally scaled instances never duplicate events,
+     * and strictly excludes `entity_type = 'EMAIL'` and `email.%` events so private OTP/reset emails
+     * are NEVER broadcast over Socket.IO or stolen from EmailOutboxService.
+     */
+    static async claimBatch(db, batchSize) {
+        // 1. Recover any stale PROCESSING rows orphaned by a crashed worker (>5 min)
+        if (typeof db.$executeRawUnsafe === "function") {
+            await db
+                .$executeRawUnsafe(`UPDATE outbox_events
+           SET status = 'PENDING', retry_count = retry_count + 1, error = COALESCE(error, 'Recovered stale PROCESSING lock')
+           WHERE status = 'PROCESSING'
+             AND entity_type <> 'EMAIL'
+             AND event_type <> 'COMMERCE_ORDER_PAID'
+             AND event_type NOT LIKE 'email.%'
+             AND retry_count < 5
+             AND occurred_at < NOW() - INTERVAL '5 minutes'`)
+                .catch(() => { });
+        }
+        // 2. Atomic claim with FOR UPDATE SKIP LOCKED (multi-worker safe)
+        if (typeof db.$queryRawUnsafe === "function") {
+            try {
+                const rows = await db.$queryRawUnsafe(`WITH claimed AS (
+             SELECT id
+             FROM outbox_events
+             WHERE status = 'PENDING'
+               AND retry_count < 5
+               AND entity_type <> 'EMAIL'
+               AND event_type <> 'COMMERCE_ORDER_PAID'
+               AND event_type NOT LIKE 'email.%'
+             ORDER BY created_at ASC
+             FOR UPDATE SKIP LOCKED
+             LIMIT $1
+           )
+           UPDATE outbox_events o
+           SET status = 'PROCESSING'
+           FROM claimed
+           WHERE o.id = claimed.id
+           RETURNING
+             o.id,
+             o.tenant_id AS "tenantId",
+             o.event_id AS "eventId",
+             o.event_type AS "eventType",
+             o.entity_type AS "entityType",
+             o.entity_id AS "entityId",
+             o.actor_id AS "actorId",
+             o.payload,
+             o.status,
+             o.retry_count AS "retryCount",
+             o.error,
+             o.occurred_at AS "occurredAt",
+             o.created_at AS "createdAt"`, batchSize);
+                return rows || [];
+            }
+            catch {
+                // Fallback for non-Postgres or mocked clients
+            }
+        }
+        return await db.outboxEvent.findMany({
+            where: {
+                status: "PENDING",
+                retryCount: { lt: 5 },
+                entityType: { notIn: EXCLUDED_ENTITY_TYPES },
+                eventType: { notIn: EXCLUDED_EVENT_TYPES },
+                NOT: { eventType: { startsWith: "email." } },
+            },
+            orderBy: { createdAt: "asc" },
+            take: batchSize,
+        });
+    }
+    /**
+     * Sweeps pending domain outbox events and dispatches them to authorized Realtime rooms.
      */
     static async processPendingEvents(batchSize = 25) {
         if (this.isProcessing)
@@ -68,24 +142,25 @@ class OutboxService {
         let processedCount = 0;
         const db = prisma_1.rawPrisma || prisma_1.prisma;
         try {
-            const pendingEvents = await db.outboxEvent.findMany({
-                where: {
-                    status: "PENDING",
-                    retryCount: { lt: 5 },
-                    eventType: { notIn: ["COMMERCE_ORDER_PAID"] },
-                },
-                orderBy: { createdAt: "asc" },
-                take: batchSize,
-            });
+            const pendingEvents = await this.claimBatch(db, batchSize);
             if (!pendingEvents || pendingEvents.length === 0) {
-                this.isProcessing = false;
                 return 0;
             }
             const io = (0, socket_1.getIO)();
             for (const event of pendingEvents) {
                 try {
+                    // Defense-in-depth guard: never broadcast EMAIL / OTP / Password Reset events over Socket.IO
+                    const evtTypeLower = String(event.eventType || "").toLowerCase();
+                    if (String(event.entityType || "").toUpperCase() === "EMAIL" ||
+                        evtTypeLower.startsWith("email.") ||
+                        evtTypeLower.includes("otp") ||
+                        evtTypeLower.includes("password_reset")) {
+                        await db.outboxEvent
+                            .update({ where: { id: event.id }, data: { status: "PENDING" } })
+                            .catch(() => { });
+                        continue;
+                    }
                     const metadata = event.payload?._metadata;
-                    // Standard Event Envelope
                     const envelope = {
                         eventId: event.eventId,
                         eventType: event.eventType,
@@ -104,23 +179,19 @@ class OutboxService {
                             event.eventType.startsWith("call:") ||
                             event.entityType === "ChatMessage" ||
                             event.entityType === "Call";
-                        // 1. Dispatch non-private domain events to tenant room
                         if (!isPrivateCommEvent && event.tenantId) {
                             io.to(`tenant:${event.tenantId}`).emit("domain:event", envelope);
                             io.to(`tenant:${event.tenantId}`).emit(event.eventType, envelope);
                         }
-                        // 2. Dispatch to tenant-qualified record room if subscribed
                         if (!isPrivateCommEvent && event.tenantId && event.entityType && event.entityId) {
                             io.to(`tenant:${event.tenantId}:record:${event.entityType}:${event.entityId}`).emit(event.eventType, envelope);
                         }
-                        // 3. Dispatch to targeted user room if present in metadata/payload
                         const recipientUserId = metadata?.targetUserId ||
                             event.payload?.recipientId ||
                             event.payload?.requesterId;
                         if (recipientUserId) {
                             io.to(`user:${recipientUserId}`).emit(event.eventType, envelope);
                         }
-                        // 4. Dispatch storage, file, and quota events to Super Admin platform room
                         if (event.eventType.startsWith("storage.") ||
                             event.eventType.startsWith("storage:") ||
                             event.eventType.startsWith("quota.") ||
@@ -136,7 +207,6 @@ class OutboxService {
                             io.to("platform:admin").emit(event.eventType, envelope);
                         }
                     }
-                    // Mark event as processed
                     try {
                         await db.outboxEvent.update({
                             where: { id: event.id },
@@ -183,18 +253,43 @@ class OutboxService {
         return processedCount;
     }
     /**
-     * Starts the background outbox event processor.
+     * Returns non-PII queue depth counts for health & ops monitoring.
      */
+    static async getQueueMetrics() {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        try {
+            const grouped = await db.outboxEvent.groupBy({
+                by: ["entityType", "status"],
+                _count: { id: true },
+            });
+            const summary = {
+                domain: { pending: 0, processing: 0, processed: 0, failed: 0 },
+                email: { pending: 0, processing: 0, processed: 0, failed: 0 },
+            };
+            for (const row of grouped || []) {
+                const bucket = String(row.entityType || "").toUpperCase() === "EMAIL" ? summary.email : summary.domain;
+                const st = String(row.status || "").toLowerCase();
+                if (st in bucket)
+                    bucket[st] += Number(row._count?.id || 0);
+            }
+            return summary;
+        }
+        catch {
+            return {
+                domain: { pending: 0, processing: 0, processed: 0, failed: 0 },
+                email: { pending: 0, processing: 0, processed: 0, failed: 0 },
+            };
+        }
+    }
     static startProcessor(intervalMs = 3000) {
         if (this.processorTimer)
             return;
         this.processorTimer = setInterval(() => {
             this.processPendingEvents().catch((err) => console.error("[OutboxService] Unhandled processor loop error:", err));
         }, intervalMs);
+        if (this.processorTimer.unref)
+            this.processorTimer.unref();
     }
-    /**
-     * Stops the background outbox processor.
-     */
     static stopProcessor() {
         if (this.processorTimer) {
             clearInterval(this.processorTimer);

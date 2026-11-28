@@ -91,7 +91,7 @@ export default function EmployeeFeedbackPage() {
       setCreateAnonymous(false);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to submit idea.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to submit idea.");
     },
   });
 

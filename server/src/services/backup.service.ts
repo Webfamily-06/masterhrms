@@ -285,7 +285,7 @@ export async function generateDatabaseBackup(options?: GenerateBackupOptions): P
 
         for (const t of tablesResult) {
           const tableName = t.table_name || t.TABLE_NAME;
-          if (!tableName || tableName.startsWith("_prisma_")) continue;
+          if (!tableName || tableName.startsWith("_prisma_") || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) continue;
 
           gzip.write(`-- Table: "${tableName}"\n`);
           try {
@@ -316,14 +316,14 @@ export async function generateDatabaseBackup(options?: GenerateBackupOptions): P
       } else {
         // MySQL fallback
         gzip.write(`-- MASTER HRMS MYSQL BACKUP\n-- Generated: ${new Date().toISOString()}\nSET FOREIGN_KEY_CHECKS=0;\n\n`);
-        const tables: any[] = await prisma.$queryRawUnsafe(`
-          SELECT TABLE_NAME 
-          FROM information_schema.TABLES 
-          WHERE TABLE_SCHEMA = '${database}' AND TABLE_TYPE = 'BASE TABLE'
-        `);
+        const tables: any[] = await prisma.$queryRawUnsafe(
+          `SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'`,
+          database
+        );
 
         for (const t of tables) {
           const tableName = t.TABLE_NAME || t.table_name;
+          if (!tableName || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) continue;
           gzip.write(`-- Table: ${tableName}\n`);
           const rows: any[] = await prisma.$queryRawUnsafe(`SELECT * FROM \`${tableName}\` LIMIT 10000`);
           if (rows.length > 0) {

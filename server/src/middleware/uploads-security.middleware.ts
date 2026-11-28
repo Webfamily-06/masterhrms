@@ -35,19 +35,36 @@ const SENSITIVE_DOCUMENT_FOLDERS = [
 ];
 
 /**
- * Checks whether a requested relative upload path falls into the allowed public asset categories
+ * Checks whether a requested relative upload path falls into the strictly allowed public asset categories
  * (system & tenant branding logos, favicons, marketplace icons, screenshots).
+ * PENTEST-004: Rejects any path containing sensitive document segments and anchors nested branding paths
+ * strictly to `<tenantId>/branding/...` or `<tenantId>/Certificates/Branding/...` so private files cannot
+ * bypass authentication by embedding `/branding/` or `/award-types/` inside a confidential path.
  */
 export function isPublicUploadPath(relativePath: string): boolean {
   const normalized = relativePath.replace(/\\/g, "/").replace(/^\/+/, "");
+  const lower = normalized.toLowerCase();
+
+  // Never allow any path touching confidential/private/chat/employee folders to bypass authentication
+  if (
+    SENSITIVE_DOCUMENT_FOLDERS.some(
+      (f) => lower === f || lower.startsWith(`${f}/`) || lower.includes(`/${f}/`)
+    ) ||
+    lower.includes("chat/") ||
+    lower.includes("communication/")
+  ) {
+    return false;
+  }
+
+  if (PUBLIC_UPLOAD_PREFIXES.some((prefix) => normalized.startsWith(prefix))) {
+    return true;
+  }
+
+  // Allow strictly anchored 1-segment tenant public branding/award paths:
+  // `<tenantId>/branding/<file>`, `<tenantId>/award-types/<file>`, `<tenantId>/Certificates/Branding/<file>`
   return (
-    PUBLIC_UPLOAD_PREFIXES.some((prefix) => normalized.startsWith(prefix)) ||
-    normalized.includes("/award-types/") ||
-    normalized.startsWith("award-types/") ||
-    normalized.includes("/branding/") ||
-    normalized.startsWith("branding/") ||
-    normalized.includes("/Certificates/Branding/") ||
-    normalized.startsWith("Certificates/Branding/")
+    /^[a-zA-Z0-9_-]+\/(?:branding|award-types)\/[^/]+$/.test(normalized) ||
+    /^[a-zA-Z0-9_-]+\/Certificates\/Branding\/[^/]+$/.test(normalized)
   );
 }
 
@@ -58,15 +75,38 @@ export function isPublicUploadPath(relativePath: string): boolean {
  * TASK-P1-03: Enforces employee-level authorization (BOLA protection) on confidential documents.
  */
 export async function uploadsSecurityMiddleware(req: Request, res: Response, next: NextFunction) {
-  const rawPath = req.path;
-  const normalizedPath = path.normalize(rawPath).replace(/^(\.\.[\/\\])+/, "");
+  const rawOriginal = req.originalUrl || req.url || req.path || "";
+  const rawPath = req.path || "";
 
-  // Prevent directory traversal attacks
-  if (rawPath.includes("..") || normalizedPath.includes("..")) {
-    return res.status(400).json({ error: "Invalid path: Path traversal detected." });
+  // PENTEST-004: Multi-pass URL decoding to block encoded traversal (%2e%2e, %252e%252e, %5c, null bytes)
+  let decoded = rawPath;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const nextDecoded = decodeURIComponent(decoded);
+      if (nextDecoded === decoded) break;
+      decoded = nextDecoded;
+    } catch {
+      return res.status(400).json({ error: "Invalid path: Malformed URL encoding.", code: "INVALID_PATH_ENCODING" });
+    }
   }
 
-  const subPath = normalizedPath.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (
+    rawOriginal.toLowerCase().includes("%2e") ||
+    rawOriginal.toLowerCase().includes("%5c") ||
+    rawOriginal.includes("\0") ||
+    decoded.includes("\0") ||
+    decoded.includes("..") ||
+    decoded.includes("\\")
+  ) {
+    return res.status(400).json({ error: "Invalid path: Path traversal detected.", code: "PATH_TRAVERSAL_BLOCKED" });
+  }
+
+  const normalizedPath = path.posix.normalize(decoded);
+  if (normalizedPath.includes("..")) {
+    return res.status(400).json({ error: "Invalid path: Path traversal detected.", code: "PATH_TRAVERSAL_BLOCKED" });
+  }
+
+  const subPath = normalizedPath.replace(/^\/+/, "");
 
   // Public assets pass through directly to express.static
   if (isPublicUploadPath(subPath)) {

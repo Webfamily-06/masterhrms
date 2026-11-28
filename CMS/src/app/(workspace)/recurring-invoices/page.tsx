@@ -199,7 +199,7 @@ export default function RecurringInvoicesPage() {
         limit: pageSize.toString(),
       });
       const res = await api.get(`/api/invoices/recurring?${params.toString()}`);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -213,7 +213,7 @@ export default function RecurringInvoicesPage() {
     queryFn: async () => {
       if (!selectedRecord?.id) throw new Error("No record selected");
       const res = await api.get(`/api/invoices/recurring/${selectedRecord.id}`);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     enabled: !!selectedRecord?.id && previewModalOpen,
   });
@@ -246,7 +246,7 @@ export default function RecurringInvoicesPage() {
       setCreateModalOpen(false);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to create recurring invoice");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to create recurring invoice");
     },
   });
 
@@ -261,7 +261,7 @@ export default function RecurringInvoicesPage() {
       setEditModalOpen(false);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to update recurring invoice");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to update recurring invoice");
     },
   });
 
@@ -274,7 +274,7 @@ export default function RecurringInvoicesPage() {
       queryClient.invalidateQueries({ queryKey: ["recurring-invoices"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to update status");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to update status");
     },
   });
 
@@ -288,7 +288,7 @@ export default function RecurringInvoicesPage() {
       setDeleteModalOpen(false);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to delete recurring invoice");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to delete recurring invoice");
     },
   });
 
@@ -306,7 +306,7 @@ export default function RecurringInvoicesPage() {
       queryClient.invalidateQueries({ queryKey: ["recurring-invoice-details"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to generate invoice");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to generate invoice");
     },
   });
 
@@ -319,7 +319,7 @@ export default function RecurringInvoicesPage() {
       queryClient.invalidateQueries({ queryKey: ["recurring-invoices"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to run batch generator");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to run batch generator");
     },
   });
 

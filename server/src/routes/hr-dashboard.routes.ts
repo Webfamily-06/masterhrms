@@ -1,8 +1,20 @@
 import { Router, Response } from "express";
 import { requireAuth, AuthRequest } from "../middleware/auth.js";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware.js";
+import { requireHrOrAdmin } from "../middleware/hr-rbac.middleware.js";
 import { prisma, rawPrisma } from "../prisma.js";
 
 export const hrDashboardRouter = Router();
+
+// DEFECT-041: Protect company-wide HR dashboard analytics (payroll totals, all-employee attendance/leaves) from standard employee access
+hrDashboardRouter.use(
+  requireAuth,
+  resolveTenantContext,
+  requireHrOrAdmin({
+    allowedPermissions: ["hrm.dashboard", "hrm.analytics", "hrm.view"],
+    deniedMessage: "Access denied: HR Administrator or Manager privileges are required to view the company-wide HR dashboard.",
+  })
+);
 
 hrDashboardRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
   const db = rawPrisma || prisma;

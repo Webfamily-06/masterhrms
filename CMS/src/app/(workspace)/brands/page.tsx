@@ -65,7 +65,7 @@ export default function BrandsPage() {
       setSelectedBrand(null);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to save brand');
+      toast.error((err?.response?.data?.error || err?.message) || 'Failed to save brand');
     },
   });
 
@@ -78,7 +78,7 @@ export default function BrandsPage() {
       queryClient.invalidateQueries({ queryKey: ['brands-list'] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to delete brand');
+      toast.error((err?.response?.data?.error || err?.message) || 'Failed to delete brand');
     },
   });
 

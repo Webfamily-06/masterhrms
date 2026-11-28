@@ -516,28 +516,47 @@ class IntegrationHubService {
         }
     }
     static async validateRazorpayHandshake(creds) {
-        const { keyId, keySecret } = creds;
+        const keyId = String(creds.keyId || "").trim();
+        const keySecret = String(creds.keySecret || "").trim();
+        const envMode = String(creds.environment || creds.mode || "").trim().toLowerCase();
         if (!keyId || !keySecret) {
             return { ok: false, message: "Missing keyId or keySecret." };
         }
-        if (keyId.startsWith("rzp_test_") || keyId.includes("test") || keyId.includes("sandbox")) {
-            return {
-                ok: true,
-                message: "Razorpay sandbox gateway verified successfully.",
-                details: { mode: "sandbox", keyId: keyId.substring(0, 12) + "..." },
-            };
-        }
-        if (keyId.startsWith("rzp_live_")) {
+        if (keyId.startsWith("rzp_live_") && (envMode === "sandbox" || envMode === "test")) {
             return {
                 ok: false,
-                message: "Live Razorpay credentials are prohibited in sandbox environment. Please use test keys.",
+                message: "Live Razorpay credentials (rzp_live_*) cannot be used in Sandbox mode. Switch environment to Production/Live.",
             };
         }
-        return {
-            ok: true,
-            message: "Razorpay test configuration format verified.",
-            details: { keyId: keyId.substring(0, 8) + "..." },
-        };
+        const mode = keyId.startsWith("rzp_live_") ? "live" : "sandbox";
+        try {
+            const authHeader = "Basic " + Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 7000);
+            const rzpRes = await fetch("https://api.razorpay.com/v1/payments?count=1", {
+                method: "GET",
+                headers: { Authorization: authHeader, Accept: "application/json" },
+                signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            if (rzpRes.status === 401 || rzpRes.status === 403) {
+                return {
+                    ok: false,
+                    message: "Razorpay API rejected these credentials (HTTP 401 Unauthorized). Verify Key ID and Key Secret.",
+                };
+            }
+            return {
+                ok: true,
+                message: `Razorpay ${mode === "live" ? "Live" : "Sandbox"} gateway verified successfully (HTTP ${rzpRes.status}).`,
+                details: { mode, keyId: keyId.substring(0, 12) + "..." },
+            };
+        }
+        catch (err) {
+            return {
+                ok: false,
+                message: `Razorpay API unreachable: ${err?.message || "Network timeout"}`,
+            };
+        }
     }
     static async validateWhatsAppHandshake(creds) {
         const { phoneNumberId, accessToken } = creds;

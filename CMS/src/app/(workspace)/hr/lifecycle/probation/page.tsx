@@ -65,7 +65,7 @@ export default function HrProbationPage() {
     queryFn: async () => {
       try {
         const res = await api.get("/hr/lifecycle/probation/overview");
-        return res.data;
+        return (res as any)?.data ?? res;
       } catch (e) {
         return null;
       }
@@ -76,7 +76,7 @@ export default function HrProbationPage() {
     queryKey: ["hr-lifecycle-probation"],
     queryFn: async () => {
       const res = await api.get("/hr/lifecycle/probation");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -95,7 +95,7 @@ export default function HrProbationPage() {
       setSelectedRecord(null);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to extend probation");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to extend probation");
     },
   });
 
@@ -117,7 +117,7 @@ export default function HrProbationPage() {
       setSelectedRecord(null);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to confirm probation");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to confirm probation");
     },
   });
 

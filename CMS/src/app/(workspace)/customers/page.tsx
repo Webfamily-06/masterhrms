@@ -101,7 +101,7 @@ export default function CustomersPage() {
       resetForm();
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to save customer');
+      toast.error((err?.response?.data?.error || err?.message) || 'Failed to save customer');
     },
   });
 
@@ -114,7 +114,7 @@ export default function CustomersPage() {
       queryClient.invalidateQueries({ queryKey: ['customers-list'] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || 'Failed to delete customer');
+      toast.error((err?.response?.data?.error || err?.message) || 'Failed to delete customer');
     },
   });
 

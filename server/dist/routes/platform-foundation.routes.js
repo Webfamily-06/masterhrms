@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.platformFoundationRouter = void 0;
 const express_1 = require("express");
 const auth_1 = require("../middleware/auth");
+const super_audit_1 = require("../lib/super-audit");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
 const tenant_context_1 = require("../context/tenant-context");
 const notification_service_1 = require("../services/notification.service");
@@ -31,6 +32,8 @@ const hr_assets_routes_1 = require("./hr-assets.routes");
 const me_assets_routes_1 = require("./me-assets.routes");
 const hr_meetings_routes_1 = require("./hr-meetings.routes");
 const me_meetings_routes_1 = require("./me-meetings.routes");
+const hr_zoom_meetings_routes_1 = require("./hr-zoom-meetings.routes");
+const hr_mail_templates_routes_1 = require("./hr-mail-templates.routes");
 const hr_documents_routes_1 = require("./hr-documents.routes");
 const me_documents_routes_1 = require("./me-documents.routes");
 const hr_collaboration_routes_1 = require("./hr-collaboration.routes");
@@ -78,8 +81,10 @@ exports.platformFoundationRouter.use("/hr/assets", hr_assets_routes_1.hrAssetsRo
 exports.platformFoundationRouter.use("/me/assets", me_assets_routes_1.meAssetsRouter);
 exports.platformFoundationRouter.use("/hr/meetings", hr_meetings_routes_1.hrMeetingsRouter);
 exports.platformFoundationRouter.use("/me/meetings", me_meetings_routes_1.meMeetingsRouter);
+exports.platformFoundationRouter.use("/hr/zoom-meetings", hr_zoom_meetings_routes_1.hrZoomMeetingsRouter);
 exports.platformFoundationRouter.use("/hr/documents", hr_documents_routes_1.hrDocumentsRouter);
 exports.platformFoundationRouter.use("/me/documents", me_documents_routes_1.meDocumentsRouter);
+exports.platformFoundationRouter.use("/hr/mail-templates", hr_mail_templates_routes_1.hrMailTemplatesRouter);
 // =========================================================================
 // P8. COLLABORATION & FINAL POLISH BUSINESS LAYER
 // =========================================================================
@@ -198,8 +203,8 @@ exports.platformFoundationRouter.post("/shared/notifications/read-all", auth_1.r
 // =========================================================================
 // 3. WORKFLOW DEFINITIONS & APPROVAL INBOX
 // =========================================================================
-// List workflow definitions
-exports.platformFoundationRouter.get("/hr/workflows", auth_1.requireAuth, async (req, res) => {
+// List workflow definitions (HR / workspace administrators only)
+exports.platformFoundationRouter.get("/hr/workflows", super_audit_1.requireTenantAdmin, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId;
         const db = (0, tenant_context_1.getTenantDb)();
@@ -213,11 +218,14 @@ exports.platformFoundationRouter.get("/hr/workflows", auth_1.requireAuth, async 
         return res.status(500).json({ error: err.message });
     }
 });
-// Create workflow definition
-exports.platformFoundationRouter.post("/hr/workflows", auth_1.requireAuth, async (req, res) => {
+// Create workflow definition (HR / workspace administrators only)
+exports.platformFoundationRouter.post("/hr/workflows", super_audit_1.requireTenantAdmin, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId;
-        const { entityType, name, description, isDefault, steps } = req.body;
+        const { entityType, name, description, steps } = req.body;
+        if (!entityType || !name) {
+            return res.status(400).json({ error: "entityType and name are required." });
+        }
         const db = (0, tenant_context_1.getTenantDb)();
         const created = await db.workflowDefinition.create({
             data: {
@@ -228,13 +236,16 @@ exports.platformFoundationRouter.post("/hr/workflows", auth_1.requireAuth, async
                 description: description ?? null,
                 isActive: true,
                 steps: {
-                    create: (steps || []).map((step, index) => ({
-                        stepOrder: step.stepOrder || index + 1,
+                    create: (Array.isArray(steps) ? steps : []).map((step, index) => ({
+                        stepOrder: Number(step.stepOrder) || index + 1,
                         name: step.name || `Step ${index + 1}`,
-                        approverType: step.approverType || "ROLE",
-                        approverRole: step.approverRole ?? null,
-                        specificUserId: step.specificUserId ?? null,
+                        approverType: String(step.approverType || "ROLE").toUpperCase(),
+                        // Schema column is approverValue (role key, user id, or MANAGER marker)
+                        approverValue: step.approverValue ?? step.approverRole ?? step.specificUserId ?? null,
+                        approvalMode: step.approvalMode || "ANY",
                         slaHours: step.slaHours ?? null,
+                        escalateTo: step.escalateTo ?? null,
+                        canSkip: Boolean(step.canSkip),
                     })),
                 },
             },
@@ -246,8 +257,8 @@ exports.platformFoundationRouter.post("/hr/workflows", auth_1.requireAuth, async
         return res.status(500).json({ error: err.message });
     }
 });
-// Unified HR Approval Inbox (All pending requests in tenant)
-exports.platformFoundationRouter.get("/hr/approvals", auth_1.requireAuth, async (req, res) => {
+// Unified HR Approval Inbox (All pending requests in tenant — HR / workspace administrators only)
+exports.platformFoundationRouter.get("/hr/approvals", super_audit_1.requireTenantAdmin, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId;
         const db = (0, tenant_context_1.getTenantDb)();
@@ -286,17 +297,50 @@ exports.platformFoundationRouter.get("/me/approvals", auth_1.requireAuth, async 
             include: { workflow: true, actions: { orderBy: { createdAt: "desc" } } },
             orderBy: { createdAt: "desc" },
         });
-        // 2. Requests awaiting my action (where I am approver or manager)
-        const toApprove = await db.approvalRequest.findMany({
+        // 2. Requests awaiting MY action: current step must target me (USER), one of my roles (ROLE),
+        //    or me as the requester's reporting manager (MANAGER). Own requests are excluded.
+        const pendingCandidates = await db.approvalRequest.findMany({
             where: {
                 tenantId,
                 status: "PENDING",
+                requesterId: { not: userId },
             },
             include: {
                 workflow: { include: { steps: true } },
                 actions: { orderBy: { createdAt: "desc" } },
             },
             orderBy: { createdAt: "desc" },
+            take: 200,
+        });
+        const myRoleKeys = new Set((req.user?.roles || []).map((r) => String(r).toLowerCase().replace(/[-\s]/g, "_")));
+        const needsManagerCheck = pendingCandidates.some((r) => {
+            const step = r.workflow?.steps?.find((s) => s.stepOrder === r.currentStep);
+            return step && /MANAGER/i.test(String(step.approverType));
+        });
+        const reportUserIds = new Set();
+        if (needsManagerCheck) {
+            const me = await db.employee.findFirst({ where: { tenantId, userId }, select: { id: true } });
+            if (me) {
+                const reports = await db.employee.findMany({
+                    where: { tenantId, managerId: me.id, userId: { not: null } },
+                    select: { userId: true },
+                });
+                reports.forEach((e) => e.userId && reportUserIds.add(e.userId));
+            }
+        }
+        const toApprove = pendingCandidates.filter((r) => {
+            const step = r.workflow?.steps?.find((s) => s.stepOrder === r.currentStep);
+            if (!step)
+                return false;
+            const type = String(step.approverType || "").toUpperCase();
+            const value = String(step.approverValue || "");
+            if (type === "USER" || type === "SPECIFIC_USER")
+                return value === userId;
+            if (type === "ROLE")
+                return myRoleKeys.has(value.toLowerCase().replace(/[-\s]/g, "_"));
+            if (type.includes("MANAGER"))
+                return reportUserIds.has(r.requesterId);
+            return false;
         });
         return res.json({
             submitted: (0, allowed_actions_1.attachAllowedActions)("ApprovalRequest", mySubmitted, userContext),

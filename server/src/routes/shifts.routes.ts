@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { requireHrOrAdmin } from "../middleware/hr-rbac.middleware";
 import { resolveTenantId } from "../lib/tenant";
 import { createShiftSchema, updateShiftSchema } from "../schemas/shift.schema";
 
@@ -232,77 +233,137 @@ shiftsRouter.post("/roster/assign", requireAuth, async (req: AuthRequest, res: R
   }
 });
 
-// POST /api/shifts/roster/bulk-assign (Auto-assign shift pattern for date range)
-shiftsRouter.post("/roster/bulk-assign", requireAuth, async (req: AuthRequest, res: Response) => {
-  try {
-    const tenantId = req.user?.tenantId;
-    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+// POST /api/shifts/roster/bulk-assign (Auto-assign shift pattern for date range — PARTIAL-002 Hardened)
+shiftsRouter.post(
+  "/roster/bulk-assign",
+  requireAuth,
+  requireHrOrAdmin({
+    allowedPermissions: ["hrm.shifts", "hrm.attendance", "shifts.manage"],
+    deniedMessage: "Access denied: HR Administrator or Manager privileges are required to bulk-assign shift rosters.",
+  }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
-    const { employeeIds, shiftId, offShiftId, startDate, daysCount, includeWeekendOff } = req.body;
+      const { employeeIds, shiftId, offShiftId, startDate, daysCount, includeWeekendOff } = req.body;
 
-    if (!employeeIds || !Array.isArray(employeeIds) || employeeIds.length === 0 || !shiftId || !startDate) {
-      return res.status(400).json({ error: "Employee IDs, shift ID, and start date are required." });
-    }
+      if (!employeeIds || !Array.isArray(employeeIds) || employeeIds.length === 0 || !shiftId || !startDate) {
+        return res.status(400).json({ error: "Employee IDs, shift ID, and start date are required." });
+      }
 
-    const totalDays = Number(daysCount) || 7;
-    const start = new Date(startDate);
+      const uniqueEmpIds = Array.from(new Set(employeeIds.map(String).filter(Boolean)));
+      if (uniqueEmpIds.length > 200) {
+        return res.status(400).json({ error: "Bulk shift assignment is limited to 200 employees per batch.", code: "BATCH_LIMIT_EXCEEDED" });
+      }
 
-    // Get off shift definition (fallback to OFF)
-    let offShift = offShiftId;
-    if (includeWeekendOff && !offShift) {
-      const defOff = await prisma.shiftDefinition.findFirst({
-        where: { tenantId, code: "OFF" },
+      const totalDays = daysCount !== undefined ? Number(daysCount) : 7;
+      if (!Number.isInteger(totalDays) || totalDays < 1 || totalDays > 90) {
+        return res.status(400).json({ error: "daysCount must be an integer between 1 and 90.", code: "INVALID_DAYS_COUNT" });
+      }
+
+      const start = new Date(startDate);
+      if (Number.isNaN(start.getTime())) {
+        return res.status(400).json({ error: "Invalid startDate format.", code: "INVALID_DATE" });
+      }
+
+      // Verify target shift belongs to this tenant
+      const primaryShift = await prisma.shiftDefinition.findFirst({
+        where: { id: String(shiftId), tenantId },
+        select: { id: true },
       });
-      offShift = defOff?.id || shiftId;
-    }
+      if (!primaryShift) {
+        return res.status(404).json({ error: "Shift definition not found in this workspace.", code: "SHIFT_NOT_FOUND" });
+      }
 
-    let createdCount = 0;
+      // Validate employeeIds belong to this tenant (prevents cross-tenant assignment & partial FK crash)
+      const validEmployees = await prisma.employee.findMany({
+        where: { tenantId, id: { in: uniqueEmpIds } },
+        select: { id: true },
+      });
+      const validEmpIds = validEmployees.map((e) => e.id);
+      const validSet = new Set(validEmpIds);
+      const failedItems = uniqueEmpIds
+        .filter((id) => !validSet.has(id))
+        .map((employeeId) => ({ employeeId, reason: "Employee not found in this workspace." }));
 
-    await prisma.$transaction(async (tx: any) => {
-      for (const empId of employeeIds) {
-        for (let i = 0; i < totalDays; i++) {
-          const currentDay = new Date(start);
-          currentDay.setDate(start.getDate() + i);
+      if (validEmpIds.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: "No valid workspace employees found for shift assignment.",
+          code: "NO_VALID_EMPLOYEES",
+          failedCount: failedItems.length,
+          failedItems,
+        });
+      }
 
-          const dayOfWeek = currentDay.getDay(); // 0 = Sun, 6 = Sat
-          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      // Get off shift definition (fallback to OFF)
+      let offShift = offShiftId ? String(offShiftId) : undefined;
+      if (offShift) {
+        const validOff = await prisma.shiftDefinition.findFirst({ where: { id: offShift, tenantId }, select: { id: true } });
+        if (!validOff) offShift = undefined;
+      }
+      if (includeWeekendOff && !offShift) {
+        const defOff = await prisma.shiftDefinition.findFirst({
+          where: { tenantId, code: "OFF" },
+        });
+        offShift = defOff?.id || primaryShift.id;
+      }
 
-          const targetShiftId = includeWeekendOff && isWeekend && offShift ? offShift : shiftId;
+      let createdCount = 0;
 
-          await tx.shiftRoster.upsert({
-            where: {
-              tenantId_employeeId_rosterDate: {
+      await prisma.$transaction(async (tx: any) => {
+        for (const empId of validEmpIds) {
+          for (let i = 0; i < totalDays; i++) {
+            const currentDay = new Date(start);
+            currentDay.setDate(start.getDate() + i);
+
+            const dayOfWeek = currentDay.getDay(); // 0 = Sun, 6 = Sat
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+            const targetShiftId = includeWeekendOff && isWeekend && offShift ? offShift : primaryShift.id;
+
+            await tx.shiftRoster.upsert({
+              where: {
+                tenantId_employeeId_rosterDate: {
+                  tenantId,
+                  employeeId: empId,
+                  rosterDate: currentDay,
+                },
+              },
+              create: {
                 tenantId,
                 employeeId: empId,
+                shiftId: targetShiftId,
                 rosterDate: currentDay,
+                status: "assigned",
               },
-            },
-            create: {
-              tenantId,
-              employeeId: empId,
-              shiftId: targetShiftId,
-              rosterDate: currentDay,
-              status: "assigned",
-            },
-            update: {
-              shiftId: targetShiftId,
-              status: "assigned",
-            },
-          });
-          createdCount++;
+              update: {
+                shiftId: targetShiftId,
+                status: "assigned",
+              },
+            });
+            createdCount++;
+          }
         }
-      }
-    });
+      });
 
-    return res.json({
-      success: true,
-      message: `Successfully scheduled ${createdCount} shift roster slots across ${employeeIds.length} employees!`,
-    });
-  } catch (err: any) {
-    console.error("[bulk-assign] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to bulk assign roster." });
-  }
-});
+      const isPartial = failedItems.length > 0;
+      return res.status(isPartial ? 207 : 200).json({
+        success: !isPartial,
+        partial: isPartial,
+        createdCount,
+        scheduledEmployees: validEmpIds.length,
+        requestedEmployees: uniqueEmpIds.length,
+        failedCount: failedItems.length,
+        failedItems: failedItems.length > 0 ? failedItems : undefined,
+        message: `Successfully scheduled ${createdCount} shift roster slot(s) across ${validEmpIds.length} of ${uniqueEmpIds.length} employee(s).`,
+      });
+    } catch (err: any) {
+      console.error("[bulk-assign] error:", err);
+      return res.status(500).json({ error: "Failed to bulk assign roster." });
+    }
+  });
 
 // GET /api/shifts/swaps (List shift swap requests)
 shiftsRouter.get("/swaps", requireAuth, async (req: AuthRequest, res: Response) => {

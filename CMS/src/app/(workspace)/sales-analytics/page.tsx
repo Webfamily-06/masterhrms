@@ -30,7 +30,7 @@ export default function SalesAnalyticsPage() {
     queryKey: ['sales-analytics-overview'],
     queryFn: async () => {
       const res = await api.get<any>('/api/dashboard/sales-crm');
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 

@@ -31,20 +31,20 @@ export default function HrAttendanceOvertimePage() {
     queryKey: ["hr-overtime"],
     queryFn: async () => {
       const res = await api.get("/api/v1/hr/attendance/overtime");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
   const actionMutation = useMutation({
     mutationFn: async ({ id, action }: { id: string; action: "approve" | "reject" }) => {
       const res = await api.post(`/api/v1/hr/attendance/overtime/${id}/action`, { action });
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: (_, vars) => {
       toast.success(`Overtime request ${vars.action === "approve" ? "approved" : "rejected"}`);
       queryClient.invalidateQueries({ queryKey: ["hr-overtime"] });
     },
-    onError: (err: any) => toast.error(err.response?.data?.error || "Failed to process overtime"),
+    onError: (err: any) => toast.error((err?.response?.data?.error || err?.message) || "Failed to process overtime"),
   });
 
   const pendingCount = requests.filter((r: any) => r.status === "pending").length;

@@ -62,7 +62,7 @@ export default function HrPerformancePipPage() {
     queryKey: ["hr-performance-pip"],
     queryFn: async () => {
       const res = await api.get("/hr/performance/pip");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
@@ -92,7 +92,7 @@ export default function HrPerformancePipPage() {
       });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to initiate PIP");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to initiate PIP");
     },
   });
 
@@ -107,7 +107,7 @@ export default function HrPerformancePipPage() {
       setSelectedPip(null);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Failed to conclude PIP");
+      toast.error((err?.response?.data?.error || err?.message) || "Failed to conclude PIP");
     },
   });
 

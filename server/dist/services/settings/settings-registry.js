@@ -1698,6 +1698,522 @@ exports.SETTINGS_REGISTRY = {
         scopes: ["PLATFORM"],
         applyStrategy: "INSTANT",
     },
+    // ─── Extended Payments & SaaS Billing Lifecycle ──────────────────
+    "payments.razorpay_mode": {
+        key: "payments.razorpay_mode",
+        group: "payments",
+        label: "Razorpay Environment Mode",
+        help: "Environment mode for Razorpay: 'sandbox' for rzp_test_* keys, 'live' for rzp_live_* keys.",
+        type: "string",
+        default: "sandbox",
+        scopes: ["PLATFORM", "TENANT"],
+        validation: (val) => {
+            if (val !== "sandbox" && val !== "live") {
+                return { valid: false, error: "Razorpay mode must be 'sandbox' or 'live'" };
+            }
+            return { valid: true };
+        },
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "payments.razorpay_webhook_secret": {
+        key: "payments.razorpay_webhook_secret",
+        group: "payments",
+        label: "Razorpay Webhook Secret",
+        help: "HMAC signing secret for verifying Razorpay subscription & payment webhooks (AES-256-GCM encrypted).",
+        type: "secret",
+        isSecret: true,
+        default: "",
+        scopes: ["PLATFORM", "TENANT"],
+        applyStrategy: "INSTANT",
+    },
+    "payments.stripe_webhook_secret": {
+        key: "payments.stripe_webhook_secret",
+        group: "payments",
+        label: "Stripe Webhook Signing Secret",
+        help: "Signing secret (whsec_...) for verifying inbound Stripe webhook events (AES-256-GCM encrypted).",
+        type: "secret",
+        isSecret: true,
+        default: "",
+        scopes: ["PLATFORM", "TENANT"],
+        applyStrategy: "INSTANT",
+    },
+    "billing.default_trial_days": {
+        key: "billing.default_trial_days",
+        group: "billing",
+        label: "Default Free Trial Duration (Days)",
+        help: "Number of free trial days granted automatically to newly registered tenant workspaces.",
+        type: "number",
+        default: 14,
+        scopes: ["PLATFORM"],
+        validation: (val) => {
+            const n = Number(val);
+            if (isNaN(n) || n < 0 || n > 365)
+                return { valid: false, error: "Trial days must be between 0 and 365" };
+            return { valid: true };
+        },
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "billing.grace_period_days": {
+        key: "billing.grace_period_days",
+        group: "billing",
+        label: "Post-Expiry Grace Period (Days)",
+        help: "Days after subscription expiry before automated dunning suspends workspace access.",
+        type: "number",
+        default: 7,
+        scopes: ["PLATFORM"],
+        validation: (val) => {
+            const n = Number(val);
+            if (isNaN(n) || n < 0 || n > 90)
+                return { valid: false, error: "Grace period must be between 0 and 90 days" };
+            return { valid: true };
+        },
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "billing.auto_suspend_overdue": {
+        key: "billing.auto_suspend_overdue",
+        group: "billing",
+        label: "Auto-Suspend Overdue Workspaces",
+        help: "Automatically suspend tenant workspaces once the post-expiry grace period elapses without payment.",
+        type: "boolean",
+        default: true,
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "billing.default_tax_rate": {
+        key: "billing.default_tax_rate",
+        group: "billing",
+        label: "Default GST / Tax Rate (%)",
+        help: "Default tax percentage applied to SaaS subscription invoices (e.g. 18 for GST).",
+        type: "number",
+        default: 18,
+        scopes: ["PLATFORM"],
+        validation: (val) => {
+            const n = Number(val);
+            if (isNaN(n) || n < 0 || n > 50)
+                return { valid: false, error: "Tax rate must be between 0 and 50%" };
+            return { valid: true };
+        },
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "billing.invoice_prefix": {
+        key: "billing.invoice_prefix",
+        group: "billing",
+        label: "Platform Invoice Number Prefix",
+        help: "Prefix prepended to generated SaaS subscription invoice numbers (e.g. INV-, MHRMS-).",
+        type: "string",
+        default: "INV-",
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    // ─── Extended Cloud Storage & Antivirus ──────────────────────────
+    "storage.default_tenant_quota_gb": {
+        key: "storage.default_tenant_quota_gb",
+        group: "storage",
+        label: "Default Tenant Storage Quota (GB)",
+        help: "Default storage cap assigned to new tenant workspaces when not overridden by their plan.",
+        type: "number",
+        default: 10,
+        scopes: ["PLATFORM"],
+        validation: (val) => {
+            const n = Number(val);
+            if (isNaN(n) || n < 1 || n > 10000)
+                return { valid: false, error: "Storage quota must be between 1 and 10000 GB" };
+            return { valid: true };
+        },
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "storage.clamav_host": {
+        key: "storage.clamav_host",
+        group: "storage",
+        label: "ClamAV Antivirus Daemon Host",
+        help: "Optional ClamAV scanner host:port (e.g. 127.0.0.1:3310) for scanning uploaded documents.",
+        type: "string",
+        default: "",
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    // ─── Extended Security, Registration & Cloudflare Turnstile ──────
+    "security.allow_public_registration": {
+        key: "security.allow_public_registration",
+        group: "security",
+        label: "Allow Public Workspace Registration",
+        help: "Permit new organizations to self-register on the public signup portal.",
+        type: "boolean",
+        default: true,
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "security.require_email_verification": {
+        key: "security.require_email_verification",
+        group: "security",
+        label: "Require Email Verification on Signup",
+        help: "Require newly registered admins to verify their email address before full workspace access.",
+        type: "boolean",
+        default: false,
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "security.turnstile_enabled": {
+        key: "security.turnstile_enabled",
+        group: "security",
+        label: "Enable Cloudflare Turnstile Bot Protection",
+        help: "Protect login, registration, and Super Admin portals with Cloudflare Turnstile anti-bot verification.",
+        type: "boolean",
+        default: false,
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "security.turnstile_mode": {
+        key: "security.turnstile_mode",
+        group: "security",
+        label: "Turnstile Enforcement Mode",
+        help: "'enforce' blocks invalid tokens, 'monitor' logs challenges without blocking, 'off' disables checks.",
+        type: "string",
+        default: "enforce",
+        scopes: ["PLATFORM"],
+        validation: (val) => {
+            if (!["enforce", "monitor", "off"].includes(String(val))) {
+                return { valid: false, error: "Turnstile mode must be 'enforce', 'monitor', or 'off'" };
+            }
+            return { valid: true };
+        },
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "security.turnstile_site_key": {
+        key: "security.turnstile_site_key",
+        group: "security",
+        label: "Cloudflare Turnstile Site Key",
+        help: "Public Turnstile widget Site Key from Cloudflare Dashboard.",
+        type: "string",
+        default: "",
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "security.turnstile_secret_key": {
+        key: "security.turnstile_secret_key",
+        group: "security",
+        label: "Cloudflare Turnstile Secret Key",
+        help: "Server-side Turnstile verification Secret Key (AES-256-GCM encrypted).",
+        type: "secret",
+        isSecret: true,
+        default: "",
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+    },
+    "security.turnstile_hostnames": {
+        key: "security.turnstile_hostnames",
+        group: "security",
+        label: "Turnstile Allowed Hostnames",
+        help: "Comma-separated list of permitted hostnames (e.g. app.masterhrms.com, www.masterhrms.com).",
+        type: "string",
+        default: "",
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    // ─── Extended SMS & WhatsApp Cloud Gateways ──────────────────────
+    "messaging.sms_api_key": {
+        key: "messaging.sms_api_key",
+        group: "messaging",
+        label: "SMS Gateway API Key / Auth Token",
+        help: "API Key or Auth Token for the selected SMS provider (AES-256-GCM encrypted).",
+        type: "secret",
+        isSecret: true,
+        default: "",
+        scopes: ["PLATFORM", "TENANT"],
+        applyStrategy: "INSTANT",
+    },
+    "messaging.whatsapp_enabled": {
+        key: "messaging.whatsapp_enabled",
+        group: "messaging",
+        label: "Enable Platform WhatsApp Cloud API",
+        help: "Enable Meta WhatsApp Cloud API for platform-level transactional alerts and OTPs.",
+        type: "boolean",
+        default: false,
+        scopes: ["PLATFORM", "TENANT"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "messaging.whatsapp_phone_number_id": {
+        key: "messaging.whatsapp_phone_number_id",
+        group: "messaging",
+        label: "WhatsApp Phone Number ID",
+        help: "Meta Cloud API Phone Number ID from WhatsApp Business Manager.",
+        type: "string",
+        default: "",
+        scopes: ["PLATFORM", "TENANT"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "messaging.whatsapp_business_account_id": {
+        key: "messaging.whatsapp_business_account_id",
+        group: "messaging",
+        label: "WhatsApp Business Account ID (WABA)",
+        help: "Optional Meta WhatsApp Business Account identifier.",
+        type: "string",
+        default: "",
+        scopes: ["PLATFORM", "TENANT"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "messaging.whatsapp_access_token": {
+        key: "messaging.whatsapp_access_token",
+        group: "messaging",
+        label: "WhatsApp Permanent System Token",
+        help: "Permanent Graph API System User Access Token (AES-256-GCM encrypted).",
+        type: "secret",
+        isSecret: true,
+        default: "",
+        scopes: ["PLATFORM", "TENANT"],
+        applyStrategy: "INSTANT",
+    },
+    // ─── WebRTC Calling & TURN/STUN Infrastructure ───────────────────
+    "calling.turn_urls": {
+        key: "calling.turn_urls",
+        group: "calling",
+        label: "TURN / STUN Server URLs",
+        help: "Comma-separated ICE server URLs (e.g. stun:stun.l.google.com:19302, turn:turn.masterhrms.com:3478).",
+        type: "string",
+        default: "stun:stun.l.google.com:19302",
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "calling.turn_username": {
+        key: "calling.turn_username",
+        group: "calling",
+        label: "TURN Server Username",
+        help: "Static username for TURN relay authentication (optional when using ephemeral shared secret).",
+        type: "string",
+        default: "",
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "calling.turn_credential": {
+        key: "calling.turn_credential",
+        group: "calling",
+        label: "TURN Credential / Shared Secret",
+        help: "TURN password or coturn HMAC shared secret (AES-256-GCM encrypted).",
+        type: "secret",
+        isSecret: true,
+        default: "",
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+    },
+    "calling.reconnect_grace_ms": {
+        key: "calling.reconnect_grace_ms",
+        group: "calling",
+        label: "Call Reconnect Grace Window (ms)",
+        help: "Milliseconds to hold an active audio/video call open during temporary network drop.",
+        type: "number",
+        default: 15000,
+        scopes: ["PLATFORM"],
+        validation: (val) => {
+            const n = Number(val);
+            if (isNaN(n) || n < 3000 || n > 120000)
+                return { valid: false, error: "Reconnect grace must be between 3000 and 120000 ms" };
+            return { valid: true };
+        },
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    // ─── Extended AI Platform Governance ─────────────────────────────
+    "ai.enabled": {
+        key: "ai.enabled",
+        group: "ai",
+        label: "Enable AI Features Globally",
+        help: "Master platform switch for AI Copilot, Resume Parsing, Document OCR, and Smart Insights.",
+        type: "boolean",
+        default: true,
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "ai.api_key": {
+        key: "ai.api_key",
+        group: "ai",
+        label: "Platform Master AI API Key",
+        help: "Default platform LLM API key used when tenants do not provide their own key (AES-256-GCM encrypted).",
+        type: "secret",
+        isSecret: true,
+        default: "",
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+    },
+    "ai.allow_tenant_byok": {
+        key: "ai.allow_tenant_byok",
+        group: "ai",
+        label: "Allow Tenant Bring-Your-Own-Key (BYOK)",
+        help: "Permit tenant admins to configure their own OpenAI/Gemini/Claude keys in Workspace Settings.",
+        type: "boolean",
+        default: true,
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    // ─── Domains, Provisioning & Social/App Links ────────────────────
+    "domains.base_domain": {
+        key: "domains.base_domain",
+        group: "domains",
+        label: "Platform Base Domain",
+        help: "Root domain used for tenant subdomains (e.g. masterhrms.com -> tenant.masterhrms.com).",
+        type: "string",
+        default: "masterhrms.com",
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "domains.cname_target": {
+        key: "domains.cname_target",
+        group: "domains",
+        label: "Custom Domain CNAME Target",
+        help: "Authoritative DNS CNAME target tenants must point their custom domains to.",
+        type: "string",
+        default: "cname.masterhrms.com",
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "domains.auto_approve_custom_domains": {
+        key: "domains.auto_approve_custom_domains",
+        group: "domains",
+        label: "Auto-Approve Verified Custom Domains",
+        help: "Automatically activate custom domains once DNS CNAME & TXT verification passes without manual approval.",
+        type: "boolean",
+        default: false,
+        scopes: ["PLATFORM"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "seo.social_linkedin": {
+        key: "seo.social_linkedin",
+        group: "seo",
+        label: "LinkedIn Page URL",
+        type: "string",
+        default: "",
+        scopes: ["PLATFORM"],
+        applyStrategy: "NEXT_REQUEST",
+    },
+    "seo.social_x": {
+        key: "seo.social_x",
+        group: "seo",
+        label: "X (Twitter) Profile URL",
+        type: "string",
+        default: "",
+        scopes: ["PLATFORM"],
+        applyStrategy: "NEXT_REQUEST",
+    },
+    "seo.social_instagram": {
+        key: "seo.social_instagram",
+        group: "seo",
+        label: "Instagram Profile URL",
+        type: "string",
+        default: "",
+        scopes: ["PLATFORM"],
+        applyStrategy: "NEXT_REQUEST",
+    },
+    "seo.social_facebook": {
+        key: "seo.social_facebook",
+        group: "seo",
+        label: "Facebook Page URL",
+        type: "string",
+        default: "",
+        scopes: ["PLATFORM"],
+        applyStrategy: "NEXT_REQUEST",
+    },
+    "seo.social_youtube": {
+        key: "seo.social_youtube",
+        group: "seo",
+        label: "YouTube Channel URL",
+        type: "string",
+        default: "",
+        scopes: ["PLATFORM"],
+        applyStrategy: "NEXT_REQUEST",
+    },
+    "seo.appstore_url": {
+        key: "seo.appstore_url",
+        group: "seo",
+        label: "Apple App Store URL",
+        type: "string",
+        default: "",
+        scopes: ["PLATFORM"],
+        applyStrategy: "NEXT_REQUEST",
+    },
+    "seo.playstore_url": {
+        key: "seo.playstore_url",
+        group: "seo",
+        label: "Google Play Store URL",
+        type: "string",
+        default: "",
+        scopes: ["PLATFORM"],
+        applyStrategy: "NEXT_REQUEST",
+    },
+    // ─── Automated Backup & Audit Log Retention ──────────────────────
+    "system.backup_schedule": {
+        key: "system.backup_schedule",
+        group: "system",
+        label: "Automated Backup Cadence",
+        help: "Schedule for automated database snapshots ('daily', 'weekly', 'manual').",
+        type: "string",
+        default: "daily",
+        scopes: ["PLATFORM"],
+        validation: (val) => {
+            if (!["daily", "weekly", "manual"].includes(String(val))) {
+                return { valid: false, error: "Backup schedule must be 'daily', 'weekly', or 'manual'" };
+            }
+            return { valid: true };
+        },
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "system.backup_retention_days": {
+        key: "system.backup_retention_days",
+        group: "system",
+        label: "Backup Snapshot Retention (Days)",
+        help: "Number of days to retain automated database backup snapshots before rotation.",
+        type: "number",
+        default: 30,
+        scopes: ["PLATFORM"],
+        validation: (val) => {
+            const n = Number(val);
+            if (isNaN(n) || n < 1 || n > 3650)
+                return { valid: false, error: "Backup retention must be between 1 and 3650 days" };
+            return { valid: true };
+        },
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "system.audit_retention_days": {
+        key: "system.audit_retention_days",
+        group: "system",
+        label: "Audit Log Retention (Days)",
+        help: "Days to retain immutable Super Admin & compliance audit trails (minimum 30 days).",
+        type: "number",
+        default: 365,
+        scopes: ["PLATFORM"],
+        validation: (val) => {
+            const n = Number(val);
+            if (isNaN(n) || n < 30 || n > 3650)
+                return { valid: false, error: "Audit retention must be between 30 and 3650 days" };
+            return { valid: true };
+        },
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
 };
 function getSettingDefinition(key) {
     return exports.SETTINGS_REGISTRY[key];

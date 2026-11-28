@@ -2,6 +2,7 @@ import { createEmployeeSchema, updateEmployeeSchema } from "../schemas/employee.
 import { validateBody } from "../middleware/validate.middleware";
 import { lockWorkspaceCapacity } from "../services/workspace-policy.service";
 import { Router, Response } from "express";
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "../prisma";
 import { requireAuth, requirePermission, requireRole, AuthRequest, invalidateAuthCache } from "../middleware/auth";
@@ -1169,6 +1170,8 @@ employeesRouter.post("/bulk-import", requireAuth, requireHrEmployeeAdmin, async 
       deptMap.set(d.name.toLowerCase().trim(), d.id);
     }
 
+    const provisioningWarnings: Array<{ index: number; email: string; reason: string }> = [];
+
     // 2. Execute entire batch atomically inside a transaction with pessimistic capacity lock
     const importedEmployees = await prisma.$transaction(async (tx) => {
       // Upfront capacity lock: validate active count + batch size <= plan limit
@@ -1197,15 +1200,27 @@ employeesRouter.post("/bulk-import", requireAuth, requireHrEmployeeAdmin, async 
 
         let userId: string | undefined;
         try {
+          // PARTIAL-004: Generate strong random temp password when omitted (never hardcoded weak Password@123)
+          const initialPassword =
+            typeof row.password === "string" && row.password.trim().length >= 8
+              ? row.password.trim()
+              : `${crypto.randomBytes(12).toString("base64url")}!A1`;
           userId = await provisionEmployeeUser(tx, {
             tenantId,
             email: rawEmail,
             firstName,
             lastName: lastName || "-",
             phone: row.phone || null,
-            password: row.password || "Password@123",
+            password: initialPassword,
           });
-        } catch {}
+        } catch (provErr: any) {
+          // PARTIAL-004: Surface partial user-account provisioning warnings instead of silently swallowing
+          provisioningWarnings.push({
+            index: i,
+            email: rawEmail,
+            reason: provErr?.message || "Employee created without login account provisioning.",
+          });
+        }
 
         const empCode = row.employeeCode || row.employee_code || `EMP-${Date.now().toString().slice(-4)}${i}`;
 
@@ -1260,12 +1275,16 @@ employeesRouter.post("/bulk-import", requireAuth, requireHrEmployeeAdmin, async 
       });
     } catch {}
 
-    return res.status(201).json({
-      success: true,
+    const isPartial = provisioningWarnings.length > 0;
+    return res.status(isPartial ? 207 : 201).json({
+      success: !isPartial,
+      partial: isPartial,
       total: rawList.length,
       imported: importedEmployees.length,
       skipped: skippedCount,
       failed: errors.length,
+      warningsCount: provisioningWarnings.length,
+      warnings: provisioningWarnings.length > 0 ? provisioningWarnings : undefined,
       employees: importedEmployees,
       errors: errors.length > 0 ? errors : undefined,
     });

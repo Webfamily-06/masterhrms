@@ -209,6 +209,8 @@ import { uploadsSecurityMiddleware } from "./middleware/uploads-security.middlew
 import { platformFoundationRouter } from "./routes/platform-foundation.routes";
 import { OutboxService } from "./services/outbox.service";
 import { securityHeadersMiddleware, authRateLimiter } from "./middleware/security-hardening.middleware";
+import { getLoginQueueStats } from "./lib/password-worker-pool";
+import { getLockoutTrackerStats } from "./lib/login-protection";
 import { ConfigAuditService } from "./services/config-audit.service";
 import { twoFactorRouter } from "./modules/two-factor-auth/two-factor.routes";
 import { backupRestoreRouter } from "./modules/backup-restore/backup-restore.routes";
@@ -329,6 +331,35 @@ app.use((req, res, next) => {
 });
 
 app.post("/api/payments/razorpay/webhook", express.raw({ type: "application/json" }), razorpayWebhookHandler);
+
+// PENTEST-005 (PT-DOS-01): Enforce strict 256kb JSON limit on unauthenticated auth credential endpoints
+// before the 50mb global parser to prevent memory exhaustion DoS attacks.
+const strictAuthJsonParser = express.json({
+  limit: "256kb",
+  verify: (req: any, _res, buf) => {
+    req.rawBody = buf;
+  },
+});
+app.use(
+  [
+    "/api/auth/login",
+    "/api/v1/auth/login",
+    "/api/auth/super-login",
+    "/api/v1/auth/super-login",
+    "/api/auth/register",
+    "/api/v1/auth/register",
+    "/api/auth/forgot-password",
+    "/api/v1/auth/forgot-password",
+    "/api/auth/reset-password",
+    "/api/v1/auth/reset-password",
+    "/api/auth/verify-reset-otp",
+    "/api/v1/auth/verify-reset-otp",
+    "/api/auth/2fa/verify-login",
+    "/api/v1/auth/2fa/verify-login",
+  ],
+  strictAuthJsonParser
+);
+
 app.use(
   express.json({
     limit: "50mb",
@@ -338,6 +369,17 @@ app.use(
   })
 );
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+// Clean JSON 413 response for oversized payloads (never leak Express HTML stack traces)
+app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err && (err.type === "entity.too.large" || err.status === 413)) {
+    return res.status(413).json({
+      error: "Request payload exceeds the maximum allowed size for this endpoint.",
+      code: "PAYLOAD_TOO_LARGE",
+    });
+  }
+  return next(err);
+});
 // NOTE: Do NOT include "multipart/*" or "*/*" here — multer handles multipart/form-data
 // and express.text consuming it first causes "Unexpected end of form" errors in multer.
 app.use(
@@ -511,6 +553,18 @@ app.get(["/api/health", "/health"], (_req, res) => {
     status: "healthy",
     timestamp: new Date().toISOString(),
     service: "Master HRMS API",
+  });
+});
+
+// GET /api/health/queues — Non-PII concurrency, login worker pool & outbox queue observability (PERF-002 / QUEUE-001)
+app.get(["/api/health/queues", "/health/queues"], async (_req, res) => {
+  const outbox = await OutboxService.getQueueMetrics();
+  return res.status(200).json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    loginQueue: getLoginQueueStats(),
+    lockoutTracker: getLockoutTrackerStats(),
+    outboxQueue: outbox,
   });
 });
 

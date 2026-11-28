@@ -10,12 +10,19 @@ const otp_1 = require("../lib/otp");
 const erp_modules_1 = require("../lib/erp-modules");
 const express_1 = require("express");
 const crypto_1 = __importDefault(require("crypto"));
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const media_service_1 = require("../services/media/media.service");
 const zod_1 = require("zod");
 const prisma_1 = require("../prisma");
 const prisma = prisma_1.rawPrisma || prisma_1.prisma;
 const jwt_1 = require("../lib/jwt");
+const password_worker_pool_1 = require("../lib/password-worker-pool");
+const login_protection_1 = require("../lib/login-protection");
+const security_hardening_middleware_1 = require("../middleware/security-hardening.middleware");
 const login_history_service_1 = require("../services/login-history.service");
+const tenant_ip_restriction_service_1 = require("../services/tenant-ip-restriction.service");
 const device_session_service_1 = require("../services/device-session.service");
 const tenant_provisioning_1 = require("../lib/tenant-provisioning");
 const workspace_host_1 = require("../lib/workspace-host");
@@ -26,7 +33,7 @@ Object.defineProperty(exports, "OAuthFactory", { enumerable: true, get: function
 const two_factor_service_1 = require("../modules/two-factor-auth/two-factor.service");
 const turnstile_middleware_1 = require("../middleware/turnstile.middleware");
 const push_subscription_store_1 = require("../services/push-subscription.store");
-const security_hardening_middleware_1 = require("../middleware/security-hardening.middleware");
+const security_hardening_middleware_2 = require("../middleware/security-hardening.middleware");
 exports.authRouter = (0, express_1.Router)();
 // SEC-005: Re-export cryptographically secure backup code generator (uses crypto.randomInt)
 exports.generateBackupCodes = two_factor_service_1.generateRandomBackupCodes;
@@ -159,7 +166,7 @@ exports.authRouter.get("/public/tenant-branding", async (req, res) => {
 // GET /api/auth/public/tenant/credentials
 // SEC-004: Secured public tenant metadata endpoint.
 // Never exposes administrator, HR, or employee email addresses or personal details publicly.
-exports.authRouter.get("/public/tenant/credentials", security_hardening_middleware_1.sensitiveEndpointLimiter, async (req, res) => {
+exports.authRouter.get("/public/tenant/credentials", security_hardening_middleware_2.sensitiveEndpointLimiter, async (req, res) => {
     try {
         const rawHost = (0, workspace_host_1.getEffectiveRequestHost)(req.headers);
         const hostContext = req.hostContext || (0, workspace_host_1.resolveHostContext)(rawHost);
@@ -477,8 +484,71 @@ const loginHandler = async (req, res) => {
         if (normalizedEmail === "tenentadmin@masterhrms.com") {
             normalizedEmail = "tenantadmin@masterhrms.com";
         }
-        let user = await prisma.user.findUnique({
+        // PENTEST-005 (PT-AUTH-03): Check per-account progressive brute-force lockout BEFORE DB/CPU work
+        // Isolates brute-force attacks strictly to the targeted account without affecting other employees on the same NAT IP.
+        const lockout = (0, login_protection_1.checkAccountLockout)(normalizedEmail);
+        if (lockout.locked) {
+            res.setHeader("Retry-After", String(lockout.retryAfterSeconds));
+            return res.status(423).json({
+                error: `Account temporarily locked due to repeated failed sign-in attempts. Please retry in ${lockout.retryAfterSeconds} seconds.`,
+                code: "ACCOUNT_LOCKED",
+                retryAfter: lockout.retryAfterSeconds,
+            });
+        }
+        const rawHost = (0, workspace_host_1.getEffectiveRequestHost)(req.headers);
+        const hostContext = req.hostContext || (0, workspace_host_1.resolveHostContext)(rawHost);
+        // 1. Super Admin Host/Portal isolation:
+        // If a request originating from a tenant host or custom domain attempts to use the super portal, return 404 NOT_FOUND.
+        if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
+            const hasSuperPortalSignal = req.headers["x-auth-portal"] === "super" || req.body.portal === "super";
+            if (hasSuperPortalSignal) {
+                return res.status(404).json({
+                    error: "Not Found",
+                    code: "NOT_FOUND",
+                });
+            }
+        }
+        // PERF-002: Lightweight indexed lookup first (avoid 4-way JOINs until password succeeds)
+        const authCandidate = await prisma.user.findUnique({
             where: { email: normalizedEmail },
+            select: { id: true, email: true, passwordHash: true },
+        });
+        // PENTEST-005 (PT-AUTH-02) + PERF-002:
+        // Always execute queued worker-thread bcrypt verification (against DUMMY_BCRYPT_HASH when user doesn't exist)
+        // to eliminate account-enumeration timing oracles AND prevent single-thread event-loop starvation at 1,000 concurrent logins.
+        let isValid = false;
+        try {
+            const compareResult = await (0, password_worker_pool_1.verifyPasswordQueued)(password, authCandidate?.passwordHash);
+            isValid = Boolean(authCandidate) && compareResult;
+        }
+        catch (qErr) {
+            if (qErr instanceof password_worker_pool_1.PasswordQueueOverloadedError || qErr?.code === "LOGIN_QUEUE_OVERLOADED") {
+                const retryAfter = qErr.retryAfterSeconds || 5;
+                res.setHeader("Retry-After", String(retryAfter));
+                return res.status(503).json({
+                    error: qErr.message || "Authentication queue is temporarily busy. Please retry shortly.",
+                    code: "LOGIN_QUEUE_OVERLOADED",
+                    retryAfter,
+                });
+            }
+            throw qErr;
+        }
+        if (!authCandidate || !isValid) {
+            const updatedLockout = (0, login_protection_1.recordFailedLogin)(normalizedEmail);
+            if (updatedLockout.locked) {
+                res.setHeader("Retry-After", String(updatedLockout.retryAfterSeconds));
+                return res.status(423).json({
+                    error: `Account temporarily locked due to repeated failed sign-in attempts. Please retry in ${updatedLockout.retryAfterSeconds} seconds.`,
+                    code: "ACCOUNT_LOCKED",
+                    retryAfter: updatedLockout.retryAfterSeconds,
+                });
+            }
+            return res.status(401).json({ error: "Invalid email or password." });
+        }
+        (0, login_protection_1.clearFailedLogins)(normalizedEmail);
+        // Fetch full user context ONLY after password verification succeeds
+        let user = await prisma.user.findUnique({
+            where: { id: authCandidate.id },
             include: {
                 profile: true,
                 roles: true,
@@ -501,44 +571,40 @@ const loginHandler = async (req, res) => {
         });
         if (!user)
             return res.status(401).json({ error: "Invalid email or password." });
-        const rawHost = (0, workspace_host_1.getEffectiveRequestHost)(req.headers);
-        const hostContext = req.hostContext || (0, workspace_host_1.resolveHostContext)(rawHost);
-        // 1. Super Admin Host/Portal isolation:
-        // If a request originating from a tenant host or custom domain attempts to use the super portal, return 404 NOT_FOUND.
-        if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
-            const hasSuperPortalSignal = req.headers["x-auth-portal"] === "super" || req.body.portal === "super";
-            if (hasSuperPortalSignal) {
-                return res.status(404).json({
-                    error: "Not Found",
-                    code: "NOT_FOUND",
-                });
-            }
-        }
         const isSuperPortal = hostContext.type === "super" ||
             req.headers["x-auth-portal"] === "super" ||
             req.body.portal === "super";
-        // Enforcement of Super Admin / Tenant Login Separation:
+        // Enforcement of Super Admin / Tenant Login Separation (evaluated AFTER password check — fixes PT-AUTH-01):
         if (!isSuperPortal) {
             const isPlatformSuperAdmin = user.roles.some((r) => r.role === "super_admin" && !r.tenantId);
             if (isPlatformSuperAdmin) {
-                // Platform Super Admin must NOT authenticate via normal /login endpoint.
-                // Return generic 401 without leaking identity or super admin existence.
                 return res.status(401).json({ error: "Invalid email or password." });
             }
         }
         if (isSuperPortal) {
             const isSuper = user.roles.some((r) => r.role === "super_admin");
-            if (!isSuper || user.email !== "admin@masterhrms.com") {
+            if (!isSuper) {
                 return res.status(403).json({
-                    error: "Access denied. Only the designated Super Administrator can log in through this portal.",
+                    error: "Access denied. Only Super Administrators can log in through this portal.",
                     code: "SUPER_ADMIN_ONLY",
                 });
             }
         }
-        // SEC-001: Strictly verify password against stored bcrypt hash. No hardcoded bypasses allowed.
-        const isValid = await bcryptjs_1.default.compare(password, user.passwordHash);
-        if (!isValid) {
-            return res.status(401).json({ error: "Invalid email or password." });
+        // DEFECT-016: Block unverified self-registered users (unconsumed verify:* token and no provisioned tenant)
+        const isSuperUser = user.roles.some((r) => r.role === "super_admin");
+        if (!isSuperUser && !user.profile?.tenantId) {
+            try {
+                const pendingVerify = await prisma.$queryRawUnsafe(`SELECT id FROM password_reset_tokens WHERE user_id = $1 AND token_hash LIKE 'verify:%' AND used_at IS NULL LIMIT 1`, user.id);
+                if (pendingVerify && pendingVerify.length > 0) {
+                    return res.status(403).json({
+                        error: "Please verify your email address before signing in.",
+                        code: "EMAIL_NOT_VERIFIED",
+                        requiresVerification: true,
+                        email: user.email,
+                    });
+                }
+            }
+            catch { }
         }
         // ── Mobile App Persona Restriction ────────────────────────────
         // The mobile application is exclusively for Employee, HR, and Tenant Administrator roles.
@@ -634,6 +700,19 @@ const loginHandler = async (req, res) => {
                 });
             }
         }
+        // Tenant-Scoped IP Restriction Check on Login (Applies ONLY to this user's tenant; Super Admins & other tenants unaffected)
+        const loginIsSuper = user.roles.some((r) => r.role === "super_admin");
+        const loginTenantId = req.resolvedTenant?.id || user.profile?.tenantId || null;
+        if (!loginIsSuper && loginTenantId) {
+            const ipCheck = await (0, tenant_ip_restriction_service_1.checkTenantIpAccess)(loginTenantId, req, loginIsSuper);
+            if (!ipCheck.allowed) {
+                return res.status(403).json({
+                    error: ipCheck.reason || "Login blocked by your organization's IP Restriction policy.",
+                    code: "TENANT_IP_RESTRICTED",
+                    clientIp: ipCheck.clientIp,
+                });
+            }
+        }
         // ── 2FA Authentication Flow ──────────────────────────────────
         // 1. If user has explicitly enrolled in TOTP 2FA (Authenticator App):
         if (user.twoFactorEnabled && user.twoFactorSecret) {
@@ -658,8 +737,9 @@ const loginHandler = async (req, res) => {
                 isSetup: false,
             });
             if (!emailResult.success) {
-                console.warn(`⚠️ [2FA OTP] Email dispatch to ${user.email} failed: ${emailResult.error}`);
-                console.log(`🔑 [2FA LOGIN CODE] Use this code to sign in for ${user.email}: [${otp}]`);
+                console.warn(`[2FA OTP] Email dispatch to ${(0, otp_1.maskEmail)(user.email)} failed: ${emailResult.error}`);
+                if (process.env.NODE_ENV !== "production")
+                    console.log(`[DEV ONLY][2FA LOGIN CODE] ${(0, otp_1.maskEmail)(user.email)}: [${otp}]`);
             }
             const mfaToken = (0, jwt_1.generateMfaToken)({ userId: user.id, email: user.email });
             return res.json({
@@ -742,7 +822,19 @@ const loginHandler = async (req, res) => {
                             workspaceUrl = (0, workspace_host_1.getCustomDomainUrl)(primaryCustomDomain.domain);
                         }
                         else {
-                            workspaceUrl = (0, workspace_host_1.getWorkspaceUrl)(tenant.slug);
+                            const reqHost = (0, workspace_host_1.getEffectiveRequestHost)(req).split(":")[0].toLowerCase();
+                            const derivedBase = !process.env.BASE_DOMAIN &&
+                                reqHost &&
+                                reqHost !== "localhost" &&
+                                reqHost !== "127.0.0.1" &&
+                                !reqHost.endsWith(".vercel.app")
+                                ? reqHost.startsWith("www.")
+                                    ? reqHost.slice(4)
+                                    : reqHost.split(".").length >= 3
+                                        ? reqHost.split(".").slice(1).join(".")
+                                        : reqHost
+                                : undefined;
+                            workspaceUrl = (0, workspace_host_1.getWorkspaceUrl)(tenant.slug, undefined, derivedBase);
                         }
                     }
                 }
@@ -806,7 +898,8 @@ const loginHandler = async (req, res) => {
             twoFactorMethod: "EMAIL_OTP",
             emailSent: emailResult.success,
             emailError: emailResult.error || undefined,
-            devOtp: !emailResult.success || process.env.NODE_ENV !== "production" ? otp : undefined,
+            // PENTEST-006: NEVER leak plaintext 2FA OTP in production responses even when SMTP delivery fails
+            devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
             message: emailResult.success
                 ? (isSetup
                     ? "2FA Setup Required: A 6-digit verification code has been sent to your registered email."
@@ -822,17 +915,17 @@ const loginHandler = async (req, res) => {
     }
 };
 // POST /api/auth/login
-exports.authRouter.post("/login", (0, turnstile_middleware_1.requireTurnstile)((req) => req.body?.portal === "super" || req.headers["x-auth-portal"] === "super"
+exports.authRouter.post("/login", ...security_hardening_middleware_1.authCredentialRateLimiter, (0, turnstile_middleware_1.requireTurnstile)((req) => req.body?.portal === "super" || req.headers["x-auth-portal"] === "super"
     ? "super_login"
     : "login"), loginHandler);
 // POST /api/auth/super-login (Dedicated Super Admin entry point)
-exports.authRouter.post("/super-login", (req, _res, next) => {
+exports.authRouter.post("/super-login", ...security_hardening_middleware_1.authCredentialRateLimiter, (req, _res, next) => {
     req.body = req.body || {};
     req.body.portal = "super";
     next();
 }, (0, turnstile_middleware_1.requireTurnstile)("super_login"), loginHandler);
 // POST /api/auth/forgot-password
-exports.authRouter.post("/forgot-password", async (req, res) => {
+exports.authRouter.post("/forgot-password", ...security_hardening_middleware_1.authCredentialRateLimiter, async (req, res) => {
     try {
         const { email } = forgotPasswordSchema.parse(req.body);
         const normalizedEmail = email.toLowerCase().trim();
@@ -910,7 +1003,7 @@ const verifyResetOtpSchema = zod_1.z.object({
     code: zod_1.z.string().min(4).max(10),
 });
 // POST /api/auth/verify-reset-otp
-exports.authRouter.post("/verify-reset-otp", async (req, res) => {
+exports.authRouter.post("/verify-reset-otp", ...security_hardening_middleware_1.authCredentialRateLimiter, async (req, res) => {
     try {
         const { email, code } = verifyResetOtpSchema.parse(req.body);
         const normalizedEmail = email.toLowerCase().trim();
@@ -956,7 +1049,7 @@ exports.authRouter.post("/verify-reset-otp", async (req, res) => {
     }
 });
 // POST /api/auth/reset-password
-exports.authRouter.post("/reset-password", async (req, res) => {
+exports.authRouter.post("/reset-password", ...security_hardening_middleware_1.authCredentialRateLimiter, async (req, res) => {
     try {
         const { email, code, token, newPassword } = resetPasswordSchema.parse(req.body);
         const normalizedEmail = email.toLowerCase().trim();
@@ -1053,6 +1146,7 @@ exports.authRouter.post("/verify-email", async (req, res) => {
             const verification = await (0, otp_1.verifyOtpCode)(user.id, code);
             if (verification.valid) {
                 isVerified = true;
+                await prisma.$executeRawUnsafe(`UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND token_hash LIKE 'verify:%' AND used_at IS NULL`, user.id).catch(() => { });
             }
             else if (!token) {
                 return res.status(400).json({ error: verification.error || "Invalid or expired verification code." });
@@ -1221,7 +1315,7 @@ exports.authRouter.post("/resend-verification", async (req, res) => {
  * -------------------------------------------------------------
  */
 // POST /api/auth/2fa/verify-login
-exports.authRouter.post("/2fa/verify-login", async (req, res) => {
+exports.authRouter.post("/2fa/verify-login", ...security_hardening_middleware_1.authCredentialRateLimiter, async (req, res) => {
     try {
         const { mfaToken, code } = req.body;
         if (!mfaToken || !code) {
@@ -1312,9 +1406,9 @@ exports.authRouter.post("/2fa/verify-login", async (req, res) => {
         }
         if (isSuperPortal) {
             const isSuper = user.roles.some((r) => r.role === "super_admin");
-            if (!isSuper || user.email !== "admin@masterhrms.com") {
+            if (!isSuper) {
                 return res.status(403).json({
-                    error: "Access denied. Only the designated Super Administrator can log in through this portal.",
+                    error: "Access denied. Only Super Administrators can log in through this portal.",
                     code: "SUPER_ADMIN_ONLY",
                 });
             }
@@ -1507,7 +1601,8 @@ exports.authRouter.post("/2fa/resend", async (req, res) => {
             success: true,
             emailSent: emailResult.success,
             emailError: emailResult.error || undefined,
-            devOtp: !emailResult.success || process.env.NODE_ENV !== "production" ? otp : undefined,
+            // PENTEST-006: NEVER leak plaintext 2FA OTP in production responses even when SMTP delivery fails
+            devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
             message: emailResult.success
                 ? "A fresh 6-digit verification code has been sent to your registered email."
                 : `Fresh code generated, but email delivery encountered an issue (${emailResult.error}).`,
@@ -1647,33 +1742,54 @@ exports.authRouter.post("/2fa/backup-codes/regenerate", auth_1.requireAuth, asyn
 // POST /api/auth/2fa/disable
 exports.authRouter.post("/2fa/disable", auth_1.requireAuth, async (req, res) => {
     try {
-        const { currentTotp } = req.body;
+        const { currentTotp, currentPassword } = req.body || {};
         const userId = req.user.userId;
         const tenantId = req.user.tenantId || undefined;
-        if (!currentTotp) {
-            return res.status(400).json({ error: "Current 6-digit TOTP code is required to disable 2FA." });
+        if (!currentTotp && !currentPassword) {
+            return res.status(400).json({ error: "Either your current 6-digit 2FA code or your current password is required to disable 2FA." });
         }
-        const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
-        const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
-        const result = await two_factor_service_1.TwoFactorService.disableTwoFactor(userId, String(currentTotp), tenantId, {
-            ipAddress: clientIp,
-            userAgent: req.headers["user-agent"],
-        });
-        if (!result.success) {
-            return res.status(400).json({ error: result.error });
-        }
-        const user = await prisma.user.findUnique({
+        const userRecord = await prisma.user.findUnique({
             where: { id: userId },
             include: { profile: true },
         });
-        if (user) {
-            await (0, email_1.sendTwoFactorSecurityEmail)({
-                toEmail: user.email,
-                userName: user.profile?.fullName || user.email.split("@")[0],
-                action: "DISABLED",
-                tenantId,
-            }).catch((emailErr) => console.warn("[2FA Disable] security email warning:", emailErr.message));
+        if (!userRecord) {
+            return res.status(404).json({ error: "User not found." });
         }
+        if (currentPassword) {
+            const isMatch = await bcryptjs_1.default.compare(String(currentPassword), userRecord.passwordHash);
+            if (!isMatch) {
+                return res.status(400).json({ error: "Incorrect current password." });
+            }
+            await prisma.user.update({
+                where: { id: userId },
+                data: {
+                    twoFactorEnabled: false,
+                    twoFactorSecret: null,
+                    twoFactorBackupCodes: null,
+                    twoFactorConfirmedAt: null,
+                },
+            });
+            await prisma.twoFactorOtp.deleteMany({ where: { userId } }).catch(() => { });
+            (0, auth_1.invalidateAuthCache)(userId, tenantId);
+        }
+        else {
+            const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
+            const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+            const result = await two_factor_service_1.TwoFactorService.disableTwoFactor(userId, String(currentTotp), tenantId, {
+                ipAddress: clientIp,
+                userAgent: req.headers["user-agent"],
+            });
+            if (!result.success) {
+                return res.status(400).json({ error: result.error });
+            }
+            (0, auth_1.invalidateAuthCache)(userId, tenantId);
+        }
+        await (0, email_1.sendTwoFactorSecurityEmail)({
+            toEmail: userRecord.email,
+            userName: userRecord.profile?.fullName || userRecord.email.split("@")[0],
+            action: "DISABLED",
+            tenantId,
+        }).catch((emailErr) => console.warn("[2FA Disable] security email warning:", emailErr.message));
         return res.json({
             success: true,
             twoFactorEnabled: false,
@@ -1702,18 +1818,30 @@ exports.authRouter.post("/2fa/setup-initiate", auth_1.requireAuth, async (req, r
             });
         }
         const { otp } = await (0, otp_1.createOrReplaceOtp)(user.id);
-        await (0, email_1.sendTwoFactorOtpEmail)({
-            toEmail: user.email,
-            otp,
-            fullName: user.profile?.fullName || undefined,
-            isSetup: true,
-        });
+        let emailSent = true;
+        try {
+            await (0, email_1.sendTwoFactorOtpEmail)({
+                toEmail: user.email,
+                otp,
+                fullName: user.profile?.fullName || undefined,
+                isSetup: true,
+            });
+        }
+        catch (mailErr) {
+            emailSent = false;
+            console.warn("[2FA Setup Initiate] Email delivery warning:", mailErr?.message || mailErr);
+        }
         const mfaToken = (0, jwt_1.generateMfaToken)({ userId: user.id, email: user.email });
+        const isProd = process.env.NODE_ENV === "production";
         return res.json({
             success: true,
             mfaToken,
             maskedEmail: (0, otp_1.maskEmail)(user.email),
-            message: "A 6-digit setup verification code has been sent to your registered email.",
+            emailSent,
+            ...(!isProd && !emailSent ? { devOtp: otp } : {}),
+            message: emailSent
+                ? "A 6-digit setup verification code has been sent to your registered email."
+                : "Verification code generated (SMTP unavailable in local dev).",
         });
     }
     catch (err) {
@@ -1777,14 +1905,24 @@ exports.authRouter.get("/me", auth_1.requireAuth, async (req, res) => {
         if (!user) {
             return res.status(404).json({ error: "User not found" });
         }
-        const tenantId = user.profile?.tenantId;
+        const isImpersonating = Boolean(req.user?.isImpersonating);
+        const tenantId = isImpersonating && req.user?.tenantId ? req.user.tenantId : user.profile?.tenantId;
         let roles = await resolveEffectiveUserRoles(user, tenantId);
         let workspaceRole = null;
         let permissions = [];
         let enabledModules = [];
         let activeAddons = [];
         let allowedDashboards = [];
-        const isSuper = roles.includes("super_admin");
+        const isSuper = roles.includes("super_admin") && !isImpersonating;
+        let impersonatedTenantRecord = null;
+        if (isImpersonating && tenantId) {
+            impersonatedTenantRecord = await db.tenant.findUnique({ where: { id: tenantId } });
+            if (impersonatedTenantRecord && user.profile) {
+                user.profile.tenantId = impersonatedTenantRecord.id;
+                user.profile.tenant = impersonatedTenantRecord;
+            }
+            roles = ["tenant_admin", "admin", "workspace_admin", "hr_admin"];
+        }
         if (isSuper) {
             const allPerms = await db.permission.findMany({ select: { code: true } });
             permissions = allPerms.map((p) => p.code);
@@ -1921,7 +2059,18 @@ exports.authRouter.get("/me", auth_1.requireAuth, async (req, res) => {
                     assignment = { role: adminRole };
                 }
             }
-            if (assignment?.role && assignment.role.isActive) {
+            if (isImpersonating && tenantId) {
+                const allPerms = await db.permission.findMany({ select: { code: true } });
+                permissions = allPerms.map((p) => p.code);
+                workspaceRole = {
+                    id: "impersonated_workspace_admin",
+                    name: "Workspace Admin",
+                    description: "Super Admin impersonating Workspace Admin",
+                    isActive: true,
+                    isSystem: true,
+                };
+            }
+            else if (assignment?.role && assignment.role.isActive) {
                 workspaceRole = {
                     id: assignment.role.id,
                     name: assignment.role.name,
@@ -1981,8 +2130,11 @@ exports.authRouter.get("/me", auth_1.requireAuth, async (req, res) => {
                     : roles.includes("manager")
                         ? "Team Manager"
                         : "Employee");
+        const effectiveTenant = impersonatedTenantRecord || user.profile?.tenant || null;
         const enhancedProfile = {
             ...user.profile,
+            tenantId: tenantId || user.profile?.tenantId || null,
+            tenant: effectiveTenant,
             designation: resolvedDesignation,
             position: matchingEmployee?.position || resolvedDesignation,
             department: matchingEmployee?.department?.name || null,
@@ -1990,6 +2142,9 @@ exports.authRouter.get("/me", auth_1.requireAuth, async (req, res) => {
         return res.json({
             id: user.id,
             email: user.email,
+            tenant_id: tenantId || null,
+            tenantId: tenantId || null,
+            tenant: effectiveTenant,
             profile: enhancedProfile,
             designation: resolvedDesignation,
             roles,
@@ -1999,6 +2154,12 @@ exports.authRouter.get("/me", auth_1.requireAuth, async (req, res) => {
             activeAddons,
             allowedDashboards,
             twoFactorEnabled: user.twoFactorEnabled,
+            ...(isImpersonating
+                ? {
+                    isImpersonating: true,
+                    impersonatorEmail: req.user?.impersonatorEmail || null,
+                }
+                : {}),
         });
     }
     catch (err) {
@@ -2053,8 +2214,46 @@ exports.authRouter.post("/bootstrap-tenant", auth_1.requireAuth, async (req, res
                 update: { tenantId: created.id },
             });
             await tx.userRole.create({ data: { userId: req.user.userId, tenantId: created.id, role: "hr_admin" } });
-            const role = await tx.workspaceRole.create({ data: { tenantId: created.id, name: "Workspace Admin", isSystem: true, isActive: true } });
+            const role = await tx.workspaceRole.create({
+                data: { tenantId: created.id, name: "Workspace Admin", description: "Full access to workspace", isSystem: true, isActive: true },
+            });
+            const allPermissions = await tx.permission.findMany({ select: { id: true, code: true } });
+            if (allPermissions.length > 0) {
+                await tx.rolePermission.createMany({
+                    data: allPermissions.map((p) => ({ roleId: role.id, permissionId: p.id })),
+                    skipDuplicates: true,
+                });
+            }
+            const hrRole = await tx.workspaceRole.create({
+                data: { tenantId: created.id, name: "HR Manager", description: "Manages employees, attendance, leave and payroll", isSystem: true, isActive: true },
+            });
+            const hrPerms = allPermissions.filter((p) => p.code.startsWith("hrm.") || p.code.startsWith("analytics.") || p.code.startsWith("assets.") || p.code.startsWith("documents."));
+            if (hrPerms.length > 0) {
+                await tx.rolePermission.createMany({
+                    data: hrPerms.map((p) => ({ roleId: hrRole.id, permissionId: p.id })),
+                    skipDuplicates: true,
+                });
+            }
+            await tx.workspaceRole.create({
+                data: { tenantId: created.id, name: "Employee", description: "Standard employee self-service access", isSystem: true, isActive: true },
+            });
             await tx.userRoleAssignment.create({ data: { tenantId: created.id, userId: req.user.userId, roleId: role.id } });
+            const defaultPlan = await tx.subscriptionPlan.findFirst({
+                where: { status: "active" },
+                orderBy: [{ isTrial: "desc" }, { priceMonthly: "asc" }],
+            });
+            if (defaultPlan) {
+                const trialDays = defaultPlan.trialDays || 14;
+                await tx.tenantSubscription.create({
+                    data: {
+                        tenantId: created.id,
+                        planId: defaultPlan.id,
+                        status: "trial",
+                        billingCycle: "monthly",
+                        expiresAt: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000),
+                    },
+                });
+            }
             return created;
         });
         const token = (0, jwt_1.generateToken)({
@@ -2073,25 +2272,102 @@ exports.authRouter.post("/bootstrap-tenant", auth_1.requireAuth, async (req, res
 // PUT /api/auth/profile
 exports.authRouter.put("/profile", auth_1.requireAuth, async (req, res) => {
     try {
-        const { fullName, avatarUrl, password } = req.body;
-        if (fullName !== undefined || avatarUrl !== undefined) {
-            await prisma.profile.update({
-                where: { userId: req.user.userId },
-                data: {
-                    ...(fullName !== undefined ? { fullName } : {}),
-                    ...(avatarUrl !== undefined ? { avatarUrl } : {}),
-                },
-            });
+        const userId = req.user.userId;
+        const { fullName, email, phone, avatarUrl, password } = req.body || {};
+        const currentUser = await prisma.user.findUnique({
+            where: { id: userId },
+            include: { profile: true },
+        });
+        if (!currentUser) {
+            return res.status(404).json({ error: "User account not found." });
         }
-        if (password) {
-            const passwordHash = await bcryptjs_1.default.hash(password, 10);
+        let emailChanged = false;
+        let passwordChanged = false;
+        let nextEmail = currentUser.email;
+        if (email !== undefined && typeof email === "string") {
+            const cleanedEmail = email.trim().toLowerCase();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)) {
+                return res.status(400).json({ error: "Please enter a valid email address." });
+            }
+            if (cleanedEmail !== currentUser.email.toLowerCase()) {
+                const dup = await prisma.user.findUnique({ where: { email: cleanedEmail } });
+                if (dup && dup.id !== userId) {
+                    return res.status(409).json({ error: "This email address is already registered to another account." });
+                }
+                await prisma.user.update({
+                    where: { id: userId },
+                    data: { email: cleanedEmail },
+                });
+                nextEmail = cleanedEmail;
+                emailChanged = true;
+            }
+        }
+        const profileUpdates = {};
+        if (fullName !== undefined && typeof fullName === "string" && fullName.trim()) {
+            profileUpdates.fullName = fullName.trim();
+        }
+        if (phone !== undefined) {
+            profileUpdates.phone = phone ? String(phone).trim() : null;
+        }
+        if (avatarUrl !== undefined) {
+            profileUpdates.avatarUrl = avatarUrl;
+        }
+        if (emailChanged) {
+            profileUpdates.email = nextEmail;
+        }
+        if (Object.keys(profileUpdates).length > 0) {
+            if (currentUser.profile) {
+                await prisma.profile.update({
+                    where: { userId },
+                    data: profileUpdates,
+                });
+            }
+            else {
+                await prisma.profile.create({
+                    data: {
+                        userId,
+                        fullName: profileUpdates.fullName || nextEmail.split("@")[0],
+                        email: nextEmail,
+                        phone: profileUpdates.phone ?? null,
+                        avatarUrl: profileUpdates.avatarUrl ?? null,
+                        tenantId: req.tenantId || null,
+                    },
+                });
+            }
+        }
+        // Also sync name, email, and phone to linked Employee records in DB
+        const empUpdates = {};
+        if (profileUpdates.fullName) {
+            const parts = String(profileUpdates.fullName).trim().split(/\s+/);
+            empUpdates.firstName = parts[0] || profileUpdates.fullName;
+            empUpdates.lastName = parts.slice(1).join(" ") || "";
+        }
+        if (emailChanged)
+            empUpdates.email = nextEmail;
+        if (phone !== undefined)
+            empUpdates.phone = phone ? String(phone).trim() : null;
+        if (Object.keys(empUpdates).length > 0) {
+            await prisma.employee
+                .updateMany({
+                where: { userId },
+                data: empUpdates,
+            })
+                .catch(() => { });
+        }
+        if (password && typeof password === "string" && password.trim().length >= 6) {
+            const passwordHash = await bcryptjs_1.default.hash(password.trim(), 10);
             await prisma.user.update({
-                where: { id: req.user.userId },
+                where: { id: userId },
                 data: { passwordHash },
             });
+            passwordChanged = true;
+        }
+        const requireRelogin = emailChanged || passwordChanged;
+        if (requireRelogin) {
+            await (0, device_session_service_1.revokeAllSessions)(userId).catch(() => { });
         }
         const updatedUser = await prisma.user.findUnique({
-            where: { id: req.user.userId },
+            where: { id: userId },
             include: {
                 profile: {
                     include: {
@@ -2111,11 +2387,15 @@ exports.authRouter.put("/profile", auth_1.requireAuth, async (req, res) => {
                 },
             },
         });
-        // Invalidate 60-second auth cache and 5-minute chat profile cache immediately on profile/password change
-        (0, auth_1.invalidateAuthCache)(req.user.userId, req.tenantId);
-        (0, chat_routes_1.invalidateChatProfileCache)(req.user.userId, req.tenantId);
+        // Invalidate auth cache & chat profile cache immediately
+        (0, auth_1.invalidateAuthCache)(userId, req.tenantId);
+        (0, chat_routes_1.invalidateChatProfileCache)(userId, req.tenantId);
         return res.json({
             success: true,
+            requireRelogin,
+            message: requireRelogin
+                ? "Account credentials updated. Please sign in again with your updated email/password."
+                : "Profile information updated successfully.",
             user: {
                 id: updatedUser.id,
                 email: updatedUser.email,
@@ -2705,35 +2985,313 @@ exports.authRouter.put("/tenant", auth_1.requireAuth, async (req, res) => {
     }
 });
 /**
- * POST /api/auth/change-password
- * Allows any authenticated user/employee to change their password
+ * POST /api/auth/profile/avatar
+ * Allows ANY authenticated user to upload or replace their profile avatar image
  */
-exports.authRouter.post("/change-password", auth_1.requireAuth, async (req, res) => {
+exports.authRouter.post("/profile/avatar", auth_1.requireAuth, async (req, res) => {
     try {
-        const userId = req.user?.userId;
-        const { currentPassword, newPassword } = req.body;
-        if (!newPassword || newPassword.length < 6) {
-            return res.status(400).json({ error: "New password must be at least 6 characters long." });
+        const userId = req.user.userId;
+        const tenantId = req.user.tenantId || req.tenantId || undefined;
+        const { imageDataUrl } = req.body || {};
+        if (!imageDataUrl || typeof imageDataUrl !== "string") {
+            return res.status(400).json({ error: "An image file (data URL) is required." });
         }
-        const user = await prisma.user.findUnique({ where: { id: userId } });
+        const match = imageDataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,(.+)$/i);
+        if (!match) {
+            return res.status(400).json({ error: "Unsupported image format. Please upload PNG, JPG, WEBP, or GIF." });
+        }
+        const mime = match[1].toLowerCase();
+        const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : mime === "image/gif" ? "gif" : "jpg";
+        const buffer = Buffer.from(match[2], "base64");
+        if (buffer.length === 0) {
+            return res.status(400).json({ error: "Uploaded image is empty." });
+        }
+        if (buffer.length > 3 * 1024 * 1024) {
+            return res.status(400).json({ error: "Profile image must be 3 MB or smaller." });
+        }
+        const avatarsDir = path_1.default.join((0, media_service_1.getUploadsRoot)(), "avatars");
+        if (!fs_1.default.existsSync(avatarsDir)) {
+            fs_1.default.mkdirSync(avatarsDir, { recursive: true });
+        }
+        // Remove previous local avatar file if one exists
+        const existingProfile = await prisma.profile.findUnique({ where: { userId } });
+        if (existingProfile?.avatarUrl && existingProfile.avatarUrl.startsWith("/uploads/avatars/")) {
+            const oldFile = path_1.default.basename(existingProfile.avatarUrl);
+            const oldAbs = path_1.default.join(avatarsDir, oldFile);
+            if (fs_1.default.existsSync(oldAbs)) {
+                fs_1.default.unlinkSync(oldAbs);
+            }
+        }
+        const safeUserId = userId.replace(/[^a-zA-Z0-9_-]/g, "");
+        const fileName = `${safeUserId}-${Date.now()}.${ext}`;
+        const absPath = path_1.default.join(avatarsDir, fileName);
+        fs_1.default.writeFileSync(absPath, buffer);
+        const avatarUrl = `/uploads/avatars/${fileName}`;
+        await prisma.profile.upsert({
+            where: { userId },
+            update: { avatarUrl },
+            create: {
+                userId,
+                email: req.user.email || "",
+                fullName: req.user.email?.split("@")[0] || "User",
+                tenantId: tenantId || null,
+                avatarUrl,
+            },
+        });
+        (0, auth_1.invalidateAuthCache)(userId, tenantId);
+        (0, chat_routes_1.invalidateChatProfileCache)(userId, tenantId);
+        return res.json({
+            success: true,
+            avatarUrl,
+            message: "Profile image updated successfully.",
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to upload profile image." });
+    }
+});
+/**
+ * DELETE /api/auth/profile/avatar
+ * Allows ANY authenticated user to remove their profile avatar image
+ */
+exports.authRouter.delete("/profile/avatar", auth_1.requireAuth, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const tenantId = req.user.tenantId || req.tenantId || undefined;
+        const existingProfile = await prisma.profile.findUnique({ where: { userId } });
+        if (existingProfile?.avatarUrl && existingProfile.avatarUrl.startsWith("/uploads/avatars/")) {
+            const avatarsDir = path_1.default.join((0, media_service_1.getUploadsRoot)(), "avatars");
+            const oldAbs = path_1.default.join(avatarsDir, path_1.default.basename(existingProfile.avatarUrl));
+            if (fs_1.default.existsSync(oldAbs)) {
+                fs_1.default.unlinkSync(oldAbs);
+            }
+        }
+        await prisma.profile.updateMany({
+            where: { userId },
+            data: { avatarUrl: null },
+        });
+        (0, auth_1.invalidateAuthCache)(userId, tenantId);
+        (0, chat_routes_1.invalidateChatProfileCache)(userId, tenantId);
+        return res.json({
+            success: true,
+            avatarUrl: null,
+            message: "Profile image removed successfully.",
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to remove profile image." });
+    }
+});
+/**
+ * POST /api/auth/change-password/request-otp
+ * Triggers a 6-digit confirmation OTP email before changing password (for ALL users)
+ */
+exports.authRouter.post("/change-password/request-otp", auth_1.requireAuth, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { currentPassword } = req.body || {};
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            include: { profile: true },
+        });
         if (!user) {
             return res.status(404).json({ error: "User record not found." });
         }
-        // Check current password if provided
+        // If currentPassword was provided, verify it up front for immediate UX feedback
         if (currentPassword) {
-            const isMatch = await bcryptjs_1.default.compare(currentPassword, user.passwordHash);
+            const isMatch = await bcryptjs_1.default.compare(String(currentPassword), user.passwordHash);
             if (!isMatch) {
                 return res.status(400).json({ error: "Incorrect current password." });
             }
         }
-        const passwordHash = await bcryptjs_1.default.hash(newPassword, 10);
+        const otp = crypto_1.default.randomInt(100000, 999999).toString();
+        const otpHash = crypto_1.default.createHash("sha256").update(otp).digest("hex");
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 mins
+        const existingSetting = await prisma.setting.findFirst({
+            where: {
+                scope: "USER",
+                scopeId: userId,
+                group: "password_change_otp",
+                key: "otp",
+            },
+        });
+        const payload = { otpHash, expiresAt, createdAt: new Date().toISOString() };
+        if (existingSetting) {
+            await prisma.setting.update({
+                where: { id: existingSetting.id },
+                data: { valueJson: payload, valueType: "json" },
+            });
+        }
+        else {
+            await prisma.setting.create({
+                data: {
+                    scope: "USER",
+                    scopeId: userId,
+                    group: "password_change_otp",
+                    key: "otp",
+                    valueJson: payload,
+                    valueType: "json",
+                },
+            });
+        }
+        let emailSent = true;
+        try {
+            await (0, email_1.sendTwoFactorOtpEmail)({
+                toEmail: user.email,
+                otp,
+                fullName: user.profile?.fullName || undefined,
+                isSetup: false,
+            });
+        }
+        catch (mailErr) {
+            emailSent = false;
+            console.warn("[Change Password OTP] Email delivery warning:", mailErr?.message || mailErr);
+        }
+        const isProd = process.env.NODE_ENV === "production";
+        return res.json({
+            success: true,
+            maskedEmail: (0, otp_1.maskEmail)(user.email),
+            emailSent,
+            ...(!isProd && !emailSent ? { devOtp: otp } : {}),
+            message: emailSent
+                ? `A 6-digit password confirmation OTP has been sent to ${(0, otp_1.maskEmail)(user.email)}.`
+                : "Password confirmation OTP generated (SMTP unavailable in local dev).",
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to send confirmation OTP." });
+    }
+});
+/**
+ * POST /api/auth/change-password
+ * Allows ANY authenticated user/employee to change their password after Email OTP confirmation
+ */
+exports.authRouter.post("/change-password", auth_1.requireAuth, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const tenantId = req.user.tenantId || req.tenantId || undefined;
+        const { currentPassword, newPassword, otp, otpCode } = req.body || {};
+        const resolvedOtp = String(otp || otpCode || "").trim();
+        if (!currentPassword) {
+            return res.status(400).json({ error: "Current password is required." });
+        }
+        if (!newPassword || String(newPassword).length < 6) {
+            return res.status(400).json({ error: "New password must be at least 6 characters long." });
+        }
+        if (!resolvedOtp || resolvedOtp.length !== 6) {
+            return res.status(400).json({ error: "A valid 6-digit confirmation OTP from your email is required." });
+        }
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            include: { profile: true },
+        });
+        if (!user) {
+            return res.status(404).json({ error: "User record not found." });
+        }
+        const isMatch = await bcryptjs_1.default.compare(String(currentPassword), user.passwordHash);
+        if (!isMatch) {
+            return res.status(400).json({ error: "Incorrect current password." });
+        }
+        const otpSetting = await prisma.setting.findFirst({
+            where: {
+                scope: "USER",
+                scopeId: userId,
+                group: "password_change_otp",
+                key: "otp",
+            },
+        });
+        if (!otpSetting?.valueJson) {
+            return res.status(400).json({ error: "No active confirmation OTP found. Please request a new OTP email first." });
+        }
+        const parsedOtp = otpSetting.valueJson;
+        if (!parsedOtp?.otpHash || !parsedOtp?.expiresAt || new Date(parsedOtp.expiresAt).getTime() < Date.now()) {
+            await prisma.setting.delete({ where: { id: otpSetting.id } }).catch(() => { });
+            return res.status(400).json({ error: "Confirmation OTP has expired. Please request a new OTP." });
+        }
+        const providedHash = crypto_1.default.createHash("sha256").update(resolvedOtp).digest("hex");
+        if (providedHash !== parsedOtp.otpHash) {
+            return res.status(400).json({ error: "Invalid confirmation OTP. Please check your email and try again." });
+        }
+        const passwordHash = await bcryptjs_1.default.hash(String(newPassword), 10);
         await prisma.user.update({
             where: { id: userId },
             data: { passwordHash },
         });
-        return res.json({ success: true, message: "Your password has been changed successfully." });
+        await prisma.setting.delete({ where: { id: otpSetting.id } }).catch(() => { });
+        // Revoke all active sessions so user must re-login with the updated password
+        await (0, device_session_service_1.revokeAllSessions)(userId).catch(() => { });
+        (0, auth_1.invalidateAuthCache)(userId, tenantId);
+        await (0, email_1.sendPasswordChangedEmail)({
+            toEmail: user.email,
+            userName: user.profile?.fullName || user.email.split("@")[0],
+            tenantId,
+        }).catch((mailErr) => console.warn("[Change Password] notification email warning:", mailErr?.message));
+        return res.json({
+            success: true,
+            requireRelogin: true,
+            message: "Your password has been changed successfully. Please sign in with your new password.",
+        });
     }
     catch (err) {
         return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to update password." });
+    }
+});
+/**
+ * POST /api/auth/admin/users/:userId/disable-2fa
+ * Allows Tenant Admin / HR Admin / Super Admin to disable 2FA for any user in their tenant
+ */
+exports.authRouter.post("/admin/users/:userId/disable-2fa", auth_1.requireAuth, async (req, res) => {
+    try {
+        const targetUserId = String(req.params.userId || "").trim();
+        const callerRoles = (req.user?.roles || []).map((r) => r.toLowerCase());
+        const isSuperAdmin = callerRoles.includes("super_admin");
+        const isTenantAdmin = isSuperAdmin ||
+            callerRoles.includes("tenant_admin") ||
+            callerRoles.includes("hr_admin") ||
+            callerRoles.includes("admin") ||
+            callerRoles.includes("owner");
+        if (!isTenantAdmin) {
+            return res.status(403).json({ error: "Only Tenant Administrators can disable 2FA for other users." });
+        }
+        if (!targetUserId) {
+            return res.status(400).json({ error: "Target user ID is required." });
+        }
+        const targetUser = await prisma.user.findUnique({
+            where: { id: targetUserId },
+            include: { profile: true },
+        });
+        if (!targetUser) {
+            return res.status(404).json({ error: "Target user not found." });
+        }
+        const callerTenantId = req.user?.tenantId || req.tenantId;
+        if (!isSuperAdmin && targetUser.profile?.tenantId !== callerTenantId) {
+            return res.status(403).json({ error: "Cannot modify 2FA settings for a user outside your organization." });
+        }
+        await prisma.user.update({
+            where: { id: targetUserId },
+            data: {
+                twoFactorEnabled: false,
+                twoFactorSecret: null,
+                twoFactorBackupCodes: null,
+                twoFactorConfirmedAt: null,
+            },
+        });
+        await prisma.twoFactorOtp.deleteMany({ where: { userId: targetUserId } }).catch(() => { });
+        (0, auth_1.invalidateAuthCache)(targetUserId, targetUser.profile?.tenantId || undefined);
+        await (0, email_1.sendTwoFactorSecurityEmail)({
+            toEmail: targetUser.email,
+            userName: targetUser.profile?.fullName || targetUser.email.split("@")[0],
+            action: "DISABLED",
+            tenantId: targetUser.profile?.tenantId || undefined,
+        }).catch((mailErr) => console.warn("[Admin Disable 2FA] security email warning:", mailErr?.message));
+        return res.json({
+            success: true,
+            userId: targetUserId,
+            twoFactorEnabled: false,
+            message: `Two-Factor Authentication has been disabled for ${targetUser.profile?.fullName || targetUser.email}.`,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to disable user 2FA." });
     }
 });

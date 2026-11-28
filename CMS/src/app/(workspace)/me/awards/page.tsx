@@ -205,7 +205,7 @@ export default function MeAwardsSelfServicePage() {
       qc.invalidateQueries({ queryKey: ["me-award-nominations"] });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to submit nomination.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to submit nomination.");
     },
   });
 

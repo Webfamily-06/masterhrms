@@ -17,6 +17,7 @@ const quota_service_1 = require("./quota.service");
 const quota_governance_service_1 = require("./quota-governance.service");
 const storage_provider_factory_1 = require("../storage/storage-provider.factory");
 const outbox_service_1 = require("../outbox.service");
+const audit_service_1 = require("../audit.service");
 const crypto_config_1 = require("../../lib/crypto-config");
 const SIGNED_URL_SECRET = (0, crypto_config_1.getFileSigningSecret)();
 class FilesService {
@@ -117,9 +118,13 @@ class FilesService {
                 ];
             }
             else if (view === "org") {
-                // Tenant Admin or explicit files.admin.view_all permission required
+                // REM-003 (DEFECT-020): Allow Tenant Admin, Workspace Admin, HR Admin & explicit files.admin.view_all permission
                 const isTenantAdmin = options.userRoles?.includes("tenant_admin") ||
+                    options.userRoles?.includes("workspace_admin") ||
                     options.userRoles?.includes("admin") ||
+                    options.userRoles?.includes("hr_admin") ||
+                    options.userRoles?.includes("hr_manager") ||
+                    options.userRoles?.includes("hr") ||
                     options.isSuper;
                 const hasAdminPermission = isTenantAdmin || options.userPermissions?.includes("files.admin.view_all");
                 if (!hasAdminPermission) {
@@ -139,20 +144,30 @@ class FilesService {
                         ]
                     }
                 ];
-                // Audited access
+                // Audited access (REM-003 / DEFECT-020: avoid invalid FK fileId="root" in FileActivity; record tenant audit cleanly)
                 if (options.tenantId) {
-                    await prisma.fileActivity.create({
-                        data: {
-                            fileId: options.parentId || "root",
-                            tenantId: options.tenantId,
-                            actorId: options.userId,
-                            action: "ORG_VIEW_ACCESSED",
-                            metaJson: {
-                                timestamp: new Date().toISOString(),
-                                parentId: options.parentId || "root",
+                    if (options.parentId && options.parentId !== "root") {
+                        await prisma.fileActivity.create({
+                            data: {
+                                fileId: options.parentId,
+                                tenantId: options.tenantId,
+                                actorId: options.userId,
+                                action: "ORG_VIEW_ACCESSED",
+                                metaJson: {
+                                    timestamp: new Date().toISOString(),
+                                    parentId: options.parentId,
+                                },
                             },
-                        },
-                    });
+                        }).catch((auditErr) => console.warn("[FilesService] fileActivity org-view audit skipped:", auditErr?.message));
+                    }
+                    await audit_service_1.AuditService.log({
+                        tenantId: options.tenantId,
+                        userId: options.userId,
+                        action: "FILE_ORG_VIEW_ACCESSED",
+                        entityType: "FileManager",
+                        entityId: options.parentId || "root",
+                        details: { parentId: options.parentId || "root" },
+                    }).catch(() => { });
                 }
             }
         }

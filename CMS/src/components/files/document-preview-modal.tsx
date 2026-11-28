@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
+import { sanitizeHtml, toSafeSvgImageSrc } from "@/lib/html-sanitizer";
 import {
   Dialog,
   DialogContent,
@@ -373,11 +374,11 @@ export function DocumentPreviewModal({
                   </div>
                 )}
 
-                {/* 1. DOCX Render (Sanitized HTML) */}
+                {/* 1. DOCX Render (Sanitized HTML — PENTEST-001) */}
                 {previewData.previewType === "docx_html" && (
                   <div
                     className="prose dark:prose-invert max-w-none text-sm leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: previewData.content }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(previewData.content || "") }}
                   />
                 )}
 
@@ -476,9 +477,10 @@ export function DocumentPreviewModal({
                 {previewData.previewType === "image" && (
                   <div className="flex items-center justify-center p-4">
                     {previewData.extension === "svg" ? (
-                      <div
-                        className="max-w-full max-h-[500px]"
-                        dangerouslySetInnerHTML={{ __html: previewData.content }}
+                      <img
+                        src={toSafeSvgImageSrc(previewData.content || "")}
+                        alt={previewData.fileName || "SVG preview"}
+                        className="max-w-full max-h-[500px] object-contain rounded"
                       />
                     ) : (
                       <img

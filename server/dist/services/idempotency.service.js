@@ -8,9 +8,26 @@ const crypto_1 = __importDefault(require("crypto"));
 const prisma_1 = require("../prisma");
 const db = prisma_1.rawPrisma || prisma_1.prisma;
 class IdempotencyService {
-    // In-memory mutex locks for atomic concurrency protection (30s timeout)
+    // In-memory mutex locks for atomic concurrency protection (30s timeout, bounded to prevent memory exhaustion)
     static inProgressLocks = new Map();
     static LOCK_TIMEOUT_MS = 30000;
+    static MAX_LOCKS = 50000;
+    static cleanupTimerStarted = false;
+    static ensureCleanupTimer() {
+        if (this.cleanupTimerStarted)
+            return;
+        this.cleanupTimerStarted = true;
+        const t = setInterval(() => {
+            const now = Date.now();
+            for (const [k, v] of this.inProgressLocks.entries()) {
+                if (now - v.startedAt >= this.LOCK_TIMEOUT_MS) {
+                    this.inProgressLocks.delete(k);
+                }
+            }
+        }, 30000);
+        if (t.unref)
+            t.unref();
+    }
     /**
      * Computes a deterministic SHA-256 hash of the request payload.
      */
@@ -86,7 +103,13 @@ class IdempotencyService {
         catch (err) {
             console.warn("[IdempotencyService] Failed to query existing idempotency record:", err.message);
         }
-        // 3. Acquire atomic in-progress lock for execution
+        // 3. Acquire atomic in-progress lock for execution (bounded map prevents memory DoS)
+        this.ensureCleanupTimer();
+        if (this.inProgressLocks.size >= this.MAX_LOCKS) {
+            const oldestKey = this.inProgressLocks.keys().next().value;
+            if (oldestKey)
+                this.inProgressLocks.delete(oldestKey);
+        }
         this.inProgressLocks.set(lockKey, {
             startedAt: now,
             payloadHash,

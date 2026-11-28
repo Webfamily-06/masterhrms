@@ -27,7 +27,7 @@ function resolveWorkspacePolicy(subscription = {}, plans = []) {
     const planPrice = (camelCase, snakeCase) => Number(plan?.[camelCase] ?? plan?.[snakeCase]) || 0;
     const isExpired = Boolean(subscription.status === "expired" ||
         (subscription.expiresAt && new Date(subscription.expiresAt).getTime() <= Date.now()));
-    let maxEmployees = limit(subscription.maxEmployees !== undefined ? subscription.maxEmployees : planLimit("maxEmployees", "max_employees"));
+    let maxEmployees = limit(subscription.maxEmployees != null ? subscription.maxEmployees : planLimit("maxEmployees", "max_employees"));
     // Sovereign tier hard capacity limit is 100 employees per Product Owner policy CP-02
     if (maxEmployees === null) {
         const planSlug = String(subscription.planId || plan?.slug || plan?.name || "").toLowerCase().trim();
@@ -48,7 +48,7 @@ function resolveWorkspacePolicy(subscription = {}, plans = []) {
         isExpired,
         expiresAt: subscription.expiresAt || null,
         maxEmployees,
-        maxUsers: limit(subscription.maxUsers !== undefined ? subscription.maxUsers : planLimit("maxUsers", "max_users")),
+        maxUsers: limit(subscription.maxUsers != null ? subscription.maxUsers : planLimit("maxUsers", "max_users")),
         billingCycle: subscription.billingCycle === "annual" ? "annual" : "monthly",
         monthlyRevenue: plan ? (subscription.billingCycle === "annual" ? planPrice("priceAnnual", "price_annual") / 12 : planPrice("priceMonthly", "price_monthly")) : 0,
     };
@@ -62,11 +62,12 @@ function assertWorkspaceActive(policy) {
 }
 exports.workspacePolicyCache = new Map();
 function invalidateWorkspacePolicyCache(tenantId) {
-    if (!tenantId) {
-        exports.workspacePolicyCache.clear();
-        return;
+    if (tenantId) {
+        exports.workspacePolicyCache.delete(tenantId);
     }
-    exports.workspacePolicyCache.delete(tenantId);
+    else {
+        exports.workspacePolicyCache.clear();
+    }
 }
 async function getWorkspacePolicy(tenantId, db = prisma_1.rawPrisma) {
     const now = Date.now();

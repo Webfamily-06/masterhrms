@@ -41,14 +41,14 @@ export default function MeAttendanceTimesheetPage() {
     queryKey: ["me-timesheets"],
     queryFn: async () => {
       const res = await api.get("/api/v1/me/attendance/timesheets");
-      return res.data;
+      return (res as any)?.data ?? res;
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (payload: any) => {
       const res = await api.post("/api/v1/me/attendance/timesheets", payload);
-      return res.data;
+      return (res as any)?.data ?? res;
     },
     onSuccess: () => {
       toast.success("Timesheet entry logged successfully");
@@ -56,7 +56,7 @@ export default function MeAttendanceTimesheetPage() {
       setModalOpen(false);
       setForm({ date: new Date().toISOString().slice(0, 10), hours: 8, description: "" });
     },
-    onError: (err: any) => toast.error(err.response?.data?.error || "Failed to log timesheet"),
+    onError: (err: any) => toast.error((err?.response?.data?.error || err?.message) || "Failed to log timesheet"),
   });
 
   const approvedCount = timesheets.filter((t: any) => t.status === "approved").length;

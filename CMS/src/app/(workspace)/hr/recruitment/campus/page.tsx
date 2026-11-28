@@ -145,7 +145,7 @@ export default function HrCampusHiringPage() {
       });
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to add candidate.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to add candidate.");
     },
   });
 
@@ -159,7 +159,7 @@ export default function HrCampusHiringPage() {
       setEditCandidate(null);
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to update candidate.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to update candidate.");
     },
   });
 
@@ -174,7 +174,7 @@ export default function HrCampusHiringPage() {
       setSelectedIds((prev) => prev.filter((x) => x !== deleteConfirmId));
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || err.message || "Failed to delete candidate.");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to delete candidate.");
     },
   });
 
